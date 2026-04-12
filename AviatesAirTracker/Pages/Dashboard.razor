@@ -1,0 +1,444 @@
+@page "/"
+
+<div class="dashboard-layout">
+
+    <!-- ── MAIN COLUMN ── -->
+    <div class="dashboard-main">
+
+        <!-- Hero -->
+        <div class="hero-card anim-up">
+            <div class="hero-content">
+                <div class="hero-eyebrow">
+                    <span class="hero-eyebrow-dot"></span>
+                    Virtual Airline Operations
+                </div>
+                <h1 class="hero-title">Fly with Precision.<br/>Build Your Career.</h1>
+                <p class="hero-sub">AviatesAir connects pilots, routes, and fleet across mainline, cargo, and regional operations. Your next flight is waiting.</p>
+                <a href="/flights" class="hero-cta">
+                    View Flights
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </a>
+            </div>
+
+            <!-- Hero SVG Art -->
+            <div class="hero-art">
+                <svg class="hero-route-svg" viewBox="0 0 340 196" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Radar rings -->
+                    <circle class="hero-radar-ring"  cx="260" cy="98" r="20" stroke="rgba(59,130,246,0.25)" stroke-width="1"/>
+                    <circle class="hero-radar-ring2" cx="260" cy="98" r="20" stroke="rgba(59,130,246,0.18)" stroke-width="1"/>
+
+                    <!-- Route path -->
+                    <path class="hero-route-path"
+                          d="M 30 155 C 80 140 140 80 220 60 Q 250 52 280 58"
+                          stroke="rgba(255,255,255,0.18)" stroke-width="1.5" stroke-dasharray="4 4"/>
+
+                    <!-- Dashed altitude lines -->
+                    <line x1="60" y1="100" x2="60" y2="155" stroke="rgba(255,255,255,0.08)" stroke-width="1" stroke-dasharray="3 4"/>
+                    <line x1="160" y1="72"  x2="160" y2="155" stroke="rgba(255,255,255,0.08)" stroke-width="1" stroke-dasharray="3 4"/>
+                    <line x1="260" y1="58"  x2="260" y2="155" stroke="rgba(255,255,255,0.08)" stroke-width="1" stroke-dasharray="3 4"/>
+
+                    <!-- Waypoint dots -->
+                    <circle cx="30"  cy="155" r="4" fill="rgba(59,130,246,0.5)"/>
+                    <circle cx="120" cy="100" r="3" fill="rgba(255,255,255,0.25)"/>
+                    <circle cx="220" cy="60"  r="3" fill="rgba(255,255,255,0.25)"/>
+                    <circle cx="280" cy="58"  r="5" fill="var(--cyan)" opacity="0.7"/>
+
+                    <!-- Departure / Arrival labels -->
+                    <text x="18" y="175" fill="rgba(255,255,255,0.45)" font-size="9" font-family="JetBrains Mono, monospace" font-weight="600">EGLL</text>
+                    <text x="264" y="78"  fill="rgba(255,255,255,0.45)" font-size="9" font-family="JetBrains Mono, monospace" font-weight="600">KJFK</text>
+
+                    <!-- Aircraft icon at destination -->
+                    <g transform="translate(270, 45) rotate(-15)">
+                        <path d="M0 6 L-8 2 L-8 4 L-3 5 L-3 9 L-5 9 L-5 10 L0 9 L5 10 L5 9 L3 9 L3 5 L8 4 L8 2 Z"
+                              fill="white" opacity="0.85"/>
+                    </g>
+
+                    <!-- Altitude callout -->
+                    <rect x="178" y="44" width="60" height="16" rx="4" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.12)" stroke-width="0.5"/>
+                    <text x="208" y="55" fill="rgba(255,255,255,0.55)" font-size="8" font-family="JetBrains Mono, monospace" text-anchor="middle">FL380</text>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Stat Strip -->
+        <div class="stat-strip">
+            <div class="stat-card anim-up-d1">
+                <div class="stat-icon blue">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>
+                    </svg>
+                </div>
+                <div class="stat-body">
+                    <div class="stat-meta">Flights Completed</div>
+                    <div class="stat-value-row">
+                        <span class="stat-value">2</span>
+                        <span class="stat-unit">/ 8</span>
+                    </div>
+                    <div class="stat-label">Flights</div>
+                </div>
+                <span class="stat-trend up">+2</span>
+            </div>
+            <div class="stat-card anim-up-d2">
+                <div class="stat-icon cyan">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                </div>
+                <div class="stat-body">
+                    <div class="stat-meta">Block Hours</div>
+                    <div class="stat-value-row">
+                        <span class="stat-value">14</span>
+                        <span class="stat-unit">hrs</span>
+                    </div>
+                    <div class="stat-label">Hours Flown</div>
+                </div>
+                <span class="stat-trend up">+3h</span>
+            </div>
+            <div class="stat-card anim-up-d3">
+                <div class="stat-icon green">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                </div>
+                <div class="stat-body">
+                    <div class="stat-meta">Avg Landing</div>
+                    <div class="stat-value-row">
+                        <span class="stat-value">82</span>
+                        <span class="stat-unit">/100</span>
+                    </div>
+                    <div class="stat-label">Landing Score</div>
+                </div>
+                <span class="stat-trend flat">—</span>
+            </div>
+        </div>
+
+        <!-- Recent Flights -->
+        <div>
+            <div class="section-header anim-up-d2">
+                <h2 class="section-title">Recent Flights</h2>
+                <div class="carousel-btns">
+                    <button class="carousel-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <button class="carousel-btn active">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flight-cards-grid anim-up-d3">
+                <!-- Card 1 -->
+                <div class="flight-card">
+                    <div class="flight-card-thumb grad-blue">
+                        <div class="plane-bg-art">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 16l-9-13-2 4-5-1-3 3 5 2-1 3 4 1 1 5 5-3z"/></svg>
+                        </div>
+                        <div class="flight-card-route-badge">
+                            EGLL
+                            <span class="route-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+                            KJFK
+                        </div>
+                        <button class="flight-card-fav">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                        </button>
+                    </div>
+                    <div class="flight-card-body">
+                        <div class="flight-chip chip-blue">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/></svg>
+                            Mainline
+                        </div>
+                        <div class="flight-card-title">London Heathrow to New York JFK<br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">Boeing 777-300ER · AVT001</span></div>
+                        <div class="flight-card-meta">
+                            <div class="avatar-sm">JR</div>
+                            <div class="meta-info">
+                                <div class="meta-name">Jason Ranti</div>
+                                <div class="meta-sub">First Officer · 03/20/2026</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="flight-card">
+                    <div class="flight-card-thumb grad-violet">
+                        <div class="plane-bg-art">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 16l-9-13-2 4-5-1-3 3 5 2-1 3 4 1 1 5 5-3z"/></svg>
+                        </div>
+                        <div class="flight-card-route-badge">
+                            EDDF
+                            <span class="route-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+                            OMDB
+                        </div>
+                        <button class="flight-card-fav">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                        </button>
+                    </div>
+                    <div class="flight-card-body">
+                        <div class="flight-chip chip-violet">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/></svg>
+                            Cargo
+                        </div>
+                        <div class="flight-card-title">Frankfurt to Dubai International<br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">Airbus A350F · AVTC22</span></div>
+                        <div class="flight-card-meta">
+                            <div class="avatar-sm">MK</div>
+                            <div class="meta-info">
+                                <div class="meta-name">Marcus Klein</div>
+                                <div class="meta-sub">Captain · 03/18/2026</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="flight-card">
+                    <div class="flight-card-thumb grad-cyan">
+                        <div class="plane-bg-art">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 16l-9-13-2 4-5-1-3 3 5 2-1 3 4 1 1 5 5-3z"/></svg>
+                        </div>
+                        <div class="flight-card-route-badge">
+                            YSSY
+                            <span class="route-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+                            NZAA
+                        </div>
+                        <button class="flight-card-fav">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                        </button>
+                    </div>
+                    <div class="flight-card-body">
+                        <div class="flight-chip chip-cyan">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/></svg>
+                            Regional
+                        </div>
+                        <div class="flight-card-title">Sydney to Auckland International<br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">Airbus A320neo · AVTR08</span></div>
+                        <div class="flight-card-meta">
+                            <div class="avatar-sm">SL</div>
+                            <div class="meta-info">
+                                <div class="meta-name">Sara Lim</div>
+                                <div class="meta-sub">First Officer · 03/15/2026</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Your Assignments -->
+        <div class="anim-up-d4">
+            <div class="section-header">
+                <h2 class="section-title">Your Assignments</h2>
+                <a href="/pilot-hub" class="section-action">See all</a>
+            </div>
+
+            <div class="data-table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Dispatcher / Instructor</th>
+                            <th>Type</th>
+                            <th>Description</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <div class="table-avatar">PS</div>
+                                    <div>
+                                        <div class="table-name">Padhang Satrio</div>
+                                        <div class="table-sub">Chief Dispatcher</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="flight-chip chip-violet" style="display:inline-flex;">Route Planning</span></td>
+                            <td style="color:var(--text-primary);font-weight:500;">Complete EGLL–KJFK transatlantic briefing</td>
+                            <td>
+                                <button class="action-circle">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <div class="table-avatar">ZH</div>
+                                    <div>
+                                        <div class="table-name">Zakir Horizontal</div>
+                                        <div class="table-sub">Fleet Manager</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="flight-chip chip-cyan" style="display:inline-flex;">Flight Academy</span></td>
+                            <td style="color:var(--text-primary);font-weight:500;">Boeing 777 type rating — simulator session 3</td>
+                            <td>
+                                <button class="action-circle">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div style="display:flex;align-items:center;gap:12px;">
+                                    <div class="table-avatar">LS</div>
+                                    <div>
+                                        <div class="table-name">Leonardo Samsul</div>
+                                        <div class="table-sub">Check Captain</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="flight-chip chip-green" style="display:inline-flex;">Checkride</span></td>
+                            <td style="color:var(--text-primary);font-weight:500;">Annual line check — EDDF hub operations</td>
+                            <td>
+                                <button class="action-circle">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ── RIGHT PANEL ── -->
+    <div class="dashboard-right">
+
+        <!-- Pilot Statistics -->
+        <div class="panel-card anim-up">
+            <div class="panel-header">
+                <span class="panel-title">Pilot Statistics</span>
+                <button class="panel-more-btn">···</button>
+            </div>
+
+            <div class="pilot-ring-wrap">
+                <div class="pilot-ring">
+                    <svg viewBox="0 0 100 100" width="100" height="100">
+                        <circle class="ring-track" cx="50" cy="50" r="45"/>
+                        <circle class="ring-fill" cx="50" cy="50" r="45" stroke-dashoffset="197"/>
+                    </svg>
+                    <div class="ring-pct">32%</div>
+                </div>
+                <div class="pilot-greeting">Good Morning, Jason 🔥</div>
+                <div class="pilot-greeting-sub">Keep flying to reach Senior F/O</div>
+            </div>
+
+            <!-- Activity Chart -->
+            <div class="activity-chart">
+                <div style="font-size:9px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;">Flight Activity</div>
+                <div class="chart-bars">
+                    <div class="chart-bar-wrap">
+                        <div class="chart-bar inactive" style="height:28px;"></div>
+                        <span class="chart-bar-label">Jan</span>
+                    </div>
+                    <div class="chart-bar-wrap">
+                        <div class="chart-bar inactive" style="height:36px;"></div>
+                        <span class="chart-bar-label">Feb</span>
+                    </div>
+                    <div class="chart-bar-wrap">
+                        <div class="chart-bar inactive" style="height:20px;"></div>
+                        <span class="chart-bar-label">Mar</span>
+                    </div>
+                    <div class="chart-bar-wrap">
+                        <div class="chart-bar inactive" style="height:44px;"></div>
+                        <span class="chart-bar-label">Apr</span>
+                    </div>
+                    <div class="chart-bar-wrap">
+                        <div class="chart-bar inactive" style="height:32px;"></div>
+                        <span class="chart-bar-label">May</span>
+                    </div>
+                    <div class="chart-bar-wrap">
+                        <div class="chart-bar active" style="height:56px;"></div>
+                        <span class="chart-bar-label">Jun</span>
+                    </div>
+                    <div class="chart-bar-wrap">
+                        <div class="chart-bar inactive" style="height:18px;"></div>
+                        <span class="chart-bar-label">Jul</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ops Team -->
+            <div>
+                <div style="font-size:9px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;">Your Operations Team</div>
+
+                <div class="team-item">
+                    <div class="team-avatar">
+                        PS
+                        <span class="online-dot"></span>
+                    </div>
+                    <div class="team-info">
+                        <div class="team-name">Padhang Satrio</div>
+                        <div class="team-role">Chief Dispatcher</div>
+                    </div>
+                    <button class="follow-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12">
+                            <path d="M16 21v-2a4 4 0 00-8 0v2M12 11a4 4 0 100-8 4 4 0 000 8zM19 8v6M22 11h-6"/>
+                        </svg>
+                        Follow
+                    </button>
+                </div>
+
+                <div class="team-item">
+                    <div class="team-avatar">ZH</div>
+                    <div class="team-info">
+                        <div class="team-name">Zakir Horizontal</div>
+                        <div class="team-role">Fleet Manager</div>
+                    </div>
+                    <button class="follow-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12">
+                            <path d="M16 21v-2a4 4 0 00-8 0v2M12 11a4 4 0 100-8 4 4 0 000 8zM19 8v6M22 11h-6"/>
+                        </svg>
+                        Follow
+                    </button>
+                </div>
+
+                <div class="team-item">
+                    <div class="team-avatar">LS</div>
+                    <div class="team-info">
+                        <div class="team-name">Leonardo Samsul</div>
+                        <div class="team-role">Check Captain</div>
+                    </div>
+                    <button class="follow-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12">
+                            <path d="M16 21v-2a4 4 0 00-8 0v2M12 11a4 4 0 100-8 4 4 0 000 8zM19 8v6M22 11h-6"/>
+                        </svg>
+                        Follow
+                    </button>
+                </div>
+            </div>
+
+            <button class="see-all-btn">See All Team</button>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="panel-card anim-up-d1">
+            <div class="panel-header">
+                <span class="panel-title">Quick Stats</span>
+                <button class="panel-add-btn">+</button>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div style="background:var(--surface-2);border-radius:var(--r-lg);padding:14px;text-align:center;">
+                    <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--text-primary);">14.2h</div>
+                    <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-top:2px;">Total Hours</div>
+                </div>
+                <div style="background:var(--surface-2);border-radius:var(--r-lg);padding:14px;text-align:center;">
+                    <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--accent);">8</div>
+                    <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-top:2px;">Flights</div>
+                </div>
+                <div style="background:var(--surface-2);border-radius:var(--r-lg);padding:14px;text-align:center;">
+                    <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--green);">92%</div>
+                    <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-top:2px;">On-Time</div>
+                </div>
+                <div style="background:var(--surface-2);border-radius:var(--r-lg);padding:14px;text-align:center;">
+                    <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--violet);">82</div>
+                    <div style="font-size:10.5px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-top:2px;">Landing Avg</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>

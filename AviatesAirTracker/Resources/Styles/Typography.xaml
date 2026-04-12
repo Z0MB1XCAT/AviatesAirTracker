@@ -1,0 +1,167 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ================================================
+         TYPOGRAPHY SYSTEM v2.0
+         Using Segoe UI Variable for modern Windows 11 feel
+         with Cascadia Code for monospace/aviation codes
+         ================================================ -->
+
+    <!-- Page Title — hero size -->
+    <Style x:Key="TextStyle_PageTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable, Segoe UI"/>
+        <Setter Property="FontSize" Value="26"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush_Text_Primary}"/>
+        <Setter Property="LineHeight" Value="34"/>
+    </Style>
+
+    <!-- Section Title — card/panel headers -->
+    <Style x:Key="TextStyle_SectionTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable, Segoe UI"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush_Text_Primary}"/>
+    </Style>
+
+    <!-- Card Label — uppercase micro labels -->
+    <Style x:Key="TextStyle_CardLabel" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable, Segoe UI"/>
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush_Text_Muted}"/>
+        <Setter Property="Margin" Value="0,0,0,6"/>
+    </Style>
+
+    <!-- Large Metric Value — hero numbers -->
+    <Style x:Key="TextStyle_MetricLarge" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI Light"/>
+        <Setter Property="FontSize" Value="38"/>
+        <Setter Property="FontWeight" Value="Light"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush_Text_Primary}"/>
+        <Setter Property="LineHeight" Value="42"/>
+    </Style>
+
+    <!-- Medium Metric Value -->
+    <Style x:Key="TextStyle_MetricMedium" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable, Segoe UI"/>
+        <Setter Property="FontSize" Value="24"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush_Text_Primary}"/>
+    </Style>
+
+    <!-- Small Metric Value -->
+    <Style x:Key="TextStyle_MetricSmall" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable, Segoe UI"/>
+        <Setter Property="FontSize" Value="18"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush_Text_Primary}"/>
+    </Style>
+
+    <!-- Unit Label — beside metric values -->
+    <Style x:Key="TextStyle_Unit" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable, Segoe UI"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush_Text_Muted}"/>
+        <Setter Property="VerticalAlignment" Value="Bottom"/>
+        <Setter Property="Margin" Value="4,0,0,6"/>
+    </Style>
+
+    <!-- Body Text -->
+    <Style x:Key="TextStyle_Body" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable, Segoe UI"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush_Text_Secondary}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="LineHeight" Value="20"/>
+    </Style>
+
+    <!-- Caption — small secondary text -->
+    <Style x:Key="TextStyle_Caption" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable, Segoe UI"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush_Text_Muted}"/>
+    </Style>
+
+    <!-- Accent Text — highlighted labels -->
+    <Style x:Key="TextStyle_Accent" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable, Segoe UI"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush_Accent_Light}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- Status Badge text -->
+    <Style x:Key="TextStyle_Badge" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable, Segoe UI"/>
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+    </Style>
+
+    <!-- Monospace — for raw values/codes -->
+    <Style x:Key="TextStyle_Mono" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Cascadia Code, Consolas, Courier New"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush_Text_Primary}"/>
+    </Style>
+
+    <!-- ICAO Code display — bold monospace -->
+    <Style x:Key="TextStyle_ICAO" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Cascadia Code, Consolas"/>
+        <Setter Property="FontSize" Value="20"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush_Text_Primary}"/>
+    </Style>
+
+    <!-- Sidebar logo text -->
+    <Style x:Key="TextStyle_Logo" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable, Segoe UI"/>
+        <Setter Property="FontSize" Value="15"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="{StaticResource Brush_Text_Primary}"/>
+    </Style>
+
+    <!-- ================================================
+         STATUS BADGE STYLES — glassmorphic
+         ================================================ -->
+    <Style x:Key="AviatesBadge_Green" TargetType="Border">
+        <Setter Property="Background" Value="#1222C55E"/>
+        <Setter Property="BorderBrush" Value="#2822C55E"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding" Value="10,4"/>
+    </Style>
+
+    <Style x:Key="AviatesBadge_Yellow" TargetType="Border">
+        <Setter Property="Background" Value="#12FACC15"/>
+        <Setter Property="BorderBrush" Value="#28FACC15"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding" Value="10,4"/>
+    </Style>
+
+    <Style x:Key="AviatesBadge_Red" TargetType="Border">
+        <Setter Property="Background" Value="#12EF4444"/>
+        <Setter Property="BorderBrush" Value="#28EF4444"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding" Value="10,4"/>
+    </Style>
+
+    <Style x:Key="AviatesBadge_Blue" TargetType="Border">
+        <Setter Property="Background" Value="#123B82F6"/>
+        <Setter Property="BorderBrush" Value="#283B82F6"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding" Value="10,4"/>
+    </Style>
+
+    <Style x:Key="AviatesBadge_Orange" TargetType="Border">
+        <Setter Property="Background" Value="#12F97316"/>
+        <Setter Property="BorderBrush" Value="#28F97316"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding" Value="10,4"/>
+    </Style>
+
+</ResourceDictionary>

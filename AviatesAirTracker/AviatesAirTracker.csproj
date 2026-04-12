@@ -1,0 +1,84 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>AviatesAirTracker</RootNamespace>
+    <AssemblyName>AviatesAirTracker</AssemblyName>
+    <UseWPF>true</UseWPF>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!--
+      SimConnect is loaded at RUNTIME via reflection — no build-time DLL reference.
+      This means the project always compiles cleanly regardless of whether the
+      MSFS SDK is installed. Place the managed wrapper DLL next to the EXE
+      (or in Libs\) to enable live telemetry. See README.md for details.
+    -->
+    <DefineConstants>$(DefineConstants);NO_SIMCONNECT</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Dependency Injection -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+
+    <!-- MVVM Toolkit -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+
+    <!-- Blazor Hybrid WebView -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Wpf" Version="8.0.100" />
+
+    <!-- Charts — WPF version kept for legacy XAML views; Blazor version for new Razor pages -->
+    <PackageReference Include="OxyPlot.Wpf" Version="2.1.2" />
+    <PackageReference Include="OxyPlot.Blazor" Version="2.1.0" />
+
+    <!-- Map — kept for legacy; Blazor map uses Leaflet.js via JS interop -->
+    <PackageReference Include="Mapsui.Wpf" Version="4.1.7" />
+    <PackageReference Include="Mapsui.Tiling" Version="4.1.7" />
+    <PackageReference Include="Mapsui.Nts" Version="4.1.7" />
+
+    <!-- JSON -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+
+    <!-- HTTP -->
+    <PackageReference Include="RestSharp" Version="112.1.0" />
+
+    <!-- Discord Rich Presence -->
+    <PackageReference Include="DiscordRichPresence" Version="1.2.1.24" />
+
+    <!-- Logging -->
+    <PackageReference Include="Serilog" Version="3.1.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\Assets\**\*" Condition="Exists('Resources\Assets')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- SimConnect DLLs — loaded at runtime via reflection, not build-time references.
+         Place both DLLs from [MSFS SDK]\SimConnect SDK\lib\ into this project's Libs\ folder:
+           - managed\Microsoft.FlightSimulator.SimConnect.dll  (managed wrapper)
+           - SimConnect.dll                                      (native client library)
+         The managed wrapper P/Invokes into the native DLL; both must be present. -->
+    <None Include="Libs\Microsoft.FlightSimulator.SimConnect.dll" Condition="Exists('Libs\Microsoft.FlightSimulator.SimConnect.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Libs\Microsoft.FlightSimulator.SimConnect.dll</Link>
+    </None>
+    <None Include="Libs\SimConnect.dll" Condition="Exists('Libs\SimConnect.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Libs\SimConnect.dll</Link>
+    </None>
+  </ItemGroup>
+
+</Project>

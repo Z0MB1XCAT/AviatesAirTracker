@@ -1,0 +1,32 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build:*)",
+      "Bash(find:*)",
+      "Bash(grep -E '\\\\.\\(cs|xaml|csproj|xml|md|ps1|iss|log|yml\\)$')",
+      "Bash(wc:*)",
+      "mcp__claude_ai_Cloudflare_Developer_Platform__d1_database_query",
+      "Bash(xargs grep:*)",
+      "Bash(curl -s \"https://aviatesair.dexterhsrees.workers.dev/api/routes?limit=1\")",
+      "Bash(curl -s -X POST \"https://acars.flyaviatesair.uk/api/bookings\" -H \"Content-Type: application/json\" -H \"Authorization: Bearer TESTKEY\" -d '{\"\"route_id\"\":1,\"\"callsign\"\":\"\"VAV64E\"\",\"\"aircraft_type\"\":\"\"A319\"\",\"\"scheduled_dep\"\":\"\"2026-12-01T10:00:00Z\"\"}')",
+      "Bash(for worker:*)",
+      "Bash(do echo:*)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__get_project_url",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__list_extensions",
+      "mcp__supabase__get_publishable_keys",
+      "Read(//c/Users/dexte/Downloads/mitlicense/**)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "supabase",
+    "vercel"
+  ]
+}

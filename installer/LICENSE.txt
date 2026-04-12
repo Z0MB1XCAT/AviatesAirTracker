@@ -1,0 +1,25 @@
+AviatesAir Internal Use License
+
+Copyright (c) 2026 Dexter Rees. All rights reserved.
+
+This software and associated documentation files (the "Software") are the
+exclusive property of AviatesAir and its owner(s).
+
+Permission is granted solely to current members of AviatesAir to install and
+use this Software for activities directly related to AviatesAir operations.
+
+The following are strictly prohibited without prior written permission from
+the copyright holder:
+
+  - Redistribution of the Software, in whole or in part
+  - Modification, adaptation, or creation of derivative works
+  - Use of the Software outside of AviatesAir operations
+  - Commercial use or sublicensing of the Software
+  - Sharing the Software with individuals who are not current AviatesAir members
+
+This license is automatically revoked upon a member's departure from AviatesAir.
+Upon revocation, the member must uninstall and cease all use of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. IN NO EVENT
+SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY ARISING FROM THE USE OF THIS SOFTWARE.

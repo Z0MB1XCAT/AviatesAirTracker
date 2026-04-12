@@ -1,0 +1,516 @@
+@page "/flights"
+@using AviatesAirTracker.Core.Data
+@using AviatesAirTracker.Models
+@using AviatesAirTracker.Services
+@inject IFlightRepository FlightRepo
+@inject IFlightDeletionRepository DeletionRepo
+@inject FlightSessionManager Session
+@implements IDisposable
+
+<div class="page-header anim-up">
+    <h1 class="page-title">Flights</h1>
+    <p class="page-sub">Your complete logbook — every flight recorded and scored.</p>
+</div>
+
+<div class="tab-bar anim-up-d1">
+    <div class="tab-item @(_activeTab == "all"       ? "active" : "")" @onclick='() => SetTab("all")'>All Flights</div>
+    <div class="tab-item @(_activeTab == "active"    ? "active" : "")" @onclick='() => SetTab("active")'>Active</div>
+    <div class="tab-item @(_activeTab == "completed" ? "active" : "")" @onclick='() => SetTab("completed")'>Completed</div>
+    @if (_pendingRequests.Any())
+    {
+        <div class="tab-item @(_activeTab == "pending" ? "active" : "")" @onclick='() => SetTab("pending")'
+             style="display:flex;align-items:center;gap:6px;">
+            Pending Review
+            <span style="background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 7px;border-radius:var(--r-full);min-width:18px;text-align:center;">
+                @_pendingRequests.Count(r => r.Status == DeletionRequestStatus.Pending)
+            </span>
+        </div>
+    }
+</div>
+
+<!-- Stat strip -->
+<div class="stat-strip anim-up-d1" style="margin-bottom:var(--sp-5);">
+    <div class="stat-card">
+        <div class="stat-icon blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>
+            </svg>
+        </div>
+        <div class="stat-body">
+            <div class="stat-meta">Total Flights</div>
+            <div class="stat-value-row"><span class="stat-value">@_flights.Count</span></div>
+            <div class="stat-label">All time</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+        </div>
+        <div class="stat-body">
+            <div class="stat-meta">Completed</div>
+            <div class="stat-value-row"><span class="stat-value">@_flights.Count(f => f.Status == FlightStatus.Completed)</span></div>
+            <div class="stat-label">Flights</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon amber">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+        </div>
+        <div class="stat-body">
+            <div class="stat-meta">Total Distance</div>
+            <div class="stat-value-row">
+                <span class="stat-value">@(_totalNm > 0 ? _totalNm.ToString("N0") : "—")</span>
+                @if (_totalNm > 0) { <span class="stat-unit">nm</span> }
+            </div>
+            <div class="stat-label">Nautical miles</div>
+        </div>
+    </div>
+</div>
+
+@if (_activeTab == "pending")
+{
+    <!-- Pending deletion requests panel -->
+    <div class="data-table-wrap anim-up-d2">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--text-primary);">Deletion Requests</div>
+                <span style="font-size:11px;color:var(--text-muted);">Requests require approval before a flight is permanently removed</span>
+            </div>
+        </div>
+        @if (!_pendingRequests.Any())
+        {
+            <div style="padding:48px 24px;text-align:center;">
+                <div style="font-size:13px;color:var(--text-muted);">No deletion requests found.</div>
+            </div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Flight</th>
+                        <th>Route</th>
+                        <th>Reason</th>
+                        <th>Submitted</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var req in _pendingRequests)
+                    {
+                        <tr>
+                            <td>
+                                <div class="table-name">@(string.IsNullOrWhiteSpace(req.FlightNumber) ? "—" : req.FlightNumber)</div>
+                            </td>
+                            <td>
+                                <span style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--text-primary);">
+                                    @(string.IsNullOrWhiteSpace(req.Route) ? "—" : req.Route)
+                                </span>
+                            </td>
+                            <td style="max-width:240px;">
+                                <span style="font-size:12px;color:var(--text-secondary);line-height:1.4;">@req.Reason</span>
+                            </td>
+                            <td>
+                                <div class="table-sub">@req.SubmittedAt.ToLocalTime().ToString("MM/dd/yy HH:mm")</div>
+                            </td>
+                            <td>
+                                @if (req.Status == DeletionRequestStatus.Pending)
+                                {
+                                    <span class="status-chip pending"><span class="chip-dot"></span>Pending</span>
+                                }
+                                else if (req.Status == DeletionRequestStatus.Approved)
+                                {
+                                    <span class="status-chip done"><span class="chip-dot"></span>Approved</span>
+                                }
+                                else
+                                {
+                                    <span class="status-chip" style="background:var(--red-light);color:var(--red);">
+                                        <span class="chip-dot" style="background:var(--red);"></span>Rejected
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                @if (req.Status == DeletionRequestStatus.Pending)
+                                {
+                                    <div style="display:flex;gap:6px;">
+                                        <button @onclick="() => ApproveDeletion(req)"
+                                                style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.4);border-radius:var(--r-sm);padding:4px 12px;font-size:11px;font-weight:700;color:#16a34a;cursor:pointer;">
+                                            Approve
+                                        </button>
+                                        <button @onclick="() => RejectDeletion(req)"
+                                                style="background:var(--red-light);border:1px solid rgba(239,68,68,0.4);border-radius:var(--r-sm);padding:4px 12px;font-size:11px;font-weight:700;color:var(--red);cursor:pointer;">
+                                            Reject
+                                        </button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span style="font-size:11px;color:var(--text-muted);">@req.ReviewedAt?.ToLocalTime().ToString("MM/dd HH:mm")</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+else
+{
+    <!-- Flight log table -->
+    <div class="data-table-wrap anim-up-d2">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
+            <div style="font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--text-primary);">Flight Logbook</div>
+            <div style="display:flex;gap:8px;">
+                <button class="btn btn-secondary btn-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+                    Filter
+                </button>
+                <button class="btn btn-primary btn-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                    Export
+                </button>
+            </div>
+        </div>
+
+        @{
+            var visible = FilteredFlights();
+        }
+
+        @if (!visible.Any())
+        {
+            <div style="padding:64px 24px;text-align:center;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="40" height="40" style="margin:0 auto 16px;display:block;opacity:0.4;">
+                    <path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>
+                </svg>
+                <div style="font-size:14px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">No flights yet</div>
+                <div style="font-size:12.5px;color:var(--text-muted);">Connect MSFS and start your engines to begin recording.</div>
+            </div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Flight</th>
+                        <th>Route</th>
+                        <th>Aircraft</th>
+                        <th>Duration</th>
+                        <th>Landing</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var flight in visible)
+                    {
+                        var hasPendingDelete = _pendingRequests
+                            .Any(r => r.FlightId == flight.Id && r.Status == DeletionRequestStatus.Pending);
+                        <tr style="@(hasPendingDelete ? "opacity:0.6;" : "")">
+                            <td>
+                                <div>
+                                    <div class="table-name">
+                                        @(string.IsNullOrWhiteSpace(flight.FlightNumber) ? flight.Id.ToString()[..8].ToUpper() : flight.FlightNumber)
+                                    </div>
+                                    <div class="table-sub">@flight.CreatedAt.ToLocalTime().ToString("MM/dd/yyyy")</div>
+                                </div>
+                            </td>
+                            <td>
+                                <span style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--text-primary);">
+                                    @RouteLabel(flight)
+                                </span>
+                            </td>
+                            <td style="font-size:13px;color:var(--text-secondary);">
+                                @(string.IsNullOrWhiteSpace(flight.AircraftType) ? "—" : flight.AircraftType)
+                            </td>
+                            <td style="font-family:var(--font-mono);font-size:12px;">
+                                @FormatDuration(flight.BlockTime)
+                            </td>
+                            <td>
+                                @if (flight.PrimaryLanding != null)
+                                {
+                                    var grade = GradeLetter(flight.PrimaryLanding.LandingScore);
+                                    var cls   = GradeChipClass(flight.PrimaryLanding.LandingScore);
+                                    <span class="flight-chip @cls" style="display:inline-flex;">@grade · @flight.PrimaryLanding.LandingScore</span>
+                                }
+                                else
+                                {
+                                    <span style="color:var(--text-muted);">—</span>
+                                }
+                            </td>
+                            <td>
+                                @if (hasPendingDelete)
+                                {
+                                    <span class="status-chip" style="background:var(--red-light);color:var(--red);">
+                                        <span class="chip-dot" style="background:var(--red);"></span>Del. Pending
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="status-chip @StatusChipClass(flight.Status)">
+                                        <span class="chip-dot"></span>@StatusLabel(flight.Status)
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                <div style="display:flex;align-items:center;gap:4px;">
+                                    <button class="action-circle" title="View details">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="13" height="13"><path d="M9 18l6-6-6-6"/></svg>
+                                    </button>
+                                    @if (flight.Status != FlightStatus.InProgress && !hasPendingDelete)
+                                    {
+                                        <button @onclick="() => ShowDeleteModal(flight)"
+                                                class="action-circle"
+                                                title="Request deletion"
+                                                style="color:var(--red);border-color:rgba(239,68,68,0.3);">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="13" height="13">
+                                                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                                                <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                                            </svg>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+@* ── Delete-with-reason modal ──────────────────────────────── *@
+@if (_showDeleteModal && _deleteTarget != null)
+{
+    <div class="modal-overlay" @onclick="CloseDeleteModal">
+        <div class="modal-panel" style="max-width:500px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="width:36px;height:36px;border-radius:var(--r-md);background:var(--red-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2.2" stroke-linecap="round" width="17" height="17">
+                            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                            <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div style="font-family:var(--font-display);font-size:15px;font-weight:800;color:var(--text-primary);">Request Flight Deletion</div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:1px;">A reason is required and must be approved before deletion</div>
+                    </div>
+                </div>
+                <button class="modal-close" @onclick="CloseDeleteModal">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+
+            <div class="modal-body" style="padding:var(--sp-5) var(--sp-6);">
+                <!-- Flight summary -->
+                <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--sp-3) var(--sp-4);margin-bottom:var(--sp-4);display:flex;align-items:center;gap:var(--sp-5);flex-wrap:wrap;">
+                    <div>
+                        <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:2px;">Flight</div>
+                        <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary);">
+                            @(string.IsNullOrWhiteSpace(_deleteTarget.FlightNumber) ? _deleteTarget.Id.ToString()[..8].ToUpper() : _deleteTarget.FlightNumber)
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:2px;">Route</div>
+                        <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary);">@RouteLabel(_deleteTarget)</div>
+                    </div>
+                    <div>
+                        <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:2px;">Date</div>
+                        <div style="font-size:12px;color:var(--text-secondary);">@_deleteTarget.CreatedAt.ToLocalTime().ToString("MM/dd/yyyy")</div>
+                    </div>
+                </div>
+
+                <!-- Reason field -->
+                <div>
+                    <label style="display:block;font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--text-secondary);text-transform:uppercase;margin-bottom:8px;">
+                        Reason for Deletion <span style="color:var(--red);">*</span>
+                    </label>
+                    <textarea @bind="_deleteReason" @bind:event="oninput"
+                              rows="4"
+                              placeholder="Explain why this flight record should be removed (e.g. sim crash, wrong aircraft, duplicate entry)..."
+                              style="width:100%;background:var(--surface-2);border:1.5px solid @(string.IsNullOrWhiteSpace(_deleteReason) && _deleteAttempted ? "var(--red)" : "var(--border)");border-radius:var(--r-md);padding:10px 14px;font-size:13px;font-family:var(--font-body);color:var(--text-primary);resize:vertical;min-height:96px;outline:none;line-height:1.6;transition:border-color 0.15s;">
+                    </textarea>
+                    @if (string.IsNullOrWhiteSpace(_deleteReason) && _deleteAttempted)
+                    {
+                        <div style="font-size:11.5px;color:var(--red);margin-top:5px;">A reason is required to submit this request.</div>
+                    }
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.5;">
+                        Your request will be reviewed. The flight will remain in your logbook until approved.
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="display:flex;gap:10px;justify-content:flex-end;">
+                <button class="btn btn-ghost btn-sm" @onclick="CloseDeleteModal">Cancel</button>
+                <button @onclick="SubmitDeletionRequest" disabled="@_submittingDelete"
+                        style="background:@(_submittingDelete ? "var(--surface-2)" : "var(--red)");border:none;border-radius:var(--r-full);padding:8px 22px;font-size:13px;font-weight:700;color:@(_submittingDelete ? "var(--text-muted)" : "#fff");cursor:@(_submittingDelete ? "default" : "pointer");letter-spacing:0.02em;transition:all 0.15s;">
+                    @(_submittingDelete ? "Submitting…" : "Submit Request")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<FlightRecord> _flights = [];
+    private List<FlightDeletionRequest> _pendingRequests = [];
+
+    private string _activeTab = "all";
+
+    // Delete modal state
+    private bool _showDeleteModal;
+    private bool _deleteAttempted;
+    private bool _submittingDelete;
+    private FlightRecord? _deleteTarget;
+    private string _deleteReason = "";
+
+    // ── Lifecycle ─────────────────────────────────────────────
+
+    protected override async Task OnInitializedAsync()
+    {
+        Session.FlightCompleted += OnFlightCompleted;
+        await RefreshDataAsync();
+    }
+
+    public void Dispose()
+    {
+        Session.FlightCompleted -= OnFlightCompleted;
+    }
+
+    private void OnFlightCompleted(object? _, FlightRecord flight)
+    {
+        InvokeAsync(async () =>
+        {
+            await RefreshDataAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task RefreshDataAsync()
+    {
+        _flights = await FlightRepo.GetAllAsync();
+        _pendingRequests = await DeletionRepo.GetAllAsync();
+    }
+
+    // ── Tab filtering ─────────────────────────────────────────
+
+    private void SetTab(string tab) => _activeTab = tab;
+
+    private List<FlightRecord> FilteredFlights() => _activeTab switch
+    {
+        "active"    => _flights.Where(f => f.Status == FlightStatus.InProgress).ToList(),
+        "completed" => _flights.Where(f => f.Status == FlightStatus.Completed).ToList(),
+        _           => _flights
+    };
+
+    // ── Delete flow ───────────────────────────────────────────
+
+    private void ShowDeleteModal(FlightRecord flight)
+    {
+        _deleteTarget   = flight;
+        _deleteReason   = "";
+        _deleteAttempted = false;
+        _showDeleteModal = true;
+    }
+
+    private void CloseDeleteModal()
+    {
+        _showDeleteModal  = false;
+        _deleteTarget    = null;
+        _deleteReason    = "";
+        _deleteAttempted = false;
+    }
+
+    private async Task SubmitDeletionRequest()
+    {
+        _deleteAttempted = true;
+        if (_deleteTarget == null || string.IsNullOrWhiteSpace(_deleteReason)) return;
+
+        _submittingDelete = true;
+        var request = new FlightDeletionRequest
+        {
+            FlightId     = _deleteTarget.Id,
+            FlightNumber = _deleteTarget.FlightNumber,
+            Route        = RouteLabel(_deleteTarget),
+            Reason       = _deleteReason.Trim()
+        };
+        await DeletionRepo.SaveAsync(request);
+        _pendingRequests = await DeletionRepo.GetAllAsync();
+        _submittingDelete = false;
+        CloseDeleteModal();
+    }
+
+    private async Task ApproveDeletion(FlightDeletionRequest req)
+    {
+        await DeletionRepo.ApproveAsync(req.Id);
+        await FlightRepo.DeleteAsync(req.FlightId);
+        await RefreshDataAsync();
+        StateHasChanged();
+    }
+
+    private async Task RejectDeletion(FlightDeletionRequest req)
+    {
+        await DeletionRepo.RejectAsync(req.Id);
+        await RefreshDataAsync();
+        StateHasChanged();
+    }
+
+    // ── Display helpers ───────────────────────────────────────
+
+    private static string RouteLabel(FlightRecord f)
+    {
+        if (!string.IsNullOrWhiteSpace(f.DepartureICAO) && !string.IsNullOrWhiteSpace(f.ArrivalICAO))
+            return $"{f.DepartureICAO} → {f.ArrivalICAO}";
+        return "—";
+    }
+
+    private static string FormatDuration(TimeSpan t)
+    {
+        if (t == TimeSpan.Zero) return "—";
+        return t.Hours > 0 ? $"{t.Hours}h {t.Minutes:D2}m" : $"{t.Minutes}m";
+    }
+
+    private static string GradeLetter(int score) => score switch
+    {
+        >= 90 => "A",
+        >= 75 => "B",
+        >= 60 => "C",
+        >= 40 => "D",
+        _     => "F"
+    };
+
+    private static string GradeChipClass(int score) => score switch
+    {
+        >= 90 => "chip-green",
+        >= 75 => "chip-blue",
+        >= 60 => "chip-amber",
+        _     => "chip-red"
+    };
+
+    private static string StatusLabel(FlightStatus s) => s switch
+    {
+        FlightStatus.InProgress => "Active",
+        FlightStatus.Completed  => "Completed",
+        FlightStatus.Diverted   => "Diverted",
+        FlightStatus.Aborted    => "Aborted",
+        FlightStatus.Crashed    => "Crashed",
+        _                       => s.ToString()
+    };
+
+    private static string StatusChipClass(FlightStatus s) => s switch
+    {
+        FlightStatus.InProgress => "active",
+        FlightStatus.Completed  => "done",
+        _                       => "pending"
+    };
+
+    private double _totalNm => _flights
+        .Where(f => f.Status == FlightStatus.Completed)
+        .Sum(f => f.ActualDistanceNm);
+}

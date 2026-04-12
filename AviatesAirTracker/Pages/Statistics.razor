@@ -1,0 +1,6 @@
+@page "/statistics"
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized() => Nav.NavigateTo("/pilot-hub", replace: true);
+}

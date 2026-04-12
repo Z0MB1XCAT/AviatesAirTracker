@@ -1,0 +1,325 @@
+<UserControl x:Class="AviatesAirTracker.Views.LandingAnalysisView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             xmlns:vm="clr-namespace:AviatesAirTracker.ViewModels"
+             xmlns:converters="clr-namespace:AviatesAirTracker.Converters"
+             d:DataContext="{d:DesignInstance Type=vm:LandingAnalysisViewModel}"
+             Background="{StaticResource Brush_BG_Primary}">
+
+    <UserControl.Resources>
+        <converters:StringToColorConverter x:Key="ColorConv"/>
+        <converters:BoolToVisibilityConverter x:Key="BoolVis"/>
+    </UserControl.Resources>
+
+    <Grid Margin="28,24">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="380"/>
+            <ColumnDefinition Width="22"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ===== LEFT: SCORE DISPLAY ===== -->
+        <StackPanel Grid.Column="0">
+
+            <!-- Big Score Card — with accent glow -->
+            <Border Style="{StaticResource AviatesCard}">
+                <Grid>
+                    <!-- Background glow based on score -->
+                    <Border CornerRadius="12">
+                        <Border.Background>
+                            <RadialGradientBrush Center="0.5,0.4" RadiusX="0.7" RadiusY="0.7">
+                                <GradientStop Offset="0">
+                                    <GradientStop.Color>
+                                        <Binding Path="ScoreColor" Converter="{StaticResource ColorConv}" FallbackValue="Transparent"/>
+                                    </GradientStop.Color>
+                                </GradientStop>
+                                <GradientStop Color="Transparent" Offset="1"/>
+                            </RadialGradientBrush>
+                        </Border.Background>
+                        <Border.Opacity>0.08</Border.Opacity>
+                    </Border>
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="LANDING SCORE" Style="{StaticResource TextStyle_CardLabel}"
+                                   HorizontalAlignment="Center" Margin="0,0,0,20"/>
+
+                        <!-- Score Ring -->
+                        <Grid Width="200" Height="200" HorizontalAlignment="Center">
+                            <Ellipse Width="200" Height="200" StrokeThickness="10" Fill="Transparent">
+                                <Ellipse.Stroke>
+                                    <SolidColorBrush Color="#1A2040"/>
+                                </Ellipse.Stroke>
+                            </Ellipse>
+                            <Ellipse Width="200" Height="200" StrokeThickness="10" Fill="Transparent">
+                                <Ellipse.Stroke>
+                                    <SolidColorBrush Color="{Binding ScoreColor, Converter={StaticResource ColorConv}}"/>
+                                </Ellipse.Stroke>
+                                <Ellipse.Effect>
+                                    <DropShadowEffect ShadowDepth="0" BlurRadius="16" Opacity="0.35"
+                                                      Color="{Binding ScoreColor, Converter={StaticResource ColorConv}}"/>
+                                </Ellipse.Effect>
+                            </Ellipse>
+
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <TextBlock Text="{Binding ScoreText}" FontSize="56" FontWeight="Light"
+                                           FontFamily="Segoe UI Variable Display, Segoe UI Light"
+                                           HorizontalAlignment="Center">
+                                    <TextBlock.Foreground>
+                                        <SolidColorBrush Color="{Binding ScoreColor, Converter={StaticResource ColorConv}}"/>
+                                    </TextBlock.Foreground>
+                                </TextBlock>
+                                <TextBlock Text="{Binding GradeText}" FontSize="12" FontWeight="Bold"
+                                           HorizontalAlignment="Center">
+                                    <TextBlock.Foreground>
+                                        <SolidColorBrush Color="{Binding ScoreColor, Converter={StaticResource ColorConv}}"/>
+                                    </TextBlock.Foreground>
+                                </TextBlock>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="{Binding RunwayText}" FontFamily="Cascadia Code, Consolas" FontSize="16"
+                                   FontWeight="Bold" HorizontalAlignment="Center" Margin="0,20,0,0"
+                                   Foreground="{StaticResource Brush_Text_Primary}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Key Parameters — glass card -->
+            <Border Style="{StaticResource AviatesCard}" Margin="0,14,0,0">
+                <StackPanel>
+                    <TextBlock Text="TOUCHDOWN PARAMETERS" Style="{StaticResource TextStyle_CardLabel}"
+                               Margin="0,0,0,12"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="14"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="14"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="14"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Grid.Column="0">
+                            <TextBlock Text="VERT SPEED" Style="{StaticResource TextStyle_CardLabel}"/>
+                            <TextBlock Text="{Binding VsText}" FontSize="18" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Brush_Status_Orange}"
+                                       FontFamily="Cascadia Code, Consolas"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="1">
+                            <TextBlock Text="IAS" Style="{StaticResource TextStyle_CardLabel}"/>
+                            <TextBlock Text="{Binding SpeedText}" FontSize="18" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Brush_Status_Cyan}"
+                                       FontFamily="Cascadia Code, Consolas"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="2" Grid.Column="0">
+                            <TextBlock Text="PITCH" Style="{StaticResource TextStyle_CardLabel}"/>
+                            <TextBlock Text="{Binding PitchText}" FontSize="18" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Brush_Text_Primary}"
+                                       FontFamily="Cascadia Code, Consolas"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="1">
+                            <TextBlock Text="BANK" Style="{StaticResource TextStyle_CardLabel}"/>
+                            <TextBlock Text="{Binding BankText}" FontSize="18" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Brush_Text_Primary}"
+                                       FontFamily="Cascadia Code, Consolas"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="4" Grid.Column="0">
+                            <TextBlock Text="HEADWIND" Style="{StaticResource TextStyle_CardLabel}"/>
+                            <TextBlock Text="{Binding HeadwindText}" FontSize="18" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Brush_Status_Green}"
+                                       FontFamily="Cascadia Code, Consolas"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="4" Grid.Column="1">
+                            <TextBlock Text="CROSSWIND" Style="{StaticResource TextStyle_CardLabel}"/>
+                            <TextBlock Text="{Binding CrosswindText}" FontSize="18" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Brush_Status_Yellow}"
+                                       FontFamily="Cascadia Code, Consolas"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="6" Grid.Column="0">
+                            <TextBlock Text="APPROACH" Style="{StaticResource TextStyle_CardLabel}"/>
+                            <TextBlock Text="{Binding StabilityText}" FontSize="16" FontWeight="Bold">
+                                <TextBlock.Foreground>
+                                    <SolidColorBrush Color="{Binding StabilityColor, Converter={StaticResource ColorConv}}"/>
+                                </TextBlock.Foreground>
+                            </TextBlock>
+                        </StackPanel>
+                        <StackPanel Grid.Row="6" Grid.Column="1">
+                            <TextBlock Text="BOUNCES" Style="{StaticResource TextStyle_CardLabel}"/>
+                            <TextBlock Text="{Binding BounceText}" FontSize="16" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Brush_Text_Primary}"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- ===== RIGHT: SCORE BREAKDOWN + HISTORY ===== -->
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="18"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Score Breakdown Bars — enhanced with color-coded bars -->
+            <Border Grid.Row="0" Style="{StaticResource AviatesCard}">
+                <StackPanel>
+                    <TextBlock Text="SCORE BREAKDOWN" Style="{StaticResource TextStyle_CardLabel}"
+                               Margin="0,0,0,18"/>
+
+                    <!-- VS -->
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="50"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Vertical Speed" FontSize="12"
+                                   Foreground="{StaticResource Brush_Text_Secondary}" VerticalAlignment="Center"/>
+                        <ProgressBar Grid.Column="1" Style="{StaticResource AviatesProgressBar}"
+                                     Value="{Binding VsScorePct}" Maximum="100"
+                                     Foreground="{StaticResource Brush_Status_Orange}" Height="8"
+                                     Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="2" Text="{Binding VsScorePct, StringFormat='{}{0:F0}%'}"
+                                   FontSize="12" Foreground="{StaticResource Brush_Accent_Light}"
+                                   FontWeight="SemiBold" HorizontalAlignment="Right"
+                                   FontFamily="Cascadia Code, Consolas"/>
+                    </Grid>
+
+                    <!-- Pitch -->
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="50"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Pitch Attitude" FontSize="12"
+                                   Foreground="{StaticResource Brush_Text_Secondary}" VerticalAlignment="Center"/>
+                        <ProgressBar Grid.Column="1" Style="{StaticResource AviatesProgressBar}"
+                                     Value="{Binding PitchScorePct}" Maximum="100"
+                                     Foreground="{StaticResource Brush_Status_Green}" Height="8"
+                                     Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="2" Text="{Binding PitchScorePct, StringFormat='{}{0:F0}%'}"
+                                   FontSize="12" Foreground="{StaticResource Brush_Accent_Light}"
+                                   FontWeight="SemiBold" HorizontalAlignment="Right"
+                                   FontFamily="Cascadia Code, Consolas"/>
+                    </Grid>
+
+                    <!-- Bank -->
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="50"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Bank Angle" FontSize="12"
+                                   Foreground="{StaticResource Brush_Text_Secondary}" VerticalAlignment="Center"/>
+                        <ProgressBar Grid.Column="1" Style="{StaticResource AviatesProgressBar}"
+                                     Value="{Binding BankScorePct}" Maximum="100"
+                                     Foreground="{StaticResource Brush_Accent_Primary}" Height="8"
+                                     Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="2" Text="{Binding BankScorePct, StringFormat='{}{0:F0}%'}"
+                                   FontSize="12" Foreground="{StaticResource Brush_Accent_Light}"
+                                   FontWeight="SemiBold" HorizontalAlignment="Right"
+                                   FontFamily="Cascadia Code, Consolas"/>
+                    </Grid>
+
+                    <!-- Speed -->
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="50"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Speed Management" FontSize="12"
+                                   Foreground="{StaticResource Brush_Text_Secondary}" VerticalAlignment="Center"/>
+                        <ProgressBar Grid.Column="1" Style="{StaticResource AviatesProgressBar}"
+                                     Value="{Binding SpeedScorePct}" Maximum="100"
+                                     Foreground="{StaticResource Brush_Status_Cyan}" Height="8"
+                                     Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="2" Text="{Binding SpeedScorePct, StringFormat='{}{0:F0}%'}"
+                                   FontSize="12" Foreground="{StaticResource Brush_Accent_Light}"
+                                   FontWeight="SemiBold" HorizontalAlignment="Right"
+                                   FontFamily="Cascadia Code, Consolas"/>
+                    </Grid>
+
+                    <!-- Crosswind -->
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="50"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Crosswind Handling" FontSize="12"
+                                   Foreground="{StaticResource Brush_Text_Secondary}" VerticalAlignment="Center"/>
+                        <ProgressBar Grid.Column="1" Style="{StaticResource AviatesProgressBar}"
+                                     Value="{Binding XwScorePct}" Maximum="100"
+                                     Foreground="{StaticResource Brush_Status_Yellow}" Height="8"
+                                     Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="2" Text="{Binding XwScorePct, StringFormat='{}{0:F0}%'}"
+                                   FontSize="12" Foreground="{StaticResource Brush_Accent_Light}"
+                                   FontWeight="SemiBold" HorizontalAlignment="Right"
+                                   FontFamily="Cascadia Code, Consolas"/>
+                    </Grid>
+
+                    <!-- Stability -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="50"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Approach Stability" FontSize="12"
+                                   Foreground="{StaticResource Brush_Text_Secondary}" VerticalAlignment="Center"/>
+                        <ProgressBar Grid.Column="1" Style="{StaticResource AviatesProgressBar}"
+                                     Value="{Binding StabilityScorePct}" Maximum="100"
+                                     Foreground="{StaticResource Brush_Status_Purple}" Height="8"
+                                     Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="2" Text="{Binding StabilityScorePct, StringFormat='{}{0:F0}%'}"
+                                   FontSize="12" Foreground="{StaticResource Brush_Accent_Light}"
+                                   FontWeight="SemiBold" HorizontalAlignment="Right"
+                                   FontFamily="Cascadia Code, Consolas"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Landing History -->
+            <Border Grid.Row="2" Style="{StaticResource AviatesSectionCard}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Border Grid.Row="0" Style="{StaticResource AviatesPanelHeader}">
+                        <TextBlock Text="Landing History" Style="{StaticResource TextStyle_SectionTitle}"/>
+                    </Border>
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding LandingHistory}"
+                              IsReadOnly="True" CanUserSortColumns="True"
+                              MaxHeight="280">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Airport" Binding="{Binding AirportICAO}" Width="70"/>
+                            <DataGridTextColumn Header="Runway" Binding="{Binding RunwayIdentifier}" Width="70"/>
+                            <DataGridTextColumn Header="VS (fpm)" Binding="{Binding VerticalSpeedFPM, StringFormat='{}{0:F0}'}" Width="80"/>
+                            <DataGridTextColumn Header="IAS (kt)" Binding="{Binding IASKts, StringFormat='{}{0:F0}'}" Width="70"/>
+                            <DataGridTextColumn Header="X-Wind" Binding="{Binding CrosswindComponent, StringFormat='{}{0:F1}kt'}" Width="70"/>
+                            <DataGridTextColumn Header="Score" Binding="{Binding LandingScore}" Width="60"/>
+                            <DataGridTextColumn Header="Grade" Binding="{Binding LandingGrade}" Width="80"/>
+                            <DataGridTextColumn Header="Date" Binding="{Binding Timestamp, StringFormat='{}{0:MM/dd HH:mm}'}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

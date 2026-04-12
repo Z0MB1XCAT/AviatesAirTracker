@@ -1,0 +1,123 @@
+<UserControl x:Class="AviatesAirTracker.Views.StatisticsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             xmlns:vm="clr-namespace:AviatesAirTracker.ViewModels"
+             xmlns:oxy="http://oxyplot.org/wpf"
+             d:DataContext="{d:DesignInstance Type=vm:StatisticsViewModel}"
+             Background="{StaticResource Brush_BG_Primary}">
+    <Grid Margin="28,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="18"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="18"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Stat Cards — with accent glows -->
+        <UniformGrid Grid.Row="0" Columns="5">
+            <Border Style="{StaticResource AviatesMetricCard}" Margin="0,0,14,0">
+                <Grid>
+                    <Border CornerRadius="12" Opacity="0.5">
+                        <Border.Background>
+                            <RadialGradientBrush Center="0.2,0.3" RadiusX="0.8" RadiusY="0.8">
+                                <GradientStop Color="#3B82F608" Offset="0"/>
+                                <GradientStop Color="#3B82F600" Offset="1"/>
+                            </RadialGradientBrush>
+                        </Border.Background>
+                    </Border>
+                    <StackPanel>
+                        <TextBlock Text="FLIGHTS" Style="{StaticResource TextStyle_CardLabel}"/>
+                        <TextBlock Text="{Binding TotalFlights}" Style="{StaticResource TextStyle_MetricLarge}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <Border Style="{StaticResource AviatesMetricCard}" Margin="0,0,14,0">
+                <StackPanel>
+                    <TextBlock Text="BLOCK HOURS" Style="{StaticResource TextStyle_CardLabel}"/>
+                    <TextBlock Text="{Binding TotalHours}" Style="{StaticResource TextStyle_MetricLarge}"
+                               Foreground="{StaticResource Brush_Accent_Light}"/>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AviatesMetricCard}" Margin="0,0,14,0">
+                <StackPanel>
+                    <TextBlock Text="DISTANCE" Style="{StaticResource TextStyle_CardLabel}"/>
+                    <TextBlock Text="{Binding TotalDistance}" Style="{StaticResource TextStyle_MetricLarge}"
+                               Foreground="{StaticResource Brush_Status_Cyan}"/>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AviatesMetricCard}" Margin="0,0,14,0">
+                <StackPanel>
+                    <TextBlock Text="AVG LANDING" Style="{StaticResource TextStyle_CardLabel}"/>
+                    <TextBlock Text="{Binding AvgLandingScore}" Style="{StaticResource TextStyle_MetricLarge}"
+                               Foreground="{StaticResource Brush_Status_Green}"/>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource AviatesMetricCard}">
+                <Grid>
+                    <Border CornerRadius="12" Opacity="0.5">
+                        <Border.Background>
+                            <RadialGradientBrush Center="0.2,0.3" RadiusX="0.8" RadiusY="0.8">
+                                <GradientStop Color="#A78BFA08" Offset="0"/>
+                                <GradientStop Color="#A78BFA00" Offset="1"/>
+                            </RadialGradientBrush>
+                        </Border.Background>
+                    </Border>
+                    <StackPanel>
+                        <TextBlock Text="RANK" Style="{StaticResource TextStyle_CardLabel}"/>
+                        <TextBlock Text="{Binding PilotRank}" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Brush_Status_Purple}"/>
+                        <ProgressBar Style="{StaticResource AviatesProgressBar}"
+                                     Value="{Binding RankProgress}" Maximum="1" Margin="0,10,0,0"
+                                     Foreground="{StaticResource Brush_Status_Purple}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </UniformGrid>
+
+        <!-- Charts — side by side -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="18"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Style="{StaticResource AviatesCard}" Height="220" Padding="12">
+                <oxy:PlotView Model="{Binding LandingScoreHistory}" Background="Transparent"/>
+            </Border>
+            <Border Grid.Column="2" Style="{StaticResource AviatesCard}" Height="220" Padding="12">
+                <oxy:PlotView Model="{Binding AltitudeProfile}" Background="Transparent"/>
+            </Border>
+        </Grid>
+
+        <!-- Flight Log — enhanced data grid -->
+        <Border Grid.Row="4" Style="{StaticResource AviatesSectionCard}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Border Grid.Row="0" Style="{StaticResource AviatesPanelHeader}">
+                    <TextBlock Text="Flight Log" Style="{StaticResource TextStyle_SectionTitle}"/>
+                </Border>
+                <DataGrid Grid.Row="1" ItemsSource="{Binding FlightLog}" IsReadOnly="True"
+                          CanUserSortColumns="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Flight" Binding="{Binding FlightNumber}" Width="80"/>
+                        <DataGridTextColumn Header="From" Binding="{Binding DepartureICAO}" Width="60"/>
+                        <DataGridTextColumn Header="To" Binding="{Binding ArrivalICAO}" Width="60"/>
+                        <DataGridTextColumn Header="Aircraft" Binding="{Binding AircraftType}" Width="80"/>
+                        <DataGridTextColumn Header="Air Time" Binding="{Binding AirTime, StringFormat='{}{0:hh\\:mm}'}" Width="70"/>
+                        <DataGridTextColumn Header="Distance" Binding="{Binding ActualDistanceNm, StringFormat='{}{0:F0}nm'}" Width="80"/>
+                        <DataGridTextColumn Header="Fuel (lbs)" Binding="{Binding FuelUsedLbs, StringFormat='{}{0:F0}'}" Width="80"/>
+                        <DataGridTextColumn Header="Landing" Binding="{Binding PrimaryLanding.LandingScore}" Width="70"/>
+                        <DataGridTextColumn Header="Date" Binding="{Binding TakeoffTime, StringFormat='{}{0:yyyy-MM-dd}'}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

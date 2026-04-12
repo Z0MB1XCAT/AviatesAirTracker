@@ -1,0 +1,524 @@
+<UserControl x:Class="AviatesAirTracker.Views.LiveFlightView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             xmlns:vm="clr-namespace:AviatesAirTracker.ViewModels"
+             xmlns:oxy="http://oxyplot.org/wpf"
+             xmlns:converters="clr-namespace:AviatesAirTracker.Converters"
+             d:DataContext="{d:DesignInstance Type=vm:LiveFlightViewModel}"
+             Background="{StaticResource Brush_BG_Primary}">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <converters:StringToColorConverter x:Key="StringToColorConverter"/>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="24,20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="16"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="16"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="16"/>
+                <RowDefinition Height="220"/>
+            </Grid.RowDefinitions>
+
+            <!-- ===== ROW 1: PRIMARY FLIGHT INSTRUMENTS — with accent glows ===== -->
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- ALTITUDE MSL -->
+                <Border Grid.Column="0" Style="{StaticResource AviatesMetricCard}" Margin="0,0,10,0">
+                    <Grid>
+                        <Border CornerRadius="12" Opacity="0.6">
+                            <Border.Background>
+                                <RadialGradientBrush Center="0.2,0.3" RadiusX="0.8" RadiusY="0.8">
+                                    <GradientStop Color="#60A5FA08" Offset="0"/>
+                                    <GradientStop Color="#60A5FA00" Offset="1"/>
+                                </RadialGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <StackPanel>
+                            <TextBlock Text="ALTITUDE" Style="{StaticResource TextStyle_CardLabel}"/>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                                <TextBlock Text="{Binding AltMSL}" Style="{StaticResource TextStyle_MetricLarge}"
+                                           Foreground="{StaticResource Brush_Accent_Light}"/>
+                                <TextBlock Text="ft" Style="{StaticResource TextStyle_Unit}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <TextBlock Text="AGL " FontSize="10" Foreground="{StaticResource Brush_Text_Muted}"/>
+                                <TextBlock Text="{Binding AltAGL, StringFormat='{}{0}ft'}"
+                                           FontSize="10" Foreground="{StaticResource Brush_Text_Secondary}"
+                                           FontFamily="Cascadia Code, Consolas"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- IAS -->
+                <Border Grid.Column="1" Style="{StaticResource AviatesMetricCard}" Margin="0,0,10,0">
+                    <Grid>
+                        <Border CornerRadius="12" Opacity="0.6">
+                            <Border.Background>
+                                <RadialGradientBrush Center="0.2,0.3" RadiusX="0.8" RadiusY="0.8">
+                                    <GradientStop Color="#06B6D408" Offset="0"/>
+                                    <GradientStop Color="#06B6D400" Offset="1"/>
+                                </RadialGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <StackPanel>
+                            <TextBlock Text="IAS" Style="{StaticResource TextStyle_CardLabel}"/>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                                <TextBlock Text="{Binding Ias}" Style="{StaticResource TextStyle_MetricLarge}"
+                                           Foreground="{StaticResource Brush_Status_Cyan}"/>
+                                <TextBlock Text="kt" Style="{StaticResource TextStyle_Unit}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <TextBlock Text="TAS " FontSize="10" Foreground="{StaticResource Brush_Text_Muted}"/>
+                                <TextBlock Text="{Binding Tas, StringFormat='{}{0}kt'}"
+                                           FontSize="10" Foreground="{StaticResource Brush_Text_Secondary}"
+                                           FontFamily="Cascadia Code, Consolas"/>
+                                <TextBlock Text="  GS " FontSize="10" Foreground="{StaticResource Brush_Text_Muted}"/>
+                                <TextBlock Text="{Binding Gs, StringFormat='{}{0}kt'}"
+                                           FontSize="10" Foreground="{StaticResource Brush_Text_Secondary}"
+                                           FontFamily="Cascadia Code, Consolas"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- MACH -->
+                <Border Grid.Column="2" Style="{StaticResource AviatesMetricCard}" Margin="0,0,10,0">
+                    <Grid>
+                        <Border CornerRadius="12" Opacity="0.6">
+                            <Border.Background>
+                                <RadialGradientBrush Center="0.2,0.3" RadiusX="0.8" RadiusY="0.8">
+                                    <GradientStop Color="#A78BFA08" Offset="0"/>
+                                    <GradientStop Color="#A78BFA00" Offset="1"/>
+                                </RadialGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <StackPanel>
+                            <TextBlock Text="MACH" Style="{StaticResource TextStyle_CardLabel}"/>
+                            <TextBlock Text="{Binding Mach}" Style="{StaticResource TextStyle_MetricLarge}"
+                                       Foreground="{StaticResource Brush_Status_Purple}"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <TextBlock Text="HDG " FontSize="10" Foreground="{StaticResource Brush_Text_Muted}"/>
+                                <TextBlock Text="{Binding Heading}"
+                                           FontSize="10" Foreground="{StaticResource Brush_Text_Secondary}"
+                                           FontFamily="Cascadia Code, Consolas"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- VERTICAL SPEED -->
+                <Border Grid.Column="3" Style="{StaticResource AviatesMetricCard}" Margin="0,0,10,0">
+                    <StackPanel>
+                        <TextBlock Text="VERTICAL SPEED" Style="{StaticResource TextStyle_CardLabel}"/>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                            <TextBlock Text="{Binding Vs}" Style="{StaticResource TextStyle_MetricLarge}">
+                                <TextBlock.Foreground>
+                                    <SolidColorBrush Color="{Binding VsColor,
+                                                     Converter={StaticResource StringToColorConverter}}"/>
+                                </TextBlock.Foreground>
+                            </TextBlock>
+                            <TextBlock Text="fpm" Style="{StaticResource TextStyle_Unit}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <TextBlock Text="P " FontSize="10" Foreground="{StaticResource Brush_Text_Muted}"/>
+                            <TextBlock Text="{Binding Pitch}" FontSize="10"
+                                       Foreground="{StaticResource Brush_Text_Secondary}"
+                                       FontFamily="Cascadia Code, Consolas"/>
+                            <TextBlock Text="  B " FontSize="10" Foreground="{StaticResource Brush_Text_Muted}"/>
+                            <TextBlock Text="{Binding Bank}" FontSize="10"
+                                       Foreground="{StaticResource Brush_Text_Secondary}"
+                                       FontFamily="Cascadia Code, Consolas"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- PHASE -->
+                <Border Grid.Column="4" Style="{StaticResource AviatesMetricCard}" Margin="0,0,10,0">
+                    <StackPanel>
+                        <TextBlock Text="FLIGHT PHASE" Style="{StaticResource TextStyle_CardLabel}"/>
+                        <Border CornerRadius="8" Padding="12,8" Margin="0,8,0,0" HorizontalAlignment="Left">
+                            <Border.Background>
+                                <SolidColorBrush Color="{Binding PhaseColor, Converter={StaticResource StringToColorConverter}}" Opacity="0.12"/>
+                            </Border.Background>
+                            <Border.BorderBrush>
+                                <SolidColorBrush Color="{Binding PhaseColor, Converter={StaticResource StringToColorConverter}}" Opacity="0.25"/>
+                            </Border.BorderBrush>
+                            <Border.BorderThickness>1</Border.BorderThickness>
+                            <TextBlock Text="{Binding Phase}" FontSize="15" FontWeight="Bold"
+                                      >
+                                <TextBlock.Foreground>
+                                    <SolidColorBrush Color="{Binding PhaseColor, Converter={StaticResource StringToColorConverter}}"/>
+                                </TextBlock.Foreground>
+                            </TextBlock>
+                        </Border>
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <Ellipse Width="6" Height="6" VerticalAlignment="Center" Margin="0,0,6,0">
+                                <Ellipse.Fill>
+                                    <SolidColorBrush Color="{Binding ApproachStableColor, Converter={StaticResource StringToColorConverter}}"/>
+                                </Ellipse.Fill>
+                                <Ellipse.Effect>
+                                    <DropShadowEffect ShadowDepth="0" BlurRadius="5" Opacity="0.5"
+                                                      Color="{Binding ApproachStableColor, Converter={StaticResource StringToColorConverter}}"/>
+                                </Ellipse.Effect>
+                            </Ellipse>
+                            <TextBlock Text="{Binding ApproachStableText}" FontSize="10" FontWeight="SemiBold">
+                                <TextBlock.Foreground>
+                                    <SolidColorBrush Color="{Binding ApproachStableColor, Converter={StaticResource StringToColorConverter}}"/>
+                                </TextBlock.Foreground>
+                            </TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- FUEL -->
+                <Border Grid.Column="5" Style="{StaticResource AviatesMetricCard}">
+                    <Grid>
+                        <Border CornerRadius="12" Opacity="0.6">
+                            <Border.Background>
+                                <RadialGradientBrush Center="0.2,0.3" RadiusX="0.8" RadiusY="0.8">
+                                    <GradientStop Color="#F9731608" Offset="0"/>
+                                    <GradientStop Color="#F9731600" Offset="1"/>
+                                </RadialGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <StackPanel>
+                            <TextBlock Text="FUEL" Style="{StaticResource TextStyle_CardLabel}"/>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                                <TextBlock Text="{Binding FuelTotal}" Style="{StaticResource TextStyle_MetricMedium}"
+                                           Foreground="{StaticResource Brush_Status_Orange}"/>
+                                <TextBlock Text="lbs" Style="{StaticResource TextStyle_Unit}"/>
+                            </StackPanel>
+                            <ProgressBar Style="{StaticResource AviatesProgressBar}"
+                                         Value="{Binding FuelPct}" Maximum="1"
+                                         Margin="0,10,0,6" Height="4"
+                                         Foreground="{StaticResource Brush_Status_Orange}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Burn " FontSize="10" Foreground="{StaticResource Brush_Text_Muted}"/>
+                                <TextBlock Text="{Binding FuelBurnRate, StringFormat='{}{0} pph'}"
+                                           FontSize="10" Foreground="{StaticResource Brush_Text_Secondary}"
+                                           FontFamily="Cascadia Code, Consolas"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- ===== ROW 3: ENGINE + AUTOPILOT + WIND + NAV ===== -->
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="14"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- ENGINE CARD -->
+                <Border Grid.Column="0" Style="{StaticResource AviatesSectionCard}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" Style="{StaticResource AviatesPanelHeader}">
+                            <TextBlock Text="Engines" Style="{StaticResource TextStyle_SectionTitle}"/>
+                        </Border>
+                        <StackPanel Grid.Row="1" Margin="18,14">
+                            <StackPanel Margin="0,0,0,10">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <TextBlock Text="ENG 1  N1" FontSize="10" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Brush_Text_Muted}" Width="80"
+                                              />
+                                    <TextBlock Text="{Binding N1_1, StringFormat='{}{0}%'}"
+                                               FontSize="15" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Brush_Status_Cyan}"
+                                               FontFamily="Cascadia Code, Consolas"/>
+                                </StackPanel>
+                                <ProgressBar Style="{StaticResource AviatesProgressBar}"
+                                             Value="{Binding N1_1_pct}" Maximum="1"
+                                             Foreground="{StaticResource Brush_Status_Cyan}" Height="4"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,0,12">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <TextBlock Text="ENG 2  N1" FontSize="10" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Brush_Text_Muted}" Width="80"
+                                              />
+                                    <TextBlock Text="{Binding N1_2, StringFormat='{}{0}%'}"
+                                               FontSize="15" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Brush_Status_Cyan}"
+                                               FontFamily="Cascadia Code, Consolas"/>
+                                </StackPanel>
+                                <ProgressBar Style="{StaticResource AviatesProgressBar}"
+                                             Value="{Binding N1_2_pct}" Maximum="1"
+                                             Foreground="{StaticResource Brush_Status_Cyan}" Height="4"/>
+                            </StackPanel>
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="FLAPS" Style="{StaticResource TextStyle_CardLabel}"/>
+                                    <TextBlock Text="{Binding Flaps}" FontSize="18" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Brush_Text_Primary}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="GEAR" Style="{StaticResource TextStyle_CardLabel}"/>
+                                    <TextBlock Text="{Binding Gear}" FontSize="18" FontWeight="Bold">
+                                        <TextBlock.Foreground>
+                                            <SolidColorBrush Color="{Binding GearColor, Converter={StaticResource StringToColorConverter}}"/>
+                                        </TextBlock.Foreground>
+                                    </TextBlock>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="SPLR" Style="{StaticResource TextStyle_CardLabel}"/>
+                                    <TextBlock Text="{Binding Spoilers}" FontSize="18" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Brush_Text_Primary}"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- AUTOPILOT CARD -->
+                <Border Grid.Column="2" Style="{StaticResource AviatesSectionCard}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" Style="{StaticResource AviatesPanelHeader}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Autopilot" Style="{StaticResource TextStyle_SectionTitle}"/>
+                                <Border CornerRadius="5" Padding="8,3" Margin="10,0,0,0">
+                                    <Border.Background>
+                                        <SolidColorBrush Color="#3B82F6" Opacity="0.15"/>
+                                    </Border.Background>
+                                    <TextBlock Text="{Binding ApMode}" FontSize="10" FontWeight="Bold"
+                                               Foreground="{StaticResource Brush_Accent_Light}"
+                                              />
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                        <Grid Grid.Row="1" Margin="18,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="14"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="14"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel Grid.Row="0" Grid.Column="0">
+                                <TextBlock Text="ALT" Style="{StaticResource TextStyle_CardLabel}"/>
+                                <TextBlock Text="{Binding ApAlt, StringFormat='{}{0}ft'}"
+                                           FontSize="18" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush_Accent_Light}"
+                                           FontFamily="Cascadia Code, Consolas"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="1">
+                                <TextBlock Text="SPD" Style="{StaticResource TextStyle_CardLabel}"/>
+                                <TextBlock Text="{Binding ApSpd, StringFormat='{}{0}kt'}"
+                                           FontSize="18" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush_Status_Cyan}"
+                                           FontFamily="Cascadia Code, Consolas"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="0">
+                                <TextBlock Text="HDG" Style="{StaticResource TextStyle_CardLabel}"/>
+                                <TextBlock Text="{Binding ApHdg}" FontSize="18" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush_Status_Yellow}"
+                                           FontFamily="Cascadia Code, Consolas"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="1">
+                                <TextBlock Text="V/S" Style="{StaticResource TextStyle_CardLabel}"/>
+                                <TextBlock Text="{Binding ApVs, StringFormat='{}{0}fpm'}"
+                                           FontSize="18" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush_Status_Orange}"
+                                           FontFamily="Cascadia Code, Consolas"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="4" Grid.ColumnSpan="2">
+                                <TextBlock Text="ILS DEVIATION" Style="{StaticResource TextStyle_CardLabel}"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding LocDev, StringFormat='LOC {0:F2}'}"
+                                               FontSize="12" Foreground="{StaticResource Brush_Text_Secondary}"
+                                               FontFamily="Cascadia Code, Consolas" Margin="0,0,12,0"/>
+                                    <TextBlock Text="{Binding GsDev, StringFormat='G/S {0:F2}'}"
+                                               FontSize="12" Foreground="{StaticResource Brush_Text_Secondary}"
+                                               FontFamily="Cascadia Code, Consolas"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- WEATHER / WIND CARD -->
+                <Border Grid.Column="4" Style="{StaticResource AviatesSectionCard}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" Style="{StaticResource AviatesPanelHeader}">
+                            <TextBlock Text="Weather" Style="{StaticResource TextStyle_SectionTitle}"/>
+                        </Border>
+                        <Grid Grid.Row="1" Margin="18,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="14"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="14"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel Grid.Row="0" Grid.ColumnSpan="2">
+                                <TextBlock Text="WIND" Style="{StaticResource TextStyle_CardLabel}"/>
+                                <TextBlock Text="{Binding WindInfo}" FontSize="20" FontWeight="SemiBold"
+                                           FontFamily="Cascadia Code, Consolas" Foreground="{StaticResource Brush_Text_Primary}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="0">
+                                <TextBlock Text="HEADWIND" Style="{StaticResource TextStyle_CardLabel}"/>
+                                <TextBlock Text="{Binding Headwind}" FontSize="18" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush_Status_Cyan}"
+                                           FontFamily="Cascadia Code, Consolas"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="1">
+                                <TextBlock Text="CROSSWIND" Style="{StaticResource TextStyle_CardLabel}"/>
+                                <TextBlock Text="{Binding Crosswind}" FontSize="18" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush_Status_Yellow}"
+                                           FontFamily="Cascadia Code, Consolas"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="4" Grid.Column="0">
+                                <TextBlock Text="OAT" Style="{StaticResource TextStyle_CardLabel}"/>
+                                <TextBlock Text="{Binding Oat}" FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush_Text_Primary}"
+                                           FontFamily="Cascadia Code, Consolas"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="4" Grid.Column="1">
+                                <TextBlock Text="QNH" Style="{StaticResource TextStyle_CardLabel}"/>
+                                <TextBlock Text="{Binding Qnh, StringFormat='{}{0}mb'}"
+                                           FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush_Text_Primary}"
+                                           FontFamily="Cascadia Code, Consolas"/>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- NAVIGATION / COMMS CARD -->
+                <Border Grid.Column="6" Style="{StaticResource AviatesSectionCard}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" Style="{StaticResource AviatesPanelHeader}">
+                            <TextBlock Text="Navigation" Style="{StaticResource TextStyle_SectionTitle}"/>
+                        </Border>
+                        <Grid Grid.Row="1" Margin="18,14">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="14"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="14"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel Grid.Row="0">
+                                <TextBlock Text="NAV 1" Style="{StaticResource TextStyle_CardLabel}"/>
+                                <TextBlock Text="{Binding Nav1Freq}" FontFamily="Cascadia Code, Consolas"
+                                           FontSize="20" FontWeight="Bold"
+                                           Foreground="{StaticResource Brush_Status_Green}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2">
+                                <TextBlock Text="COM 1" Style="{StaticResource TextStyle_CardLabel}"/>
+                                <TextBlock Text="{Binding Com1Freq}" FontFamily="Cascadia Code, Consolas"
+                                           FontSize="20" FontWeight="Bold"
+                                           Foreground="{StaticResource Brush_Accent_Light}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="4">
+                                <TextBlock Text="SQUAWK" Style="{StaticResource TextStyle_CardLabel}"/>
+                                <TextBlock Text="{Binding Squawk}" FontFamily="Cascadia Code, Consolas"
+                                           FontSize="20" FontWeight="Bold"
+                                           Foreground="{StaticResource Brush_Status_Yellow}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- ===== ROW 5: APPROACH ALERTS ===== -->
+            <ItemsControl Grid.Row="4" ItemsSource="{Binding ApproachAlerts}"
+                          Visibility="{Binding HasItems, RelativeSource={RelativeSource Self},
+                          Converter={StaticResource BoolToVis}}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource AviatesBadge_Red}" Padding="12,6" Margin="0,0,8,0">
+                            <Border.Effect>
+                                <DropShadowEffect ShadowDepth="0" BlurRadius="10"
+                                                  Color="{StaticResource Status_Red}" Opacity="0.25"/>
+                            </Border.Effect>
+                            <TextBlock Text="{Binding}" Style="{StaticResource TextStyle_Badge}"
+                                       Foreground="{StaticResource Brush_Status_Red}"/>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- ===== ROW 7: LIVE CHARTS ===== -->
+            <Grid Grid.Row="6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Style="{StaticResource AviatesCard}" Padding="10">
+                    <oxy:PlotView Model="{Binding AltitudePlot}" Background="Transparent"/>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource AviatesCard}" Padding="10">
+                    <oxy:PlotView Model="{Binding SpeedPlot}" Background="Transparent"/>
+                </Border>
+                <Border Grid.Column="4" Style="{StaticResource AviatesCard}" Padding="10">
+                    <oxy:PlotView Model="{Binding VSPlot}" Background="Transparent"/>
+                </Border>
+                <Border Grid.Column="6" Style="{StaticResource AviatesCard}" Padding="10">
+                    <oxy:PlotView Model="{Binding N1Plot}" Background="Transparent"/>
+                </Border>
+            </Grid>
+
+        </Grid>
+    </ScrollViewer>
+</UserControl>
