@@ -76,6 +76,14 @@ public partial class App : Application
                 }
             };
 
+            // Schedule update check 8 seconds after startup so it doesn't delay the UI
+            var updateSvc = _serviceProvider.GetRequiredService<UpdateService>();
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(8000);
+                await updateSvc.CheckAsync();
+            });
+
             _serviceProvider.GetRequiredService<MainWindow>().Show();
         }
         catch (Exception ex)
@@ -137,6 +145,7 @@ public partial class App : Application
         services.AddSingleton<RoutesService>();
         services.AddSingleton<BookingService>();
         services.AddSingleton<FleetService>();
+        services.AddSingleton<UpdateService>();
         // ViewModels
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<LiveFlightViewModel>();
@@ -157,6 +166,7 @@ public partial class App : Application
     {
         _serviceProvider.GetService<SimConnectManager>()?.Disconnect();
         _serviceProvider.GetService<DiscordPresenceService>()?.Dispose();
+        _serviceProvider.GetService<UpdateService>()?.Dispose();
         Log.CloseAndFlush();
         _serviceProvider.Dispose();
         base.OnExit(e);

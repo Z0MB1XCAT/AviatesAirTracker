@@ -1,7 +1,10 @@
 @page "/settings"
 @inject SettingsService SettingsService
 @inject AviatesBackendClient BackendClient
+@inject UpdateService UpdateService
 @inject IJSRuntime JS
+@using System.Reflection
+@implements IDisposable
 
 <div class="page-header anim-up">
     <h1 class="page-title">Settings</h1>
@@ -248,6 +251,75 @@
             }
         </div>
 
+        <!-- About & Updates -->
+        <div class="panel-card anim-up-d4">
+            <div class="form-section-title">About &amp; Updates</div>
+            <div style="display:flex;flex-direction:column;gap:var(--sp-4);">
+
+                <!-- Version row -->
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-bottom:3px;">Current Version</div>
+                        <div style="font-family:var(--font-mono);font-size:14px;font-weight:700;color:var(--text-primary);">
+                            v@_appVersion
+                        </div>
+                    </div>
+                    <button class="btn btn-secondary" style="gap:6px;"
+                            disabled="@(_isCheckingUpdate || _isInstallingUpdate)"
+                            @onclick="CheckForUpdatesAsync">
+                        @if (_isCheckingUpdate)
+                        {
+                            <span class="spinner-sm"></span>
+                            <span>Checking…</span>
+                        }
+                        else
+                        {
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                            <span>Check for Updates</span>
+                        }
+                    </button>
+                </div>
+
+                <!-- Update status -->
+                @if (UpdateService.AvailableUpdate is { } update)
+                {
+                    <div style="background:rgba(59,130,246,0.07);border:1px solid rgba(59,130,246,0.20);border-left:2px solid var(--accent);border-radius:var(--r-sm);padding:12px 13px;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:var(--sp-3);">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="flex-shrink:0;"><polyline points="7 16 12 21 17 16"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+                            <div style="font-size:12.5px;font-weight:700;color:var(--accent);">
+                                v@(update.Version) is available
+                            </div>
+                        </div>
+                        @if (_isInstallingUpdate)
+                        {
+                            <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;display:flex;justify-content:space-between;">
+                                <span>Downloading…</span><span>@(_updateDlProgress)%</span>
+                            </div>
+                            <div class="update-progress-track" style="margin-bottom:var(--sp-3);">
+                                <div class="update-progress-fill" style="width:@(_updateDlProgress)%"></div>
+                            </div>
+                        }
+                        else
+                        {
+                            <button class="btn btn-primary" style="width:100%;justify-content:center;gap:7px;"
+                                    @onclick="InstallFromSettingsAsync">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Download &amp; Install
+                            </button>
+                        }
+                    </div>
+                }
+                else if (_updateChecked)
+                {
+                    <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--green);padding:8px 10px;background:var(--green-light);border-radius:var(--r-sm);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>
+                        You're on the latest version.
+                    </div>
+                }
+
+            </div>
+        </div>
+
         <!-- Save -->
         <div style="display:flex;gap:var(--sp-3);" class="anim-up-d4">
             <button class="btn btn-primary" style="flex:1;justify-content:center;" @onclick="SaveSettings">
@@ -270,6 +342,13 @@
     private bool   _isVerified;
     private string _verifiedEmail = "";
 
+    // Update panel state
+    private string _appVersion         = "1.0.0";
+    private bool   _isCheckingUpdate;
+    private bool   _updateChecked;
+    private bool   _isInstallingUpdate;
+    private int    _updateDlProgress;
+
     private record ThemeOption(string Value, string Label, string Icon);
     private static readonly ThemeOption[] _themeOptions =
     [
@@ -290,6 +369,14 @@
         {
             _isVerified = true;
         }
+
+        // Resolve current version from assembly metadata
+        var v = Assembly.GetExecutingAssembly().GetName().Version;
+        if (v is not null)
+            _appVersion = $"{v.Major}.{v.Minor}.{v.Build}";
+
+        // Wire up download progress from the shared service
+        UpdateService.DownloadProgressChanged += OnUpdateProgress;
     }
 
     private void OnPilotNameInput(ChangeEventArgs e)
@@ -429,5 +516,49 @@
         _statusMessage = "Settings reset to defaults.";
         _isError = false;
         StateHasChanged();
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        _isCheckingUpdate = true;
+        _updateChecked    = false;
+        StateHasChanged();
+        try
+        {
+            await UpdateService.CheckAsync();
+            _updateChecked = true;
+        }
+        finally
+        {
+            _isCheckingUpdate = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task InstallFromSettingsAsync()
+    {
+        _isInstallingUpdate = true;
+        _updateDlProgress   = 0;
+        StateHasChanged();
+        try
+        {
+            await UpdateService.DownloadAndInstallAsync();
+        }
+        catch
+        {
+            _isInstallingUpdate = false;
+            _updateDlProgress   = 0;
+            StateHasChanged();
+        }
+    }
+
+    private void OnUpdateProgress(object? sender, int pct)
+    {
+        _ = InvokeAsync(() => { _updateDlProgress = pct; StateHasChanged(); });
+    }
+
+    public void Dispose()
+    {
+        UpdateService.DownloadProgressChanged -= OnUpdateProgress;
     }
 }
