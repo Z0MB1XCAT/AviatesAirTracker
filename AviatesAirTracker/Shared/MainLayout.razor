@@ -2,6 +2,7 @@
 @inject NavigationManager Nav
 @inject MessagingService MessagingService
 @inject SettingsService SettingsService
+@inject UpdateService UpdateService
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
@@ -24,6 +25,39 @@
                 <div class="brand-sub">Virtual Airline</div>
             </div>
         </div>
+
+        <!-- Update banner -->
+        @if (_update is not null && !_updateDismissed)
+        {
+            <div class="update-banner">
+                <div class="update-banner-header">
+                    <span class="update-banner-title">Update Available</span>
+                </div>
+                <div class="update-banner-ver">v@_update.Version</div>
+                @if (_isDownloading)
+                {
+                    <div class="update-progress-wrap">
+                        <div class="update-progress-label">
+                            <span>Downloading…</span>
+                            <span>@_dlProgress%</span>
+                        </div>
+                        <div class="update-progress-track">
+                            <div class="update-progress-fill" style="width:@(_dlProgress)%"></div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="update-banner-actions">
+                        <button class="update-banner-install" @onclick="InstallUpdateAsync">
+                            Download &amp; Install
+                        </button>
+                        <button class="update-banner-dismiss" title="Dismiss"
+                                @onclick="() => _updateDismissed = true">×</button>
+                    </div>
+                }
+            </div>
+        }
 
         <!-- Nav -->
         <nav class="sidebar-nav">
@@ -222,11 +256,50 @@
     private string _headerInitials = "?";
     private string _headerRank     = "Virtual Pilot";
 
+    private UpdateInfo? _update;
+    private bool        _updateDismissed;
+    private bool        _isDownloading;
+    private int         _dlProgress;
+
     protected override void OnInitialized()
     {
         MessagingService.UnreadCountChanged += OnUnreadCountChanged;
         SettingsService.SettingsChanged     += OnSettingsChanged;
+        UpdateService.UpdateFound           += OnUpdateFound;
+        UpdateService.DownloadProgressChanged += OnDownloadProgress;
         RefreshHeader();
+
+        // If an update was already detected before the layout rendered, show it immediately
+        if (UpdateService.AvailableUpdate is { } existing)
+            _update = existing;
+    }
+
+    private void OnUpdateFound(object? sender, UpdateInfo info)
+    {
+        _ = InvokeAsync(() => { _update = info; StateHasChanged(); });
+    }
+
+    private void OnDownloadProgress(object? sender, int pct)
+    {
+        _ = InvokeAsync(() => { _dlProgress = pct; StateHasChanged(); });
+    }
+
+    private async Task InstallUpdateAsync()
+    {
+        _isDownloading = true;
+        _dlProgress    = 0;
+        StateHasChanged();
+        try
+        {
+            await UpdateService.DownloadAndInstallAsync();
+        }
+        catch
+        {
+            // Download failed — reset so user can retry
+            _isDownloading = false;
+            _dlProgress    = 0;
+            StateHasChanged();
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -264,8 +337,10 @@
 
     public async ValueTask DisposeAsync()
     {
-        MessagingService.UnreadCountChanged -= OnUnreadCountChanged;
-        SettingsService.SettingsChanged     -= OnSettingsChanged;
+        MessagingService.UnreadCountChanged   -= OnUnreadCountChanged;
+        SettingsService.SettingsChanged       -= OnSettingsChanged;
+        UpdateService.UpdateFound             -= OnUpdateFound;
+        UpdateService.DownloadProgressChanged -= OnDownloadProgress;
         await JS.InvokeVoidAsync("aviatesTheme.stopWatching");
     }
 }
