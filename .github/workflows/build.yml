@@ -1,0 +1,160 @@
+name: Build and Release Aviates Air Flight Tracker
+
+on:
+  push:
+    branches: [ main ]
+    tags:     [ 'v*.*.*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  PROJECT_PATH:   'AviatesAirTracker/AviatesAirTracker.csproj'
+  OUTPUT_DIR:     'dist'
+
+jobs:
+  # ============================================================
+  # BUILD JOB
+  # ============================================================
+  build:
+    name: Build (Windows x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # SimConnect DLL must be provided as a repository secret / stored artifact
+      # In production: store SimConnect.dll in a private GitHub release asset
+      - name: Restore SimConnect DLL
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "AviatesAirTracker/Libs" | Out-Null
+          # Decode SimConnect DLL from base64 secret (set in repo settings)
+          if ("${{ secrets.SIMCONNECT_DLL_B64 }}" -ne "") {
+            $bytes = [Convert]::FromBase64String("${{ secrets.SIMCONNECT_DLL_B64 }}")
+            [IO.File]::WriteAllBytes("AviatesAirTracker/Libs/Microsoft.FlightSimulator.SimConnect.dll", $bytes)
+            Write-Host "SimConnect DLL restored from secret"
+          } else {
+            Write-Host "::warning::SimConnect DLL not available - build will reference stub"
+            # Create an empty placeholder so the project file resolves
+            New-Item -ItemType File -Path "AviatesAirTracker/Libs/Microsoft.FlightSimulator.SimConnect.dll" | Out-Null
+          }
+
+      - name: Restore NuGet packages
+        run: dotnet restore ${{ env.PROJECT_PATH }}
+
+      - name: Build (Debug)
+        run: dotnet build ${{ env.PROJECT_PATH }} -c Debug --no-restore
+
+      - name: Build (Release)
+        run: dotnet build ${{ env.PROJECT_PATH }} -c Release --no-restore
+
+      - name: Publish single-file EXE
+        run: |
+          dotnet publish ${{ env.PROJECT_PATH }} `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -o ${{ env.OUTPUT_DIR }}
+
+      - name: List output
+        run: Get-ChildItem ${{ env.OUTPUT_DIR }} | Format-Table Name, Length
+        shell: pwsh
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AviatesAirTracker-win-x64
+          path: ${{ env.OUTPUT_DIR }}/AviatesAirTracker.exe
+          retention-days: 30
+
+  # ============================================================
+  # INSTALLER JOB (release tags only)
+  # ============================================================
+  installer:
+    name: Build Installer
+    runs-on: windows-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: AviatesAirTracker-win-x64
+          path: dist
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Build installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer/AviatesAirTracker_Setup.iss
+        shell: pwsh
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AviatesAirTracker-Installer
+          path: installer/AviatesAirTracker_Setup_*.exe
+
+  # ============================================================
+  # GITHUB RELEASE (tags only)
+  # ============================================================
+  release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs: [ build, installer ]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download EXE
+        uses: actions/download-artifact@v4
+        with:
+          name: AviatesAirTracker-win-x64
+          path: artifacts
+
+      - name: Download installer
+        uses: actions/download-artifact@v4
+        with:
+          name: AviatesAirTracker-Installer
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Aviates Air Flight Tracker ${{ github.ref_name }}"
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/AviatesAirTracker.exe
+            artifacts/AviatesAirTracker_Setup_*.exe
+          body: |
+            ## Aviates Air Flight Tracker ${{ github.ref_name }}
+
+            ### Installation
+            1. Download `AviatesAirTracker_Setup_*.exe` and run it
+            2. Or download the standalone `AviatesAirTracker.exe` and run directly
+
+            ### Requirements
+            - Windows 10/11 (64-bit)
+            - Microsoft Flight Simulator 2020 or 2024
+            - SimConnect enabled in MSFS Developer Mode
+
+            ### What's new
+            See CHANGELOG.md for full details.

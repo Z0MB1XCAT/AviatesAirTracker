@@ -1,0 +1,1175 @@
+@page "/acars"
+@using AviatesAirTracker.Core.SimConnect
+@using AviatesAirTracker.Models
+@using AviatesAirTracker.Services
+@inject FlightSessionManager Session
+@inject SimConnectManager SimConnect
+@inject SettingsService Settings
+@inject SimBriefService SimBriefSvc
+@inject IJSRuntime JS
+@inject RouteTracker RouteTracker
+@inject BookingService BookingService
+@implements IAsyncDisposable
+
+<div class="page-header anim-up">
+    <h1 class="page-title">ACARS / Tracking</h1>
+    <p class="page-sub">Real-time flight tracking, telemetry, and ACARS communications. Connect MSFS to go live.</p>
+</div>
+
+<!-- Connection status banner -->
+<div style="background:var(--surface);border:1.5px solid @(_simStatus == SimConnectionStatus.Connected ? "var(--cyan)" : "var(--border)");border-radius:var(--r-xl);padding:var(--sp-4) var(--sp-5);display:flex;align-items:center;gap:var(--sp-4);margin-bottom:var(--sp-5);" class="anim-up-d1">
+    <div style="width:44px;height:44px;border-radius:var(--r-md);background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <div style="width:10px;height:10px;border-radius:50%;background:@_dotColor;@(_simStatus == SimConnectionStatus.Connected ? "animation:dot-breathe 2s infinite;" : _simStatus == SimConnectionStatus.Connecting ? "animation:spin 1.2s linear infinite;" : "")"></div>
+    </div>
+    <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:2px;">@_bannerTitle</div>
+        <div style="font-size:12.5px;color:var(--text-muted);">@_bannerDesc</div>
+    </div>
+    @if (_simStatus != SimConnectionStatus.Connected)
+    {
+        <button class="btn btn-primary btn-sm" @onclick="TryConnect">Connect</button>
+    }
+    else if (_sessionState != FlightSessionState.Idle && _sessionState != FlightSessionState.Complete)
+    {
+        <div style="display:flex;align-items:center;gap:10px;">
+            <span class="status-chip active"><span class="chip-dot"></span>LIVE</span>
+            <button @onclick="() => _showEndFlightModal = true"
+                    style="background:var(--red-light);border:1.5px solid var(--red);border-radius:var(--r-full);padding:6px 16px;font-size:12px;font-weight:700;color:var(--red);cursor:pointer;letter-spacing:0.03em;display:flex;align-items:center;gap:6px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="13" height="13">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                </svg>
+                End Flight
+            </button>
+        </div>
+    }
+    else if (_sessionState == FlightSessionState.Complete)
+    {
+        <span class="status-chip done"><span class="chip-dot"></span>Complete</span>
+    }
+</div>
+
+<!-- Active booking context banner -->
+@if (BookingService.ActiveBooking is { } _bkg)
+{
+    <div class="acars-booking-banner anim-up-d1">
+        <div class="abb-callsign">@_bkg.Callsign</div>
+        <div class="abb-route">
+            <span class="abb-iata">@_bkg.OriginIata</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="13" height="13" style="opacity:0.4;flex-shrink:0;">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+            <span class="abb-iata">@_bkg.DestIata</span>
+        </div>
+        <div class="abb-type">@_bkg.AircraftType</div>
+        <div class="abb-hint">SimBrief opened in browser — generate your plan, then click Fetch OFP below</div>
+        <button class="abb-clear" @onclick="() => BookingService.SetActiveBooking(null)" title="Dismiss">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+        </button>
+    </div>
+}
+
+<!-- Aircraft identification strip -->
+@if (_hasAircraftIdent)
+{
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--sp-3) var(--sp-5);display:flex;align-items:center;gap:var(--sp-5);margin-bottom:var(--sp-5);flex-wrap:wrap;" class="anim-up-d1">
+        <div style="display:flex;align-items:center;gap:10px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 00-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+            </svg>
+            <span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary);">@_aircraft.ATCModel</span>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(_aircraft.ATCId))
+        {
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;">Callsign</span>
+                <span style="font-family:var(--font-mono);font-size:13px;color:var(--text-primary);">@_aircraft.ATCId</span>
+            </div>
+        }
+        @if (!string.IsNullOrWhiteSpace(_aircraft.ATCFlightNumber))
+        {
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;">Flight</span>
+                <span style="font-family:var(--font-mono);font-size:13px;color:var(--text-primary);">@_aircraft.ATCFlightNumber</span>
+            </div>
+        }
+        @if (!string.IsNullOrWhiteSpace(_aircraft.GPSActiveLeg))
+        {
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;">Active Leg</span>
+                <span style="font-family:var(--font-mono);font-size:13px;color:var(--accent);">@_aircraft.GPSActiveLeg</span>
+            </div>
+        }
+        @if (_snap != null)
+        {
+            <div style="margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--text-muted);">@FormatCoords()</div>
+        }
+    </div>
+}
+
+<!-- Instrument row -->
+<div class="instrument-row anim-up-d2">
+    <div class="instrument-card">
+        <div class="instrument-label">Altitude MSL</div>
+        <div class="instrument-value" style="color:@(_snap != null ? "var(--text-primary)" : "var(--text-muted)");">@FmtAlt()</div>
+        <div class="instrument-unit">ft</div>
+    </div>
+    <div class="instrument-card">
+        <div class="instrument-label">Airspeed IAS</div>
+        <div class="instrument-value" style="color:@(_snap != null ? "var(--text-primary)" : "var(--text-muted)");">@FmtIas()</div>
+        <div class="instrument-unit">kts</div>
+    </div>
+    <div class="instrument-card">
+        <div class="instrument-label">Vertical Speed</div>
+        <div class="instrument-value" style="color:@VsColor();">@FmtVs()</div>
+        <div class="instrument-unit">fpm</div>
+    </div>
+    <div class="instrument-card">
+        <div class="instrument-label">Heading</div>
+        <div class="instrument-value" style="color:@(_snap != null ? "var(--text-primary)" : "var(--text-muted)");">@FmtHdg()</div>
+        <div class="instrument-unit">°</div>
+    </div>
+    <div class="instrument-card">
+        <div class="instrument-label">N1 Engine 1</div>
+        <div class="instrument-value" style="color:@N1Color();">@FmtN1()</div>
+        <div class="instrument-unit">%</div>
+    </div>
+    <div class="instrument-card">
+        <div class="instrument-label">Fuel Qty</div>
+        <div class="instrument-value" style="color:@(_snap != null ? "var(--text-primary)" : "var(--text-muted)");">@FmtFuel()</div>
+        <div class="instrument-unit">lbs</div>
+    </div>
+</div>
+
+<!-- Flight progress + ETA strip -->
+@if (_flightPlan != null)
+{
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--sp-3) var(--sp-5);margin-bottom:var(--sp-5);" class="anim-up-d2">
+        <!-- Progress bar row -->
+        <div style="display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-2);">
+            <span style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--green);flex-shrink:0;min-width:36px;">@_flightPlan.DepartureICAO</span>
+            <div style="flex:1;height:6px;background:var(--surface-2);border-radius:var(--r-full);overflow:hidden;border:1px solid var(--border);">
+                <div style="height:100%;width:@(ProgressPct().ToString("F0"))%;background:linear-gradient(90deg,var(--accent),var(--cyan));border-radius:var(--r-full);transition:width 2s ease;"></div>
+            </div>
+            <span style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--amber);flex-shrink:0;min-width:36px;text-align:right;">@_flightPlan.ArrivalICAO</span>
+        </div>
+        <!-- Stats row -->
+        <div style="display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap;">
+            <div style="display:flex;align-items:baseline;gap:5px;">
+                <span style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;">En Route</span>
+                <span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary);">@FmtEnRoute()</span>
+            </div>
+            <div style="width:1px;height:12px;background:var(--border);flex-shrink:0;"></div>
+            <div style="display:flex;align-items:baseline;gap:5px;">
+                <span style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;">Flown</span>
+                <span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary);">@FmtDistFlown()</span>
+            </div>
+            <div style="width:1px;height:12px;background:var(--border);flex-shrink:0;"></div>
+            <div style="display:flex;align-items:baseline;gap:5px;">
+                <span style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;">Remaining</span>
+                <span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary);">@FmtDistRemaining()</span>
+            </div>
+            <div style="width:1px;height:12px;background:var(--border);flex-shrink:0;"></div>
+            <div style="display:flex;align-items:baseline;gap:5px;">
+                <span style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;">ETA</span>
+                <span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary);">@FmtETAUtc()</span>
+            </div>
+            @if (_flightPlan.Waypoints.Count >= 2 && _snap != null)
+            {
+                <div style="width:1px;height:12px;background:var(--border);flex-shrink:0;"></div>
+                <div style="display:flex;align-items:baseline;gap:5px;">
+                    <span style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;">Deviation</span>
+                    <span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:@XtkColor();">@XtkLabel()</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<!-- Map + right panel -->
+<div style="display:grid;grid-template-columns:1fr 300px;gap:var(--sp-5);" class="anim-up-d3">
+
+    <!-- Interactive Leaflet map -->
+    <div style="background:#0a0d17;border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden;position:relative;min-height:480px;">
+        <div id="leaflet-map" style="width:100%;height:100%;min-height:480px;"></div>
+
+        <!-- Map overlay controls (top-right) -->
+        <div style="position:absolute;top:12px;right:12px;z-index:1000;display:flex;flex-direction:column;gap:6px;">
+            <button @onclick="ToggleFollow"
+                    style="background:rgba(10,13,23,0.85);backdrop-filter:blur(6px);border:1.5px solid @(_followAircraft ? "rgba(59,130,246,0.7)" : "rgba(255,255,255,0.15)");border-radius:var(--r-md);padding:5px 11px;font-size:10px;font-weight:700;cursor:pointer;color:@(_followAircraft ? "#3B82F6" : "rgba(255,255,255,0.5)");letter-spacing:0.08em;">
+                @(_followAircraft ? "● FOLLOW" : "○ FOLLOW")
+            </button>
+            @if (_snap != null)
+            {
+                <button @onclick="CenterOnAircraft"
+                        style="background:rgba(10,13,23,0.85);backdrop-filter:blur(6px);border:1.5px solid rgba(255,255,255,0.15);border-radius:var(--r-md);padding:5px 11px;font-size:10px;font-weight:700;cursor:pointer;color:rgba(255,255,255,0.6);letter-spacing:0.08em;">
+                    CENTER
+                </button>
+            }
+            @if (_flightPlan != null)
+            {
+                <button @onclick="FitRoute"
+                        style="background:rgba(10,13,23,0.85);backdrop-filter:blur(6px);border:1.5px solid rgba(255,255,255,0.15);border-radius:var(--r-md);padding:5px 11px;font-size:10px;font-weight:700;cursor:pointer;color:rgba(255,255,255,0.6);letter-spacing:0.08em;">
+                    ROUTE
+                </button>
+            }
+        </div>
+
+        <!-- No-flight overlay -->
+        @if (_snap == null)
+        {
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:999;">
+                <div style="background:rgba(10,13,23,0.75);border:1px solid rgba(255,255,255,0.1);border-radius:var(--r-lg);padding:20px 28px;text-align:center;backdrop-filter:blur(10px);">
+                    <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:6px;">No Active Flight</div>
+                    <div style="font-size:12px;color:rgba(255,255,255,0.45);max-width:200px;line-height:1.5;">Connect to MSFS and start your engines to see your live position.</div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Right panel -->
+    <div style="display:flex;flex-direction:column;gap:var(--sp-4);align-self:start;">
+
+        <!-- SimBrief / Flight Plan card -->
+        <div class="panel-card">
+            <div class="panel-header" style="margin-bottom:var(--sp-3);">
+                <span class="panel-title">Flight Plan</span>
+                @if (_flightPlan != null)
+                {
+                    <button @onclick="ClearPlan" style="font-size:11px;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:var(--r-xs);">Clear</button>
+                }
+            </div>
+
+            @if (_flightPlan != null)
+            {
+                <div style="margin-bottom:var(--sp-3);">
+                    <div style="font-family:var(--font-mono);font-size:22px;font-weight:900;color:var(--text-primary);letter-spacing:0.02em;line-height:1.1;">
+                        @_flightPlan.DepartureICAO
+                        <span style="color:var(--accent);font-size:16px;"> → </span>
+                        @_flightPlan.ArrivalICAO
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(_flightPlan.AircraftType))
+                    {
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">
+                            @_flightPlan.AircraftType
+                            @if (!string.IsNullOrWhiteSpace(_flightPlan.AircraftRegistration))
+                            {
+                                <span> · @_flightPlan.AircraftRegistration</span>
+                            }
+                        </div>
+                    }
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:var(--sp-3);">
+                    @if (_flightPlan.CruiseAltitudeFt > 0)
+                    {
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:11px;color:var(--text-muted);">Cruise</span>
+                            <span style="font-size:12px;font-weight:600;font-family:var(--font-mono);color:var(--text-primary);">FL@((_flightPlan.CruiseAltitudeFt / 100).ToString("D3")) · M@(_flightPlan.CruiseMach.ToString("F2"))</span>
+                        </div>
+                    }
+                    @if (_flightPlan.PlannedDistanceNm > 0)
+                    {
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:11px;color:var(--text-muted);">Distance</span>
+                            <span style="font-size:12px;font-weight:600;font-family:var(--font-mono);color:var(--text-primary);">@_flightPlan.PlannedDistanceNm.ToString("F0") nm</span>
+                        </div>
+                    }
+                    @if (_flightPlan.PlannedFlightTimeMin > 0)
+                    {
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:11px;color:var(--text-muted);">ETE</span>
+                            <span style="font-size:12px;font-weight:600;font-family:var(--font-mono);color:var(--text-primary);">@FormatETE(_flightPlan.PlannedFlightTimeMin)</span>
+                        </div>
+                    }
+                    @if (_flightPlan.TakeoffFuelLbs > 0)
+                    {
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:11px;color:var(--text-muted);">TOW Fuel</span>
+                            <span style="font-size:12px;font-weight:600;font-family:var(--font-mono);color:var(--text-primary);">@_flightPlan.TakeoffFuelLbs.ToString("N0") lbs</span>
+                        </div>
+                    }
+                    @if (_flightPlan.Waypoints.Count > 0)
+                    {
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:11px;color:var(--text-muted);">Fixes</span>
+                            <span style="font-size:12px;font-weight:600;font-family:var(--font-mono);color:var(--text-primary);">@_flightPlan.Waypoints.Count waypoints</span>
+                        </div>
+                    }
+                </div>
+                <button @onclick="ImportSimBrief" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;">Refresh OFP</button>
+            }
+            else if (_loadingSimBrief)
+            {
+                <div style="display:flex;flex-direction:column;align-items:center;padding:var(--sp-4);">
+                    <div style="width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:8px;"></div>
+                    <div style="font-size:12px;color:var(--text-muted);">Fetching from SimBrief...</div>
+                </div>
+            }
+            else
+            {
+                @if (!string.IsNullOrWhiteSpace(_simBriefError))
+                {
+                    <div style="background:var(--red-light);border:1px solid var(--red);border-radius:var(--r-md);padding:8px 10px;font-size:11.5px;color:var(--red);margin-bottom:var(--sp-3);line-height:1.4;">@_simBriefError</div>
+                }
+                @if (string.IsNullOrWhiteSpace(Settings.Settings.SimBriefUsername))
+                {
+                    <div style="font-size:12px;color:var(--text-muted);margin-bottom:var(--sp-3);line-height:1.5;">No SimBrief username configured.</div>
+                    <a href="/settings" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;">Configure SimBrief</a>
+                }
+                else
+                {
+                    <div style="font-size:11px;color:var(--text-muted);margin-bottom:var(--sp-3);">
+                        Pilot ID: <span style="font-family:var(--font-mono);color:var(--text-secondary);">@Settings.Settings.SimBriefUsername</span>
+                    </div>
+                    <button @onclick="ImportSimBrief" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;">
+                        Import Latest OFP
+                    </button>
+                }
+            }
+        </div>
+
+        <!-- Flight Phase card -->
+        <div class="panel-card">
+            <div class="panel-header" style="margin-bottom:var(--sp-4);">
+                <span class="panel-title">Flight Phase</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:var(--sp-3);">
+                @foreach (var phase in new[] { "Parked", "Taxi", "Climb", "Cruise", "Approach", "Landing" })
+                {
+                    var (chipCls, textCls) = PhaseStatus(phase);
+                    <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:var(--r-md);background:@(chipCls == "active" ? "rgba(61,126,238,0.08)" : "var(--surface-2)");">
+                        <span class="status-chip @chipCls" style="padding:0;background:none;"><span class="chip-dot"></span></span>
+                        <span style="font-size:13px;font-weight:@(chipCls == "active" ? "700" : "500");color:@textCls;">@phase</span>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- ACARS Key card -->
+        <div class="panel-card">
+            <div class="panel-header" style="margin-bottom:var(--sp-3);">
+                <span class="panel-title">ACARS Key</span>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Settings.Settings.AcarsKey))
+            {
+                <div style="background:var(--surface-2);border-radius:var(--r-md);padding:10px 12px;font-family:var(--font-mono);font-size:12px;color:var(--text-muted);letter-spacing:0.06em;overflow:hidden;text-overflow:ellipsis;">
+                    @MaskAcarsKey(Settings.Settings.AcarsKey)
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Settings.Settings.FriendCode))
+                {
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+                        <span style="font-size:11px;color:var(--text-muted);">Friend Code</span>
+                        <span style="font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--accent);letter-spacing:0.1em;">@Settings.Settings.FriendCode</span>
+                    </div>
+                }
+            }
+            else
+            {
+                <div style="background:var(--surface-2);border-radius:var(--r-md);padding:10px 12px;font-family:var(--font-mono);font-size:12px;color:var(--text-muted);">
+                    Not configured
+                </div>
+            }
+            <a href="/settings" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;margin-top:12px;">Configure ACARS</a>
+        </div>
+
+    </div>
+</div>
+
+<!-- SimBrief OFP details (full-width strip below the map, only when a plan is loaded) -->
+@if (_flightPlan != null)
+{
+    <div style="margin-top:var(--sp-5);display:flex;flex-direction:column;gap:var(--sp-4);" class="anim-up-d4">
+
+        <!-- Waypoint route strip -->
+        @if (_flightPlan.Waypoints.Count > 0)
+        {
+            <div class="panel-card">
+                <div class="panel-header" style="margin-bottom:var(--sp-3);">
+                    <span class="panel-title">Route — @_flightPlan.DepartureICAO → @_flightPlan.ArrivalICAO</span>
+                    @{
+                        var sidText  = !string.IsNullOrWhiteSpace(_flightPlan.SID)  ? _flightPlan.SID  : _flightPlan.DepartureRunway;
+                        var starText = !string.IsNullOrWhiteSpace(_flightPlan.STAR) ? _flightPlan.STAR : _flightPlan.ArrivalRunway;
+                    }
+                    @if (!string.IsNullOrWhiteSpace(sidText) || !string.IsNullOrWhiteSpace(starText))
+                    {
+                        <span style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted);">
+                            @if (!string.IsNullOrWhiteSpace(sidText))  { <span>SID: @sidText</span> }
+                            @if (!string.IsNullOrWhiteSpace(_flightPlan.DepartureRunway) && !string.IsNullOrWhiteSpace(_flightPlan.SID)) { <span style="color:var(--border)"> · Rwy @_flightPlan.DepartureRunway</span> }
+                            @if (!string.IsNullOrWhiteSpace(sidText) && !string.IsNullOrWhiteSpace(starText)) { <span>  ·  </span> }
+                            @if (!string.IsNullOrWhiteSpace(starText)) { <span>STAR: @starText</span> }
+                            @if (!string.IsNullOrWhiteSpace(_flightPlan.ArrivalRunway) && !string.IsNullOrWhiteSpace(_flightPlan.STAR)) { <span style="color:var(--border)"> · Rwy @_flightPlan.ArrivalRunway</span> }
+                        </span>
+                    }
+                </div>
+                <!-- Scrollable fix tags -->
+                <div style="overflow-x:auto;padding-bottom:6px;">
+                    <div style="display:flex;gap:5px;flex-wrap:nowrap;align-items:center;">
+                        <span style="background:var(--green-light);color:var(--green);font-family:var(--font-mono);font-size:10px;font-weight:700;padding:3px 8px;border-radius:var(--r-xs);flex-shrink:0;border:1px solid var(--green);">@_flightPlan.DepartureICAO</span>
+                        @foreach (var wp in _flightPlan.Waypoints.Where(w => w.Type != "ltlg"))
+                        {
+                            <span style="background:var(--surface-2);color:var(--text-secondary);font-family:var(--font-mono);font-size:10px;padding:3px 7px;border-radius:var(--r-xs);flex-shrink:0;border:1px solid var(--border);">@wp.Identifier</span>
+                        }
+                        <span style="background:var(--amber-light);color:var(--amber);font-family:var(--font-mono);font-size:10px;font-weight:700;padding:3px 8px;border-radius:var(--r-xs);flex-shrink:0;border:1px solid var(--amber);">@_flightPlan.ArrivalICAO</span>
+                    </div>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(_flightPlan.Route))
+                {
+                    <div style="margin-top:var(--sp-3);font-family:var(--font-mono);font-size:11px;color:var(--text-muted);line-height:1.6;word-break:break-all;">@_flightPlan.Route</div>
+                }
+            </div>
+        }
+
+        <!-- METAR cards — live refresh (DEP / ARR / ALT) -->
+        @{
+            var showDepMetar = !string.IsNullOrWhiteSpace(_depMetar ?? _flightPlan.DepartureMetar);
+            var showArrMetar = !string.IsNullOrWhiteSpace(_arrMetar ?? _flightPlan.ArrivalMetar);
+            var showAltMetar = !string.IsNullOrWhiteSpace(_altMetar) && !string.IsNullOrWhiteSpace(_flightPlan.AlternateICAO);
+        }
+        @if (showDepMetar || showArrMetar || showAltMetar)
+        {
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--sp-4);">
+                @if (showDepMetar)
+                {
+                    <div class="panel-card">
+                        <div class="panel-header" style="margin-bottom:var(--sp-3);">
+                            <span class="panel-title">DEP METAR — @_flightPlan.DepartureICAO</span>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                @if (_metarRefreshedAt.HasValue)
+                                {
+                                    <span style="font-size:10px;color:var(--text-muted);">@_metarRefreshedAt.Value.ToString("HH:mm")</span>
+                                }
+                                <button @onclick="RefreshMetarsAsync" disabled="@_metarRefreshing"
+                                        style="font-size:10px;background:none;border:none;cursor:@(_metarRefreshing ? "default" : "pointer");color:@(_metarRefreshing ? "var(--text-muted)" : "var(--accent)");padding:1px 5px;border-radius:var(--r-xs);">
+                                    @(_metarRefreshing ? "…" : "↻")
+                                </button>
+                            </div>
+                        </div>
+                        <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);line-height:1.7;background:var(--surface-2);padding:10px 12px;border-radius:var(--r-md);">@(_depMetar ?? _flightPlan.DepartureMetar)</div>
+                    </div>
+                }
+                @if (showArrMetar)
+                {
+                    <div class="panel-card">
+                        <div class="panel-header" style="margin-bottom:var(--sp-3);">
+                            <span class="panel-title">ARR METAR — @_flightPlan.ArrivalICAO</span>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                @if (_metarRefreshedAt.HasValue)
+                                {
+                                    <span style="font-size:10px;color:var(--text-muted);">@_metarRefreshedAt.Value.ToString("HH:mm")</span>
+                                }
+                                <button @onclick="RefreshMetarsAsync" disabled="@_metarRefreshing"
+                                        style="font-size:10px;background:none;border:none;cursor:@(_metarRefreshing ? "default" : "pointer");color:@(_metarRefreshing ? "var(--text-muted)" : "var(--accent)");padding:1px 5px;border-radius:var(--r-xs);">
+                                    @(_metarRefreshing ? "…" : "↻")
+                                </button>
+                            </div>
+                        </div>
+                        <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);line-height:1.7;background:var(--surface-2);padding:10px 12px;border-radius:var(--r-md);">@(_arrMetar ?? _flightPlan.ArrivalMetar)</div>
+                    </div>
+                }
+                @if (showAltMetar)
+                {
+                    <div class="panel-card">
+                        <div class="panel-header" style="margin-bottom:var(--sp-3);">
+                            <span class="panel-title">ALT METAR — @_flightPlan.AlternateICAO</span>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                @if (_metarRefreshedAt.HasValue)
+                                {
+                                    <span style="font-size:10px;color:var(--text-muted);">@_metarRefreshedAt.Value.ToString("HH:mm")</span>
+                                }
+                                <button @onclick="RefreshMetarsAsync" disabled="@_metarRefreshing"
+                                        style="font-size:10px;background:none;border:none;cursor:@(_metarRefreshing ? "default" : "pointer");color:@(_metarRefreshing ? "var(--text-muted)" : "var(--accent)");padding:1px 5px;border-radius:var(--r-xs);">
+                                    @(_metarRefreshing ? "…" : "↻")
+                                </button>
+                            </div>
+                        </div>
+                        <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);line-height:1.7;background:var(--surface-2);padding:10px 12px;border-radius:var(--r-md);">@_altMetar</div>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- PIREP / Position Report panel -->
+        <div class="panel-card">
+            <div class="panel-header" style="margin-bottom:var(--sp-3);">
+                <span class="panel-title">Position Report</span>
+                <span style="font-size:11px;color:var(--text-muted);">Auto-filled from telemetry</span>
+            </div>
+            <!-- Telemetry data grid -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-3);margin-bottom:var(--sp-3);">
+                <div style="background:var(--surface-2);border-radius:var(--r-md);padding:8px 12px;">
+                    <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Position</div>
+                    <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-primary);line-height:1.4;">@(_snap != null ? FormatCoords() : "—")</div>
+                </div>
+                <div style="background:var(--surface-2);border-radius:var(--r-md);padding:8px 12px;">
+                    <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Altitude</div>
+                    <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary);">@FmtAlt() ft</div>
+                </div>
+                <div style="background:var(--surface-2);border-radius:var(--r-md);padding:8px 12px;">
+                    <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">IAS / GS</div>
+                    <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary);">@FmtIas() / @FmtGs() kts</div>
+                </div>
+                <div style="background:var(--surface-2);border-radius:var(--r-md);padding:8px 12px;">
+                    <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Fuel Remaining</div>
+                    <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary);">@FmtFuel() lbs</div>
+                </div>
+                <div style="background:var(--surface-2);border-radius:var(--r-md);padding:8px 12px;">
+                    <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">ETA @_flightPlan.ArrivalICAO</div>
+                    <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary);">@FmtETAUtc()</div>
+                </div>
+                <div style="background:var(--surface-2);border-radius:var(--r-md);padding:8px 12px;">
+                    <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Flight Phase</div>
+                    <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary);">@_sessionState</div>
+                </div>
+            </div>
+            <!-- Remarks -->
+            <div style="margin-bottom:var(--sp-3);">
+                <label style="display:block;font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Remarks</label>
+                <textarea value="@_pirepRemarks" @oninput="e => _pirepRemarks = e.Value?.ToString() ?? string.Empty"
+                          style="width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 12px;font-family:var(--font-mono);font-size:12px;color:var(--text-primary);resize:vertical;min-height:60px;outline:none;"
+                          placeholder="ATC remarks, weather observations, or notes..."></textarea>
+            </div>
+            <!-- Actions -->
+            <div style="display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;">
+                <button @onclick="CopyPirep" class="btn btn-primary btn-sm">
+                    @(_pirepCopied ? "✓ Copied to clipboard" : "Copy PIREP Text")
+                </button>
+                <button disabled style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-full);padding:8px 18px;font-size:13px;font-weight:600;color:var(--text-muted);cursor:not-allowed;"
+                        title="Available when Aviates backend is connected">
+                    Submit Position Report
+                </button>
+                <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">Backend pending</span>
+            </div>
+        </div>
+
+    </div>
+}
+
+@* ── End Flight confirmation modal ─────────────────────────── *@
+@if (_showEndFlightModal)
+{
+    <div class="modal-overlay" @onclick="() => _showEndFlightModal = false">
+        <div class="modal-panel" style="max-width:440px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="width:36px;height:36px;border-radius:var(--r-md);background:var(--red-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2.2" stroke-linecap="round" width="17" height="17">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div style="font-family:var(--font-display);font-size:15px;font-weight:800;color:var(--text-primary);">End Flight</div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:1px;">This will finalise and save your flight record</div>
+                    </div>
+                </div>
+                <button class="modal-close" @onclick="() => _showEndFlightModal = false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="modal-body" style="padding:var(--sp-5) var(--sp-6);">
+                @if (Session.CurrentFlight is { } f)
+                {
+                    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--sp-3) var(--sp-4);margin-bottom:var(--sp-4);">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                            <div>
+                                <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">Flight</div>
+                                <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary);">
+                                    @(string.IsNullOrWhiteSpace(f.FlightNumber) ? "—" : f.FlightNumber)
+                                </div>
+                            </div>
+                            <div>
+                                <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">Route</div>
+                                <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary);">
+                                    @(string.IsNullOrWhiteSpace(f.DepartureICAO) ? "—" : $"{f.DepartureICAO} → {f.ArrivalICAO}")
+                                </div>
+                            </div>
+                            <div>
+                                <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">Phase</div>
+                                <div style="font-family:var(--font-mono);font-size:12px;color:var(--accent);">@_sessionState</div>
+                            </div>
+                        </div>
+                    </div>
+                }
+                <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;">
+                    Ending the flight now will record your current telemetry as block-in and save the completed flight to your logbook. This cannot be undone.
+                </div>
+            </div>
+            <div class="modal-footer" style="display:flex;gap:10px;justify-content:flex-end;">
+                <button class="btn btn-ghost btn-sm" @onclick="() => _showEndFlightModal = false">Cancel</button>
+                <button @onclick="ConfirmEndFlight"
+                        style="background:var(--red);border:none;border-radius:var(--r-full);padding:8px 22px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:0.02em;">
+                    Confirm End Flight
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private TelemetrySnapshot? _snap;
+    private SimConnectionStatus _simStatus = SimConnectionStatus.Disconnected;
+    private AircraftIdentification _aircraft;
+    private FlightSessionState _sessionState = FlightSessionState.Idle;
+    private bool _hasAircraftIdent;
+    private int _sampleCounter;
+    private const int UI_UPDATE_SAMPLES = 5; // ~4 Hz from 20 Hz source
+
+    // End Flight modal
+    private bool _showEndFlightModal;
+
+    // Map state
+    private bool _disposed;
+    private bool _mapInitialized;
+    private bool _followAircraft = true;
+
+    // SimBrief state — plan persists until user explicitly clicks Clear
+    private SimBriefFlightPlan? _flightPlan;
+    private bool _loadingSimBrief;
+    private string? _simBriefError;
+    private bool _autoImportDone; // prevent repeated auto-import per session
+
+    // Live METAR state (refreshed independently from the OFP)
+    private string? _depMetar;
+    private string? _arrMetar;
+    private string? _altMetar;
+
+    // PIREP panel state
+    private string _pirepRemarks = "";
+    private bool _pirepCopied;
+    private DateTime? _metarRefreshedAt;
+    private bool _metarRefreshing;
+    private System.Threading.Timer? _metarTimer;
+
+    // ── Lifecycle ────────────────────────────────────────────
+
+    protected override void OnInitialized()
+    {
+        _simStatus    = SimConnect.ConnectionStatus;
+        _snap         = Session.LatestTelemetry;
+        _sessionState = Session.State;
+
+        SimConnect.ConnectionStatusChanged += OnConnectionStatusChanged;
+        SimConnect.AircraftIdentReceived   += OnAircraftIdentReceived;
+        Session.TelemetryUpdated           += OnTelemetryUpdated;
+        Session.SessionStateChanged        += OnSessionStateChanged;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // If MSFS is already connected when the page first loads, auto-import immediately
+        if (_simStatus == SimConnectionStatus.Connected
+            && _flightPlan == null
+            && !string.IsNullOrWhiteSpace(Settings.Settings.SimBriefUsername))
+        {
+            _autoImportDone = true;
+            await ImportSimBrief();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _mapInitialized) return;
+
+        var lat = _snap?.Latitude ?? 51.5074;
+        var lon = _snap?.Longitude ?? -0.1278;
+        try
+        {
+            await JS.InvokeVoidAsync("aviatesMap.init", lat, lon);
+            _mapInitialized = true;
+
+            if (_snap != null)
+                await JS.InvokeVoidAsync("aviatesMap.updatePosition",
+                    _snap.Latitude, _snap.Longitude, _snap.Raw.HeadingTrue);
+        }
+        catch { /* WebView not ready on first paint */ }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        _metarTimer?.Dispose();
+        SimConnect.ConnectionStatusChanged -= OnConnectionStatusChanged;
+        SimConnect.AircraftIdentReceived   -= OnAircraftIdentReceived;
+        Session.TelemetryUpdated           -= OnTelemetryUpdated;
+        Session.SessionStateChanged        -= OnSessionStateChanged;
+        if (_mapInitialized)
+        {
+            try { await JS.InvokeVoidAsync("aviatesMap.destroy"); } catch { }
+        }
+    }
+
+    // ── METAR refresh ────────────────────────────────────────
+
+    private void StartMetarRefreshTimer()
+    {
+        _metarTimer?.Dispose();
+        // Refresh every 10 minutes; fire immediately on first tick
+        _metarTimer = new System.Threading.Timer(
+            _ => InvokeAsync(RefreshMetarsAsync),
+            null,
+            dueTime: TimeSpan.Zero,
+            period: TimeSpan.FromMinutes(10));
+    }
+
+    private async Task RefreshMetarsAsync()
+    {
+        if (_flightPlan == null || _disposed) return;
+        _metarRefreshing = true;
+        StateHasChanged();
+
+        var dep = await SimBriefSvc.FetchMetarAsync(_flightPlan.DepartureICAO);
+        var arr = await SimBriefSvc.FetchMetarAsync(_flightPlan.ArrivalICAO);
+        var alt = !string.IsNullOrWhiteSpace(_flightPlan.AlternateICAO)
+            ? await SimBriefSvc.FetchMetarAsync(_flightPlan.AlternateICAO)
+            : null;
+
+        if (!_disposed)
+        {
+            _depMetar = dep ?? _flightPlan.DepartureMetar;
+            _arrMetar = arr ?? _flightPlan.ArrivalMetar;
+            _altMetar = alt;
+            _metarRefreshedAt = DateTime.Now;
+            _metarRefreshing  = false;
+            StateHasChanged();
+        }
+    }
+
+    // ── Event handlers ───────────────────────────────────────
+
+    private void OnConnectionStatusChanged(object? _, SimConnectionStatus status)
+    {
+        _simStatus = status;
+        InvokeAsync(async () =>
+        {
+            StateHasChanged();
+            // Auto-import SimBrief OFP once per MSFS connection, if no plan is loaded yet
+            if (status == SimConnectionStatus.Connected
+                && !_autoImportDone
+                && _flightPlan == null
+                && !string.IsNullOrWhiteSpace(Settings.Settings.SimBriefUsername))
+            {
+                _autoImportDone = true;
+                await ImportSimBrief();
+            }
+        });
+    }
+
+    private void OnAircraftIdentReceived(object? _, AircraftIdentification ident)
+    {
+        _aircraft = ident;
+        _hasAircraftIdent = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnSessionStateChanged(object? _, FlightSessionState state)
+    {
+        _sessionState = state;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnTelemetryUpdated(object? _, TelemetrySnapshot snap)
+    {
+        _snap = snap;
+        if (++_sampleCounter < UI_UPDATE_SAMPLES) return;
+        _sampleCounter = 0;
+        InvokeAsync(async () =>
+        {
+            if (_disposed) return;
+            if (_mapInitialized && _snap != null)
+            {
+                try
+                {
+                    await JS.InvokeVoidAsync("aviatesMap.updatePosition",
+                        _snap.Latitude, _snap.Longitude, _snap.Raw.HeadingTrue);
+                    if (_followAircraft)
+                        await JS.InvokeVoidAsync("aviatesMap.panTo",
+                            _snap.Latitude, _snap.Longitude);
+                }
+                catch { /* Ignore if map torn down during navigation */ }
+            }
+            StateHasChanged();
+        });
+    }
+
+    private void TryConnect() => SimConnect.TryConnect();
+
+    private void ConfirmEndFlight()
+    {
+        _showEndFlightModal = false;
+        Session.EndFlightManually();
+    }
+
+    // ── Map controls ─────────────────────────────────────────
+
+    private void ToggleFollow() => _followAircraft = !_followAircraft;
+
+    private async Task CenterOnAircraft()
+    {
+        if (_snap == null || !_mapInitialized) return;
+        _followAircraft = true;
+        await JS.InvokeVoidAsync("aviatesMap.panTo", _snap.Latitude, _snap.Longitude);
+    }
+
+    private async Task FitRoute()
+    {
+        if (_mapInitialized)
+            await JS.InvokeVoidAsync("aviatesMap.fitRouteBounds");
+    }
+
+    // ── SimBrief ─────────────────────────────────────────────
+
+    private async Task ImportSimBrief()
+    {
+        var username = Settings.Settings.SimBriefUsername;
+        if (string.IsNullOrWhiteSpace(username)) return;
+
+        _loadingSimBrief = true;
+        _simBriefError   = null;
+        StateHasChanged();
+
+        try
+        {
+            var plan = await SimBriefSvc.FetchLatestOFPAsync(username);
+            if (plan != null)
+            {
+                _flightPlan = plan;
+
+                // Wire into the active flight session so Discord Rich Presence
+                // picks up the correct DEP/ARR on its next update cycle.
+                Session.AssignSimBriefPlan(plan);
+
+                if (_mapInitialized)
+                {
+                    await JS.InvokeVoidAsync("aviatesMap.clearAirportMarkers");
+
+                    // Only send waypoints with valid geographic coordinates.
+                    // (0,0) points are parse failures; out-of-bounds values are locale-corrupted.
+                    var routePts = plan.Waypoints
+                        .Where(w => (w.Latitude != 0 || w.Longitude != 0)
+                                 && Math.Abs(w.Latitude)  <= 90
+                                 && Math.Abs(w.Longitude) <= 180)
+                        .Select(w => new { lat = w.Latitude, lon = w.Longitude, id = w.Identifier, type = w.Type })
+                        .ToArray();
+                    await JS.InvokeVoidAsync("aviatesMap.setPlannedRoute", routePts);
+
+                    // Departure marker — prefer dedicated airport coordinates, fall back to first waypoint
+                    var depLat = plan.DepartureLat != 0 ? plan.DepartureLat
+                        : plan.Waypoints.FirstOrDefault()?.Latitude ?? 0;
+                    var depLon = plan.DepartureLon != 0 ? plan.DepartureLon
+                        : plan.Waypoints.FirstOrDefault()?.Longitude ?? 0;
+                    if ((depLat != 0 || depLon != 0) && Math.Abs(depLat) <= 90 && Math.Abs(depLon) <= 180)
+                        await JS.InvokeVoidAsync("aviatesMap.addAirportMarker",
+                            depLat, depLon, plan.DepartureICAO, "dep");
+
+                    // Arrival marker
+                    var arrLat = plan.ArrivalLat != 0 ? plan.ArrivalLat
+                        : plan.Waypoints.LastOrDefault()?.Latitude ?? 0;
+                    var arrLon = plan.ArrivalLon != 0 ? plan.ArrivalLon
+                        : plan.Waypoints.LastOrDefault()?.Longitude ?? 0;
+                    if ((arrLat != 0 || arrLon != 0) && Math.Abs(arrLat) <= 90 && Math.Abs(arrLon) <= 180)
+                        await JS.InvokeVoidAsync("aviatesMap.addAirportMarker",
+                            arrLat, arrLon, plan.ArrivalICAO, "arr");
+
+                    // Alternate marker (only when coordinates are available)
+                    if (!string.IsNullOrWhiteSpace(plan.AlternateICAO)
+                        && (plan.AlternateLat != 0 || plan.AlternateLon != 0)
+                        && Math.Abs(plan.AlternateLat) <= 90 && Math.Abs(plan.AlternateLon) <= 180)
+                        await JS.InvokeVoidAsync("aviatesMap.addAirportMarker",
+                            plan.AlternateLat, plan.AlternateLon, plan.AlternateICAO, "alt");
+
+                    await JS.InvokeVoidAsync("aviatesMap.fitRouteBounds");
+                }
+
+                // Seed METAR display from OFP then start periodic live refresh
+                _depMetar = plan.DepartureMetar;
+                _arrMetar = plan.ArrivalMetar;
+                _metarRefreshedAt = null; // will be set on first live fetch
+                StartMetarRefreshTimer();
+            }
+            else
+            {
+                _simBriefError = "No OFP found for this SimBrief username.";
+            }
+        }
+        catch
+        {
+            _simBriefError = "Failed to fetch SimBrief OFP. Check your username in Settings and try again.";
+        }
+        finally
+        {
+            _loadingSimBrief = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ClearPlan()
+    {
+        _flightPlan    = null;
+        _simBriefError = null;
+        if (_mapInitialized)
+        {
+            await JS.InvokeVoidAsync("aviatesMap.clearAirportMarkers");
+            await JS.InvokeVoidAsync("aviatesMap.setPlannedRoute", Array.Empty<object>());
+        }
+    }
+
+    // ── Banner helpers ───────────────────────────────────────
+
+    private string _bannerTitle => _simStatus switch
+    {
+        SimConnectionStatus.Connected when _sessionState != FlightSessionState.Idle => "ACARS Live — Flight In Progress",
+        SimConnectionStatus.Connected   => "ACARS Online — Sim Connected",
+        SimConnectionStatus.Connecting  => "Connecting to MSFS...",
+        SimConnectionStatus.Error       => "ACARS Error — Connection Failed",
+        _                               => "ACARS Offline — MSFS Not Connected"
+    };
+
+    private string _bannerDesc => _simStatus switch
+    {
+        SimConnectionStatus.Connected when _sessionState != FlightSessionState.Idle =>
+            $"Recording flight data in real-time. Session state: {_sessionState}.",
+        SimConnectionStatus.Connected =>
+            "Microsoft Flight Simulator is connected. Start your engines to begin a tracked flight.",
+        SimConnectionStatus.Connecting =>
+            "Attempting to connect to Microsoft Flight Simulator. Make sure MSFS is running.",
+        SimConnectionStatus.Error =>
+            "Connection failed. The app will retry automatically every 5 seconds.",
+        _ => "Launch Microsoft Flight Simulator to begin automatic ACARS tracking. All flight data will be recorded in real-time."
+    };
+
+    private string _dotColor => _simStatus switch
+    {
+        SimConnectionStatus.Connected when _sessionState != FlightSessionState.Idle => "var(--green, #22c55e)",
+        SimConnectionStatus.Connected  => "var(--cyan, #06b6d4)",
+        SimConnectionStatus.Connecting => "var(--amber, #f59e0b)",
+        SimConnectionStatus.Error      => "#ef4444",
+        _                              => "var(--text-muted)"
+    };
+
+    // ── Instruments ──────────────────────────────────────────
+
+    private string FmtAlt()  => _snap != null ? $"{_snap.AltitudeMSL:F0}" : "—";
+    private string FmtIas()  => _snap != null ? $"{_snap.IASKts:F0}" : "—";
+    private string FmtVs()   => _snap != null ? $"{(_snap.VerticalSpeedFPM >= 0 ? "+" : "")}{_snap.VerticalSpeedFPM:F0}" : "—";
+    private string FmtHdg()  => _snap != null ? $"{_snap.Raw.HeadingMagnetic:F0}" : "—";
+    private string FmtN1()   => _snap != null ? $"{_snap.Raw.EngineN1_1:F1}" : "—";
+    private string FmtFuel() => _snap != null ? $"{_snap.Raw.FuelTotalLbs:F0}" : "—";
+
+    private string VsColor()
+    {
+        if (_snap == null) return "var(--text-muted)";
+        return _snap.VerticalSpeedFPM switch
+        {
+            > 200   => "var(--green, #22c55e)",
+            < -1500 => "var(--amber, #f59e0b)",
+            < -200  => "var(--cyan, #06b6d4)",
+            _       => "var(--text-primary)"
+        };
+    }
+
+    private string N1Color()
+    {
+        if (_snap == null) return "var(--text-muted)";
+        if (_snap.Raw.EngineRunning_1 < 0.5) return "var(--text-muted)";
+        return _snap.Raw.EngineN1_1 > 92 ? "var(--amber, #f59e0b)" : "var(--accent)";
+    }
+
+    // ── Phase indicators ─────────────────────────────────────
+
+    private (string chipClass, string textColor) PhaseStatus(string phaseName)
+    {
+        var phaseOrder = new[] { "Parked", "Taxi", "Climb", "Cruise", "Approach", "Landing" };
+        var currentIdx = _sessionState switch
+        {
+            FlightSessionState.Idle or FlightSessionState.PreFlight => 0,
+            FlightSessionState.Taxiing => 1,
+            FlightSessionState.Airborne when _snap?.Phase is FlightPhase.Cruise or FlightPhase.TopOfDescent => 3,
+            FlightSessionState.Airborne => 2,
+            FlightSessionState.OnApproach => 4,
+            FlightSessionState.Landed or FlightSessionState.Complete => 5,
+            _ => -1
+        };
+
+        var idx = System.Array.IndexOf(phaseOrder, phaseName);
+        if (currentIdx == -1 || idx > currentIdx) return ("offline", "var(--text-muted)");
+        if (idx == currentIdx) return ("active", "var(--text-primary)");
+        return ("done", "var(--text-muted)");
+    }
+
+    // ── Helpers ──────────────────────────────────────────────
+
+    private string FormatCoords()
+    {
+        if (_snap == null) return "";
+        var lat = _snap.Latitude;
+        var lon = _snap.Longitude;
+        var latDir = lat >= 0 ? "N" : "S";
+        var lonDir = lon >= 0 ? "E" : "W";
+        return $"{latDir}{Math.Abs(lat):F4}°  {lonDir}{Math.Abs(lon):F4}°";
+    }
+
+    private static string FormatETE(int minutes)
+    {
+        if (minutes <= 0) return "—";
+        var h = minutes / 60;
+        var m = minutes % 60;
+        return h > 0 ? $"{h}h {m:D2}m" : $"{m}m";
+    }
+
+    private static string MaskAcarsKey(string key)
+    {
+        if (key.Length <= 8) return new string('•', key.Length);
+        return new string('•', key.Length - 4) + key[^4..];
+    }
+
+    // ── Flight Progress strip ─────────────────────────────────
+
+    private string FmtGs() => _snap != null ? $"{_snap.GroundSpeedKts:F0}" : "—";
+
+    private string FmtEnRoute()
+    {
+        var takeoff = Session.CurrentFlight?.TakeoffTime;
+        if (takeoff == null || takeoff == DateTime.MinValue) return "—:——";
+        var elapsed = DateTime.UtcNow - takeoff.Value.ToUniversalTime();
+        if (elapsed.TotalSeconds < 0) return "—:——";
+        return $"{(int)elapsed.TotalHours:D2}:{elapsed.Minutes:D2}";
+    }
+
+    private string FmtDistFlown() => $"{RouteTracker.TotalDistanceNm:F0} nm";
+
+    private string FmtDistRemaining()
+    {
+        var rem = ComputeDistRemaining();
+        return rem > 0.5 ? $"{rem:F0} nm" : "—";
+    }
+
+    private double ComputeDistRemaining()
+    {
+        if (_flightPlan == null || _flightPlan.PlannedDistanceNm <= 0) return 0;
+        // Use planned total minus distance already flown — reliable without waypoint coordinates.
+        return Math.Max(0, _flightPlan.PlannedDistanceNm - RouteTracker.TotalDistanceNm);
+    }
+
+    private double ProgressPct()
+    {
+        if (_flightPlan == null || _flightPlan.PlannedDistanceNm <= 0) return 0;
+        return Math.Clamp(RouteTracker.TotalDistanceNm / _flightPlan.PlannedDistanceNm * 100, 0, 100);
+    }
+
+    private string FmtETAUtc()
+    {
+        if (_snap == null || _snap.GroundSpeedKts < 50) return "—";
+        var rem = ComputeDistRemaining();
+        if (rem < 0.5) return "—";
+        var etaMin = rem / _snap.GroundSpeedKts * 60;
+        return DateTime.UtcNow.AddMinutes(etaMin).ToString("HH:mm") + "Z";
+    }
+
+    // ── Route deviation ───────────────────────────────────────
+
+    private double ComputeCrossTrackNm()
+    {
+        if (_snap == null || _flightPlan == null || _flightPlan.Waypoints.Count < 2) return 0;
+        var wps = _flightPlan.Waypoints
+            .Where(w => w.Latitude != 0 || w.Longitude != 0)
+            .OrderBy(w => w.SequenceNumber)
+            .ToList();
+        if (wps.Count < 2) return 0;
+        int nextIdx = wps.FindIndex(w => !w.IsPassed);
+        if (nextIdx < 1) nextIdx = 1;
+        var from = wps[nextIdx - 1];
+        var to   = wps[nextIdx];
+        return XtkCalc(from.Latitude, from.Longitude, to.Latitude, to.Longitude,
+                       _snap.Latitude, _snap.Longitude);
+    }
+
+    private string XtkColor()
+    {
+        var abs = Math.Abs(ComputeCrossTrackNm());
+        return abs > 8 ? "var(--red)" : abs > 3 ? "var(--amber)" : "var(--green)";
+    }
+
+    private string XtkLabel()
+    {
+        var val = ComputeCrossTrackNm();
+        var abs = Math.Abs(val);
+        if (abs < 0.1) return "On Track";
+        return $"{abs:F1} nm {(val > 0 ? "R" : "L")}";
+    }
+
+    // XTK = asin( sin(d_AP/R) · sin(θ_AP − θ_AB) ) · R   (signed nm)
+    private static double XtkCalc(double lat1, double lon1,
+                                   double lat2, double lon2,
+                                   double latP, double lonP)
+    {
+        const double R = 3440.065;
+        double d13 = Haversine01(lat1, lon1, latP, lonP); // radians
+        double θ13 = BearingRad(lat1, lon1, latP, lonP);
+        double θ12 = BearingRad(lat1, lon1, lat2, lon2);
+        return Math.Asin(Math.Sin(d13) * Math.Sin(θ13 - θ12)) * R;
+    }
+
+    private static double Haversine01(double lat1, double lon1, double lat2, double lon2)
+    {
+        double dLat = (lat2 - lat1) * Math.PI / 180;
+        double dLon = (lon2 - lon1) * Math.PI / 180;
+        double a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                   Math.Cos(lat1 * Math.PI / 180) * Math.Cos(lat2 * Math.PI / 180) *
+                   Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+        return 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a)); // radians
+    }
+
+    private static double BearingRad(double lat1, double lon1, double lat2, double lon2)
+    {
+        double dLon  = (lon2 - lon1) * Math.PI / 180;
+        double lat1R = lat1 * Math.PI / 180;
+        double lat2R = lat2 * Math.PI / 180;
+        double y = Math.Sin(dLon) * Math.Cos(lat2R);
+        double x = Math.Cos(lat1R) * Math.Sin(lat2R) -
+                   Math.Sin(lat1R) * Math.Cos(lat2R) * Math.Cos(dLon);
+        return Math.Atan2(y, x);
+    }
+
+    // ── PIREP copy ────────────────────────────────────────────
+
+    private async Task CopyPirep()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"PIREP {DateTime.UtcNow:HH:mm}Z");
+
+        if (_flightPlan != null)
+        {
+            sb.AppendLine($"Route: {_flightPlan.DepartureICAO} → {_flightPlan.ArrivalICAO}");
+            var acft = _flightPlan.AircraftType;
+            var reg  = _flightPlan.AircraftRegistration;
+            if (!string.IsNullOrWhiteSpace(acft))
+                sb.AppendLine($"Aircraft: {acft}{(string.IsNullOrWhiteSpace(reg) ? "" : " " + reg)}");
+        }
+
+        if (_snap != null)
+        {
+            sb.AppendLine($"Position: {FormatCoords()}");
+            sb.AppendLine($"Altitude: {_snap.AltitudeMSL:F0} ft MSL");
+            sb.AppendLine($"IAS: {_snap.IASKts:F0} kts  GS: {_snap.GroundSpeedKts:F0} kts");
+            sb.AppendLine($"Fuel: {_snap.Raw.FuelTotalLbs:F0} lbs remaining");
+        }
+
+        var eta = FmtETAUtc();
+        if (eta != "—") sb.AppendLine($"ETA: {eta}");
+
+        if (!string.IsNullOrWhiteSpace(_pirepRemarks))
+            sb.AppendLine($"Remarks: {_pirepRemarks}");
+
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", sb.ToString());
+            _pirepCopied = true;
+            StateHasChanged();
+            await Task.Delay(2200);
+            _pirepCopied = false;
+            StateHasChanged();
+        }
+        catch { /* clipboard may be unavailable */ }
+    }
+}

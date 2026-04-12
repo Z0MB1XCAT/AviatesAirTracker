@@ -1,0 +1,433 @@
+@page "/settings"
+@inject SettingsService SettingsService
+@inject AviatesBackendClient BackendClient
+@inject IJSRuntime JS
+
+<div class="page-header anim-up">
+    <h1 class="page-title">Settings</h1>
+    <p class="page-sub">Configure your pilot profile, ACARS connection, and application preferences.</p>
+</div>
+
+@if (!string.IsNullOrEmpty(_statusMessage))
+{
+    <div class="events-status @(_isError ? "events-status-error" : "")" style="margin-bottom:var(--sp-5);">
+        <span>@_statusMessage</span>
+        <span class="events-status-close" @onclick="() => _statusMessage = string.Empty">×</span>
+    </div>
+}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-5);">
+
+    <!-- Left column -->
+    <div style="display:flex;flex-direction:column;gap:var(--sp-5);">
+
+        <!-- Pilot Profile -->
+        <div class="panel-card anim-up-d1">
+            <div class="form-section-title">Pilot Profile</div>
+            <div style="display:flex;flex-direction:column;gap:var(--sp-4);">
+                <div style="display:flex;align-items:center;gap:var(--sp-4);padding-bottom:var(--sp-4);border-bottom:1px solid var(--border-light);">
+                    <div style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--violet));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:22px;font-weight:800;color:#fff;flex-shrink:0;position:relative;">
+                        @_initials
+                        @if (_isVerified)
+                        {
+                            <div title="Profile synced from AviatesAir" style="position:absolute;bottom:-3px;right:-3px;width:20px;height:20px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="10" height="10"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                        }
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div style="font-size:14px;font-weight:700;color:var(--text-primary);">@_displayName</div>
+                            @if (_isVerified)
+                            {
+                                <span style="font-size:10px;font-weight:700;color:var(--accent);background:var(--accent-light);border-radius:20px;padding:2px 8px;letter-spacing:0.04em;white-space:nowrap;">VERIFIED</span>
+                            }
+                        </div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+                            @(string.IsNullOrEmpty(SettingsService.Settings.PilotId) ? "AviatesAir" : SettingsService.Settings.PilotId) · AviatesAir
+                        </div>
+                        @if (_isVerified && !string.IsNullOrEmpty(_verifiedEmail))
+                        {
+                            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;display:flex;align-items:center;gap:5px;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="11" height="11"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg>
+                                @_verifiedEmail
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Pilot Name</label>
+                        <input class="form-input" type="text"
+                               value="@SettingsService.Settings.PilotName"
+                               @oninput="OnPilotNameInput"
+                               placeholder="Your full name" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Pilot ID</label>
+                        <input class="form-input" type="text" @bind="SettingsService.Settings.PilotId" placeholder="AVT-00000" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Appearance -->
+        <div class="panel-card anim-up-d2">
+            <div class="form-section-title">Appearance</div>
+            <p style="font-size:13px;color:var(--text-muted);margin-bottom:var(--sp-4);line-height:1.6;">
+                Choose a theme or let the app follow your operating system preference.
+            </p>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-3);">
+                @foreach (var opt in _themeOptions)
+                {
+                    var isActive = SettingsService.Settings.Theme == opt.Value;
+                    <button @onclick="() => SetTheme(opt.Value)"
+                            style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 10px;border-radius:var(--r-md);border:2px solid @(isActive ? "var(--accent)" : "var(--border)");background:@(isActive ? "var(--accent-light)" : "var(--surface-2)");cursor:pointer;transition:border-color 0.15s,background 0.15s;font-family:var(--font-body);">
+                        <span style="color:@(isActive ? "var(--accent)" : "var(--text-muted)");">@((MarkupString)opt.Icon)</span>
+                        <span style="font-size:12.5px;font-weight:@(isActive ? "700" : "500");color:@(isActive ? "var(--accent)" : "var(--text-secondary)");">@opt.Label</span>
+                    </button>
+                }
+            </div>
+        </div>
+
+        <!-- SimBrief -->
+        <div class="panel-card anim-up-d3">
+            <div class="form-section-title">SimBrief Integration</div>
+            <div style="display:flex;flex-direction:column;gap:var(--sp-4);">
+                <div class="form-group">
+                    <label class="form-label" style="display:flex;align-items:center;gap:6px;">
+                        SimBrief Pilot ID
+                        @if (_isVerified && !string.IsNullOrEmpty(SettingsService.Settings.SimBriefUsername))
+                        {
+                            <span style="font-size:10px;font-weight:600;color:var(--text-muted);">· synced from account</span>
+                        }
+                    </label>
+                    <input class="form-input" type="text" @bind="SettingsService.Settings.SimBriefUsername" placeholder="Your SimBrief numeric ID" />
+                </div>
+                <div style="background:var(--surface-2);border-radius:var(--r-md);padding:10px 13px;font-size:12px;color:var(--text-muted);line-height:1.5;">
+                    You can override this — your account value is only applied on first sync.
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Right column -->
+    <div style="display:flex;flex-direction:column;gap:var(--sp-5);">
+
+        <!-- ACARS -->
+        <div class="panel-card anim-up-d2">
+            <div class="form-section-title">ACARS Configuration</div>
+            <div style="display:flex;flex-direction:column;gap:var(--sp-4);">
+                <div class="form-group">
+                    <label class="form-label">ACARS Key</label>
+                    <div style="display:flex;gap:var(--sp-3);">
+                        <input class="form-input" type="password"
+                               style="flex:1;"
+                               value="@SettingsService.Settings.AcarsKey"
+                               @oninput="OnAcarsKeyInput"
+                               placeholder="Paste your ACARS key" />
+                        <button class="btn @(_isVerified ? "btn-secondary" : "btn-primary")"
+                                style="flex-shrink:0;gap:6px;white-space:nowrap;"
+                                disabled="@(_isSyncing || string.IsNullOrWhiteSpace(SettingsService.Settings.AcarsKey))"
+                                @onclick="SyncProfileAsync">
+                            @if (_isSyncing)
+                            {
+                                <span class="spinner-sm"></span>
+                                <span>Syncing…</span>
+                            }
+                            else if (_isVerified)
+                            {
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+                                <span>Synced</span>
+                            }
+                            else
+                            {
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                <span>Verify &amp; Sync</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+
+                @if (_isVerified)
+                {
+                    <div style="background:rgba(61,126,238,0.08);border:1px solid rgba(61,126,238,0.2);border-radius:var(--r-md);padding:12px 14px;display:flex;gap:10px;align-items:flex-start;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15" style="flex-shrink:0;margin-top:1px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        <div style="font-size:12.5px;color:var(--accent);line-height:1.5;">
+                            Profile synced — name and SimBrief ID have been populated from your AviatesAir account.
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div style="background:var(--accent-light);border-radius:var(--r-md);padding:12px 14px;display:flex;gap:10px;align-items:flex-start;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <div style="font-size:12.5px;color:var(--accent);line-height:1.5;">
+                            Your ACARS key is provided when you register at flyaviatesair.uk.
+                            Paste it above and click <strong>Verify &amp; Sync</strong> to auto-fill your profile.
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- App Preferences -->
+        <div class="panel-card anim-up-d2">
+            <div class="form-section-title">Preferences</div>
+            <div class="toggle-row">
+                <div class="toggle-info">
+                    <div class="toggle-label">Auto-connect to MSFS</div>
+                    <div class="toggle-desc">Automatically detect and connect to MSFS on launch</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" @bind="SettingsService.Settings.AutoConnectSimConnect" />
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="toggle-row">
+                <div class="toggle-info">
+                    <div class="toggle-label">Desktop Alerts</div>
+                    <div class="toggle-desc">Show notifications for phase changes and landing events</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" @bind="SettingsService.Settings.ShowApproachAlerts" />
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="toggle-row" style="border-bottom:none;">
+                <div class="toggle-info">
+                    <div class="toggle-label">Minimize to Tray</div>
+                    <div class="toggle-desc">Keep running in the system tray when window is closed</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" @bind="SettingsService.Settings.MinimizeToTray" />
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Friend Code -->
+        <div class="panel-card anim-up-d3">
+            <div class="form-section-title">Friend Code</div>
+            <p style="font-size:13px;color:var(--text-muted);margin-bottom:var(--sp-4);line-height:1.6;">
+                Share this code with other AviatesAir pilots so they can add you as a friend in the Messages page.
+                It is derived from your ACARS key and is safe to share publicly.
+            </p>
+            @if (string.IsNullOrEmpty(SettingsService.Settings.AcarsKey))
+            {
+                <div style="background:var(--amber-light);border-radius:var(--r-md);padding:12px 14px;font-size:12.5px;color:var(--amber);">
+                    Set your ACARS key and save to generate your Friend Code.
+                </div>
+            }
+            else
+            {
+                var _friendCode = string.IsNullOrEmpty(SettingsService.Settings.FriendCode)
+                    ? SettingsService.GenerateFriendCode(SettingsService.Settings.AcarsKey)
+                    : SettingsService.Settings.FriendCode;
+                <div style="display:flex;align-items:center;gap:var(--sp-3);">
+                    <div style="flex:1;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 18px;font-family:var(--font-mono);font-size:20px;font-weight:700;letter-spacing:0.18em;color:var(--accent);text-align:center;">
+                        @_friendCode
+                    </div>
+                    <button class="btn btn-secondary" style="padding:12px 16px;flex-shrink:0;" title="Copy friend code"
+                            @onclick="() => CopyFriendCode(_friendCode)">
+                        @if (_codeCopied)
+                        {
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="20 6 9 17 4 12"/></svg>
+                            <span>Copied!</span>
+                        }
+                        else
+                        {
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+                                <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                            </svg>
+                            <span>Copy</span>
+                        }
+                    </button>
+                </div>
+            }
+        </div>
+
+        <!-- Save -->
+        <div style="display:flex;gap:var(--sp-3);" class="anim-up-d4">
+            <button class="btn btn-primary" style="flex:1;justify-content:center;" @onclick="SaveSettings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="20 6 9 17 4 12"/></svg>
+                Save Settings
+            </button>
+            <button class="btn btn-secondary" @onclick="ResetSettings">Reset</button>
+        </div>
+    </div>
+
+</div>
+
+@code {
+    private string _statusMessage = string.Empty;
+    private bool   _isError;
+    private string _initials      = "?";
+    private string _displayName   = "Pilot";
+    private bool   _codeCopied;
+    private bool   _isSyncing;
+    private bool   _isVerified;
+    private string _verifiedEmail = "";
+
+    private record ThemeOption(string Value, string Label, string Icon);
+    private static readonly ThemeOption[] _themeOptions =
+    [
+        new("system", "System",
+            """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>"""),
+        new("light",  "Light",
+            """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>"""),
+        new("dark",   "Dark",
+            """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>"""),
+    ];
+
+    protected override void OnInitialized()
+    {
+        UpdateNameDisplay();
+        // If a key is already saved, mark as verified so the UI shows synced state
+        if (!string.IsNullOrEmpty(SettingsService.Settings.AcarsKey) &&
+            !string.IsNullOrEmpty(SettingsService.Settings.PilotName))
+        {
+            _isVerified = true;
+        }
+    }
+
+    private void OnPilotNameInput(ChangeEventArgs e)
+    {
+        SettingsService.Settings.PilotName = e.Value?.ToString() ?? string.Empty;
+        UpdateNameDisplay();
+    }
+
+    private void OnAcarsKeyInput(ChangeEventArgs e)
+    {
+        SettingsService.Settings.AcarsKey = e.Value?.ToString() ?? string.Empty;
+        // Key changed manually — clear verified state until they re-sync
+        _isVerified = false;
+        _verifiedEmail = "";
+    }
+
+    private void UpdateNameDisplay()
+    {
+        var name = SettingsService.Settings.PilotName ?? "";
+        _displayName = string.IsNullOrWhiteSpace(name) ? "Pilot" : name;
+        _initials = string.IsNullOrWhiteSpace(name)
+            ? "?"
+            : string.Concat(
+                name.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Take(2)
+                    .Select(w => w[0]))
+              .ToUpper();
+    }
+
+    private async Task SyncProfileAsync()
+    {
+        // Trim whitespace — a common paste artifact that causes auth failures
+        var key = (SettingsService.Settings.AcarsKey ?? "").Trim();
+        if (string.IsNullOrEmpty(key)) return;
+
+        // Write the trimmed key back so it's clean for future saves
+        SettingsService.Settings.AcarsKey = key;
+
+        _isSyncing = true;
+        _statusMessage = "";
+        StateHasChanged();
+
+        try
+        {
+            var result = await BackendClient.ValidateAcarsKeyAsync(key);
+
+            if (result is { IsValid: true })
+            {
+                // Always populate name from the backend — it is authoritative
+                if (!string.IsNullOrWhiteSpace(result.Name))
+                {
+                    SettingsService.Settings.PilotName = result.Name;
+                    UpdateNameDisplay();
+                }
+
+                // Only populate SimBrief if the backend has a value
+                if (!string.IsNullOrWhiteSpace(result.SimBrief))
+                    SettingsService.Settings.SimBriefUsername = result.SimBrief;
+
+                // Populate PilotId from backend; derive from ACARS key if server didn't return one.
+                // A stable PilotId is required for the messaging system to route and display messages correctly.
+                if (!string.IsNullOrWhiteSpace(result.PilotId))
+                {
+                    SettingsService.Settings.PilotId = result.PilotId;
+                }
+                else if (string.IsNullOrEmpty(SettingsService.Settings.PilotId))
+                {
+                    // Derive a deterministic ID from the ACARS key so every pilot has one
+                    var hash = System.Security.Cryptography.SHA256.HashData(
+                        System.Text.Encoding.UTF8.GetBytes("AVIATES_PID_" + key));
+                    SettingsService.Settings.PilotId = "avt_" + Convert.ToHexString(hash)[..12].ToLowerInvariant();
+                }
+
+                _isVerified    = true;
+                _verifiedEmail = result.Email;
+
+                // Regenerate friend code and persist
+                SettingsService.RefreshFriendCode();
+
+                _statusMessage = $"Profile synced — welcome, {result.Name}!";
+                _isError       = false;
+            }
+            else
+            {
+                _isVerified    = false;
+                _verifiedEmail = "";
+                _statusMessage = "ACARS key not recognised. Check the key and try again.";
+                _isError       = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _isVerified    = false;
+            _verifiedEmail = "";
+            _statusMessage = $"Could not reach AviatesAir servers — {ex.Message}";
+            _isError       = true;
+        }
+        finally
+        {
+            _isSyncing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SetTheme(string theme)
+    {
+        SettingsService.Settings.Theme = theme;
+        SettingsService.Save();
+        await JS.InvokeVoidAsync("aviatesTheme.apply", theme);
+    }
+
+    private void SaveSettings()
+    {
+        SettingsService.RefreshFriendCode();
+        UpdateNameDisplay();
+        SettingsService.Save();
+        _statusMessage = "Settings saved successfully.";
+        _isError = false;
+    }
+
+    private async Task CopyFriendCode(string code)
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", code);
+        _codeCopied = true;
+        StateHasChanged();
+        await Task.Delay(2000);
+        _codeCopied = false;
+        StateHasChanged();
+    }
+
+    private void ResetSettings()
+    {
+        SettingsService.Reset();
+        _isVerified    = false;
+        _verifiedEmail = "";
+        UpdateNameDisplay();
+        _statusMessage = "Settings reset to defaults.";
+        _isError = false;
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,548 @@
+@page "/fleet"
+@inject FleetViewModel VM
+@inject FleetService FleetSvc
+@implements IDisposable
+
+@* ─────────────────────────────────────────────────────
+   FLEET PAGE
+   Data sourced from Cloudflare D1 via /api/fleet endpoints.
+   Type cards → click to drill into individual registrations.
+───────────────────────────────────────────────────── *@
+
+<div class="page-header anim-up">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+            <h1 class="page-title">Fleet</h1>
+            <p class="page-sub">AviatesAir operates a modern, fuel-efficient fleet across all subsidiaries.</p>
+        </div>
+        <button class="btn-ghost fleet-refresh @(VM.IsLoading ? "spinning" : "")"
+                @onclick="HandleRefresh" title="Refresh fleet data" disabled="@VM.IsLoading">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+        </button>
+    </div>
+</div>
+
+@if (VM.IsLoading && VM.Data.Types.Count == 0)
+{
+    <div class="fleet-loading anim-up-d1">
+        <div class="fleet-spinner"></div>
+        <p style="color:var(--text-muted);font-size:13px;margin-top:12px;">Loading fleet data…</p>
+    </div>
+}
+else if (VM.Error != null)
+{
+    <div class="fleet-error-banner anim-up-d1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>@VM.Error</span>
+    </div>
+}
+else
+{
+    @* ── Stats Bar ──────────────────────────────────────────── *@
+    <div class="fleet-stats-row anim-up-d1">
+        <div class="fleet-stat-card">
+            <div class="stat-icon blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>
+                </svg>
+            </div>
+            <div>
+                <div class="fleet-stat-num">@VM.Data.Stats.TotalAircraft</div>
+                <div class="fleet-stat-lbl">Total Aircraft</div>
+            </div>
+        </div>
+        <div class="fleet-stat-card">
+            <div class="stat-icon green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+            </div>
+            <div>
+                <div class="fleet-stat-num">@VM.Data.Stats.InService</div>
+                <div class="fleet-stat-lbl">In Service</div>
+            </div>
+        </div>
+        <div class="fleet-stat-card">
+            <div class="stat-icon amber">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+            </div>
+            <div>
+                <div class="fleet-stat-num">@VM.Data.Stats.InMaintenance</div>
+                <div class="fleet-stat-lbl">In Maintenance</div>
+            </div>
+        </div>
+        <div class="fleet-stat-card">
+            <div class="stat-icon violet">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+            </div>
+            <div>
+                <div class="fleet-stat-num">@VM.Data.Stats.OnOrder</div>
+                <div class="fleet-stat-lbl">On Order</div>
+            </div>
+        </div>
+    </div>
+
+    @* ── Filter Tabs ─────────────────────────────────────────── *@
+    <div class="fleet-filter-row anim-up-d2">
+        @foreach (var f in new[]{"All","Mainline","Regional","Cargo"})
+        {
+            <button class="fleet-filter-tab @(VM.SubsidiaryFilter == f ? "active" : "")"
+                    @onclick="() => HandleFilter(f)">@f</button>
+        }
+    </div>
+
+    @* ── Type Cards Grid ─────────────────────────────────────── *@
+    <div class="card-grid-3 anim-up-d2">
+        @foreach (var type in VM.FilteredTypes)
+        {
+            var isSelected = VM.SelectedType?.TypeCode == type.TypeCode;
+            var statusClass = type.PrimaryStatus switch {
+                "maintenance" => "pending",
+                "ordered"     => "offline",
+                _             => "active"
+            };
+            var statusLabel = type.PrimaryStatus switch {
+                "maintenance" => "Maintenance",
+                "ordered"     => "On Order",
+                _             => "In Service"
+            };
+            var isOrdered = type.PrimaryStatus == "ordered";
+
+            <div class="fleet-card @(isSelected ? "fleet-card--selected" : "") @(isOrdered ? "fleet-card--ordered" : "")"
+                 @onclick="() => HandleTypeClick(type)">
+                <div class="fleet-card-head">
+                    <span class="status-chip @statusClass">
+                        <span class="chip-dot"></span>@statusLabel
+                    </span>
+                    <span class="aircraft-type-badge">@type.TypeCode</span>
+                </div>
+
+                <div class="fleet-plane-art"
+                     style="@(isOrdered ? "opacity:0.3;" : isSelected ? "opacity:1;transform:scale(1.08) translateX(4px);" : "")">
+                    @type.Emoji
+                </div>
+
+                <div class="fleet-card-name" style="@(isOrdered ? "color:var(--text-muted);" : "")">
+                    @type.Name
+                </div>
+
+                <div class="fleet-card-reg" style="@(isOrdered ? "color:var(--text-faint);" : "")">
+                    @if (isOrdered)
+                    {
+                        <span>@type.OrderedCount on order</span>
+                    }
+                    else
+                    {
+                        <span>@type.ActiveCount active · @type.TotalAircraft total</span>
+                    }
+                </div>
+
+                <div class="fleet-card-stats">
+                    <div class="fleet-stat-item">
+                        <div class="fleet-stat-val" style="@(isOrdered ? "color:var(--text-muted);" : "")">
+                            @type.CapacityDisplay
+                        </div>
+                        <div class="fleet-stat-lbl">@type.CapacityLabel</div>
+                    </div>
+                    <div class="fleet-stat-item">
+                        <div class="fleet-stat-val" style="@(isOrdered ? "color:var(--text-muted);" : "")">
+                            @type.RangeNm.ToString("N0")
+                        </div>
+                        <div class="fleet-stat-lbl">Range (nm)</div>
+                    </div>
+                    <div class="fleet-stat-item">
+                        <div class="fleet-stat-val"
+                             style="@(type.PrimaryStatus == "maintenance" ? "color:var(--amber);" : isOrdered ? "color:var(--text-muted);" : "")">
+                            @if (type.PrimaryStatus == "maintenance")
+                            {<span>@type.MaintenanceCount MX</span>}
+                            else if (type.PrimaryStatus == "ordered")
+                            {<span>@type.OrderedCount</span>}
+                            else
+                            {<span>@type.ActiveCount</span>}
+                        </div>
+                        <div class="fleet-stat-lbl">@(type.PrimaryStatus == "ordered" ? "On Order" : "Active")</div>
+                    </div>
+                    <div class="fleet-stat-item">
+                        <div class="fleet-stat-val" style="@(isOrdered ? "color:var(--text-muted);" : "")">
+                            @type.Subsidiary
+                        </div>
+                        <div class="fleet-stat-lbl">Subsidiary</div>
+                    </div>
+                </div>
+
+                <div class="fleet-card-expand @(isSelected ? "fleet-card-expand--open" : "")">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" width="13" height="13">
+                        <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                    @(isSelected ? "Hide registrations" : "Show registrations")
+                </div>
+            </div>
+        }
+    </div>
+
+    @* ── Registration Detail Panel ───────────────────────────── *@
+    @if (VM.SelectedType != null)
+    {
+        var t = VM.SelectedType;
+        <div class="fleet-detail-panel anim-panel">
+            <div class="fleet-detail-header">
+                <div class="fleet-detail-title">
+                    <span class="fleet-detail-emoji">@t.Emoji</span>
+                    <div>
+                        <div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--text-primary);">
+                            @t.Name — Registrations
+                        </div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">
+                            @t.TotalAircraft aircraft · @t.Category · @t.Subsidiary
+                            @if (t.CruiseSpeedKts.HasValue)
+                            {<span> · Cruise @t.CruiseSpeedKts kts</span>}
+                            @if (t.MaxAltitudeFt.HasValue)
+                            {<span> · FL@(t.MaxAltitudeFt / 100)</span>}
+                        </div>
+                    </div>
+                </div>
+                <button class="btn-ghost" style="padding:8px;" @onclick="() => VM.ClearSelection()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+
+            @if (VM.IsLoadingRegs)
+            {
+                <div style="display:flex;align-items:center;gap:10px;padding:20px 0;color:var(--text-muted);">
+                    <div class="fleet-spinner fleet-spinner--sm"></div>
+                    <span style="font-size:13px;">Loading registrations…</span>
+                </div>
+            }
+            else if (VM.SelectedRegistrations.Count == 0)
+            {
+                <div style="padding:20px 0;color:var(--text-muted);font-size:13px;">
+                    No registration records found.
+                </div>
+            }
+            else
+            {
+                <div class="fleet-reg-grid">
+                    @foreach (var reg in VM.SelectedRegistrations)
+                    {
+                        var regStatusClass = reg.Status switch {
+                            "maintenance" => "pending",
+                            "ordered"     => "offline",
+                            "retired"     => "offline",
+                            _             => "active"
+                        };
+                        var regStatusLabel = reg.Status switch {
+                            "maintenance" => "Maintenance",
+                            "ordered"     => "On Order",
+                            "retired"     => "Retired",
+                            _             => "Active"
+                        };
+
+                        <div class="fleet-reg-card">
+                            <div class="fleet-reg-card-top">
+                                <div class="fleet-reg-badge">@reg.Registration</div>
+                                <span class="status-chip @regStatusClass"
+                                      style="font-size:10px;padding:2px 8px;">
+                                    <span class="chip-dot"></span>@regStatusLabel
+                                </span>
+                            </div>
+
+                            <div class="fleet-reg-stats">
+                                @if (!string.IsNullOrEmpty(reg.Msn))
+                                {
+                                    <div class="fleet-reg-stat">
+                                        <div class="fleet-reg-stat-val">@reg.Msn</div>
+                                        <div class="fleet-reg-stat-lbl">MSN</div>
+                                    </div>
+                                }
+                                <div class="fleet-reg-stat">
+                                    <div class="fleet-reg-stat-val">@reg.DisplayDate</div>
+                                    <div class="fleet-reg-stat-lbl">@reg.DateLabel</div>
+                                </div>
+                                @if (!string.IsNullOrEmpty(reg.HubIcao))
+                                {
+                                    <div class="fleet-reg-stat">
+                                        <div class="fleet-reg-stat-val">@reg.HubIcao</div>
+                                        <div class="fleet-reg-stat-lbl">Hub</div>
+                                    </div>
+                                }
+                                @if (reg.TotalFlights > 0)
+                                {
+                                    <div class="fleet-reg-stat">
+                                        <div class="fleet-reg-stat-val">@reg.TotalFlights.ToString("N0")</div>
+                                        <div class="fleet-reg-stat-lbl">Flights</div>
+                                    </div>
+                                    <div class="fleet-reg-stat">
+                                        <div class="fleet-reg-stat-val">@reg.TotalHours.ToString("N0")h</div>
+                                        <div class="fleet-reg-stat-lbl">Hours</div>
+                                    </div>
+                                }
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(reg.Notes))
+                            {
+                                <div class="fleet-reg-notes">@reg.Notes</div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+}
+
+<style>
+    .fleet-stats-row {
+        display: flex;
+        gap: var(--sp-4);
+        margin-bottom: var(--sp-5);
+    }
+    .fleet-stat-card {
+        flex: 1;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r-xl);
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    .fleet-stat-num {
+        font-family: var(--font-display);
+        font-size: 26px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+    .fleet-stat-lbl {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+    .fleet-filter-row {
+        display: flex;
+        gap: var(--sp-2);
+        margin-bottom: var(--sp-5);
+    }
+    .fleet-filter-tab {
+        font-family: var(--font-display);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 16px;
+        border-radius: var(--r-full);
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: all 0.18s var(--ease-smooth);
+        letter-spacing: 0.03em;
+    }
+    .fleet-filter-tab:hover { background: var(--surface-2); color: var(--text-primary); }
+    .fleet-filter-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .fleet-card--selected {
+        border-color: var(--accent) !important;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.12), var(--shadow-md) !important;
+    }
+    .fleet-card--ordered {
+        border: 1.5px dashed var(--border);
+        background: var(--surface-2);
+    }
+    .fleet-plane-art {
+        font-size: 42px;
+        margin-bottom: var(--sp-3);
+        opacity: 0.85;
+        transition: transform 0.2s var(--ease-spring), opacity 0.2s;
+        display: inline-block;
+    }
+    .fleet-card:hover .fleet-plane-art { transform: translateX(4px) scale(1.05); opacity: 1; }
+    .fleet-card-expand {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: var(--sp-3);
+        padding-top: var(--sp-3);
+        border-top: 1px solid var(--border);
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+        transition: color 0.18s;
+    }
+    .fleet-card-expand svg { transition: transform 0.2s var(--ease-smooth); }
+    .fleet-card-expand--open { color: var(--accent); }
+    .fleet-card-expand--open svg { transform: rotate(180deg); }
+    .fleet-card:hover .fleet-card-expand { color: var(--accent); }
+    .fleet-refresh { padding: 8px; border-radius: var(--r-md); }
+    .fleet-refresh.spinning svg { animation: fleet-spin 0.8s linear infinite; }
+    @@keyframes fleet-spin { to { transform: rotate(360deg); } }
+    .fleet-loading { display: flex; flex-direction: column; align-items: center; padding: 64px 0; }
+    .fleet-spinner {
+        width: 28px; height: 28px;
+        border: 3px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: fleet-spin 0.7s linear infinite;
+    }
+    .fleet-spinner--sm { width: 16px; height: 16px; border-width: 2px; }
+    .fleet-error-banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(239,68,68,0.07);
+        border: 1px solid rgba(239,68,68,0.25);
+        border-radius: var(--r-lg);
+        padding: 14px 18px;
+        color: var(--red);
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: var(--sp-5);
+    }
+    .fleet-detail-panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r-xl);
+        padding: var(--sp-6);
+        margin-top: var(--sp-5);
+    }
+    .fleet-detail-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        margin-bottom: var(--sp-5);
+        padding-bottom: var(--sp-5);
+        border-bottom: 1px solid var(--border);
+    }
+    .fleet-detail-title { display: flex; align-items: center; gap: 14px; }
+    .fleet-detail-emoji { font-size: 36px; opacity: 0.9; line-height: 1; }
+    @@keyframes fleet-panel-in {
+        from { opacity: 0; transform: translateY(-6px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    .anim-panel { animation: fleet-panel-in 0.22s var(--ease-smooth) both; }
+    .fleet-reg-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        gap: var(--sp-4);
+    }
+    .fleet-reg-card {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        padding: var(--sp-4);
+        transition: box-shadow 0.18s var(--ease-smooth), transform 0.18s var(--ease-smooth);
+    }
+    .fleet-reg-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .fleet-reg-card-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: var(--sp-3);
+    }
+    .fleet-reg-badge {
+        font-family: var(--font-mono);
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text-primary);
+        letter-spacing: 0.05em;
+    }
+    .fleet-reg-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--sp-2) var(--sp-3);
+    }
+    .fleet-reg-stat-val {
+        font-family: var(--font-display);
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+    .fleet-reg-stat-lbl {
+        font-size: 10px;
+        color: var(--text-muted);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .fleet-reg-notes {
+        margin-top: var(--sp-3);
+        padding-top: var(--sp-2);
+        border-top: 1px solid var(--border);
+        font-size: 11px;
+        color: var(--text-muted);
+        font-style: italic;
+    }
+</style>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await VM.LoadAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleTypeClick(AviatesAirTracker.Models.AircraftType type)
+    {
+        // Toggle off if same card clicked again
+        if (VM.SelectedType?.TypeCode == type.TypeCode)
+        {
+            VM.SelectedType = null;
+            VM.SelectedRegistrations = [];
+            StateHasChanged();
+            return;
+        }
+
+        // Set selection immediately so the panel opens and the spinner shows
+        VM.SelectedType = type;
+        VM.SelectedRegistrations = [];
+        VM.IsLoadingRegs = true;
+        StateHasChanged();
+
+        // Now fetch registrations and update
+        try
+        {
+            var regs = await FleetSvc.GetRegistrationsAsync(type.TypeCode);
+            VM.SelectedRegistrations = regs;
+        }
+        finally
+        {
+            VM.IsLoadingRegs = false;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleRefresh()
+    {
+        await VM.RefreshAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleFilter(string filter)
+    {
+        VM.SetFilter(filter);
+        StateHasChanged();
+    }
+
+    public void Dispose() { }
+}

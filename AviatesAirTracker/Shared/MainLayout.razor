@@ -1,0 +1,271 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Nav
+@inject MessagingService MessagingService
+@inject SettingsService SettingsService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<LandingResultModal />
+
+<div class="app-shell">
+
+    <!-- ── SIDEBAR ── -->
+    <aside class="sidebar">
+
+        <!-- Brand -->
+        <div class="sidebar-brand">
+            <div class="brand-mark">
+                <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>
+                </svg>
+            </div>
+            <div class="brand-text-wrap">
+                <div class="brand-name">AVIATESAIR</div>
+                <div class="brand-sub">Virtual Airline</div>
+            </div>
+        </div>
+
+        <!-- Nav -->
+        <nav class="sidebar-nav">
+            <span class="nav-section-label">Overview</span>
+
+            <NavLink href="/" Match="NavLinkMatch.All" class="nav-item" ActiveClass="active">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+                    </svg>
+                </span>
+                Dashboard
+            </NavLink>
+
+            <NavLink href="/flights" class="nav-item" ActiveClass="active">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>
+                    </svg>
+                </span>
+                Flights
+                <span class="nav-badge-dot"></span>
+            </NavLink>
+
+            <NavLink href="/routes" class="nav-item" ActiveClass="active">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/>
+                        <path d="M6 9v4a1 1 0 001 1h6a1 1 0 011 1v1"/>
+                    </svg>
+                </span>
+                Routes
+            </NavLink>
+
+            <NavLink href="/fleet" class="nav-item" ActiveClass="active">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12l-9-9-2 4-5-1-3 3 5 2-1 3 4 1 1 5 5-3z"/>
+                        <path d="M3 21l5-5"/>
+                    </svg>
+                </span>
+                Fleet
+            </NavLink>
+
+            <span class="nav-section-label">Pilot</span>
+
+            <NavLink href="/pilot-hub" class="nav-item" ActiveClass="active">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                    </svg>
+                </span>
+                Pilot Hub
+            </NavLink>
+
+            <NavLink href="/acars" class="nav-item" ActiveClass="active">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5 12.5a7 7 0 0114 0M1 12.5a11 11 0 0122 0M9 12.5a3 3 0 016 0"/>
+                        <circle cx="12" cy="12.5" r="1" fill="currentColor"/>
+                    </svg>
+                </span>
+                ACARS
+                <span class="nav-badge">Live</span>
+            </NavLink>
+
+            <NavLink href="/messages" class="nav-item" ActiveClass="active">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                    </svg>
+                </span>
+                Messages
+                @if (_unreadCount > 0)
+                {
+                    <span class="nav-badge">@(_unreadCount > 99 ? "99+" : _unreadCount.ToString())</span>
+                }
+            </NavLink>
+
+            <span class="nav-section-label">Community</span>
+
+            <NavLink href="/news" class="nav-item" ActiveClass="active">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h16v13a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"/><path d="M8 9h8M8 13h5"/>
+                    </svg>
+                </span>
+                News
+                <span class="nav-badge">3</span>
+            </NavLink>
+
+            <NavLink href="/events" class="nav-item" ActiveClass="active">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+                    </svg>
+                </span>
+                Events
+            </NavLink>
+
+            <NavLink href="/support" class="nav-item" ActiveClass="active">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3M12 17h.01"/>
+                    </svg>
+                </span>
+                Support
+            </NavLink>
+        </nav>
+
+        <!-- Connection status -->
+        <div class="sidebar-connection">
+            <div class="conn-card">
+                <div class="conn-row">
+                    <span class="conn-dot disconnected"></span>
+                    <span class="conn-status-text">Offline Mode</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="sidebar-footer">
+            <NavLink href="/settings" class="nav-item" ActiveClass="active">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+                    </svg>
+                </span>
+                Settings
+            </NavLink>
+            <button class="nav-item" style="width:calc(100% - 20px);">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+                    </svg>
+                </span>
+                Logout
+            </button>
+        </div>
+    </aside>
+
+    <!-- ── MAIN ── -->
+    <div class="main-wrapper">
+
+        <!-- Header -->
+        <header class="top-header">
+            <div class="search-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+                </svg>
+                <input type="text" placeholder="Search flights, routes, aircraft..." />
+            </div>
+
+            <div class="header-spacer"></div>
+
+            <div class="header-right">
+                <button class="icon-btn" title="Notifications">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
+                    </svg>
+                    <span class="icon-btn-badge"></span>
+                </button>
+                <a href="/messages" class="icon-btn" title="Messages" style="text-decoration:none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                    </svg>
+                    @if (_unreadCount > 0)
+                    {
+                        <span class="icon-btn-badge"></span>
+                    }
+                </a>
+                <div class="header-divider"></div>
+                <div class="header-user">
+                    <div class="user-avatar">@_headerInitials</div>
+                    <div class="user-info">
+                        <div class="user-name">@_headerName</div>
+                        <div class="user-rank">@_headerRank</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Page -->
+        <main class="page-content">
+            @Body
+        </main>
+
+    </div>
+</div>
+
+@code {
+    private int    _unreadCount;
+    private string _headerName     = "Pilot";
+    private string _headerInitials = "?";
+    private string _headerRank     = "Virtual Pilot";
+
+    protected override void OnInitialized()
+    {
+        MessagingService.UnreadCountChanged += OnUnreadCountChanged;
+        SettingsService.SettingsChanged     += OnSettingsChanged;
+        RefreshHeader();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("aviatesTheme.apply", SettingsService.Settings.Theme);
+            await JS.InvokeVoidAsync("aviatesTheme.watchSystem");
+        }
+    }
+
+    private void RefreshHeader()
+    {
+        var name = SettingsService.Settings.PilotName ?? "";
+        _headerName = string.IsNullOrWhiteSpace(name) ? "Pilot" : name;
+        _headerInitials = string.IsNullOrWhiteSpace(name)
+            ? "?"
+            : string.Concat(
+                name.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Take(2)
+                    .Select(w => w[0]))
+              .ToUpper();
+        _headerRank = "Virtual Pilot";
+    }
+
+    private void OnSettingsChanged(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(() => { RefreshHeader(); StateHasChanged(); });
+    }
+
+    private void OnUnreadCountChanged(object? sender, int count)
+    {
+        _ = InvokeAsync(() => { _unreadCount = count; StateHasChanged(); });
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        MessagingService.UnreadCountChanged -= OnUnreadCountChanged;
+        SettingsService.SettingsChanged     -= OnSettingsChanged;
+        await JS.InvokeVoidAsync("aviatesTheme.stopWatching");
+    }
+}

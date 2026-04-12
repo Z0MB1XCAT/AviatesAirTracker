@@ -1,0 +1,306 @@
+@inject AlertService AlertService
+@implements IDisposable
+
+@if (_visible && _result != null)
+{
+    <div class="lrm-backdrop @(_animOut ? "lrm-bg-out" : "lrm-bg-in")" @onclick="Dismiss">
+        <div class="lrm-card @(_animOut ? "lrm-card-out" : "lrm-card-in")" @onclick:stopPropagation="true">
+
+            <!-- ── HEADER ── -->
+            <div class="lrm-header" style="border-top-color: @_result.LandingGradeColor">
+                <div class="lrm-header-left">
+                    <div class="lrm-report-chip">TOUCHDOWN REPORT</div>
+                    <div class="lrm-airport-id">
+                        @_result.AirportICAO
+                        <span class="lrm-dot">·</span>
+                        @_result.RunwayIdentifier
+                    </div>
+                </div>
+                <div class="lrm-header-right">
+                    <span class="lrm-zulu">@_result.Timestamp.ToUniversalTime().ToString("HH:mm")Z</span>
+                    <button class="lrm-close-x" @onclick="Dismiss" title="Close">
+                        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                            <path d="M4 4l10 10M14 4L4 14"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ── HERO: RING + GRADE ── -->
+            <div class="lrm-hero">
+
+                <!-- Score ring -->
+                <div class="lrm-ring-wrap">
+                    <svg viewBox="0 0 200 200" fill="none" class="lrm-ring-svg">
+                        <!-- Background track -->
+                        <circle class="ring-track" cx="100" cy="100" r="80"/>
+                        <!-- Animated fill arc -->
+                        <circle class="ring-fill"
+                                cx="100" cy="100" r="80"
+                                stroke="@_result.LandingGradeColor"
+                                style="stroke-dashoffset: @_ringOffset.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"/>
+                        <!-- Major tick marks (every 36°) -->
+                        @for (int i = 0; i < 10; i++)
+                        {
+                            var ang = i * 36.0 - 90.0;
+                            var rad = ang * Math.PI / 180.0;
+                            var ox = (100 + 93.0 * Math.Cos(rad)).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                            var oy = (100 + 93.0 * Math.Sin(rad)).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                            var ix = (100 + 83.0 * Math.Cos(rad)).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                            var iy = (100 + 83.0 * Math.Sin(rad)).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                            <line x1="@ox" y1="@oy" x2="@ix" y2="@iy" class="ring-tick-maj"/>
+                        }
+                        <!-- Minor tick marks (every 18°) -->
+                        @for (int i = 0; i < 20; i++)
+                        {
+                            if (i % 2 == 0) continue; // skip positions occupied by major ticks
+                            var ang = i * 18.0 - 90.0;
+                            var rad = ang * Math.PI / 180.0;
+                            var ox = (100 + 91.0 * Math.Cos(rad)).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                            var oy = (100 + 91.0 * Math.Sin(rad)).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                            var ix = (100 + 86.0 * Math.Cos(rad)).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                            var iy = (100 + 86.0 * Math.Sin(rad)).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+                            <line x1="@ox" y1="@oy" x2="@ix" y2="@iy" class="ring-tick-min"/>
+                        }
+                    </svg>
+                    <div class="lrm-score-center">
+                        <span class="lrm-score-num">@_result.LandingScore</span>
+                        <span class="lrm-score-denom">/100</span>
+                    </div>
+                </div>
+
+                <!-- Grade + quality flags -->
+                <div class="lrm-grade-col">
+                    <div class="lrm-grade-badge"
+                         style="color: @_result.LandingGradeColor;
+                                background: @GradeBg;
+                                border-color: @_result.LandingGradeColor">
+                        @_result.LandingGrade
+                    </div>
+
+                    <div class="lrm-flags">
+                        <div class="lrm-flag @(_result.ApproachWasStable ? "flag-ok" : "flag-fail")">
+                            <span class="flag-pip">@(_result.ApproachWasStable ? "✓" : "✗")</span>
+                            Stable Approach
+                        </div>
+                        <div class="lrm-flag @(_result.FlareDetected ? "flag-ok" : "flag-neutral")">
+                            <span class="flag-pip">@(_result.FlareDetected ? "✓" : "–")</span>
+                            Flare Detected
+                        </div>
+                        @if (_result.BounceCount > 0)
+                        {
+                            <div class="lrm-flag flag-fail">
+                                <span class="flag-pip">!</span>
+                                @_result.BounceCount Bounce@(_result.BounceCount > 1 ? "s" : "")
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="lrm-flag flag-ok">
+                                <span class="flag-pip">✓</span>
+                                No Bounce
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── RUNWAY DIVIDER ── -->
+            <div class="lrm-rwy-strip" aria-hidden="true">
+                @for (int d = 0; d < 6; d++)
+                {
+                    <div class="rwy-dash"></div>
+                }
+            </div>
+
+            <!-- ── TOUCHDOWN PARAMETERS ── -->
+            <div class="lrm-params-grid">
+                @{
+                    bool vsWarn   = Math.Abs(_result.VerticalSpeedFPM) > 600;
+                    bool bankWarn = Math.Abs(_result.TouchdownBankDeg) > 3;
+                }
+                <div class="lrm-param @(vsWarn ? "param-warn" : "")">
+                    <span class="p-value">@Math.Abs(_result.VerticalSpeedFPM).ToString("F0")</span>
+                    <span class="p-unit">fpm</span>
+                    <span class="p-label">VERT SPEED</span>
+                </div>
+                <div class="lrm-param">
+                    <span class="p-value">@_result.IASKts.ToString("F0")</span>
+                    <span class="p-unit">kt</span>
+                    <span class="p-label">AIRSPEED</span>
+                </div>
+                <div class="lrm-param">
+                    <span class="p-value">@_result.TouchdownPitchDeg.ToString("F1")</span>
+                    <span class="p-unit">°</span>
+                    <span class="p-label">PITCH</span>
+                </div>
+                <div class="lrm-param @(bankWarn ? "param-warn" : "")">
+                    <span class="p-value">@Math.Abs(_result.TouchdownBankDeg).ToString("F1")</span>
+                    <span class="p-unit">°</span>
+                    <span class="p-label">BANK</span>
+                </div>
+                <div class="lrm-param">
+                    <span class="p-value">@_result.HeadwindComponent.ToString("F0")</span>
+                    <span class="p-unit">kt</span>
+                    <span class="p-label">HEADWIND</span>
+                </div>
+                <div class="lrm-param">
+                    <span class="p-value">@Math.Abs(_result.CrosswindComponent).ToString("F0")</span>
+                    <span class="p-unit">kt</span>
+                    <span class="p-label">CROSSWIND</span>
+                </div>
+            </div>
+
+            <!-- ── SCORE BREAKDOWN ── -->
+            <div class="lrm-breakdown">
+                <div class="lrm-section-hd">SCORE BREAKDOWN</div>
+                @{
+                    var factors = new (string Label, double Score, double Max)[]
+                    {
+                        ("Vertical Speed",    _result.ScoreBreakdown.VerticalSpeedScore, 30),
+                        ("Pitch Attitude",    _result.ScoreBreakdown.PitchScore,         20),
+                        ("Bank Angle",        _result.ScoreBreakdown.BankScore,          15),
+                        ("Speed Management", _result.ScoreBreakdown.SpeedScore,          15),
+                        ("Crosswind",         _result.ScoreBreakdown.CrosswindScore,     10),
+                        ("Approach Stability",_result.ScoreBreakdown.StabilityScore,     10),
+                    };
+                }
+                @for (int fi = 0; fi < factors.Length; fi++)
+                {
+                    var f     = factors[fi];
+                    var pct   = f.Max > 0 ? f.Score / f.Max * 100 : 0;
+                    var color = FactorColor(f.Score, f.Max);
+                    var delay = fi * 75 + 250; // stagger bars
+                    <div class="lrm-factor" style="animation-delay: @(fi * 55)ms">
+                        <span class="f-label">@f.Label</span>
+                        <div class="f-track">
+                            <div class="f-fill"
+                                 style="width: @(_barsGo ? pct.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "%" : "0%");
+                                        background: @color;
+                                        transition-delay: @(delay)ms">
+                            </div>
+                        </div>
+                        <span class="f-pts" style="color: @color">
+                            @f.Score.ToString("F0")<span class="f-max">/@((int)f.Max)</span>
+                        </span>
+                    </div>
+                }
+            </div>
+
+            <!-- ── FOOTER STATS + CLOSE ── -->
+            <div class="lrm-foot">
+                @if (_result.RolloutDistanceFt > 10)
+                {
+                    <div class="lrm-foot-stat">
+                        <div class="fs-val">@_result.RolloutDistanceFt.ToString("F0")</div>
+                        <div class="fs-lbl">ft rollout</div>
+                    </div>
+                }
+                @if (_result.ThresholdDistanceFt > 10)
+                {
+                    <div class="lrm-foot-stat">
+                        <div class="fs-val">@_result.ThresholdDistanceFt.ToString("F0")</div>
+                        <div class="fs-lbl">ft past threshold</div>
+                    </div>
+                }
+                <div class="lrm-foot-stat">
+                    <div class="fs-val">@_result.FuelOnTouchdownLbs.ToString("F0")</div>
+                    <div class="fs-lbl">lbs fuel</div>
+                </div>
+                <button class="lrm-dismiss-btn" @onclick="Dismiss">Close Report</button>
+            </div>
+
+        </div>
+    </div>
+}
+
+@code {
+    private bool          _visible;
+    private bool          _animOut;
+    private bool          _barsGo;          // triggers bar width transitions
+    private double        _ringOffset = 502.65; // starts fully empty
+    private LandingResult? _result;
+    private System.Timers.Timer? _autoClose;
+
+    private const double Circumference = 502.65; // 2π×80
+
+    protected override void OnInitialized()
+    {
+        AlertService.LandingResultReady += OnLandingResultReady;
+    }
+
+    private void OnLandingResultReady(object? sender, LandingResult result)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            // Reset animation state
+            _result      = result;
+            _animOut     = false;
+            _barsGo      = false;
+            _ringOffset  = Circumference; // start ring empty
+            _visible     = true;
+            StateHasChanged();            // first paint: ring empty, bars at 0
+
+            // Slight delay so the browser has painted the "empty" state
+            await Task.Delay(80);
+
+            // Animate ring to final score
+            _ringOffset = Circumference * (1.0 - result.LandingScore / 100.0);
+            StateHasChanged();
+
+            // Bars start slightly later for a staggered feel
+            await Task.Delay(180);
+            _barsGo = true;
+            StateHasChanged();
+
+            // Auto-dismiss after 60 s
+            _autoClose?.Dispose();
+            _autoClose        = new System.Timers.Timer(60_000);
+            _autoClose.Elapsed += (_, _) => InvokeAsync(Dismiss);
+            _autoClose.AutoReset = false;
+            _autoClose.Start();
+        });
+    }
+
+    private async Task Dismiss()
+    {
+        _autoClose?.Dispose();
+        _autoClose = null;
+        _animOut   = true;
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(260);
+        _visible = false;
+        _animOut = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // ── Helpers ────────────────────────────────────────────────
+
+    private string GradeBg => _result?.LandingScore switch
+    {
+        >= 90 => "rgba(34,197,94,0.10)",
+        >= 75 => "rgba(59,130,246,0.10)",
+        >= 60 => "rgba(234,179,8,0.10)",
+        >= 40 => "rgba(249,115,22,0.10)",
+        _     => "rgba(239,68,68,0.10)"
+    } ?? "rgba(148,163,184,0.10)";
+
+    private static string FactorColor(double score, double max)
+    {
+        if (max <= 0) return "#94A3B8";
+        return (score / max) switch
+        {
+            >= 0.85 => "#22C55E",
+            >= 0.65 => "#3B82F6",
+            >= 0.45 => "#EAB308",
+            >= 0.25 => "#F97316",
+            _       => "#EF4444"
+        };
+    }
+
+    public void Dispose()
+    {
+        AlertService.LandingResultReady -= OnLandingResultReady;
+        _autoClose?.Dispose();
+    }
+}

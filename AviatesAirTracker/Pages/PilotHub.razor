@@ -1,0 +1,506 @@
+@page "/pilot-hub"
+@inject BookingService BookingService
+@inject PilotHubViewModel VM
+@inject SimBriefService SimBriefSvc
+@inject RoutesService RoutesService
+@inject Microsoft.AspNetCore.Components.NavigationManager Navigation
+@implements IDisposable
+
+<div class="page-header anim-up">
+    <h1 class="page-title">Pilot Hub</h1>
+    <p class="page-sub">Your career progress, landing analysis, and flight bookings.</p>
+</div>
+
+<!-- Sub-navigation tabs -->
+<div class="tab-bar anim-up-d1" style="margin-bottom:var(--sp-6);">
+    <div class="tab-item @(_activeSection == "career" ? "active" : "")"
+         @onclick='() => _activeSection = "career"'>Career</div>
+    <div class="tab-item @(_activeSection == "bookings" ? "active" : "")"
+         @onclick='() => SwitchToBookings()'>
+        My Bookings
+        @if (_activeBookingCount > 0)
+        {
+            <span class="tab-badge">@_activeBookingCount</span>
+        }
+    </div>
+</div>
+
+<!-- ============================================================
+     CAREER SECTION
+     ============================================================ -->
+@if (_activeSection == "career")
+{
+    <!-- Top stats -->
+    <div class="stats-grid anim-up-d1">
+        <div class="big-stat-card">
+            <div class="big-stat-icon blue" style="background:var(--accent-light);color:var(--accent);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>
+                </svg>
+            </div>
+            <div class="big-stat-val">@VM.TotalFlights</div>
+            <div class="big-stat-label">Total Flights</div>
+        </div>
+        <div class="big-stat-card">
+            <div class="big-stat-icon cyan" style="background:var(--cyan-light);color:var(--cyan);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+            </div>
+            <div class="big-stat-val">@VM.BlockHours</div>
+            <div class="big-stat-label">Block Hours</div>
+        </div>
+        <div class="big-stat-card">
+            <div class="big-stat-icon green" style="background:var(--green-light);color:var(--green);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+            </div>
+            <div class="big-stat-val">@VM.AvgLandingScore</div>
+            <div class="big-stat-label">Avg Landing</div>
+        </div>
+        <div class="big-stat-card">
+            <div class="big-stat-icon violet" style="background:var(--violet-light);color:var(--violet);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+            </div>
+            <div class="big-stat-val">@VM.TotalDistance</div>
+            <div class="big-stat-label">Total nm</div>
+        </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-5);" class="anim-up-d2">
+
+        <!-- Rank Progression -->
+        <div class="rank-card">
+            <div class="rank-badge">🪖 Rank Status</div>
+            <div class="rank-title">@VM.PilotRank</div>
+            <div class="rank-sub">@VM.RankProgressPct.ToString("F0")% progress toward @VM.NextRank</div>
+            <div class="rank-progress-track">
+                <div class="rank-progress-fill" style="width:@(VM.RankProgressPct.ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%;"></div>
+            </div>
+            <div class="rank-progress-labels">
+                <span>@VM.PilotRank</span>
+                <span>@VM.NextRank</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:20px;position:relative;z-index:1;">
+                <div style="text-align:center;">
+                    <div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:#fff;">@VM.TotalFlights</div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.45);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Flights</div>
+                </div>
+                <div style="text-align:center;border-left:1px solid rgba(255,255,255,0.1);border-right:1px solid rgba(255,255,255,0.1);">
+                    <div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:#fff;">@VM.BlockHours</div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.45);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Hours</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:#fff;">@VM.AvgLandingScore</div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.45);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Avg Score</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Last Landing Analysis -->
+        <div class="panel-card">
+            <div class="panel-header">
+                <span class="panel-title">Last Landing Analysis</span>
+                <a href="/landings" class="section-action" style="font-size:12px;">View all</a>
+            </div>
+            @if (!VM.HasLandings)
+            {
+                <div style="text-align:center;padding:48px 0;color:var(--text-muted);font-size:13px;">
+                    Complete your first flight to see landing stats here.
+                </div>
+            }
+            else
+            {
+                <div class="score-ring-container" style="padding:var(--sp-4) 0;">
+                    <div class="score-ring">
+                        <svg viewBox="0 0 160 160" width="160" height="160">
+                            <circle class="score-ring-track" cx="80" cy="80" r="65"/>
+                            <circle class="score-ring-fill @VM.LastLandingGradeClass" cx="80" cy="80" r="65"
+                                    stroke-dashoffset="@VM.LastLandingRingOffset.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)"/>
+                        </svg>
+                        <div class="score-ring-center">
+                            <span class="score-ring-value">@VM.LastLanding!.LandingScore</span>
+                            <div class="score-ring-grade">@VM.LastLandingGradeLabel</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);">
+                    <div style="background:var(--surface-2);border-radius:var(--r-md);padding:10px;">
+                        <div style="font-size:10px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px;">V/S</div>
+                        <div style="font-family:var(--font-display);font-size:15px;font-weight:700;color:@PilotHubViewModel.VsColor(VM.LastLanding.VerticalSpeedFPM);">@VM.LastLanding.VerticalSpeedFPM.ToString("F0") fpm</div>
+                    </div>
+                    <div style="background:var(--surface-2);border-radius:var(--r-md);padding:10px;">
+                        <div style="font-size:10px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px;">Pitch</div>
+                        <div style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--accent);">@VM.LastLanding.TouchdownPitchDeg.ToString("F1")°</div>
+                    </div>
+                    <div style="background:var(--surface-2);border-radius:var(--r-md);padding:10px;">
+                        <div style="font-size:10px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px;">Crosswind</div>
+                        <div style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text-primary);">@Math.Abs(VM.LastLanding.CrosswindComponent).ToString("F0") kts</div>
+                    </div>
+                    <div style="background:var(--surface-2);border-radius:var(--r-md);padding:10px;">
+                        <div style="font-size:10px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px;">Runway</div>
+                        <div style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text-primary);">@VM.LastLanding.AirportICAO @VM.LastLanding.RunwayIdentifier</div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Recent landing scores -->
+    <div style="margin-top:var(--sp-5);" class="anim-up-d3">
+        <div class="section-header">
+            <h2 class="section-title">Landing History</h2>
+            <a href="/landings" class="section-action">View logbook</a>
+        </div>
+        @if (!VM.HasLandings)
+        {
+            <div style="text-align:center;padding:48px 0;color:var(--text-muted);font-size:13px;">
+                No landings recorded yet. Complete a flight to see your history here.
+            </div>
+        }
+        else
+        {
+            <div class="data-table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th><th>Airport</th><th>V/S</th><th>Pitch</th><th>Crosswind</th><th>Score</th><th>Grade</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var l in VM.RecentLandings)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="table-name">@l.AirportICAO</div>
+                                    <div class="table-sub">@l.Timestamp.ToString("MM/dd/yyyy")</div>
+                                </td>
+                                <td><span style="font-family:var(--font-mono);font-weight:600;">@l.AirportICAO @l.RunwayIdentifier</span></td>
+                                <td style="font-family:var(--font-mono);font-size:12px;color:@PilotHubViewModel.VsColor(l.VerticalSpeedFPM);">@l.VerticalSpeedFPM.ToString("F0") fpm</td>
+                                <td style="font-family:var(--font-mono);font-size:12px;">@l.TouchdownPitchDeg.ToString("F1")°</td>
+                                <td style="font-family:var(--font-mono);font-size:12px;">@Math.Abs(l.CrosswindComponent).ToString("F0") kts</td>
+                                <td><strong style="font-family:var(--font-display);font-size:15px;color:@PilotHubViewModel.VsColor(l.VerticalSpeedFPM);">@l.LandingScore</strong></td>
+                                <td><span class="flight-chip @PilotHubViewModel.GradeChipClass(l.LandingScore)" style="display:inline-flex;">@PilotHubViewModel.GradeLetter(l.LandingScore)</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+<!-- ============================================================
+     MY BOOKINGS SECTION
+     ============================================================ -->
+@if (_activeSection == "bookings")
+{
+    <div class="anim-up-d1">
+        <!-- Slot usage bar -->
+        <div class="booking-slot-bar">
+            <div class="booking-slot-bar-left">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="color:var(--accent);">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                <span class="booking-slot-title">Booking Slots</span>
+                <span class="booking-slot-count">@_activeBookingCount / @BookingService.MaxBookings used</span>
+            </div>
+            <div class="booking-slot-track">
+                @for (int s = 0; s < BookingService.MaxBookings; s++)
+                {
+                    <div class="booking-slot-pip @(s < _activeBookingCount ? "filled" : "")"></div>
+                }
+            </div>
+        </div>
+
+        @if (_bookingsLoading)
+        {
+            <div style="text-align:center;padding:60px 0;color:var(--text-muted);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32"
+                     style="animation:spin 1s linear infinite;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;opacity:0.4;">
+                    <path d="M21 12a9 9 0 11-6.219-8.56"/>
+                </svg>
+                Loading bookings…
+            </div>
+        }
+        else if (_bookings.Count == 0)
+        {
+            <div class="bookings-empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" width="52" height="52" style="opacity:0.18;margin-bottom:16px;">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                <div class="bookings-empty-title">No active bookings</div>
+                <div class="bookings-empty-sub">Head to the Routes page to book your next flight.</div>
+                <a href="/routes" class="btn btn-primary btn-sm" style="margin-top:var(--sp-4);display:inline-flex;">Browse Routes</a>
+            </div>
+        }
+        else
+        {
+            <!-- Active bookings -->
+            @if (ActiveBookings.Any())
+            {
+                <div class="section-header" style="margin-bottom:var(--sp-3);">
+                    <h2 class="section-title">Upcoming Flights</h2>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:var(--sp-3);margin-bottom:var(--sp-6);">
+                    @foreach (var b in ActiveBookings)
+                    {
+                        <div class="booking-card @(_cancellingId == b.Id ? "cancelling" : "")">
+                            <div class="booking-card-callsign">
+                                <span class="bcc-label">Callsign</span>
+                                <span class="bcc-value">@b.Callsign</span>
+                            </div>
+                            <div class="booking-card-route">
+                                <span class="bcr-iata">@(string.IsNullOrEmpty(b.OriginIata) ? "—" : b.OriginIata)</span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16" style="opacity:0.3;flex-shrink:0;">
+                                    <path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>
+                                </svg>
+                                <span class="bcr-iata">@(string.IsNullOrEmpty(b.DestIata) ? "—" : b.DestIata)</span>
+                            </div>
+                            <div class="booking-card-meta">
+                                <div class="bcm-row">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="opacity:0.5;">
+                                        <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                                    </svg>
+                                    <span>@b.ScheduledDepUtc.ToString("dd MMM yyyy  HH:mm") UTC</span>
+                                </div>
+                                <div class="bcm-row">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="opacity:0.5;">
+                                        <path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>
+                                    </svg>
+                                    <span>@b.AircraftType</span>
+                                </div>
+                            </div>
+                            <div class="booking-card-status">
+                                <span class="status-chip active"><span class="chip-dot"></span>Confirmed</span>
+                            </div>
+                            <button class="start-flight-btn" @onclick="() => StartFlight(b)"
+                                    title="Generate SimBrief plan and go to ACARS">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="14" height="14">
+                                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                                </svg>
+                                <span>Start Flight</span>
+                            </button>
+                            <button class="booking-cancel-btn" @onclick="() => ConfirmCancel(b)"
+                                    disabled="@(_cancellingId == b.Id)"
+                                    title="Cancel this booking">
+                                @if (_cancellingId == b.Id)
+                                {
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"
+                                         style="animation:spin 0.8s linear infinite;">
+                                        <path d="M21 12a9 9 0 11-6.219-8.56"/>
+                                    </svg>
+                                }
+                                else
+                                {
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                    </svg>
+                                    <span>Cancel</span>
+                                }
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+
+            <!-- Past / cancelled bookings -->
+            @if (HistoryBookings.Any())
+            {
+                <div class="section-header" style="margin-bottom:var(--sp-3);">
+                    <h2 class="section-title" style="color:var(--text-muted);">History</h2>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:var(--sp-2);">
+                    @foreach (var b in HistoryBookings)
+                    {
+                        <div class="booking-card booking-card-past">
+                            <div class="booking-card-callsign">
+                                <span class="bcc-label">Callsign</span>
+                                <span class="bcc-value" style="opacity:0.5;">@b.Callsign</span>
+                            </div>
+                            <div class="booking-card-route" style="opacity:0.45;">
+                                <span class="bcr-iata">@(string.IsNullOrEmpty(b.OriginIata) ? "—" : b.OriginIata)</span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16" style="opacity:0.3;flex-shrink:0;">
+                                    <path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>
+                                </svg>
+                                <span class="bcr-iata">@(string.IsNullOrEmpty(b.DestIata) ? "—" : b.DestIata)</span>
+                            </div>
+                            <div class="booking-card-meta" style="opacity:0.5;">
+                                <div class="bcm-row">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="opacity:0.5;">
+                                        <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                                    </svg>
+                                    <span>@b.ScheduledDepUtc.ToString("dd MMM yyyy  HH:mm") UTC</span>
+                                </div>
+                            </div>
+                            <div class="booking-card-status">
+                                @if (b.IsCancelled)
+                                {
+                                    <span class="status-chip" style="background:var(--red-light);color:var(--red);border-color:rgba(239,68,68,0.2);">Cancelled</span>
+                                }
+                                else
+                                {
+                                    <span class="status-chip" style="background:var(--surface-2);color:var(--text-muted);border-color:var(--border);">Past</span>
+                                }
+                            </div>
+                            <div style="width:80px;"></div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </div>
+}
+
+<!-- Cancel confirmation modal -->
+@if (_confirmCancelBooking != null)
+{
+    <div class="booking-overlay" @onclick="DismissCancelConfirm">
+        <div class="booking-modal" style="max-width:420px;" @onclick:stopPropagation="true">
+            <div class="booking-modal-header">
+                <div>
+                    <div style="font-family:var(--font-display);font-size:17px;font-weight:700;color:var(--text-primary);">Cancel Booking</div>
+                    <div style="font-size:13px;color:var(--text-muted);margin-top:3px;">This action cannot be undone.</div>
+                </div>
+                <button class="booking-close" @onclick="DismissCancelConfirm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div style="padding:var(--sp-5);">
+                <div style="background:var(--surface-2);border-radius:var(--r-md);padding:var(--sp-4);margin-bottom:var(--sp-5);">
+                    <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">Booking to cancel</div>
+                    <div style="font-family:var(--font-mono);font-weight:700;font-size:16px;color:var(--text-primary);margin-bottom:4px;">@_confirmCancelBooking.Callsign</div>
+                    <div style="font-size:13px;color:var(--text-secondary);">
+                        @_confirmCancelBooking.OriginIata → @_confirmCancelBooking.DestIata
+                        &nbsp;·&nbsp;
+                        @_confirmCancelBooking.ScheduledDepUtc.ToString("dd MMM yyyy HH:mm") UTC
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(_cancelError))
+                {
+                    <div class="booking-error-msg" style="margin-bottom:var(--sp-4);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                        @_cancelError
+                    </div>
+                }
+            </div>
+            <div class="booking-modal-footer">
+                <button class="btn btn-ghost" @onclick="DismissCancelConfirm">Keep Booking</button>
+                <button class="btn" style="background:var(--red);color:#fff;" @onclick="ExecuteCancel">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="margin-right:6px;">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                    </svg>
+                    Yes, Cancel Flight
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string _activeSection = "career";
+
+    protected override async Task OnInitializedAsync()
+    {
+        VM.DataRefreshed += OnDataRefreshed;
+        await VM.RefreshAsync();
+    }
+
+    private void OnDataRefreshed() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => VM.DataRefreshed -= OnDataRefreshed;
+
+
+    // ── Bookings state ────────────────────────────────────────
+    private List<FlightBooking> _bookings      = [];
+
+    private List<FlightBooking> ActiveBookings  => _bookings.Where(b => !b.IsCancelled && !b.IsPast).OrderBy(b => b.ScheduledDepUtc).ToList();
+    private List<FlightBooking> HistoryBookings => _bookings.Where(b => b.IsCancelled || b.IsPast).OrderByDescending(b => b.ScheduledDepUtc).ToList();
+    private bool                _bookingsLoading;
+    private int                 _activeBookingCount;
+    private int?                _cancellingId;
+    private FlightBooking?      _confirmCancelBooking;
+    private string?             _cancelError;
+
+    private async Task SwitchToBookings()
+    {
+        _activeSection = "bookings";
+        await LoadBookings();
+    }
+
+    private async Task LoadBookings()
+    {
+        _bookingsLoading = true;
+        StateHasChanged();
+
+        var bookingsTask = BookingService.GetBookingsAsync();
+        var routesTask   = RoutesService.GetRoutesAsync();
+        await Task.WhenAll(bookingsTask, routesTask);
+
+        _bookings = bookingsTask.Result;
+
+        // Enrich each booking with its route's scheduled callsign so SimBrief gets the correct fltnum
+        var routeById = routesTask.Result.Routes.ToDictionary(r => r.Id);
+        foreach (var b in _bookings)
+        {
+            if (routeById.TryGetValue(b.RouteId, out var route))
+                b.RouteCallsign = route.Callsign;
+        }
+
+        _activeBookingCount = _bookings.Count(b => !b.IsCancelled && !b.IsPast);
+        _bookingsLoading = false;
+    }
+
+    private void StartFlight(FlightBooking booking)
+    {
+        BookingService.SetActiveBooking(booking);
+        SimBriefSvc.OpenDispatch(booking);
+        Navigation.NavigateTo("/acars");
+    }
+
+    private void ConfirmCancel(FlightBooking booking)
+    {
+        _confirmCancelBooking = booking;
+        _cancelError          = null;
+    }
+
+    private void DismissCancelConfirm()
+    {
+        _confirmCancelBooking = null;
+        _cancelError          = null;
+    }
+
+    private async Task ExecuteCancel()
+    {
+        if (_confirmCancelBooking == null) return;
+
+        _cancellingId = _confirmCancelBooking.Id;
+        _cancelError  = null;
+        StateHasChanged();
+
+        var (success, error) = await BookingService.CancelBookingAsync(_confirmCancelBooking.Id);
+
+        if (success)
+        {
+            // Reflect cancellation locally without a full reload
+            var match = _bookings.FirstOrDefault(b => b.Id == _confirmCancelBooking.Id);
+            if (match != null) match.Status = "cancelled";
+
+            _activeBookingCount = _bookings.Count(b => !b.IsCancelled && !b.IsPast);
+            _confirmCancelBooking = null;
+        }
+        else
+        {
+            _cancelError = error ?? "Cancel failed. Please try again.";
+        }
+
+        _cancellingId = null;
+    }
+}

@@ -1,0 +1,41 @@
+# Build outputs
+bin/
+obj/
+dist/
+installer/*.exe
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Logs
+logs/
+*.log
+
+# Settings (contains ACARS key — do not commit)
+aviates_settings.json
+
+# SimConnect DLL (proprietary — obtain from MSFS SDK separately)
+AviatesAirTracker/Libs/Microsoft.FlightSimulator.SimConnect.dll
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Rider
+.idea/
+
+# Exports (user-generated)
+Documents/AviatesAir/

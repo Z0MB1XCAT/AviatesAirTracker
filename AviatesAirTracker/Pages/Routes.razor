@@ -1,0 +1,708 @@
+@page "/routes"
+@using AviatesAirTracker.Models
+@inject RoutesService RoutesService
+@inject BookingService BookingService
+@inject SettingsService SettingsService
+@inject FleetService FleetService
+
+<style>
+    /* ── Position lock instrument ─────────────────────────────── */
+    .pos-instrument {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        background: #0B1628;
+        border: 1px solid rgba(59,130,246,0.25);
+        border-radius: var(--r-lg);
+        padding: 14px 20px;
+        margin-bottom: var(--sp-5);
+        box-shadow: 0 4px 20px rgba(11,22,40,0.18), inset 0 1px 0 rgba(255,255,255,0.05);
+        position: relative;
+        overflow: hidden;
+    }
+    .pos-instrument::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 3px,
+            rgba(255,255,255,0.012) 3px,
+            rgba(255,255,255,0.012) 4px
+        );
+        pointer-events: none;
+    }
+    .pos-instrument-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #22C55E;
+        box-shadow: 0 0 6px #22C55E, 0 0 12px rgba(34,197,94,0.5);
+        flex-shrink: 0;
+        animation: pos-pulse 2.4s ease-in-out infinite;
+    }
+    @@keyframes pos-pulse {
+        0%, 100% { opacity: 1; box-shadow: 0 0 6px #22C55E, 0 0 12px rgba(34,197,94,0.5); }
+        50%       { opacity: 0.55; box-shadow: 0 0 3px #22C55E; }
+    }
+    .pos-instrument-body { flex: 1; min-width: 0; }
+    .pos-instrument-label {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        color: rgba(59,130,246,0.7);
+        text-transform: uppercase;
+        margin-bottom: 2px;
+    }
+    .pos-instrument-row {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+    }
+    .pos-instrument-iata {
+        font-family: var(--font-mono);
+        font-size: 22px;
+        font-weight: 700;
+        color: #FFFFFF;
+        letter-spacing: 0.04em;
+        line-height: 1;
+    }
+    .pos-instrument-name {
+        font-size: 12px;
+        color: rgba(255,255,255,0.4);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .pos-instrument-sep {
+        width: 1px;
+        height: 32px;
+        background: rgba(255,255,255,0.08);
+        flex-shrink: 0;
+    }
+    .pos-instrument-meta {
+        font-family: var(--font-mono);
+        font-size: 10.5px;
+        color: rgba(255,255,255,0.35);
+        line-height: 1.6;
+        flex-shrink: 0;
+    }
+    .pos-instrument-meta strong {
+        color: rgba(255,255,255,0.6);
+        font-weight: 600;
+    }
+    .pos-reposition-btn {
+        flex-shrink: 0;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: var(--r-sm);
+        color: rgba(255,255,255,0.5);
+        font-family: var(--font-body);
+        font-size: 12px;
+        padding: 6px 12px;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+        white-space: nowrap;
+    }
+    .pos-reposition-btn:hover {
+        background: rgba(255,255,255,0.1);
+        color: rgba(255,255,255,0.8);
+        border-color: rgba(255,255,255,0.18);
+    }
+
+    /* ── No-position state ─────────────────────────────────────── */
+    .pos-free-banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border: 1.5px dashed var(--border);
+        border-radius: var(--r-lg);
+        padding: 12px 18px;
+        margin-bottom: var(--sp-5);
+        color: var(--text-muted);
+        font-size: 13px;
+    }
+    .pos-free-banner svg { flex-shrink: 0; opacity: 0.5; }
+
+    /* ── Empty state for locked position with no routes ─────────── */
+    .pos-no-routes {
+        text-align: center;
+        padding: 64px 0;
+        color: var(--text-muted);
+    }
+    .pos-no-routes-iata {
+        font-family: var(--font-mono);
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--text-faint);
+        letter-spacing: 0.06em;
+        margin-bottom: 8px;
+    }
+    .pos-no-routes-msg {
+        font-size: 13.5px;
+        margin-bottom: 4px;
+    }
+    .pos-no-routes-sub {
+        font-size: 12px;
+        color: var(--text-faint);
+    }
+</style>
+
+<div class="page-header anim-up">
+    <h1 class="page-title">Route Network</h1>
+    <p class="page-sub">Explore all available routes across AviatesAir mainline, cargo, and regional operations.</p>
+</div>
+
+<!-- ── Position instrument ─────────────────────────────────────── -->
+@if (!string.IsNullOrEmpty(_currentAirport))
+{
+    <div class="pos-instrument anim-up-d1">
+        <div class="pos-instrument-dot"></div>
+        <div class="pos-instrument-body">
+            <div class="pos-instrument-label">Current Position</div>
+            <div class="pos-instrument-row">
+                <span class="pos-instrument-iata">@_currentAirport</span>
+                <span class="pos-instrument-name">Showing departures from this airport only</span>
+            </div>
+        </div>
+        <div class="pos-instrument-sep"></div>
+        <div class="pos-instrument-meta">
+            <div><strong>@_routes.Count</strong> route@(_routes.Count == 1 ? "" : "s") available</div>
+            <div>Next dep. must be from here</div>
+        </div>
+        <button class="pos-reposition-btn" @onclick="ClearPosition">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="margin-right:5px;vertical-align:middle;">
+                <polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/>
+                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+            </svg>
+            Reposition
+        </button>
+    </div>
+}
+else
+{
+    <div class="pos-free-banner anim-up-d1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+        No base airport set — showing all routes. Your position will lock automatically after your first completed flight.
+    </div>
+}
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-4);" class="anim-up-d1">
+    <div class="tab-bar" style="margin-bottom:0;">
+        <div class="tab-item @(_activeTab == "all"        ? "active" : "")" @onclick='() => SwitchTab("all")'>All Routes</div>
+        <div class="tab-item @(_activeTab == "mainline"   ? "active" : "")" @onclick='() => SwitchTab("mainline")'>Mainline</div>
+        <div class="tab-item @(_activeTab == "cargo"      ? "active" : "")" @onclick='() => SwitchTab("cargo")'>Cargo</div>
+        <div class="tab-item @(_activeTab == "cityhopper" ? "active" : "")" @onclick='() => SwitchTab("cityhopper")'>Regional</div>
+    </div>
+    <button class="btn btn-primary btn-sm" @onclick="ToggleSearch">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        Find Route
+    </button>
+</div>
+
+@if (_showSearch)
+{
+    <div style="margin-bottom:var(--sp-4);" class="anim-up-d1">
+        <input class="form-input"
+               placeholder="Search by IATA code, airport name, or callsign…"
+               value="@_searchQuery"
+               @oninput="OnSearchInput"
+               style="max-width:420px;" />
+    </div>
+}
+
+@if (_loading)
+{
+    <div style="text-align:center;padding:60px 0;color:var(--text-muted);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32"
+             style="animation:spin 1s linear infinite;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;opacity:0.4;">
+            <path d="M21 12a9 9 0 11-6.219-8.56"/>
+        </svg>
+        Loading routes…
+    </div>
+}
+else if (_routes.Count == 0)
+{
+    @if (!string.IsNullOrEmpty(_currentAirport) && string.IsNullOrEmpty(_searchQuery))
+    {
+        <!-- No routes from locked position -->
+        <div class="pos-no-routes">
+            <div class="pos-no-routes-iata">@_currentAirport</div>
+            <p class="pos-no-routes-msg">No scheduled routes depart from this airport.</p>
+            <p class="pos-no-routes-sub">Click Reposition above to fly from a different base.</p>
+        </div>
+    }
+    else
+    {
+        <div style="text-align:center;padding:60px 0;color:var(--text-muted);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48"
+                 style="opacity:0.25;margin-bottom:16px;display:block;margin-left:auto;margin-right:auto;">
+                <path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>
+            </svg>
+            <p style="font-size:13.5px;">@(string.IsNullOrEmpty(_searchQuery) ? "No routes found." : $"No routes matching \"{_searchQuery}\".")</p>
+        </div>
+    }
+}
+else
+{
+    @if (_total > 0)
+    {
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:var(--sp-4);" class="anim-up-d1">
+            Showing @_routes.Count of @_total routes
+        </div>
+    }
+
+    <div class="card-grid-3 anim-up-d2">
+        @foreach (var route in _routes)
+        {
+            <div class="feature-card">
+                <div class="feature-card-head">
+                    <div class="feature-icon @GetFleetColor(route.FleetGroup)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>
+                        </svg>
+                    </div>
+                    <span class="status-chip active"><span class="chip-dot"></span>Active</span>
+                </div>
+                <div class="feature-card-title">@route.OriginIata → @route.DestIata</div>
+                <div class="feature-card-sub">
+                    @route.OriginName to @route.DestName@(string.IsNullOrEmpty(route.Notes) ? "" : " — " + route.Notes)
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--sp-3);">
+                    @if (!string.IsNullOrEmpty(route.AircraftType))
+                    {
+                        <span class="flight-chip chip-blue">@route.AircraftType</span>
+                    }
+                    @if (!string.IsNullOrEmpty(route.Frequency))
+                    {
+                        <span class="flight-chip chip-green">@route.Frequency</span>
+                    }
+                    @if (!string.IsNullOrEmpty(route.Callsign))
+                    {
+                        <span class="flight-chip" style="background:rgba(255,255,255,0.05);color:var(--text-muted);">@route.Callsign</span>
+                    }
+                </div>
+                <div class="feature-card-footer">
+                    <div><div class="fcs-value">@route.DistanceNm</div><div class="fcs-label">Naut. Miles</div></div>
+                    <div><div class="fcs-value">@route.BlockTimeDisplay</div><div class="fcs-label">Block Time</div></div>
+                    <button class="btn btn-primary btn-sm" @onclick="() => OpenBookingModal(route)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                        Book
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- ============================================================
+     BOOKING MODAL
+     ============================================================ -->
+@if (_modalRoute != null)
+{
+    <div class="booking-overlay" @onclick="CloseModal">
+        <div class="booking-modal anim-modal" @onclick:stopPropagation="true">
+
+            <!-- Header -->
+            <div class="booking-modal-header">
+                <div>
+                    <div class="booking-modal-route">
+                        <span class="booking-iata">@_modalRoute.OriginIata</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18" style="opacity:0.4;flex-shrink:0;">
+                            <path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>
+                        </svg>
+                        <span class="booking-iata">@_modalRoute.DestIata</span>
+                    </div>
+                    <div class="booking-modal-sub">@_modalRoute.OriginName → @_modalRoute.DestName</div>
+                </div>
+                <button class="booking-close" @onclick="CloseModal">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Route stats strip -->
+            <div class="booking-stats-strip">
+                <div class="booking-stat">
+                    <span class="booking-stat-val">@_modalRoute.DistanceNm</span>
+                    <span class="booking-stat-label">NM</span>
+                </div>
+                <div class="booking-stat-div"></div>
+                <div class="booking-stat">
+                    <span class="booking-stat-val">@_modalRoute.BlockTimeDisplay</span>
+                    <span class="booking-stat-label">Block</span>
+                </div>
+                <div class="booking-stat-div"></div>
+                <div class="booking-stat">
+                    <span class="booking-stat-val">@_modalRoute.FleetGroup</span>
+                    <span class="booking-stat-label">Type</span>
+                </div>
+            </div>
+
+            <!-- Form -->
+            <div class="booking-form">
+
+                <!-- Date & Time -->
+                <div class="booking-field-group">
+                    <div class="booking-field">
+                        <label class="booking-label">Departure Date</label>
+                        <input type="date"
+                               class="form-input"
+                               value="@_bookingDate"
+                               min="@DateTime.Today.ToString("yyyy-MM-dd")"
+                               max="@DateTime.Today.AddDays(90).ToString("yyyy-MM-dd")"
+                               @onchange="OnDateChange" />
+                    </div>
+                    <div class="booking-field">
+                        <label class="booking-label">Departure Time (UTC)</label>
+                        <input type="time"
+                               class="form-input"
+                               value="@_bookingTime"
+                               @onchange="OnTimeChange" />
+                    </div>
+                </div>
+
+                <!-- Aircraft type (fixed per route) -->
+                <div class="booking-field">
+                    <label class="booking-label">Aircraft Type</label>
+                    <div class="form-input" style="pointer-events:none;color:var(--text-primary);font-family:var(--font-mono);font-size:13px;">
+                        @_modalRoute.AircraftType
+                    </div>
+                </div>
+
+                <!-- Registration -->
+                <div class="booking-field">
+                    <label class="booking-label">
+                        Registration
+                        @if (_loadingRegistrations)
+                        {
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11"
+                                 style="animation:spin 0.8s linear infinite;margin-left:6px;opacity:0.5;">
+                                <path d="M21 12a9 9 0 11-6.219-8.56"/>
+                            </svg>
+                        }
+                    </label>
+                    @if (_loadingRegistrations)
+                    {
+                        <div class="form-input" style="display:flex;align-items:center;gap:8px;color:var(--text-muted);pointer-events:none;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"
+                                 style="animation:spin 0.9s linear infinite;flex-shrink:0;">
+                                <path d="M21 12a9 9 0 11-6.219-8.56"/>
+                            </svg>
+                            Loading registrations…
+                        </div>
+                    }
+                    else if (!_registrations.Any())
+                    {
+                        <div class="form-input" style="display:flex;align-items:center;gap:8px;color:var(--text-muted);pointer-events:none;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="13" height="13" style="flex-shrink:0;">
+                                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                            </svg>
+                            No registrations available for this aircraft
+                        </div>
+                    }
+                    else
+                    {
+                        <select class="form-input" value="@_selectedRegistration" @onchange="OnRegistrationChange">
+                            @foreach (var reg in _registrations)
+                            {
+                                <option value="@reg.Registration">
+                                    @reg.Registration@(reg.HubIcao != null ? $"  —  {reg.HubIcao}" : "")@(reg.Status != "active" ? $"  ({reg.Status})" : "")
+                                </option>
+                            }
+                        </select>
+                    }
+                </div>
+
+                <!-- Generated Callsign preview -->
+                <div class="booking-callsign-preview">
+                    <span class="booking-callsign-label">Your Callsign</span>
+                    <span class="booking-callsign-value">@_previewCallsign</span>
+                    <button class="booking-regen" title="Generate new callsign" @onclick="RegenerateCallsign">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                            <polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/>
+                            <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+                        </svg>
+                        Regenerate
+                    </button>
+                </div>
+
+                <!-- Error / slot info -->
+                @if (!string.IsNullOrEmpty(_modalError))
+                {
+                    <div class="booking-error-msg">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                        @_modalError
+                    </div>
+                }
+
+                <div class="booking-slots-info">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13" style="flex-shrink:0;">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    <span>You can hold up to @BookingService.MaxBookings active bookings. Cancel anytime from Pilot Hub.</span>
+                </div>
+            </div>
+
+            <!-- Footer actions -->
+            <div class="booking-modal-footer">
+                <button class="btn btn-ghost" @onclick="CloseModal" disabled="@_submitting">Cancel</button>
+                <button class="btn btn-primary" @onclick="SubmitBooking" disabled="@(_submitting || _loadingRegistrations)">
+                    @if (_submitting)
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"
+                             style="animation:spin 0.8s linear infinite;margin-right:6px;">
+                            <path d="M21 12a9 9 0 11-6.219-8.56"/>
+                        </svg>
+                        <span>Booking…</span>
+                    }
+                    else
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="margin-right:6px;">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        <span>Confirm Booking</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Success toast -->
+@if (_showSuccessToast)
+{
+    <div class="booking-success-toast anim-toast">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18" style="color:var(--green);flex-shrink:0;">
+            <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        <div>
+            <div style="font-weight:700;font-size:13.5px;color:var(--text-primary);">Booking confirmed!</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Callsign <strong style="font-family:var(--font-mono);color:var(--accent);">@_lastBookedCallsign</strong> — check My Bookings in Pilot Hub.</div>
+        </div>
+    </div>
+}
+
+@code {
+    // ── Tab / search ──────────────────────────────────────────
+    private string _activeTab   = "all";
+    private List<AviatesRoute> _routes = [];
+    private int    _total;
+    private bool   _loading = true;
+    private bool   _showSearch;
+    private string _searchQuery = "";
+    private CancellationTokenSource? _searchCts;
+
+    // ── Modal state ───────────────────────────────────────────
+    private AviatesRoute? _modalRoute;
+    private string  _bookingDate          = DateTime.Today.AddDays(1).ToString("yyyy-MM-dd");
+    private string  _bookingTime          = "10:00";
+    private string  _selectedAircraft     = "";
+    private string  _selectedRegistration = "";
+    private List<AircraftRegistration> _registrations        = [];
+    private bool    _loadingRegistrations;
+    private string  _previewCallsign  = "";
+    private string? _modalError;
+    private bool    _submitting;
+
+    // ── Toast ─────────────────────────────────────────────────
+    private bool   _showSuccessToast;
+    private string _lastBookedCallsign = "";
+
+    // ── Current position (read from persisted settings) ───────
+    private string _currentAirport => SettingsService.Settings.CurrentAirportIata ?? "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRoutes();
+    }
+
+    private async Task SwitchTab(string tab)
+    {
+        if (_activeTab == tab) return;
+        _activeTab   = tab;
+        _searchQuery = "";
+        await LoadRoutes();
+    }
+
+    private void ToggleSearch()
+    {
+        _showSearch = !_showSearch;
+        if (!_showSearch && !string.IsNullOrEmpty(_searchQuery))
+        {
+            _searchQuery = "";
+            _ = LoadRoutes();
+        }
+    }
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _searchQuery = e.Value?.ToString() ?? "";
+        _searchCts?.Cancel();
+        _searchCts   = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(400, _searchCts.Token);
+            await LoadRoutes();
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task LoadRoutes()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        var fleet  = _activeTab == "all" ? null : _activeTab;
+        var q      = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery.Trim();
+        var origin = string.IsNullOrEmpty(_currentAirport) ? null : _currentAirport;
+
+        (_routes, _total) = await RoutesService.GetRoutesAsync(fleet, q, origin);
+        _loading = false;
+    }
+
+    // ── Reposition (clears the current airport lock) ──────────
+
+    private async Task ClearPosition()
+    {
+        SettingsService.Settings.CurrentAirportIata = "";
+        SettingsService.Save();
+        await LoadRoutes();
+    }
+
+    // ── Modal ─────────────────────────────────────────────────
+
+    private async Task OpenBookingModal(AviatesRoute route)
+    {
+        _modalRoute            = route;
+        _modalError            = null;
+        _submitting            = false;
+        _bookingDate           = DateTime.Today.AddDays(1).ToString("yyyy-MM-dd");
+        _bookingTime           = "10:00";
+        _selectedAircraft      = route.AircraftType.Trim();
+        _selectedRegistration  = "";
+        _registrations         = [];
+        _previewCallsign       = BookingService.GenerateCallsign();
+        await LoadRegistrationsAsync(_selectedAircraft);
+    }
+
+    private void CloseModal()
+    {
+        if (_submitting) return;
+        _modalRoute = null;
+        _modalError = null;
+    }
+
+    private void RegenerateCallsign()
+    {
+        _previewCallsign = BookingService.GenerateCallsign();
+    }
+
+    private void OnDateChange(ChangeEventArgs e)          => _bookingDate          = e.Value?.ToString() ?? _bookingDate;
+    private void OnTimeChange(ChangeEventArgs e)          => _bookingTime          = e.Value?.ToString() ?? _bookingTime;
+    private void OnRegistrationChange(ChangeEventArgs e)  => _selectedRegistration = e.Value?.ToString() ?? _selectedRegistration;
+
+    private async Task LoadRegistrationsAsync(string typeCode)
+    {
+        if (string.IsNullOrEmpty(typeCode)) return;
+        _loadingRegistrations = true;
+        _selectedRegistration = "";
+        _registrations        = [];
+        StateHasChanged();
+
+        _registrations        = await FleetService.GetRegistrationsAsync(typeCode);
+        // Prefer an active aircraft as the default selection
+        _selectedRegistration = _registrations.FirstOrDefault(r => r.Status == "active")?.Registration
+                                ?? _registrations.FirstOrDefault()?.Registration ?? "";
+        _loadingRegistrations = false;
+    }
+
+    private async Task SubmitBooking()
+    {
+        if (_modalRoute == null || _submitting) return;
+
+        _modalError = null;
+
+        if (string.IsNullOrEmpty(_bookingDate) || string.IsNullOrEmpty(_bookingTime))
+        {
+            _modalError = "Please select a departure date and time.";
+            return;
+        }
+
+        // Parse date and time components independently so the WebView time-input format
+        // (which may return "HH:mm" or "HH:mm:ss") never causes a parse failure.
+        if (!DateOnly.TryParse(_bookingDate, out var datePart) ||
+            !TimeOnly.TryParse(_bookingTime, out var timePart))
+        {
+            _modalError = "Invalid date/time format.";
+            return;
+        }
+        var depUtc = new DateTime(datePart.Year, datePart.Month, datePart.Day,
+                                  timePart.Hour, timePart.Minute, 0, DateTimeKind.Utc);
+
+        if (depUtc <= DateTime.UtcNow)
+        {
+            _modalError = "Departure must be in the future.";
+            return;
+        }
+
+        if (depUtc > DateTime.UtcNow.AddDays(90))
+        {
+            _modalError = "Bookings cannot be made more than 90 days in advance.";
+            return;
+        }
+
+        _submitting = true;
+        StateHasChanged();
+
+        var registration = string.IsNullOrEmpty(_selectedRegistration) ? null : _selectedRegistration;
+        var (booking, error) = await BookingService.CreateBookingAsync(_modalRoute, _selectedAircraft, registration, depUtc);
+
+        _submitting = false;
+
+        if (booking != null)
+        {
+            // Advance position to destination so the pilot is locked there for next booking
+            SettingsService.Settings.CurrentAirportIata = _modalRoute.DestIata;
+            SettingsService.Save();
+
+            _lastBookedCallsign = booking.Callsign;
+            _modalRoute         = null;
+            _showSuccessToast   = true;
+            StateHasChanged();
+            _ = HideToastAfterDelay();
+            // Reload so the new position is applied to the route list
+            await LoadRoutes();
+        }
+        else
+        {
+            _modalError = error ?? "Booking failed. Please try again.";
+        }
+    }
+
+    private async Task HideToastAfterDelay()
+    {
+        await Task.Delay(5000);
+        _showSuccessToast = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────
+
+    private static string GetFleetColor(string fleetGroup) => fleetGroup switch
+    {
+        "mainline"   => "blue",
+        "cargo"      => "amber",
+        "cityhopper" => "cyan",
+        _            => "blue",
+    };
+}

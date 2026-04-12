@@ -1,0 +1,857 @@
+<UserControl x:Class="AviatesAirTracker.Views.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             xmlns:vm="clr-namespace:AviatesAirTracker.ViewModels"
+             xmlns:converters="clr-namespace:AviatesAirTracker.Converters"
+             d:DataContext="{d:DesignInstance Type=vm:DashboardViewModel}"
+             Background="{StaticResource Brush_BG_Primary}">
+
+    <UserControl.Resources>
+        <converters:NullToVisibilityConverter x:Key="NullToVis"/>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVis"/>
+        <converters:StringToColorConverter x:Key="StringToColorConverter"/>
+
+        <!-- Hero CTA button style -->
+        <Style x:Key="HeroCTAButton" TargetType="Button">
+            <Setter Property="Background" Value="#0F1929"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Padding" Value="20,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="10" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#070E1A"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#030710"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- See-All ghost button -->
+        <Style x:Key="SeeAllButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <TextBlock Text="{TemplateBinding Content}"
+                                   Foreground="{StaticResource Brush_Accent_Light}"
+                                   FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Right-panel See-All button -->
+        <Style x:Key="PanelSeeAllButton" TargetType="Button">
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#111B32"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Background" Value="#0D1220"/>
+            <Setter Property="BorderBrush" Value="#1A2040"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="285"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ===== MAIN CONTENT ===== -->
+        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="28,20,20,32">
+
+                <!-- ── HERO BANNER ── -->
+                <Border CornerRadius="20" Height="180" Margin="0,0,0,20" ClipToBounds="True">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#1A3A8F" Offset="0"/>
+                            <GradientStop Color="#2563EB" Offset="0.45"/>
+                            <GradientStop Color="#3B82F6" Offset="0.72"/>
+                            <GradientStop Color="#60A5FA" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <Grid>
+                        <!-- Decorative star/sparkle shape -->
+                        <TextBlock Text="✦" FontSize="160" Opacity="0.10"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   Foreground="White" Margin="0,0,-30,0"
+                                   FontFamily="Segoe UI Symbol"/>
+                        <!-- Secondary decorative dot -->
+                        <Ellipse Width="180" Height="180" HorizontalAlignment="Right"
+                                 VerticalAlignment="Top" Margin="0,-80,-60,0" Opacity="0.07">
+                            <Ellipse.Fill>
+                                <SolidColorBrush Color="White"/>
+                            </Ellipse.Fill>
+                        </Ellipse>
+
+                        <!-- Left content -->
+                        <StackPanel VerticalAlignment="Center" Margin="32,0,220,0">
+                            <Border CornerRadius="6" Padding="10,4" HorizontalAlignment="Left" Margin="0,0,0,14">
+                                <Border.Background>
+                                    <SolidColorBrush Color="#FFFFFF" Opacity="0.18"/>
+                                </Border.Background>
+                                <TextBlock Text="AVIATES AIR TRACKER" FontSize="9" FontWeight="Bold"
+                                           Foreground="White"/>
+                            </Border>
+                            <TextBlock Text="{Binding WelcomeText}" FontSize="24" FontWeight="Bold"
+                                       Foreground="White" TextWrapping="Wrap"
+                                       FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                            <TextBlock Text="Track every flight with professional precision."
+                                       FontSize="12" Margin="0,8,0,18" Foreground="#C7DCFF"/>
+                            <Button Style="{StaticResource HeroCTAButton}" Width="170" HorizontalAlignment="Left"
+                                    Command="{Binding DataContext.NavigateToLiveFlightCommand,
+                                              RelativeSource={RelativeSource AncestorType=Window}}">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="View Live Flight" FontSize="12" FontWeight="SemiBold"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Text="  ›" FontSize="16" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- Active Flight overlay (visible when flying) -->
+                        <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                Margin="0,0,28,20" CornerRadius="12" Padding="16,10"
+                                Visibility="{Binding IsFlightActive, Converter={StaticResource BoolToVis}}">
+                            <Border.Background>
+                                <SolidColorBrush Color="#FFFFFF" Opacity="0.18"/>
+                            </Border.Background>
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="8" Height="8" Fill="#4ADE80"
+                                         VerticalAlignment="Center" Margin="0,0,10,0">
+                                    <Ellipse.Triggers>
+                                        <EventTrigger RoutedEvent="Loaded">
+                                            <BeginStoryboard Storyboard="{StaticResource PulseAnimation}"/>
+                                        </EventTrigger>
+                                    </Ellipse.Triggers>
+                                </Ellipse>
+                                <StackPanel>
+                                    <TextBlock Text="FLIGHT IN PROGRESS" FontSize="8" FontWeight="Bold"
+                                               Foreground="#4ADE80"/>
+                                    <TextBlock Text="{Binding ActiveFlightRoute}" FontSize="15" FontWeight="Bold"
+                                               Foreground="White" FontFamily="Cascadia Code, Consolas"
+                                               Margin="0,3,0,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- ── PROGRESS CARDS (3 horizontal, like reference) ── -->
+                <UniformGrid Columns="3" Rows="1" Margin="0,0,0,24">
+
+                    <!-- Card 1: Total Flights -->
+                    <Border CornerRadius="14" Padding="16,14" Margin="0,0,14,0" BorderThickness="1">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#0D1220" Offset="0"/>
+                                <GradientStop Color="#101826" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.BorderBrush>
+                            <SolidColorBrush Color="#1A2040"/>
+                        </Border.BorderBrush>
+                        <Border.Effect>
+                            <DropShadowEffect ShadowDepth="0" BlurRadius="14" Color="#000000" Opacity="0.35"/>
+                        </Border.Effect>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Width="38" Height="38" CornerRadius="10" VerticalAlignment="Center">
+                                <Border.Background>
+                                    <SolidColorBrush Color="#3B82F6" Opacity="0.14"/>
+                                </Border.Background>
+                                <TextBlock Text="✈" FontSize="17" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Foreground="{StaticResource Brush_Accent_Light}"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                                <TextBlock FontSize="9" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush_Text_Muted}">
+                                    <Run Text="{Binding TotalFlightsText}"/>
+                                    <Run Text=" logged"/>
+                                </TextBlock>
+                                <TextBlock Text="Total Flights" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush_Text_Primary}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="2" Text="⋯" FontSize="14" VerticalAlignment="Top"
+                                       Foreground="{StaticResource Brush_Text_Muted}" Cursor="Hand"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Card 2: Block Hours -->
+                    <Border CornerRadius="14" Padding="16,14" Margin="0,0,14,0" BorderThickness="1">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#0D1220" Offset="0"/>
+                                <GradientStop Color="#101826" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.BorderBrush>
+                            <SolidColorBrush Color="#1A2040"/>
+                        </Border.BorderBrush>
+                        <Border.Effect>
+                            <DropShadowEffect ShadowDepth="0" BlurRadius="14" Color="#000000" Opacity="0.35"/>
+                        </Border.Effect>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Width="38" Height="38" CornerRadius="10" VerticalAlignment="Center">
+                                <Border.Background>
+                                    <SolidColorBrush Color="#F472B6" Opacity="0.14"/>
+                                </Border.Background>
+                                <TextBlock Text="⏱" FontSize="16" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" Foreground="#F472B6"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                                <TextBlock FontSize="9" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush_Text_Muted}">
+                                    <Run Text="{Binding TotalHoursText}"/>
+                                    <Run Text=" hrs"/>
+                                </TextBlock>
+                                <TextBlock Text="Block Time" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush_Text_Primary}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="2" Text="⋯" FontSize="14" VerticalAlignment="Top"
+                                       Foreground="{StaticResource Brush_Text_Muted}" Cursor="Hand"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Card 3: Avg Landing Score -->
+                    <Border CornerRadius="14" Padding="16,14" BorderThickness="1">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#0D1220" Offset="0"/>
+                                <GradientStop Color="#101826" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.BorderBrush>
+                            <SolidColorBrush Color="#1A2040"/>
+                        </Border.BorderBrush>
+                        <Border.Effect>
+                            <DropShadowEffect ShadowDepth="0" BlurRadius="14" Color="#000000" Opacity="0.35"/>
+                        </Border.Effect>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Width="38" Height="38" CornerRadius="10" VerticalAlignment="Center">
+                                <Border.Background>
+                                    <SolidColorBrush Color="#22C55E" Opacity="0.14"/>
+                                </Border.Background>
+                                <TextBlock Text="⊙" FontSize="16" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Foreground="{StaticResource Brush_Status_Green}"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                                <TextBlock FontSize="9" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush_Text_Muted}">
+                                    <Run Text="{Binding AvgLandingScoreText}"/>
+                                    <Run Text="/100"/>
+                                </TextBlock>
+                                <TextBlock Text="Avg Landing" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush_Text_Primary}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="2" Text="⋯" FontSize="14" VerticalAlignment="Top"
+                                       Foreground="{StaticResource Brush_Text_Muted}" Cursor="Hand"/>
+                        </Grid>
+                    </Border>
+
+                </UniformGrid>
+
+                <!-- ── RECENT FLIGHTS SECTION HEADER ── -->
+                <Grid Margin="0,0,0,14">
+                    <TextBlock Text="Continue Flying" FontSize="16" FontWeight="SemiBold"
+                               Foreground="{StaticResource Brush_Text_Primary}" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Border Width="32" Height="32" CornerRadius="16" Margin="0,0,8,0" Cursor="Hand">
+                            <Border.Background>
+                                <SolidColorBrush Color="#1A2040"/>
+                            </Border.Background>
+                            <TextBlock Text="‹" FontSize="16" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" Foreground="{StaticResource Brush_Text_Secondary}"
+                                       Margin="0,-1,0,0"/>
+                        </Border>
+                        <Border Width="32" Height="32" CornerRadius="16" Cursor="Hand">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#2563EB" Offset="0"/>
+                                    <GradientStop Color="#60A5FA" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Border.Effect>
+                                <DropShadowEffect ShadowDepth="0" BlurRadius="8" Color="#3B82F6" Opacity="0.4"/>
+                            </Border.Effect>
+                            <TextBlock Text="›" FontSize="16" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" Foreground="White" Margin="0,-1,0,0"/>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ── RECENT FLIGHT CARDS (like "Continue Watching") ── -->
+                <ItemsControl ItemsSource="{Binding RecentFlights}" Margin="0,0,0,28">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Rows="1" Columns="3"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border CornerRadius="14" Margin="0,0,14,0" ClipToBounds="True"
+                                    Cursor="Hand" BorderThickness="1">
+                                <Border.BorderBrush>
+                                    <SolidColorBrush Color="#1A2040"/>
+                                </Border.BorderBrush>
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#0D1220"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#131C35"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <Border.Effect>
+                                    <DropShadowEffect ShadowDepth="0" BlurRadius="18" Color="#000000" Opacity="0.45"/>
+                                </Border.Effect>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="130"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Flight "thumbnail" — gradient with ICAO codes -->
+                                    <Border Grid.Row="0" ClipToBounds="True">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                <GradientStop Color="#0A1D3E" Offset="0"/>
+                                                <GradientStop Color="#0F2750" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <Grid>
+                                            <!-- ICAO codes as hero text -->
+                                            <StackPanel Orientation="Horizontal"
+                                                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding DepartureICAO}" FontSize="20" FontWeight="Bold"
+                                                           Foreground="White" Opacity="0.85"
+                                                           FontFamily="Cascadia Code, Consolas"/>
+                                                <TextBlock Text=" ✈ " FontSize="14"
+                                                           Foreground="{StaticResource Brush_Accent_Light}"
+                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding ArrivalICAO}" FontSize="20" FontWeight="Bold"
+                                                           Foreground="White" Opacity="0.85"
+                                                           FontFamily="Cascadia Code, Consolas"/>
+                                            </StackPanel>
+                                            <!-- Bottom gradient fade -->
+                                            <Border>
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                        <GradientStop Color="Transparent" Offset="0.4"/>
+                                                        <GradientStop Color="#0D1220" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                            </Border>
+                                            <!-- Favourite heart -->
+                                            <Border HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                    Margin="0,10,10,0" Width="28" Height="28" CornerRadius="14">
+                                                <Border.Background>
+                                                    <SolidColorBrush Color="#FFFFFF" Opacity="0.12"/>
+                                                </Border.Background>
+                                                <TextBlock Text="♡" FontSize="12" HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" Foreground="White"/>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Flight info -->
+                                    <StackPanel Grid.Row="1" Margin="16,10,16,14">
+                                        <!-- Phase / status badge -->
+                                        <Border CornerRadius="6" Padding="8,3" HorizontalAlignment="Left"
+                                                Margin="0,0,0,8">
+                                            <Border.Background>
+                                                <SolidColorBrush Color="#3B82F6" Opacity="0.14"/>
+                                            </Border.Background>
+                                            <TextBlock Text="COMPLETED" FontSize="8" FontWeight="Bold"
+                                                       Foreground="{StaticResource Brush_Accent_Light}"/>
+                                        </Border>
+
+                                        <!-- Route -->
+                                        <TextBlock FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource Brush_Text_Primary}"
+                                                   Margin="0,0,0,10">
+                                            <Run Text="{Binding DepartureICAO}"/>
+                                            <Run Text=" — "/>
+                                            <Run Text="{Binding ArrivalICAO}"/>
+                                        </TextBlock>
+
+                                        <!-- Pilot row -->
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="24" Height="24" CornerRadius="12" Margin="0,0,8,0">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                        <GradientStop Color="#2563EB" Offset="0"/>
+                                                        <GradientStop Color="#60A5FA" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                                <TextBlock Text="P" FontSize="9" FontWeight="Bold"
+                                                           Foreground="White" HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding AircraftType}" FontSize="11"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource Brush_Text_Secondary}"/>
+                                                <TextBlock Text="Pilot" FontSize="9"
+                                                           Foreground="{StaticResource Brush_Text_Muted}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- ── YOUR FLIGHTS TABLE HEADER ── -->
+                <Grid Margin="0,0,0,10">
+                    <TextBlock Text="Your Flights" FontSize="16" FontWeight="SemiBold"
+                               Foreground="{StaticResource Brush_Text_Primary}" VerticalAlignment="Center"/>
+                    <Button Style="{StaticResource SeeAllButton}" Content="See all"
+                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Command="{Binding DataContext.NavigateToStatsCommand,
+                                      RelativeSource={RelativeSource AncestorType=Window}}"/>
+                </Grid>
+
+                <!-- Table column headers -->
+                <Border CornerRadius="10" Padding="18,10" Margin="0,0,0,2">
+                    <Border.Background>
+                        <SolidColorBrush Color="#0A0D16"/>
+                    </Border.Background>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="130"/>
+                            <ColumnDefinition Width="110"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="60"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="PILOT" Style="{StaticResource TextStyle_CardLabel}"/>
+                        <TextBlock Grid.Column="1" Text="TYPE" Style="{StaticResource TextStyle_CardLabel}"/>
+                        <TextBlock Grid.Column="2" Text="ROUTE" Style="{StaticResource TextStyle_CardLabel}"/>
+                        <TextBlock Grid.Column="3" Text="DURATION" Style="{StaticResource TextStyle_CardLabel}"/>
+                        <TextBlock Grid.Column="4" Text="ACTION" Style="{StaticResource TextStyle_CardLabel}"/>
+                    </Grid>
+                </Border>
+
+                <!-- Table rows -->
+                <ItemsControl ItemsSource="{Binding RecentFlights}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="18,10" Margin="0,1" CornerRadius="8">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#090E1C"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="130"/>
+                                        <ColumnDefinition Width="110"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Pilot column -->
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Border Width="28" Height="28" CornerRadius="14" Margin="0,0,8,0">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                    <GradientStop Color="#2563EB" Offset="0"/>
+                                                    <GradientStop Color="#60A5FA" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <TextBlock Text="P" FontSize="10" FontWeight="Bold"
+                                                       Foreground="White" HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="You" FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource Brush_Text_Primary}"/>
+                                            <TextBlock Text="{Binding TakeoffTime, StringFormat='{}{0:M/d/yyyy}'}"
+                                                       FontSize="9" Foreground="{StaticResource Brush_Text_Muted}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <!-- Aircraft badge -->
+                                    <Border Grid.Column="1" CornerRadius="6" Padding="10,4"
+                                            HorizontalAlignment="Left" VerticalAlignment="Center">
+                                        <Border.Background>
+                                            <SolidColorBrush Color="#3B82F6" Opacity="0.12"/>
+                                        </Border.Background>
+                                        <Border.BorderBrush>
+                                            <SolidColorBrush Color="#3B82F6" Opacity="0.24"/>
+                                        </Border.BorderBrush>
+                                        <Border.BorderThickness>1</Border.BorderThickness>
+                                        <TextBlock Text="{Binding AircraftType}" FontSize="9" FontWeight="Bold"
+                                                   Foreground="{StaticResource Brush_Accent_Light}"/>
+                                    </Border>
+
+                                    <!-- Route -->
+                                    <TextBlock Grid.Column="2" VerticalAlignment="Center"
+                                               FontFamily="Cascadia Code, Consolas" FontSize="12"
+                                               Foreground="{StaticResource Brush_Text_Primary}">
+                                        <Run Text="{Binding DepartureICAO}"/>
+                                        <Run Text=" › " Foreground="{StaticResource Brush_Text_Muted}"/>
+                                        <Run Text="{Binding ArrivalICAO}"/>
+                                    </TextBlock>
+
+                                    <!-- Duration -->
+                                    <TextBlock Grid.Column="3" VerticalAlignment="Center"
+                                               Text="{Binding AirTime, StringFormat='{}{0:hh\\:mm}'}"
+                                               FontFamily="Cascadia Code, Consolas" FontSize="12"
+                                               Foreground="{StaticResource Brush_Text_Secondary}"
+                                               ToolTip="{Binding AirTime}"/>
+
+                                    <!-- Action -->
+                                    <Border Grid.Column="4" Width="30" Height="30" CornerRadius="15"
+                                            VerticalAlignment="Center" HorizontalAlignment="Left" Cursor="Hand">
+                                        <Border.Background>
+                                            <SolidColorBrush Color="#1A2040"/>
+                                        </Border.Background>
+                                        <TextBlock Text="›" FontSize="14" HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" Margin="0,-1,0,0"
+                                                   Foreground="{StaticResource Brush_Accent_Light}"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ===== RIGHT STATS PANEL ===== -->
+        <Border Grid.Column="1" BorderThickness="1,0,0,0">
+            <Border.BorderBrush>
+                <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                    <GradientStop Color="#1A204000" Offset="0"/>
+                    <GradientStop Color="#1A2040" Offset="0.2"/>
+                    <GradientStop Color="#1A2040" Offset="0.8"/>
+                    <GradientStop Color="#1A204000" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.BorderBrush>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="22,24,20,28">
+
+                    <!-- Statistics header -->
+                    <Grid Margin="0,0,0,22">
+                        <TextBlock Text="Statistics" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Brush_Text_Primary}" VerticalAlignment="Center"/>
+                        <TextBlock Text="⋯" FontSize="18" HorizontalAlignment="Right"
+                                   VerticalAlignment="Center" Foreground="{StaticResource Brush_Text_Muted}"
+                                   Cursor="Hand" Margin="0,0,2,0"/>
+                    </Grid>
+
+                    <!-- Pilot avatar + rank progress ring -->
+                    <Grid HorizontalAlignment="Center" Width="140" Height="140" Margin="0,0,0,14">
+                        <!-- Background ring -->
+                        <Ellipse Width="140" Height="140" Stroke="#18243E" StrokeThickness="12"
+                                 Fill="Transparent"/>
+                        <!-- Progress ring (decorative arc — approximates rank progress at ~40%) -->
+                        <Ellipse Width="140" Height="140"
+                                 Stroke="{StaticResource Brush_Accent_Primary}" StrokeThickness="12"
+                                 Fill="Transparent"
+                                 StrokeDashArray="14.6 36.5"
+                                 StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                 RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform>
+                                <RotateTransform Angle="-90"/>
+                            </Ellipse.RenderTransform>
+                            <Ellipse.Effect>
+                                <DropShadowEffect ShadowDepth="0" BlurRadius="12"
+                                                  Color="#3B82F6" Opacity="0.45"/>
+                            </Ellipse.Effect>
+                        </Ellipse>
+                        <!-- Pilot avatar circle -->
+                        <Border Width="110" Height="110" CornerRadius="55"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#1A3461" Offset="0"/>
+                                    <GradientStop Color="#2563EB" Offset="0.55"/>
+                                    <GradientStop Color="#60A5FA" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Border.Effect>
+                                <DropShadowEffect ShadowDepth="0" BlurRadius="18"
+                                                  Color="#3B82F6" Opacity="0.3"/>
+                            </Border.Effect>
+                            <TextBlock Text="P" Foreground="White" FontWeight="Bold" FontSize="38"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <!-- Rank % badge -->
+                        <Border HorizontalAlignment="Right" VerticalAlignment="Top"
+                                CornerRadius="10" Padding="8,3" Margin="0,2,-2,0">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#2563EB" Offset="0"/>
+                                    <GradientStop Color="#60A5FA" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <TextBlock Text="{Binding RankProgress, StringFormat='{}{0:P0}'}"
+                                       FontSize="9" FontWeight="Bold" Foreground="White"/>
+                        </Border>
+                    </Grid>
+
+                    <!-- Greeting -->
+                    <TextBlock Text="{Binding WelcomeText}" HorizontalAlignment="Center"
+                               FontSize="14" FontWeight="SemiBold"
+                               Foreground="{StaticResource Brush_Text_Primary}"
+                               TextAlignment="Center" Margin="0,0,0,5" TextWrapping="Wrap"/>
+                    <TextBlock Text="Log flights to advance your rank!" HorizontalAlignment="Center"
+                               FontSize="11" Foreground="{StaticResource Brush_Text_Muted}"
+                               TextAlignment="Center" TextWrapping="Wrap" Margin="0,0,0,22"/>
+
+                    <!-- Activity bar chart -->
+                    <Border CornerRadius="14" Padding="16,14" Margin="0,0,0,22" BorderThickness="1">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#090C17" Offset="0"/>
+                                <GradientStop Color="#0D1220" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.BorderBrush>
+                            <SolidColorBrush Color="#1A2040"/>
+                        </Border.BorderBrush>
+                        <StackPanel>
+                            <!-- Y-axis + bars -->
+                            <Grid Height="88">
+                                <!-- Subtle grid lines -->
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Border Grid.Row="0" BorderThickness="0,0,0,1">
+                                    <Border.BorderBrush>
+                                        <SolidColorBrush Color="#1A2040" Opacity="0.5"/>
+                                    </Border.BorderBrush>
+                                </Border>
+                                <Border Grid.Row="1" BorderThickness="0,0,0,1">
+                                    <Border.BorderBrush>
+                                        <SolidColorBrush Color="#1A2040" Opacity="0.5"/>
+                                    </Border.BorderBrush>
+                                </Border>
+                                <Border Grid.Row="2" BorderThickness="0,0,0,1">
+                                    <Border.BorderBrush>
+                                        <SolidColorBrush Color="#1A2040" Opacity="0.5"/>
+                                    </Border.BorderBrush>
+                                </Border>
+
+                                <!-- Y labels -->
+                                <TextBlock Text="60" FontSize="8" VerticalAlignment="Top"
+                                           HorizontalAlignment="Left"
+                                           Foreground="{StaticResource Brush_Text_Muted}"/>
+                                <TextBlock Text="40" FontSize="8" Grid.Row="1" VerticalAlignment="Top"
+                                           HorizontalAlignment="Left"
+                                           Foreground="{StaticResource Brush_Text_Muted}"/>
+                                <TextBlock Text="20" FontSize="8" Grid.Row="2" VerticalAlignment="Top"
+                                           HorizontalAlignment="Left"
+                                           Foreground="{StaticResource Brush_Text_Muted}"/>
+
+                                <!-- Bars (decorative activity chart) -->
+                                <StackPanel Grid.RowSpan="3" Orientation="Horizontal"
+                                            HorizontalAlignment="Center" VerticalAlignment="Bottom">
+                                    <!-- Bar 1 (40%) -->
+                                    <Border Width="32" Height="35" CornerRadius="5,5,0,0" Margin="6,0">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="#A78BFA" Offset="0"/>
+                                                <GradientStop Color="#7C3AED30" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                    </Border>
+                                    <!-- Bar 2 tallest (80%) -->
+                                    <Border Width="32" Height="70" CornerRadius="5,5,0,0" Margin="6,0">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="#60A5FA" Offset="0"/>
+                                                <GradientStop Color="#2563EB" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <Border.Effect>
+                                            <DropShadowEffect ShadowDepth="0" BlurRadius="14"
+                                                              Color="#3B82F6" Opacity="0.5"/>
+                                        </Border.Effect>
+                                    </Border>
+                                    <!-- Bar 3 (50%) -->
+                                    <Border Width="32" Height="44" CornerRadius="5,5,0,0" Margin="6,0">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                <GradientStop Color="#A78BFA70" Offset="0"/>
+                                                <GradientStop Color="#7C3AED20" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                            <!-- X-axis labels -->
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,6,0,0">
+                                <TextBlock Text="Week 1" Width="44" FontSize="8" TextAlignment="Center"
+                                           Foreground="{StaticResource Brush_Text_Muted}"/>
+                                <TextBlock Text="Week 2" Width="44" FontSize="8" TextAlignment="Center"
+                                           Foreground="{StaticResource Brush_Accent_Light}"/>
+                                <TextBlock Text="Week 3" Width="44" FontSize="8" TextAlignment="Center"
+                                           Foreground="{StaticResource Brush_Text_Muted}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Your Landings section header -->
+                    <Grid Margin="0,0,0,14">
+                        <TextBlock Text="Your Landings" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Brush_Text_Primary}" VerticalAlignment="Center"/>
+                        <Border HorizontalAlignment="Right" Width="26" Height="26" CornerRadius="13"
+                                Cursor="Hand" VerticalAlignment="Center">
+                            <Border.Background>
+                                <SolidColorBrush Color="#1A2040"/>
+                            </Border.Background>
+                            <TextBlock Text="+" FontSize="14" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" Margin="0,-1,0,0"
+                                       Foreground="{StaticResource Brush_Accent_Light}"/>
+                        </Border>
+                    </Grid>
+
+                    <!-- Landing entries -->
+                    <ItemsControl ItemsSource="{Binding RecentLandings}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="0,0,0,14" Margin="0,0,0,2" Cursor="Hand">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Airport circle -->
+                                        <Border Width="36" Height="36" CornerRadius="18">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                    <GradientStop Color="#0E2040" Offset="0"/>
+                                                    <GradientStop Color="#1A3562" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <TextBlock Text="{Binding AirportICAO}" FontSize="9"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource Brush_Accent_Light}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       FontFamily="Cascadia Code, Consolas"/>
+                                        </Border>
+
+                                        <!-- Info -->
+                                        <StackPanel Grid.Column="1" Margin="10,0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding AirportICAO}" FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource Brush_Text_Primary}"/>
+                                            <TextBlock FontSize="10"
+                                                       Foreground="{StaticResource Brush_Text_Muted}">
+                                                <Run Text="{Binding VerticalSpeedFPM, StringFormat='{}{0:F0}'}"/>
+                                                <Run Text=" fpm VS"/>
+                                            </TextBlock>
+                                        </StackPanel>
+
+                                        <!-- Score badge (styled like Follow button) -->
+                                        <Border Grid.Column="2" CornerRadius="8" Padding="12,5"
+                                                VerticalAlignment="Center" BorderThickness="1">
+                                            <Border.BorderBrush>
+                                                <SolidColorBrush Color="{Binding LandingGradeColor,
+                                                                 Converter={StaticResource StringToColorConverter}}"
+                                                                 Opacity="0.28"/>
+                                            </Border.BorderBrush>
+                                            <Border.Background>
+                                                <SolidColorBrush Color="{Binding LandingGradeColor,
+                                                                 Converter={StaticResource StringToColorConverter}}"
+                                                                 Opacity="0.10"/>
+                                            </Border.Background>
+                                            <TextBlock FontSize="12" FontWeight="Bold"
+                                                       FontFamily="Cascadia Code, Consolas">
+                                                <TextBlock.Foreground>
+                                                    <SolidColorBrush Color="{Binding LandingGradeColor,
+                                                                     Converter={StaticResource StringToColorConverter}}"/>
+                                                </TextBlock.Foreground>
+                                                <Run Text="{Binding LandingScore}"/>
+                                            </TextBlock>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- See All button -->
+                    <Button Margin="0,6,0,0" HorizontalAlignment="Stretch"
+                            Style="{StaticResource PanelSeeAllButton}"
+                            Command="{Binding DataContext.NavigateToLandingCommand,
+                                      RelativeSource={RelativeSource AncestorType=Window}}">
+                        <TextBlock Text="See All Landings" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Brush_Text_Primary}"/>
+                    </Button>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</UserControl>
