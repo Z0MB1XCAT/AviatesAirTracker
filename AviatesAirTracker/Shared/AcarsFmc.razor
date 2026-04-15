@@ -1,0 +1,355 @@
+@* AcarsFmc.razor — ACARS Datalink FMC (Boeing 737 NG style, draggable floating window) *@
+@inject IJSRuntime JS
+
+@if (IsVisible)
+{
+    <div id="@_fmcId" class="fmc-float fmc-window">
+
+        <!-- ── Title bar / drag handle ─────────────────────── -->
+        <div id="@_titleId" class="fmc-titlebar">
+            <div class="fmc-titlebar-dots">
+                <button class="fmc-dot fmc-dot-close" @onclick="HandleClose" title="Close"></button>
+                <span class="fmc-dot fmc-dot-min"></span>
+                <span class="fmc-dot fmc-dot-max"></span>
+            </div>
+            <span class="fmc-titlebar-text">ACARS  DATALINK  ◆  FMC</span>
+            <div style="width:52px"></div>
+        </div>
+
+        <!-- ── FMC hardware body ────────────────────────────── -->
+        <div class="fmc-body">
+
+            <div class="fmc-screws">
+                <div class="fmc-screw"></div>
+                <div class="fmc-screw"></div>
+            </div>
+
+            <!-- Screen row: Left LSKs | CRT | Right LSKs -->
+            <div class="fmc-screen-row">
+
+                <!-- Left line-select keys L1–L6 -->
+                <div class="fmc-lsk-col">
+                    <div class="fmc-lsk-hdr"></div>
+                    @for (int i = 1; i <= 6; i++) {
+                        var id = $"L{i}";
+                        <div class="fmc-lsk-slot">
+                            <button class="fmc-lsk" @onclick="() => HandleLsk(id)">▶</button>
+                        </div>
+                    }
+                </div>
+
+                <!-- CRT screen -->
+                <div class="fmc-screen">
+                    <div class="fmc-scanlines"></div>
+                    <div id="@_screenId" class="fmc-display">
+                        @{
+                            var (title, rows) = GetPageContent();
+                        }
+                        <div class="fmc-disp-title">@title</div>
+                        @for (int i = 0; i < 6; i++) {
+                            var row = rows[i];
+                            <div class="fmc-disp-row">
+                                <div class="fmc-disp-cell-l">
+                                    @if (!string.IsNullOrEmpty(row.LL)) {
+                                        <div class="fmc-disp-label">@row.LL</div>
+                                    }
+                                    <div class="fmc-disp-value @(IsPrompt(row.LV) ? "fmc-disp-prompt" : "")">@row.LV</div>
+                                </div>
+                                <div class="fmc-disp-cell-r">
+                                    @if (!string.IsNullOrEmpty(row.RL)) {
+                                        <div class="fmc-disp-label">@row.RL</div>
+                                    }
+                                    <div class="fmc-disp-value @(IsPrompt(row.RV) ? "fmc-disp-prompt" : "")">@row.RV</div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Right line-select keys R1–R6 -->
+                <div class="fmc-lsk-col">
+                    <div class="fmc-lsk-hdr"></div>
+                    @for (int i = 1; i <= 6; i++) {
+                        var id = $"R{i}";
+                        <div class="fmc-lsk-slot">
+                            <button class="fmc-lsk" @onclick="() => HandleLsk(id)">◀</button>
+                        </div>
+                    }
+                </div>
+
+            </div>
+
+            <div class="fmc-ridge"></div>
+
+            <!-- Function row 1: Datalink pages -->
+            <div class="fmc-fn-row">
+                <button class="fmc-fn-btn @(_page == FmcPage.Main     ? "fmc-fn-active" : "")" @onclick='() => GoTo(FmcPage.Main)'>ACARS</button>
+                <button class="fmc-fn-btn @(_page == FmcPage.Log      ? "fmc-fn-active" : "")" @onclick='() => GoTo(FmcPage.Log)'>LOG</button>
+                <button class="fmc-fn-btn @(_page == FmcPage.Uplink   ? "fmc-fn-active" : "")" @onclick='() => GoTo(FmcPage.Uplink)'>UPLINK</button>
+                <button class="fmc-fn-btn @(_page == FmcPage.Datalink ? "fmc-fn-active" : "")" @onclick='() => GoTo(FmcPage.Datalink)'>DNLINK</button>
+                <button class="fmc-fn-btn @(_page == FmcPage.Weather  ? "fmc-fn-active" : "")" @onclick='() => GoTo(FmcPage.Weather)'>WEATHER</button>
+                <div class="fmc-brt-wrap">
+                    <div id="@_knobId" class="fmc-brt-knob"></div>
+                    <span class="fmc-brt-label">BRT</span>
+                </div>
+            </div>
+
+            <!-- Function row 2 -->
+            <div class="fmc-fn-row">
+                <button class="fmc-fn-btn @(_page == FmcPage.Reports  ? "fmc-fn-active" : "")" @onclick='() => GoTo(FmcPage.Reports)'>REPORTS</button>
+                <button class="fmc-fn-btn @(_page == FmcPage.Pirep    ? "fmc-fn-active" : "")" @onclick='() => GoTo(FmcPage.Pirep)'>PIREP</button>
+                <button class="fmc-fn-btn @(_page == FmcPage.Connect  ? "fmc-fn-active" : "")" @onclick='() => GoTo(FmcPage.Connect)'>CONNECT</button>
+                <button class="fmc-fn-btn @(_page == FmcPage.Datalink ? "fmc-fn-active" : "")" @onclick='() => GoTo(FmcPage.Datalink)'>DATALINK</button>
+                <button class="fmc-fn-btn @(_page == FmcPage.Depart   ? "fmc-fn-active" : "")" @onclick='() => GoTo(FmcPage.Depart)'>DEPART</button>
+                <button class="fmc-exec-btn" @onclick='() => HandleKey("EXEC")'>EXEC</button>
+            </div>
+
+            <div class="fmc-ridge"></div>
+
+            <!-- Keyboard section -->
+            <div class="fmc-kb-section">
+
+                <!-- Left nav column -->
+                <div class="fmc-kb-left">
+                    <button class="fmc-side-btn" @onclick='() => GoTo(FmcPage.Main)'>MENU</button>
+                    <button class="fmc-side-btn" @onclick='() => HandleKey("POSN")'>POSN</button>
+                    <button class="fmc-side-btn" style="line-height:1.1" @onclick='() => HandleKey("PREV")'>PREV<br/>PAGE</button>
+                    <button class="fmc-side-btn" style="line-height:1.1" @onclick='() => HandleKey("NEXT")'>NEXT<br/>PAGE</button>
+                </div>
+
+                <!-- Alphanumeric keyboard -->
+                <div class="fmc-kb-main">
+                    <div class="fmc-kb-row">
+                        @foreach (var c in new[] { "A","B","C","D","E" }) {
+                            var k = c;
+                            <button class="fmc-kb-btn" @onclick="() => HandleKey(k)">@c</button>
+                        }
+                    </div>
+                    <div class="fmc-kb-row">
+                        @foreach (var c in new[] { "F","G","H","I","J" }) {
+                            var k = c;
+                            <button class="fmc-kb-btn" @onclick="() => HandleKey(k)">@c</button>
+                        }
+                    </div>
+                    <div class="fmc-kb-row">
+                        @foreach (var c in new[] { "1","2","3","K","L","M","N","O" }) {
+                            var k = c; var num = k is "1" or "2" or "3";
+                            <button class="fmc-kb-btn @(num ? "fmc-num" : "")" @onclick="() => HandleKey(k)">@c</button>
+                        }
+                    </div>
+                    <div class="fmc-kb-row">
+                        @foreach (var c in new[] { "4","5","6","P","Q","R","S","T" }) {
+                            var k = c; var num = k is "4" or "5" or "6";
+                            <button class="fmc-kb-btn @(num ? "fmc-num" : "")" @onclick="() => HandleKey(k)">@c</button>
+                        }
+                    </div>
+                    <div class="fmc-kb-row">
+                        @foreach (var c in new[] { "7","8","9","U","V","W","X","Y" }) {
+                            var k = c; var num = k is "7" or "8" or "9";
+                            <button class="fmc-kb-btn @(num ? "fmc-num" : "")" @onclick="() => HandleKey(k)">@c</button>
+                        }
+                    </div>
+                    <div class="fmc-kb-row">
+                        @foreach (var c in new[] { "0","+/-","Z","SP","DEL",".","CLR" }) {
+                            var k = c;
+                            var num = k is "0" or "+/-";
+                            var clr = k == "CLR";
+                            <button class="fmc-kb-btn @(num ? "fmc-num" : "") @(clr ? "fmc-clr" : "")" @onclick="() => HandleKey(k)">@c</button>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="fmc-screws" style="margin-top:4px;margin-bottom:-2px;">
+                <div class="fmc-screw"></div>
+                <div class="fmc-screw"></div>
+            </div>
+
+        </div>
+    </div>
+}
+
+@code {
+    // ── Parameters ────────────────────────────────────────────
+    [Parameter] public bool          IsVisible         { get; set; }
+    [Parameter] public EventCallback OnCloseRequested  { get; set; }
+
+    // ── Stable element IDs (live for component lifetime) ─────
+    private readonly string _fmcId    = $"fmc-{Guid.NewGuid():N}";
+    private readonly string _titleId  = $"fmct-{Guid.NewGuid():N}";
+    private readonly string _screenId = $"fmcs-{Guid.NewGuid():N}";
+    private readonly string _knobId   = $"fmck-{Guid.NewGuid():N}";
+
+    private bool _jsInitDone = false;
+
+    // ── Page state ────────────────────────────────────────────
+    private enum FmcPage { Main, Reports, Log, Uplink, Weather, Depart, Pirep, Connect, Datalink }
+    private FmcPage _page = FmcPage.Main;
+
+    // ── Page content model ────────────────────────────────────
+    private record FmcRow(string LL = "", string LV = "", string RL = "", string RV = "");
+
+    // ── Lifecycle ─────────────────────────────────────────────
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (IsVisible && !_jsInitDone)
+        {
+            _jsInitDone = true;
+            try
+            {
+                await JS.InvokeVoidAsync("acarsInterop.initFmcDrag", _fmcId, _titleId);
+                await JS.InvokeVoidAsync("acarsInterop.initBrtKnob", _knobId, _screenId);
+            }
+            catch { /* WebView not ready */ }
+        }
+        if (!IsVisible)
+            _jsInitDone = false;
+    }
+
+    // ── Button handlers ───────────────────────────────────────
+    private async Task HandleClose()
+    {
+        _page       = FmcPage.Main;
+        _jsInitDone = false;
+        await JS.InvokeVoidAsync("acarsInterop.playClick");
+        await OnCloseRequested.InvokeAsync();
+    }
+
+    private async Task GoTo(FmcPage page)
+    {
+        await JS.InvokeVoidAsync("acarsInterop.playClick");
+        _page = page;
+    }
+
+    private async Task HandleLsk(string key)
+    {
+        await JS.InvokeVoidAsync("acarsInterop.playClick");
+        switch (_page)
+        {
+            case FmcPage.Main:
+                _page = key switch
+                {
+                    "L1" => FmcPage.Reports,
+                    "L2" => FmcPage.Weather,
+                    "L3" => FmcPage.Pirep,
+                    "L4" => FmcPage.Connect,
+                    "R1" => FmcPage.Uplink,
+                    "R2" => FmcPage.Depart,
+                    "R3" => FmcPage.Log,
+                    "R4" => FmcPage.Datalink,
+                    _    => FmcPage.Main
+                };
+                break;
+
+            default:
+                // L6 = "< BACK" on every non-main page
+                if (key == "L6") _page = FmcPage.Main;
+                break;
+        }
+    }
+
+    private async Task HandleKey(string key)
+    {
+        await JS.InvokeVoidAsync("acarsInterop.playClick");
+        // CLR always returns to main index
+        if (key == "CLR") _page = FmcPage.Main;
+    }
+
+    // ── Prompt-arrow detection ────────────────────────────────
+    private static bool IsPrompt(string v) =>
+        !string.IsNullOrEmpty(v) && (v.StartsWith('<') || v.EndsWith('>'));
+
+    // ── Page content ──────────────────────────────────────────
+    private (string Title, FmcRow[] Rows) GetPageContent() => _page switch
+    {
+        FmcPage.Reports => ("─ POS REPORT ─", new FmcRow[]
+        {
+            new("FLIGHT",    "---",            "ETD",       "----Z"),
+            new("ALTITUDE",  "-- FT",          "IAS",       "--- KTS"),
+            new("POSITION",  "---.-- ---.-",   "HDG",       "---°"),
+            new("FUEL REM",  "------ LBS",     "ETE DEST",  "----"),
+            new("PHASE",     "------",         "",          ""),
+            new("",          "< BACK",         "",          "SEND >"),
+        }),
+
+        FmcPage.Log => ("─── MSG LOG ───", new FmcRow[]
+        {
+            new("# TIME",    "01  14:22Z",     "STATUS",    "SENT"),
+            new("",          "02  14:18Z",     "",          "RCVD"),
+            new("",          "03  13:55Z",     "",          "SENT"),
+            new("",          "",               "",          ""),
+            new("",          "",               "",          ""),
+            new("",          "< BACK",         "",          "CLEAR >"),
+        }),
+
+        FmcPage.Uplink => ("─── UPLINK ────", new FmcRow[]
+        {
+            new("LAST MSG",  "NONE",           "TIME",      "----Z"),
+            new("",          "",               "",          ""),
+            new("STATUS",    "READY",          "PENDING",   "0"),
+            new("",          "",               "",          ""),
+            new("",          "",               "",          ""),
+            new("",          "< BACK",         "",          "REFRESH >"),
+        }),
+
+        FmcPage.Weather => ("─── WEATHER ───", new FmcRow[]
+        {
+            new("DEPARTURE", "----",           "METAR",     "NO DATA"),
+            new("ARRIVAL",   "----",           "METAR",     "NO DATA"),
+            new("ALTERNATE", "----",           "METAR",     "NO DATA"),
+            new("",          "",               "",          ""),
+            new("",          "",               "",          ""),
+            new("",          "< BACK",         "",          "REQUEST >"),
+        }),
+
+        FmcPage.Depart => ("── DEPARTURE ──", new FmcRow[]
+        {
+            new("ORIGIN",    "----",           "RUNWAY",    "----"),
+            new("SID",       "------",         "TRANS",     "----"),
+            new("SQUAWK",    "----",           "INIT ALT",  "-----"),
+            new("DEP FREQ",  "---.-",          "CLR",       "PENDING"),
+            new("",          "",               "",          ""),
+            new("",          "< BACK",         "",          "REQUEST >"),
+        }),
+
+        FmcPage.Pirep => ("──── PIREP ────", new FmcRow[]
+        {
+            new("FLIGHT",    "----",           "TYPE",      "UA"),
+            new("LOCATION",  "----",           "TIME",      "----Z"),
+            new("ALTITUDE",  "FL---",          "ACFT",      "----"),
+            new("TURB",      "----",           "ICING",     "----"),
+            new("SKY",       "----",           "WEATHER",   "----"),
+            new("",          "< BACK",         "",          "SEND >"),
+        }),
+
+        FmcPage.Connect => ("── DATALINK ───", new FmcRow[]
+        {
+            new("STATUS",    "OFFLINE",        "MODE",      "MANUAL"),
+            new("SERVER",    "AVIATES.NET",    "PORT",      "8080"),
+            new("ACARS KEY", "--------",       "PILOT ID",  "------"),
+            new("LAST CONN", "NEVER",          "VERSION",   "2.1"),
+            new("",          "",               "",          ""),
+            new("",          "< BACK",         "",          "CONNECT >"),
+        }),
+
+        FmcPage.Datalink => ("─── DL CONFIG ─", new FmcRow[]
+        {
+            new("AUTO SEND", "ON",             "INTERVAL",  "10 MIN"),
+            new("POS RPT",   "ON",             "PIREP",     "AUTO OFF"),
+            new("UPL CHECK", "30 SEC",         "LOG KEEP",  "72 HR"),
+            new("FORMAT",    "ARINC 702",      "IDENT",     "AVT001"),
+            new("",          "",               "",          ""),
+            new("",          "< BACK",         "",          "SAVE >"),
+        }),
+
+        _ /* Main */ => ("──── ACARS ────", new FmcRow[]
+        {
+            new("",          "REPORTS>",       "",          "<UPLINK"),
+            new("",          "WEATHER>",       "",          "<DEPART"),
+            new("",          "PIREP>",         "",          "<LOG"),
+            new("",          "CONNECT>",       "",          "<DATALINK"),
+            new("",          "",               "",          ""),
+            new("",          "< INDEX",        "",          "SEND >"),
+        }),
+    };
+}

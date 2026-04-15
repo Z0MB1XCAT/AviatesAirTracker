@@ -6,6 +6,9 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
+@if (!_notAuthenticated)
+{
+
 <LandingResultModal />
 
 <div class="app-shell">
@@ -250,7 +253,10 @@
     </div>
 </div>
 
+} @* end @if (!_notAuthenticated) *@
+
 @code {
+    private bool   _notAuthenticated;
     private int    _unreadCount;
     private string _headerName     = "Pilot";
     private string _headerInitials = "?";
@@ -263,6 +269,13 @@
 
     protected override void OnInitialized()
     {
+        if (string.IsNullOrWhiteSpace(SettingsService.Settings.AcarsKey))
+        {
+            _notAuthenticated = true;
+            Nav.NavigateTo("/login");
+            return;
+        }
+
         MessagingService.UnreadCountChanged += OnUnreadCountChanged;
         SettingsService.SettingsChanged     += OnSettingsChanged;
         UpdateService.UpdateFound           += OnUpdateFound;
@@ -337,6 +350,8 @@
 
     public async ValueTask DisposeAsync()
     {
+        if (_notAuthenticated) return; // nothing was subscribed
+
         MessagingService.UnreadCountChanged   -= OnUnreadCountChanged;
         SettingsService.SettingsChanged       -= OnSettingsChanged;
         UpdateService.UpdateFound             -= OnUpdateFound;

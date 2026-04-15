@@ -11,10 +11,18 @@
 @inject BookingService BookingService
 @implements IAsyncDisposable
 
-<div class="page-header anim-up">
-    <h1 class="page-title">ACARS / Tracking</h1>
-    <p class="page-sub">Real-time flight tracking, telemetry, and ACARS communications. Connect MSFS to go live.</p>
+<div class="page-header anim-up" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+        <h1 class="page-title">ACARS / Tracking</h1>
+        <p class="page-sub">Real-time flight tracking, telemetry, and ACARS communications. Connect MSFS to go live.</p>
+    </div>
+    <button class="fmc-launch-btn" @onclick="() => _showFmc = true">
+        <span class="fmc-launch-btn-dot"></span>
+        ACARS
+    </button>
 </div>
+
+<AcarsFmc IsVisible="_showFmc" OnCloseRequested="() => _showFmc = false" />
 
 <!-- Connection status banner -->
 <div style="background:var(--surface);border:1.5px solid @(_simStatus == SimConnectionStatus.Connected ? "var(--cyan)" : "var(--border)");border-radius:var(--r-xl);padding:var(--sp-4) var(--sp-5);display:flex;align-items:center;gap:var(--sp-4);margin-bottom:var(--sp-5);" class="anim-up-d1">
@@ -614,6 +622,9 @@
     private bool _hasAircraftIdent;
     private int _sampleCounter;
     private const int UI_UPDATE_SAMPLES = 5; // ~4 Hz from 20 Hz source
+
+    // FMC panel
+    private bool _showFmc;
 
     // End Flight modal
     private bool _showEndFlightModal;

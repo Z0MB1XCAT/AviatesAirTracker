@@ -2280,3 +2280,960 @@ input, textarea, select { font-family: inherit; }
   background: var(--surface-2);
   color: var(--text-primary);
 }
+
+/* ══════════════════════════════════════════════════════════════
+   ACARS FMC  — Boeing 737 NG Style Datalink Computer
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── FMC launch button ─────────────────────────────────────── */
+.fmc-launch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #1C2B1E 0%, #152218 100%);
+  border: 1.5px solid rgba(0,255,65,0.30);
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #00FF41;
+  cursor: pointer;
+  text-transform: uppercase;
+  box-shadow: 0 0 12px rgba(0,255,65,0.12), inset 0 1px 0 rgba(0,255,65,0.10);
+  transition: box-shadow 0.15s, border-color 0.15s, background 0.15s;
+}
+.fmc-launch-btn:hover {
+  border-color: rgba(0,255,65,0.55);
+  box-shadow: 0 0 20px rgba(0,255,65,0.22), inset 0 1px 0 rgba(0,255,65,0.15);
+  background: linear-gradient(135deg, #223024 0%, #1A2A1C 100%);
+}
+.fmc-launch-btn:active {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5), 0 0 8px rgba(0,255,65,0.10);
+}
+.fmc-launch-btn-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #00FF41;
+  box-shadow: 0 0 6px #00FF41;
+  animation: fmc-dot-breathe 2.4s ease-in-out infinite;
+}
+@keyframes fmc-dot-breathe {
+  0%, 100% { opacity: 1;    filter: brightness(1); }
+  50%       { opacity: 0.55; filter: brightness(0.6); }
+}
+
+/* ── Floating window (no backdrop, position:fixed via JS) ──── */
+.fmc-float {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%); /* JS replaces this after first drag */
+  z-index: 9999;
+}
+
+.fmc-window {
+  width: 400px;
+  border-radius: 14px;
+  box-shadow:
+    0 40px 80px rgba(0,0,0,0.7),
+    0 8px 24px rgba(0,0,0,0.5),
+    0 0 0 1px rgba(0,255,65,0.08);
+  overflow: hidden;
+  animation: fmc-window-in 0.22s var(--ease-spring);
+  -webkit-user-select: none;
+  user-select: none;
+}
+@keyframes fmc-window-in {
+  from { opacity: 0; transform: scale(0.88) translateY(16px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ── Title bar ─────────────────────────────────────────────── */
+.fmc-titlebar {
+  height: 34px;
+  background: #111110;
+  border-bottom: 1px solid rgba(0,255,65,0.08);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 10px;
+  /* cursor set by JS to grab/grabbing */
+}
+.fmc-titlebar-dots {
+  display: flex;
+  gap: 6px;
+}
+.fmc-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  cursor: pointer !important; /* override the grab cursor from JS */
+  border: none;
+  padding: 0;
+  transition: filter 0.1s;
+}
+.fmc-dot:hover { filter: brightness(1.25); }
+.fmc-dot-close  { background: #FF5F57; }
+.fmc-dot-min    { background: #FEBC2E; }
+.fmc-dot-max    { background: #28C840; }
+.fmc-titlebar-text {
+  flex: 1;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: rgba(180,175,150,0.55);
+  text-transform: uppercase;
+}
+
+/* ── FMC Hardware Body ─────────────────────────────────────── */
+.fmc-body {
+  background:
+    radial-gradient(ellipse at 30% 0%, rgba(255,255,255,0.04) 0%, transparent 60%),
+    linear-gradient(180deg, #2F2F2D 0%, #272725 45%, #232321 100%);
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* ── Screen Row (Left LSKs | Screen | Right LSKs) ──────────── */
+.fmc-screen-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+/* ── LSK Columns ───────────────────────────────────────────── */
+.fmc-lsk-col {
+  display: flex;
+  flex-direction: column;
+  width: 22px;
+  flex-shrink: 0;
+}
+/* Spacer that matches the title line height so LSK rows align with data rows */
+.fmc-lsk-hdr {
+  height: 22px;
+  flex-shrink: 0;
+}
+/* Each slot = one row in the data grid */
+.fmc-lsk-slot {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fmc-lsk {
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(180deg, #404040 0%, #363635 100%);
+  border: 1px solid rgba(0,0,0,0.55);
+  border-radius: 3px;
+  color: #00FF41;
+  font-size: 7px;
+  cursor: pointer !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+  transition: box-shadow 0.08s, background 0.08s;
+  padding: 0;
+  line-height: 1;
+}
+.fmc-lsk:hover {
+  background: linear-gradient(180deg, #4A4A48 0%, #404040 100%);
+  color: #33FF66;
+}
+.fmc-lsk:active {
+  box-shadow: inset 0 2px 3px rgba(0,0,0,0.6);
+  background: #303030;
+}
+
+/* ── CRT Screen ────────────────────────────────────────────── */
+.fmc-screen {
+  flex: 1;
+  height: 200px;           /* Fixed — drives alignment math */
+  background: #010901;
+  border: 2px solid #151513;
+  border-radius: 5px;
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 30px rgba(0,255,65,0.06),
+    0 0 0 3px #1A1A18,
+    0 4px 12px rgba(0,0,0,0.6);
+  animation: fmc-crt-flicker 8s ease-in-out infinite;
+}
+@keyframes fmc-crt-flicker {
+  0%, 85%, 100% { opacity: 1; }
+  86%            { opacity: 0.94; }
+  87%            { opacity: 1; }
+  92%            { opacity: 0.97; }
+}
+/* Scan lines overlay */
+.fmc-scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent, transparent 2px,
+    rgba(0,0,0,0.13) 2px, rgba(0,0,0,0.13) 4px
+  );
+  pointer-events: none;
+  z-index: 5;
+}
+/* CRT vignette */
+.fmc-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%);
+  pointer-events: none;
+  z-index: 6;
+}
+
+/* ── Display content ───────────────────────────────────────── */
+.fmc-display {
+  position: absolute;
+  inset: 0;
+  padding: 3px 7px 2px;
+  display: flex;
+  flex-direction: column;
+  font-family: 'VT323', monospace;
+  color: #00FF41;
+  text-shadow: 0 0 8px rgba(0,255,65,0.65), 0 0 18px rgba(0,255,65,0.22);
+  z-index: 2;
+  overflow: hidden;
+}
+/* Title line */
+.fmc-disp-title {
+  height: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  letter-spacing: 0.14em;
+  color: #00FF41;
+  white-space: nowrap;
+}
+/* One row per LSK pair — fills remaining height equally */
+.fmc-disp-row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 0;
+}
+.fmc-disp-cell-l {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.fmc-disp-cell-r {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: right;
+}
+/* Small label line above the value */
+.fmc-disp-label {
+  font-size: 10px;
+  color: rgba(0,255,65,0.45);
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-shadow: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* Main data value */
+.fmc-disp-value {
+  font-size: 14px;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* Prompt arrows (< INDEX, SEND >, etc.) */
+.fmc-disp-prompt {
+  color: rgba(0,255,65,0.7);
+  font-size: 14px;
+}
+
+/* ── Function Key Rows ─────────────────────────────────────── */
+.fmc-fn-row {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.fmc-fn-btn {
+  flex: 1;
+  height: 28px;
+  background: linear-gradient(180deg, #454542 0%, #3A3A38 100%);
+  border: 1px solid rgba(0,0,0,0.5);
+  border-bottom: 2px solid rgba(0,0,0,0.45);
+  border-radius: 4px;
+  color: #CAC9BA;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07);
+  transition: box-shadow 0.07s, background 0.07s, transform 0.07s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fmc-fn-btn:hover {
+  background: linear-gradient(180deg, #505050 0%, #454542 100%);
+  color: #DDDCCC;
+}
+.fmc-fn-btn:active {
+  box-shadow: inset 0 2px 3px rgba(0,0,0,0.55);
+  background: linear-gradient(180deg, #353533 0%, #3A3A38 100%);
+  transform: translateY(1px);
+}
+/* Active page indicator */
+.fmc-fn-btn.fmc-fn-active {
+  background: linear-gradient(180deg, #3A4830 0%, #2E3824 100%);
+  border-color: rgba(0,255,65,0.22);
+  color: #00FF41;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.45), inset 0 1px 0 rgba(0,255,65,0.10),
+              0 0 6px rgba(0,255,65,0.10);
+}
+/* EXEC key — amber highlight */
+.fmc-exec-btn {
+  flex: 0 0 48px;
+  height: 28px;
+  background: linear-gradient(180deg, #4E3E14 0%, #3E3010 100%);
+  border: 1px solid rgba(0,0,0,0.5);
+  border-bottom: 2px solid rgba(0,0,0,0.45);
+  border-radius: 4px;
+  color: #FFB800;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,200,50,0.12),
+              0 0 8px rgba(255,184,0,0.12);
+  transition: box-shadow 0.07s, background 0.07s, transform 0.07s;
+}
+.fmc-exec-btn:hover {
+  background: linear-gradient(180deg, #604D1A 0%, #4E3E14 100%);
+  color: #FFC800;
+}
+.fmc-exec-btn:active {
+  box-shadow: inset 0 2px 3px rgba(0,0,0,0.55);
+  transform: translateY(1px);
+}
+
+/* BRT knob */
+.fmc-brt-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 34px;
+}
+.fmc-brt-knob {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #555552 0%, #2A2A28 60%, #1E1E1C 100%);
+  border: 2px solid #1A1A18;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.10);
+  position: relative;
+  transition: filter 0.1s;
+}
+.fmc-brt-knob:hover { filter: brightness(1.15); }
+/* Indicator line */
+.fmc-brt-knob::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 7px;
+  background: rgba(255,255,255,0.45);
+  border-radius: 1px;
+}
+.fmc-brt-label {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  font-weight: 700;
+  color: rgba(180,175,150,0.5);
+  letter-spacing: 0.15em;
+}
+
+/* ── Keyboard Section ──────────────────────────────────────── */
+.fmc-kb-section {
+  display: flex;
+  gap: 5px;
+  align-items: flex-start;
+}
+.fmc-kb-left {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 0 0 42px;
+}
+.fmc-side-btn {
+  width: 42px;
+  height: 28px;
+  background: linear-gradient(180deg, #454542 0%, #3A3A38 100%);
+  border: 1px solid rgba(0,0,0,0.5);
+  border-bottom: 2px solid rgba(0,0,0,0.45);
+  border-radius: 4px;
+  color: #CAC9BA;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+  line-height: 1.25;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07);
+  transition: box-shadow 0.07s, background 0.07s, transform 0.07s;
+}
+.fmc-side-btn:hover {
+  background: linear-gradient(180deg, #505050 0%, #454542 100%);
+  color: #DDDCCC;
+}
+.fmc-side-btn:active {
+  box-shadow: inset 0 2px 3px rgba(0,0,0,0.55);
+  transform: translateY(1px);
+}
+.fmc-kb-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.fmc-kb-row {
+  display: flex;
+  gap: 4px;
+}
+.fmc-kb-btn {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  background: linear-gradient(180deg, #424240 0%, #383836 100%);
+  border: 1px solid rgba(0,0,0,0.5);
+  border-bottom: 2px solid rgba(0,0,0,0.45);
+  border-radius: 5px;
+  color: #C8C7B8;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07);
+  transition: box-shadow 0.07s, background 0.07s, transform 0.07s;
+}
+.fmc-kb-btn:hover {
+  background: linear-gradient(180deg, #4E4E4C 0%, #424240 100%);
+  color: #DEDCCC;
+}
+.fmc-kb-btn:active {
+  box-shadow: inset 0 2px 3px rgba(0,0,0,0.55);
+  background: linear-gradient(180deg, #343432 0%, #383836 100%);
+  transform: translateY(1px);
+}
+.fmc-kb-btn.fmc-num {
+  font-size: 12px;
+  color: #DDDCCC;
+  background: linear-gradient(180deg, #484846 0%, #3E3E3C 100%);
+}
+.fmc-kb-btn.fmc-num:hover {
+  background: linear-gradient(180deg, #545452 0%, #484846 100%);
+}
+.fmc-kb-btn.fmc-clr {
+  background: linear-gradient(180deg, #3E2020 0%, #2E1818 100%);
+  color: #E06060;
+}
+.fmc-kb-btn.fmc-clr:hover {
+  background: linear-gradient(180deg, #4A2828 0%, #3A2020 100%);
+  color: #F07070;
+}
+
+/* ── FMC divider ridge ─────────────────────────────────────── */
+.fmc-ridge {
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.4) 20%, rgba(0,0,0,0.4) 80%, transparent);
+  border-radius: 2px;
+  margin: 1px 0;
+}
+
+/* ── Corner screws ─────────────────────────────────────────── */
+.fmc-screws {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+.fmc-screw {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #555552 0%, #2A2A28 100%);
+  border: 1px solid #1A1A18;
+  box-shadow: inset 0 1px 1px rgba(255,255,255,0.07), 0 1px 2px rgba(0,0,0,0.4);
+  position: relative;
+}
+.fmc-screw::before, .fmc-screw::after {
+  content: '';
+  position: absolute;
+  background: rgba(0,0,0,0.45);
+  border-radius: 1px;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+.fmc-screw::before { width: 4px; height: 1px; }
+.fmc-screw::after  { width: 1px; height: 4px; }
+
+/* ── LOGIN SCREEN ─────────────────────────────────────────────── */
+
+@keyframes login-card-enter {
+  from { opacity: 0; transform: translateY(28px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+@keyframes login-brand-enter {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0);     }
+}
+
+@keyframes login-shake {
+  0%,100% { transform: translateX(0); }
+  15%     { transform: translateX(-9px); }
+  30%     { transform: translateX(9px);  }
+  45%     { transform: translateX(-6px); }
+  60%     { transform: translateX(6px);  }
+  78%     { transform: translateX(-3px); }
+  90%     { transform: translateX(3px);  }
+}
+
+@keyframes login-success-ring {
+  0%   { box-shadow: 0 0 0 0   rgba(16,185,129,0.5), 0 4px 24px rgba(16,185,129,0.45); }
+  60%  { box-shadow: 0 0 0 14px rgba(16,185,129,0),  0 4px 24px rgba(16,185,129,0.45); }
+  100% { box-shadow: 0 0 0 0   rgba(16,185,129,0),   0 4px 24px rgba(16,185,129,0.45); }
+}
+
+@keyframes login-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Full-screen host */
+.login-shell {
+  position: fixed;
+  inset: 0;
+  background: #05080E;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-family: 'DM Sans', sans-serif;
+  z-index: 9999;
+}
+
+/* Star field + horizon glow */
+.login-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 8% 11%,  rgba(255,255,255,0.70) 0%, transparent 100%),
+    radial-gradient(1px 1px at 93% 7%,  rgba(255,255,255,0.60) 0%, transparent 100%),
+    radial-gradient(1px 1px at 23% 34%, rgba(255,255,255,0.40) 0%, transparent 100%),
+    radial-gradient(1px 1px at 67% 21%, rgba(255,255,255,0.75) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 45% 11%, rgba(255,255,255,0.90) 0%, transparent 100%),
+    radial-gradient(1px 1px at 79% 40%, rgba(255,255,255,0.35) 0%, transparent 100%),
+    radial-gradient(1px 1px at 55% 36%, rgba(255,255,255,0.55) 0%, transparent 100%),
+    radial-gradient(1px 1px at 34% 18%, rgba(255,255,255,0.65) 0%, transparent 100%),
+    radial-gradient(2px 2px at 87% 25%, rgba(255,255,255,0.85) 0%, transparent 100%),
+    radial-gradient(1px 1px at 16% 27%, rgba(255,255,255,0.50) 0%, transparent 100%),
+    radial-gradient(1px 1px at 84% 13%, rgba(255,255,255,0.60) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 61% 8%, rgba(255,255,255,0.70) 0%, transparent 100%),
+    radial-gradient(1px 1px at 27% 6%,  rgba(255,255,255,0.50) 0%, transparent 100%),
+    radial-gradient(1px 1px at 4% 37%,  rgba(255,255,255,0.60) 0%, transparent 100%),
+    radial-gradient(1px 1px at 50% 28%, rgba(255,255,255,0.30) 0%, transparent 100%),
+    radial-gradient(1px 1px at 74% 33%, rgba(255,255,255,0.45) 0%, transparent 100%),
+    radial-gradient(1px 1px at 3% 20%,  rgba(255,255,255,0.55) 0%, transparent 100%),
+    radial-gradient(1px 1px at 44% 5%,  rgba(255,255,255,0.80) 0%, transparent 100%),
+    radial-gradient(1px 1px at 18% 44%, rgba(255,255,255,0.32) 0%, transparent 100%),
+    radial-gradient(1px 1px at 63% 49%, rgba(255,255,255,0.25) 0%, transparent 100%),
+    radial-gradient(1px 1px at 38% 43%, rgba(255,255,255,0.30) 0%, transparent 100%),
+    radial-gradient(1px 1px at 82% 53%, rgba(255,255,255,0.22) 0%, transparent 100%),
+    /* Horizon atmospheric glow */
+    radial-gradient(ellipse 110% 28% at 50% 60%, rgba(20,44,110,0.40) 0%, transparent 70%),
+    /* Subtle color tints */
+    radial-gradient(ellipse 55% 22% at 18% 22%, rgba(61,126,238,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 45% 28% at 82% 8%,  rgba(124,58,237,0.03) 0%, transparent 60%);
+}
+
+/* Film grain overlay */
+.login-shell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23g)' opacity='0.042'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Scene container (runway visual elements) */
+.login-scene {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Blue atmospheric glow at horizon */
+.login-horizon {
+  position: absolute;
+  top: 57%;
+  left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(61,126,238,0.18) 25%,
+    rgba(61,126,238,0.32) 50%,
+    rgba(61,126,238,0.18) 75%,
+    transparent 100%);
+}
+
+/* Warm amber glow rising from the runway lights */
+.login-ground-glow {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 48%;
+  background: radial-gradient(ellipse 52% 100% at 50% 100%,
+    rgba(160,100,20,0.07) 0%, transparent 65%);
+}
+
+/* Runway surface trapezoid */
+.login-runway-surface {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 43%;
+  background: linear-gradient(0deg,
+    rgba(8, 14, 28, 0.75) 0%,
+    rgba(6, 11, 22, 0.25) 60%,
+    transparent 100%);
+  clip-path: polygon(44% 0%, 56% 0%, 76% 100%, 24% 100%);
+}
+
+/* Threshold bar at bottom of runway */
+.login-threshold-bar {
+  position: absolute;
+  bottom: 0;
+  left: 24%; right: 24%;
+  height: 3px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,0.14) 15%,
+    rgba(255,255,255,0.22) 50%,
+    rgba(255,255,255,0.14) 85%,
+    transparent 100%);
+}
+
+/* Main content centering layer */
+.login-content {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  /* Push the card slightly above center to clear the runway scene */
+  padding-bottom: 6vh;
+}
+
+/* ── CARD ─────────────────────────────── */
+.login-card {
+  width: 100%;
+  max-width: 456px;
+  margin: 0 20px;
+  background: rgba(6, 11, 23, 0.84);
+  backdrop-filter: blur(32px) saturate(1.5);
+  -webkit-backdrop-filter: blur(32px) saturate(1.5);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid rgba(61, 126, 238, 0.32);
+  box-shadow:
+    0 2px 0 0 rgba(61, 126, 238, 0.18) inset,
+    0 52px 100px rgba(0, 0, 0, 0.72),
+    0 16px 40px  rgba(0, 0, 0, 0.55),
+    0 0 0 1px    rgba(61, 126, 238, 0.07);
+  padding: 48px 44px 40px;
+  animation: login-card-enter 0.65s cubic-bezier(0.34, 1.18, 0.64, 1) both;
+}
+
+.login-card--shake {
+  animation: login-shake 0.52s ease-out;
+}
+
+/* Brand mark row */
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 38px;
+  animation: login-brand-enter 0.5s 0.15s ease both;
+}
+
+.login-brand-mark {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #12307a 0%, #3D7EEE 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 18px rgba(61, 126, 238, 0.42), 0 0 0 1px rgba(61,126,238,0.2);
+}
+
+.login-brand-mark svg { width: 23px; height: 23px; }
+
+.login-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.login-brand-name {
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  color: rgba(255, 255, 255, 0.95);
+  line-height: 1;
+}
+
+.login-brand-sub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.30);
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+/* Headline */
+.login-headline {
+  font-family: 'Outfit', sans-serif;
+  font-size: 30px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+  line-height: 1.18;
+  letter-spacing: -0.022em;
+  margin-bottom: 12px;
+}
+
+.login-sub {
+  font-size: 13.5px;
+  line-height: 1.68;
+  color: rgba(255, 255, 255, 0.36);
+  margin-bottom: 34px;
+}
+
+/* Input */
+.login-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.38);
+  margin-bottom: 9px;
+}
+
+.login-input-row {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.login-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  padding: 13px 78px 13px 15px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  letter-spacing: 0.055em;
+  color: rgba(255, 255, 255, 0.88);
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  caret-color: #3D7EEE;
+}
+
+.login-input::placeholder {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0;
+  color: rgba(255, 255, 255, 0.18);
+}
+
+.login-input:focus {
+  border-color: rgba(61, 126, 238, 0.48);
+  box-shadow: 0 0 0 3px rgba(61, 126, 238, 0.11);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.login-input--error {
+  border-color: rgba(239, 68, 68, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.09) !important;
+}
+
+.login-input--success {
+  border-color: rgba(16, 185, 129, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.09) !important;
+}
+
+.login-paste-btn {
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 7px;
+  padding: 5px 11px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.login-paste-btn:hover {
+  background: rgba(61, 126, 238, 0.18);
+  border-color: rgba(61, 126, 238, 0.3);
+  color: #3D7EEE;
+}
+
+/* Error message */
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 22px;
+  font-size: 12.5px;
+  color: rgba(239, 68, 68, 0.0);
+  margin-bottom: 18px;
+  transition: color 0.2s ease;
+}
+
+.login-error--visible {
+  color: rgba(239, 68, 68, 0.88);
+}
+
+/* Primary CTA */
+.login-btn {
+  width: 100%;
+  height: 50px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #1d4ed8 0%, #3D7EEE 55%, #5b9af8 100%);
+  border: none;
+  color: #fff;
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1),
+              box-shadow 0.15s ease,
+              background 0.3s ease;
+  box-shadow:
+    0 4px 22px rgba(61, 126, 238, 0.48),
+    0 1px 4px  rgba(0, 0, 0, 0.35);
+}
+
+.login-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.login-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow:
+    0 10px 32px rgba(61, 126, 238, 0.58),
+    0 2px 8px   rgba(0, 0, 0, 0.35);
+}
+
+.login-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.login-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.login-btn--success {
+  background: linear-gradient(135deg, #059669 0%, #10B981 100%) !important;
+  box-shadow: 0 4px 22px rgba(16,185,129,0.48), 0 1px 4px rgba(0,0,0,0.3) !important;
+  animation: login-success-ring 0.65s ease-out;
+}
+
+/* Loading spinner */
+.login-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: login-spin 0.72s linear infinite;
+  flex-shrink: 0;
+}
+
+/* Footer */
+.login-footer {
+  margin-top: 26px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+  text-align: center;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.login-footer a {
+  color: rgba(61, 126, 238, 0.70);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.login-footer a:hover {
+  color: #3D7EEE;
+  text-decoration: underline;
+}
+

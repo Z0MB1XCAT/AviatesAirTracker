@@ -22,7 +22,12 @@
       "mcp__supabase__apply_migration",
       "mcp__supabase__list_extensions",
       "mcp__supabase__get_publishable_keys",
-      "Read(//c/Users/dexte/Downloads/mitlicense/**)"
+      "Read(//c/Users/dexte/Downloads/mitlicense/**)",
+      "Bash(head -2283 c:/AviatesAirTracker/AviatesAirTracker/wwwroot/css/app.css)",
+      "Read(//tmp/**)",
+      "Bash(awk '{sum+=$1} END {print \"Total lines in Pages: \" sum}')",
+      "Bash(awk '{sum+=$1} END {print \"Total lines in Services: \" sum}')",
+      "Bash(awk '{sum+=$1} END {print \"Total lines in Core: \" sum}')"
     ]
   },
   "enabledMcpjsonServers": [

@@ -1,4 +1,5 @@
 using AviatesAirTracker.Core.Analytics;
+using AviatesAirTracker.Core.Backend;
 using AviatesAirTracker.Core.Data;
 using AviatesAirTracker.Core.SimConnect;
 using AviatesAirTracker.Models;
@@ -49,6 +50,7 @@ public class FlightSessionManager
     // CRIT-02 / MAJOR-04: RunwayDetector and ApproachMonitor were registered in DI but never wired in.
     private readonly RunwayDetector _runwayDetector;
     private readonly ApproachMonitor _approachMonitor;
+    private readonly AviatesBackendClient _backend;
 
     // =====================================================
     // STATE
@@ -82,7 +84,8 @@ public class FlightSessionManager
         AlertService alertService,
         SettingsService settings,
         RunwayDetector runwayDetector,
-        ApproachMonitor approachMonitor)
+        ApproachMonitor approachMonitor,
+        AviatesBackendClient backend)
     {
         _telemetry = telemetry;
         _phaseDetector = phaseDetector;
@@ -95,6 +98,7 @@ public class FlightSessionManager
         _settings = settings;
         _runwayDetector = runwayDetector;
         _approachMonitor = approachMonitor;
+        _backend = backend;
 
         // Wire up phase changes
         _phaseDetector.PhaseChanged += OnPhaseChanged;
@@ -336,8 +340,32 @@ public class FlightSessionManager
 
         FlightCompleted?.Invoke(this, CurrentFlight);
 
-        // Reset for next flight
+        // Capture reference before Reset() nulls CurrentFlight, then submit PIREP async
+        var completedFlight = CurrentFlight;
         Reset();
+        _ = SubmitPirepSafeAsync(completedFlight);
+    }
+
+    private async Task SubmitPirepSafeAsync(FlightRecord flight)
+    {
+        var key = _settings.Settings.AcarsKey.Trim();
+        if (string.IsNullOrEmpty(key))
+        {
+            Log.Debug("[FlightSession] PIREP skipped — no ACARS key configured");
+            return;
+        }
+
+        var success = await _backend.SubmitPirepAsync(flight, key);
+        if (success)
+        {
+            flight.SyncedToBackend = true;
+            await _flightRepo.UpdateAsync(flight);
+            Log.Information("[FlightSession] PIREP synced to backend for flight {Id}", flight.Id);
+        }
+        else
+        {
+            Log.Warning("[FlightSession] PIREP submission failed — will retry on next startup (flight {Id})", flight.Id);
+        }
     }
 
     // =====================================================
