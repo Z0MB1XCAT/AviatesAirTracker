@@ -1,0 +1,32 @@
+@inherits LayoutComponentBase
+
+<div class="login-shell">
+    <!-- Night runway scene -->
+    <div class="login-scene">
+        <div class="login-ground-glow"></div>
+        <div class="login-horizon"></div>
+        <div class="login-runway-surface"></div>
+        <!-- Runway edge lights — near (bottom) to far (horizon) -->
+        @for (int i = 0; i < 12; i++)
+        {
+            var frac   = (double)i / 11.0;
+            var botPct = (frac * 42.0).ToString("F1");
+            var xPct   = (24.0 - frac * 21.0).ToString("F1");
+            var size   = (5.5  - frac * 4.0).ToString("F1");
+            var op     = (0.88 - frac * 0.68).ToString("F2");
+            var rawSz  = 5.5 - frac * 4.0;
+            var glow   = (rawSz * 2.8).ToString("F0");
+            var lStyle = $"position:absolute;bottom:{botPct}%;left:calc(50% - {xPct}%);transform:translateX(-50%);width:{size}px;height:{size}px;border-radius:50%;background:#F5A830;box-shadow:0 0 {glow}px rgba(245,168,48,0.6);opacity:{op};pointer-events:none;";
+            var rStyle = $"position:absolute;bottom:{botPct}%;right:calc(50% - {xPct}%);transform:translateX(50%);width:{size}px;height:{size}px;border-radius:50%;background:#F5A830;box-shadow:0 0 {glow}px rgba(245,168,48,0.6);opacity:{op};pointer-events:none;";
+            <div style="@lStyle"></div>
+            <div style="@rStyle"></div>
+        }
+        <!-- Threshold bar lights at the very bottom -->
+        <div class="login-threshold-bar"></div>
+    </div>
+
+    <!-- Page content (Login.razor body) -->
+    <div class="login-content">
+        @Body
+    </div>
+</div>

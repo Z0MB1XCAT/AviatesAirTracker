@@ -2,6 +2,7 @@ using AviatesAirTracker.Core.Analytics;
 using AviatesAirTracker.Core.Backend;
 using AviatesAirTracker.Core.Data;
 using AviatesAirTracker.Core.SimConnect;
+using AviatesAirTracker.Models;
 using AviatesAirTracker.Services;
 using AviatesAirTracker.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -59,6 +60,12 @@ public partial class App : Application
 
             _serviceProvider.GetRequiredService<DiscordPresenceService>().Initialize();
 
+            // Resolve to subscribe to TelemetryUpdated (constructor wires the event)
+            _serviceProvider.GetRequiredService<AcarsPositionService>();
+
+            // Retry any PIREPs that failed or couldn't submit last session
+            _ = RetryPendingPirepsAsync(_serviceProvider);
+
             // When a booked flight completes, advance the pilot's current airport to the
             // booking destination so the Routes page only shows departures from there next time.
             var sessionMgr  = _serviceProvider.GetRequiredService<FlightSessionManager>();
@@ -111,12 +118,49 @@ public partial class App : Application
         catch { /* last resort — can't log the logger */ }
     }
 
+    private static async Task RetryPendingPirepsAsync(IServiceProvider sp)
+    {
+        try
+        {
+            var flights  = sp.GetRequiredService<IFlightRepository>();
+            var backend  = sp.GetRequiredService<AviatesBackendClient>();
+            var settings = sp.GetRequiredService<SettingsService>();
+
+            var key = settings.Settings.AcarsKey.Trim();
+            if (string.IsNullOrEmpty(key)) return;
+
+            var all     = await flights.GetAllAsync();
+            var pending = all.Where(f =>
+                !f.SyncedToBackend &&
+                f.Status == FlightStatus.Completed).ToList();
+
+            if (pending.Count == 0) return;
+
+            Log.Information("[Startup] Retrying {Count} unsynced PIREP(s)...", pending.Count);
+
+            foreach (var flight in pending)
+            {
+                var ok = await backend.SubmitPirepAsync(flight, key);
+                if (ok)
+                {
+                    flight.SyncedToBackend = true;
+                    await flights.UpdateAsync(flight);
+                    Log.Information("[Startup] Retry OK for flight {Id}", flight.Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Startup] PIREP retry scan failed (non-critical)");
+        }
+    }
+
     private static void ConfigureServices(ServiceCollection services)
     {
-        // Data layer (In-Memory — replace with SQL/API when backend ready)
-        services.AddSingleton<IFlightRepository, InMemoryFlightRepository>();
+        // Data layer — JSON-persisted (survive app restarts)
+        services.AddSingleton<IFlightRepository, JsonFlightRepository>();
         services.AddSingleton<IPilotRepository, InMemoryPilotRepository>();
-        services.AddSingleton<ILandingRepository, InMemoryLandingRepository>();
+        services.AddSingleton<ILandingRepository, JsonLandingRepository>();
         services.AddSingleton<IFlightDeletionRepository, InMemoryFlightDeletionRepository>();
         services.AddSingleton<IMessageRepository, JsonMessageRepository>();
         services.AddSingleton<IFriendRepository, JsonFriendRepository>();
@@ -134,6 +178,7 @@ public partial class App : Application
         services.AddSingleton<RunwayDetector>();
         // Business
         services.AddSingleton<AviatesBackendClient>();
+        services.AddSingleton<AcarsPositionService>();
         services.AddSingleton<MessagingService>();
         services.AddSingleton<RouteTracker>();
         services.AddSingleton<FlightSessionManager>();
@@ -166,6 +211,7 @@ public partial class App : Application
     {
         _serviceProvider.GetService<SimConnectManager>()?.Disconnect();
         _serviceProvider.GetService<DiscordPresenceService>()?.Dispose();
+        _serviceProvider.GetService<AcarsPositionService>()?.Dispose();
         _serviceProvider.GetService<UpdateService>()?.Dispose();
         Log.CloseAndFlush();
         _serviceProvider.Dispose();

@@ -219,6 +219,137 @@ window.aviatesInterop = {
     }
 };
 
+// ── ACARS FMC interop ───────────────────────────────────────
+window.acarsInterop = {
+    _ctx: null,
+
+    _getCtx: function () {
+        if (!this._ctx) {
+            try { this._ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+        }
+        return this._ctx;
+    },
+
+    // Crisp mechanical FMC button click via Web Audio API
+    playClick: function () {
+        var ctx = this._getCtx();
+        if (!ctx) return;
+        try {
+            var sampleRate = ctx.sampleRate;
+            var bufLen     = Math.floor(sampleRate * 0.025);
+            var buf        = ctx.createBuffer(1, bufLen, sampleRate);
+            var data       = buf.getChannelData(0);
+            for (var i = 0; i < bufLen; i++) {
+                data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 4);
+            }
+            var src  = ctx.createBufferSource();
+            src.buffer = buf;
+            var hpf  = ctx.createBiquadFilter();
+            hpf.type = 'highpass';
+            hpf.frequency.value = 1200;
+            var gain = ctx.createGain();
+            gain.gain.setValueAtTime(0.28, ctx.currentTime);
+            src.connect(hpf); hpf.connect(gain); gain.connect(ctx.destination);
+            src.start(ctx.currentTime);
+        } catch (e) {}
+    },
+
+    // ── Draggable floating window ───────────────────────────
+    // windowId  = id of the outermost FMC div
+    // handleId  = id of the titlebar drag handle
+    initFmcDrag: function (windowId, handleId) {
+        var win    = document.getElementById(windowId);
+        var handle = document.getElementById(handleId);
+        if (!win || !handle || handle._fmcDrag) return;
+        handle._fmcDrag = true;
+
+        // Position window centered on first open
+        var w = win.offsetWidth  || 400;
+        var h = win.offsetHeight || 600;
+        win.style.position  = 'fixed';
+        win.style.transform = 'none';
+        win.style.left = Math.max(8, (window.innerWidth  - w) / 2) + 'px';
+        win.style.top  = Math.max(8, (window.innerHeight - h) / 2) + 'px';
+
+        var dragging = false, sx, sy;
+        handle.style.cursor = 'grab';
+
+        handle.addEventListener('mousedown', function (e) {
+            if (e.button !== 0) return;
+            dragging = true;
+            var r = win.getBoundingClientRect();
+            sx = e.clientX - r.left;
+            sy = e.clientY - r.top;
+            handle.style.cursor = 'grabbing';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function (e) {
+            if (!dragging) return;
+            var nx = Math.max(0, Math.min(window.innerWidth  - win.offsetWidth,  e.clientX - sx));
+            var ny = Math.max(0, Math.min(window.innerHeight - win.offsetHeight, e.clientY - sy));
+            win.style.left = nx + 'px';
+            win.style.top  = ny + 'px';
+        });
+
+        document.addEventListener('mouseup', function () {
+            if (dragging) {
+                dragging = false;
+                handle.style.cursor = 'grab';
+                document.body.style.userSelect = '';
+            }
+        });
+    },
+
+    // ── Brightness knob ─────────────────────────────────────
+    // knobId   = id of the .fmc-brt-knob element
+    // screenId = id of the .fmc-display element
+    initBrtKnob: function (knobId, screenId) {
+        var knob   = document.getElementById(knobId);
+        var screen = document.getElementById(screenId);
+        if (!knob || !screen || knob._brtInit) return;
+        knob._brtInit = true;
+
+        var brt     = 0.85;         // 0.15 – 1.0
+        var dragging = false, sy0, brt0;
+
+        function apply (v) {
+            brt = Math.max(0.15, Math.min(1.0, v));
+            // Rotate indicator: 0.15 → -130°, 1.0 → +130°
+            var deg = ((brt - 0.15) / 0.85) * 260 - 130;
+            knob.style.transform = 'rotate(' + deg + 'deg)';
+            screen.style.filter  = 'brightness(' + brt + ')';
+        }
+
+        apply(brt); // Set initial rotation
+
+        // Drag up = brighter, drag down = dimmer
+        knob.style.cursor = 'ns-resize';
+        knob.addEventListener('mousedown', function (e) {
+            if (e.button !== 0) return;
+            dragging = true;
+            sy0  = e.clientY;
+            brt0 = brt;
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', function (e) {
+            if (!dragging) return;
+            apply(brt0 + (sy0 - e.clientY) * 0.006);
+        });
+        document.addEventListener('mouseup', function () {
+            if (dragging) { dragging = false; document.body.style.userSelect = ''; }
+        });
+
+        // Scroll wheel on knob
+        knob.addEventListener('wheel', function (e) {
+            e.preventDefault();
+            apply(brt + (e.deltaY < 0 ? 0.05 : -0.05));
+        }, { passive: false });
+    }
+};
+
 // ── Theme management ────────────────────────────────────────
 window.aviatesTheme = {
     _mql: null,

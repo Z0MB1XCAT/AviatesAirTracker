@@ -2,6 +2,7 @@ using AviatesAirTracker.Models;
 using Serilog;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace AviatesAirTracker.Core.Data;
 
@@ -577,6 +578,206 @@ public class InMemoryFlightDeletionRepository : IFlightDeletionRepository
             if (r != null) { r.Status = DeletionRequestStatus.Rejected; r.ReviewedAt = DateTime.UtcNow; }
         }
         return Task.CompletedTask;
+    }
+}
+
+// ============================================================
+// JSON-PERSISTED FLIGHT REPOSITORY
+// Flight records survive app restarts — saved to AppData\Roaming.
+// Replaces InMemoryFlightRepository.
+// ============================================================
+
+public class JsonFlightRepository : IFlightRepository
+{
+    private readonly List<FlightRecord> _flights = [];
+    private readonly object _lock = new();
+    private FlightRecord? _currentFlight;
+
+    private readonly string _path = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "AviatesAirTracker", "flights.json");
+
+    private static readonly JsonSerializerOptions _opts = new()
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
+    public JsonFlightRepository() { Load(); }
+
+    private void Load()
+    {
+        try
+        {
+            if (File.Exists(_path))
+            {
+                var loaded = JsonSerializer.Deserialize<List<FlightRecord>>(File.ReadAllText(_path), _opts);
+                if (loaded != null) _flights.AddRange(loaded);
+                Log.Debug("[FlightRepo] Loaded {Count} flights from disk", _flights.Count);
+            }
+        }
+        catch (Exception ex) { Log.Warning(ex, "[FlightRepo] Failed to load from disk"); }
+    }
+
+    private void Save()
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+            File.WriteAllText(_path, JsonSerializer.Serialize(_flights, _opts));
+        }
+        catch (Exception ex) { Log.Warning(ex, "[FlightRepo] Failed to save to disk"); }
+    }
+
+    public Task<FlightRecord?> GetByIdAsync(Guid id)
+    {
+        lock (_lock) return Task.FromResult(_flights.FirstOrDefault(f => f.Id == id));
+    }
+
+    public Task<List<FlightRecord>> GetAllAsync()
+    {
+        lock (_lock) return Task.FromResult(_flights.OrderByDescending(f => f.CreatedAt).ToList());
+    }
+
+    public Task<List<FlightRecord>> GetRecentAsync(int count)
+    {
+        lock (_lock)
+        {
+            return Task.FromResult(_flights
+                .Where(f => f.Status == FlightStatus.Completed)
+                .OrderByDescending(f => f.CreatedAt)
+                .Take(count)
+                .ToList());
+        }
+    }
+
+    public Task SaveAsync(FlightRecord record)
+    {
+        lock (_lock)
+        {
+            _flights.Add(record);
+            Save();
+            Log.Debug("[FlightRepo] Flight saved: {Id}", record.Id);
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task UpdateAsync(FlightRecord record)
+    {
+        lock (_lock)
+        {
+            var idx = _flights.FindIndex(f => f.Id == record.Id);
+            if (idx >= 0)
+            {
+                _flights[idx] = record;
+                Save();
+            }
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(Guid id)
+    {
+        lock (_lock)
+        {
+            _flights.RemoveAll(f => f.Id == id);
+            Save();
+        }
+        return Task.CompletedTask;
+    }
+
+    public FlightRecord? GetCurrentFlight() { lock (_lock) return _currentFlight; }
+    public void SetCurrentFlight(FlightRecord? flight) { lock (_lock) _currentFlight = flight; }
+}
+
+// ============================================================
+// JSON-PERSISTED LANDING REPOSITORY
+// Landing records survive app restarts — saved to AppData\Roaming.
+// Replaces InMemoryLandingRepository.
+// ============================================================
+
+public class JsonLandingRepository : ILandingRepository
+{
+    private readonly List<LandingResult> _landings = [];
+    private readonly object _lock = new();
+
+    private readonly string _path = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "AviatesAirTracker", "landings.json");
+
+    private static readonly JsonSerializerOptions _opts = new()
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
+    public JsonLandingRepository() { Load(); }
+
+    private void Load()
+    {
+        try
+        {
+            if (File.Exists(_path))
+            {
+                var loaded = JsonSerializer.Deserialize<List<LandingResult>>(File.ReadAllText(_path), _opts);
+                if (loaded != null) _landings.AddRange(loaded);
+                Log.Debug("[LandingRepo] Loaded {Count} landings from disk", _landings.Count);
+            }
+        }
+        catch (Exception ex) { Log.Warning(ex, "[LandingRepo] Failed to load from disk"); }
+    }
+
+    private void Save()
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+            File.WriteAllText(_path, JsonSerializer.Serialize(_landings, _opts));
+        }
+        catch (Exception ex) { Log.Warning(ex, "[LandingRepo] Failed to save to disk"); }
+    }
+
+    public Task<List<LandingResult>> GetAllAsync()
+    {
+        lock (_lock) return Task.FromResult(_landings.OrderByDescending(l => l.Timestamp).ToList());
+    }
+
+    public Task<List<LandingResult>> GetForFlightAsync(Guid flightId)
+    {
+        lock (_lock)
+        {
+            return Task.FromResult(_landings
+                .Where(l => l.FlightId == flightId.ToString())
+                .ToList());
+        }
+    }
+
+    public Task<LandingResult?> GetBestAsync()
+    {
+        lock (_lock)
+        {
+            return Task.FromResult(_landings.OrderByDescending(l => l.LandingScore).FirstOrDefault());
+        }
+    }
+
+    public Task SaveAsync(LandingResult landing)
+    {
+        lock (_lock)
+        {
+            _landings.Add(landing);
+            Save();
+            Log.Debug("[LandingRepo] Landing saved: Score={Score}", landing.LandingScore);
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task<double> GetAverageScoreAsync()
+    {
+        lock (_lock)
+        {
+            if (!_landings.Any()) return Task.FromResult(0.0);
+            return Task.FromResult(_landings.Average(l => l.LandingScore));
+        }
     }
 }
 

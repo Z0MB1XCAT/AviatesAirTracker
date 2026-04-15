@@ -1,0 +1,203 @@
+@page "/login"
+@layout LoginLayout
+@inject SettingsService SettingsService
+@inject AviatesBackendClient BackendClient
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div class="login-card @(_shake ? "login-card--shake" : "")">
+
+    <!-- Brand -->
+    <div class="login-brand">
+        <div class="login-brand-mark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>
+            </svg>
+        </div>
+        <div class="login-brand-text">
+            <span class="login-brand-name">AVIATESAIR</span>
+            <span class="login-brand-sub">Virtual Airline Platform</span>
+        </div>
+    </div>
+
+    <h1 class="login-headline">Welcome Aboard,<br/>Pilot.</h1>
+    <p class="login-sub">
+        Enter your ACARS key to access the operations centre.
+        You can find it in your pilot dashboard at flyaviatesair.uk.
+    </p>
+
+    <!-- Input -->
+    <label class="login-label">ACARS Key</label>
+    <div class="login-input-row">
+        <input
+            class="login-input @(_inputState)"
+            type="text"
+            placeholder="Paste your 28-character ACARS key"
+            @bind="_acarsKey"
+            @bind:event="oninput"
+            @onkeydown="OnKeyDownAsync"
+            disabled="@(_loading || _success)"
+            maxlength="42"
+            autocomplete="off"
+            spellcheck="false" />
+        <button class="login-paste-btn" @onclick="PasteAsync" tabindex="-1" title="Paste from clipboard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/>
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+            </svg>
+            Paste
+        </button>
+    </div>
+
+    <!-- Error message area (always reserve space) -->
+    <div class="login-error @(!string.IsNullOrEmpty(_errorMessage) ? "login-error--visible" : "")">
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" width="13" height="13">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            @_errorMessage
+        }
+    </div>
+
+    <!-- CTA button -->
+    <button
+        class="login-btn @(_success ? "login-btn--success" : "")"
+        @onclick="ValidateAsync"
+        disabled="@(_loading || _success || string.IsNullOrWhiteSpace(_acarsKey))">
+        @if (_loading)
+        {
+            <span class="login-spinner"></span>
+            <span>Validating...</span>
+        }
+        else if (_success)
+        {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                 stroke-linecap="round" stroke-linejoin="round" width="17" height="17">
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span>Authenticated — Loading</span>
+        }
+        else
+        {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            <span>Connect to AviatesAir</span>
+        }
+    </button>
+
+    <!-- Footer -->
+    <div class="login-footer">
+        New pilot? <a href="https://flyaviatesair.uk/register" target="_blank" rel="noopener noreferrer">
+            Register at flyaviatesair.uk
+        </a>
+    </div>
+
+</div>
+
+@code {
+    private string _acarsKey     = "";
+    private bool   _loading      = false;
+    private bool   _success      = false;
+    private bool   _shake        = false;
+    private string _errorMessage = "";
+    private string _inputState   = "";    // "" | "login-input--error" | "login-input--success"
+
+    protected override void OnInitialized()
+    {
+        // Skip login if ACARS key is already stored
+        if (!string.IsNullOrWhiteSpace(SettingsService.Settings.AcarsKey))
+            Nav.NavigateTo("/");
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !_loading && !_success && !string.IsNullOrWhiteSpace(_acarsKey))
+            await ValidateAsync();
+    }
+
+    private async Task PasteAsync()
+    {
+        try
+        {
+            var text = await JS.InvokeAsync<string>("navigator.clipboard.readText");
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                _acarsKey     = text.Trim();
+                _errorMessage = "";
+                _inputState   = "";
+            }
+        }
+        catch
+        {
+            // Clipboard access denied or not available — user can paste manually with Ctrl+V
+        }
+    }
+
+    private async Task ValidateAsync()
+    {
+        var key = _acarsKey.Trim();
+        if (string.IsNullOrEmpty(key)) return;
+
+        _loading      = true;
+        _errorMessage = "";
+        _inputState   = "";
+        StateHasChanged();
+
+        try
+        {
+            var result = await BackendClient.ValidateAcarsKeyAsync(key);
+
+            if (result is null)
+            {
+                await ShowErrorAsync("Invalid ACARS key. Check your pilot dashboard and try again.");
+                return;
+            }
+
+            // Persist authenticated pilot profile
+            SettingsService.Settings.AcarsKey          = key;
+            SettingsService.Settings.PilotName         = result.Name;
+            SettingsService.Settings.PilotId           = result.PilotId;
+            SettingsService.Settings.SimBriefUsername   = result.SimBrief;
+            SettingsService.Save();
+            SettingsService.RefreshFriendCode();
+
+            _loading    = false;
+            _success    = true;
+            _inputState = "login-input--success";
+            StateHasChanged();
+
+            await Task.Delay(900);
+            Nav.NavigateTo("/");
+        }
+        catch
+        {
+            await ShowErrorAsync("Unable to reach the server. Check your internet connection.");
+        }
+    }
+
+    private async Task ShowErrorAsync(string message)
+    {
+        _loading      = false;
+        _errorMessage = message;
+        _inputState   = "login-input--error";
+        _shake        = false;
+        StateHasChanged();
+
+        // Trigger shake animation via class toggle
+        await Task.Delay(16);
+        _shake = true;
+        StateHasChanged();
+        await Task.Delay(520);
+        _shake = false;
+        StateHasChanged();
+    }
+}
