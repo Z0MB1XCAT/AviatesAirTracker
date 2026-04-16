@@ -350,6 +350,106 @@ window.acarsInterop = {
     }
 };
 
+// ── Departure & audio notifications ─────────────────────────
+window.aviatesAudio = {
+    _ctx: null,
+
+    _getContext: function () {
+        if (!this._ctx) {
+            this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        // Resume suspended context (browser autoplay policy)
+        if (this._ctx.state === 'suspended') this._ctx.resume();
+        return this._ctx;
+    },
+
+    /**
+     * Play the departure-alert MP3 from wwwroot/sounds/.
+     * Falls back to a synthesised three-tone chime if the file is unavailable.
+     *
+     * @param {string} [url] - optional override path; defaults to 'sounds/departure_alert.mp3'
+     */
+    playDepartureAlert: function (url) {
+        var self = this;
+        var src  = url || 'sounds/departure_alert.mp3';
+        var ctx  = this._getContext();
+
+        fetch(src)
+            .then(function (r) {
+                if (!r.ok) throw new Error('not found');
+                return r.arrayBuffer();
+            })
+            .then(function (buf) { return ctx.decodeAudioData(buf); })
+            .then(function (decoded) {
+                var node = ctx.createBufferSource();
+                node.buffer = decoded;
+                node.connect(ctx.destination);
+                node.start();
+            })
+            .catch(function () {
+                // File not found or decode error — play synthesised chime
+                self._playChime(ctx);
+            });
+    },
+
+    // Three-tone ascending chime (C5 → E5 → G5) as fallback
+    _playChime: function (ctx) {
+        var freqs = [523.25, 659.25, 783.99];
+        freqs.forEach(function (freq, i) {
+            var osc  = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.35);
+            gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + i * 0.35 + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.35 + 0.55);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + i * 0.35);
+            osc.stop(ctx.currentTime + i * 0.35 + 0.6);
+        });
+    },
+};
+
+// ── Takeoff performance window drag support ──────────────────
+window.aviatesTokDrag = {
+    initDrag: function (elId) {
+        var el = document.getElementById(elId);
+        if (!el) return;
+        var handle = el.querySelector('[data-drag-handle]');
+        if (!handle) handle = el;
+
+        var startX, startY, startL, startT;
+        var dragging = false;
+
+        handle.addEventListener('mousedown', function (e) {
+            if (e.button !== 0) return;
+            dragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            var rect = el.getBoundingClientRect();
+            startL = rect.left;
+            startT = rect.top;
+            el.style.transition = 'none';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function (e) {
+            if (!dragging) return;
+            var dx = e.clientX - startX;
+            var dy = e.clientY - startY;
+            var newL = Math.max(0, Math.min(window.innerWidth  - el.offsetWidth,  startL + dx));
+            var newT = Math.max(0, Math.min(window.innerHeight - el.offsetHeight, startT + dy));
+            el.style.left = newL + 'px';
+            el.style.top  = newT + 'px';
+        });
+
+        document.addEventListener('mouseup', function () {
+            dragging = false;
+        });
+    },
+};
+
 // ── Theme management ────────────────────────────────────────
 window.aviatesTheme = {
     _mql: null,

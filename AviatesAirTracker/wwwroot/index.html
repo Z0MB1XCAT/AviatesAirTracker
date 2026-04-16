@@ -39,6 +39,13 @@
     <script src="_framework/blazor.webview.js" autostart="false"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="js/interop.js"></script>
+    <!-- Takeoff performance calculation engine — load in dependency order -->
+    <script src="js/performance/aircraft-configs.js"></script>
+    <script src="js/performance/density.js"></script>
+    <script src="js/performance/airspeed.js"></script>
+    <script src="js/performance/flaps.js"></script>
+    <script src="js/performance/flex.js"></script>
+    <script src="js/performance/index.js"></script>
     <script>Blazor.start();</script>
 </body>
 </html>

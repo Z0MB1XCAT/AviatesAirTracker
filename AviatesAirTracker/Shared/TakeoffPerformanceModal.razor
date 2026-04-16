@@ -1,0 +1,682 @@
+@inject TakeoffPerformanceService PerfService
+@inject IJSRuntime JS
+@implements IDisposable
+
+@if (_visible)
+{
+<div id="tok-window" class="tok-window @(_animating ? "tok-window--enter" : "")">
+
+    <!-- ─── Title bar (drag handle) ─── -->
+    <div class="tok-titlebar" data-drag-handle>
+        <div class="tok-titlebar-left">
+            <span class="tok-titlebar-dot tok-dot-red"   @onclick="Close"></span>
+            <span class="tok-titlebar-dot tok-dot-amber"></span>
+            <span class="tok-titlebar-dot tok-dot-green"></span>
+        </div>
+        <span class="tok-titlebar-title">AVIATESAIR ACARS ── TAKEOFF PERFORMANCE BRIEF</span>
+        <button class="tok-close-btn" @onclick="Close" title="Close">✕</button>
+    </div>
+
+    <!-- ─── Paper document ─── -->
+    <div class="tok-paper">
+
+        <!-- OFP-style header -->
+        <div class="tok-header-block">
+            <div class="tok-header-row">
+                <span class="tok-header-label">TLR-1</span>
+                <span class="tok-header-sep">SEQ-@(_seqNumber)</span>
+                <span class="tok-header-sep">@(_nowZ)</span>
+            </div>
+            <div class="tok-header-row tok-header-route">
+                @(_plan?.DepartureICAO ?? "----") <span class="tok-route-arrow">─────</span> @(_plan?.ArrivalICAO ?? "----")
+                &nbsp;&nbsp;@(_plan?.AircraftType ?? "----")&nbsp;@(_plan?.AircraftRegistration ?? "")
+            </div>
+        </div>
+
+        <div class="tok-rule"></div>
+
+        @if (_loading)
+        {
+            <div class="tok-computing">
+                <span class="tok-computing-dot"></span>
+                <span class="tok-computing-dot"></span>
+                <span class="tok-computing-dot"></span>
+                <span class="tok-computing-label">COMPUTING PERFORMANCE DATA…</span>
+            </div>
+        }
+        else if (_result is not null)
+        {
+            <!-- Main takeoff data section -->
+            <div class="tok-section-header">/// TAKEOFF DATA ///</div>
+
+            <div class="tok-data-grid-header">
+                <span>APT</span>
+                <span>RWY</span>
+                <span>OAT</span>
+                <span>WIND</span>
+                <span>QNH</span>
+                <span>FLAP</span>
+                <span>@(_result.performanceType == "flex" ? "FLEX" : "DRT")</span>
+            </div>
+            <div class="tok-data-grid-row">
+                <span>@(_plan?.DepartureICAO ?? "----")</span>
+                <span>@(_plan?.DepartureRunway ?? "---")</span>
+                <span>@(_oat.ToString("F1"))</span>
+                <span>@(_windStr)</span>
+                <span>@(_qnh)</span>
+                <span>@(_result.flapName)</span>
+                <span class="tok-flex-val">@(_flexLabel)</span>
+            </div>
+
+            <div class="tok-rule tok-rule--thin"></div>
+
+            <!-- V-speeds — the headline numbers -->
+            <div class="tok-vspeeds">
+                <div class="tok-vspeed-block">
+                    <span class="tok-vspeed-label">V1</span>
+                    <span class="tok-vspeed-val">@(_result.v1)</span>
+                </div>
+                <div class="tok-vspeed-sep">·</div>
+                <div class="tok-vspeed-block">
+                    <span class="tok-vspeed-label">VR</span>
+                    <span class="tok-vspeed-val">@(_result.vr)</span>
+                </div>
+                <div class="tok-vspeed-sep">·</div>
+                <div class="tok-vspeed-block">
+                    <span class="tok-vspeed-label">V2</span>
+                    <span class="tok-vspeed-val">@(_result.v2)</span>
+                </div>
+            </div>
+
+            <div class="tok-rule tok-rule--thin"></div>
+
+            <!-- Remarks -->
+            <div class="tok-rmks">
+                @foreach (var line in _remarks)
+                {
+                    <div class="tok-rmk-line">@line</div>
+                }
+            </div>
+
+            <div class="tok-rule"></div>
+
+            <!-- Environmental data -->
+            <div class="tok-env-grid">
+                <div class="tok-env-item">
+                    <span class="tok-env-label">DA</span>
+                    <span class="tok-env-val">@(_result.densityAltFt) FT</span>
+                </div>
+                <div class="tok-env-item">
+                    <span class="tok-env-label">PA</span>
+                    <span class="tok-env-val">@(_result.pressureAltFt) FT</span>
+                </div>
+                <div class="tok-env-item">
+                    <span class="tok-env-label">ISA</span>
+                    <span class="tok-env-val">@(_result.isaDevC >= 0 ? "+" : "")@(_result.isaDevC)°C</span>
+                </div>
+                <div class="tok-env-item">
+                    <span class="tok-env-label">ELEV</span>
+                    <span class="tok-env-val">@(_elevationFt) FT</span>
+                </div>
+                <div class="tok-env-item">
+                    <span class="tok-env-label">RWY</span>
+                    <span class="tok-env-val">@(_rwyCondition)</span>
+                </div>
+                <div class="tok-env-item">
+                    <span class="tok-env-label">TOW</span>
+                    <span class="tok-env-val">@(Math.Round(_takeoffWeightKg / 1000, 1)) T</span>
+                </div>
+            </div>
+
+            <!-- Warnings -->
+            @if (_result.warnings is { Length: > 0 })
+            {
+                <div class="tok-rule tok-rule--thin"></div>
+                @foreach (var w in _result.warnings)
+                {
+                    <div class="tok-warning">⚠ @w</div>
+                }
+            }
+        }
+        else if (_error is not null)
+        {
+            <div class="tok-error">@_error</div>
+        }
+
+        <div class="tok-rule"></div>
+
+        <!-- Footer row -->
+        <div class="tok-footer">
+            <span class="tok-footer-dep">SCHED DEP @(_depTimeZ)</span>
+            <button class="tok-recalc-btn" @onclick="RecalculateAsync">↺ RECALCULATE</button>
+        </div>
+
+    </div><!-- /tok-paper -->
+</div>
+}
+
+@code {
+    // ── State ────────────────────────────────────────────────
+    private bool              _visible;
+    private bool              _animating;
+    private bool              _loading;
+    private SimBriefFlightPlan? _plan;
+    private TokResult?        _result;
+    private string?           _error;
+
+    // Computed display values
+    private double _oat          = 15;
+    private int    _qnh          = 1013;
+    private string _windStr      = "CALM";
+    private string _flexLabel    = "TOGA";
+    private string _rwyCondition = "DRY";
+    private int    _elevationFt  = 0;
+    private double _takeoffWeightKg = 0;
+    private string _depTimeZ     = "----";
+    private string _nowZ         = "";
+    private string _seqNumber    = "";
+    private IEnumerable<string> _remarks = [];
+    private bool _dragging;
+
+    // ── Lifecycle ────────────────────────────────────────────
+    protected override void OnInitialized()
+    {
+        PerfService.BriefingTriggered += OnBriefingTriggered;
+        _seqNumber = Random.Shared.Next(100_000_000, 999_999_999).ToString();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_visible && !_dragging)
+        {
+            _dragging = true;
+            await JS.InvokeVoidAsync("aviatesTokDrag.initDrag", "tok-window");
+        }
+    }
+
+    private void OnBriefingTriggered(object? sender, TakeoffBriefingEventArgs e)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            _plan    = e.Plan;
+            _visible = true;
+            _loading = true;
+            _error   = null;
+            _result  = null;
+            _animating = true;
+            _nowZ    = DateTime.UtcNow.ToString("ddMMMyy HHmmz").ToUpperInvariant();
+            _depTimeZ = _plan.ScheduledDepartureUtc.HasValue
+                ? _plan.ScheduledDepartureUtc.Value.ToString("HHmmz").ToUpperInvariant()
+                : "----";
+            StateHasChanged();
+
+            // Play departure alert sound
+            try { await JS.InvokeVoidAsync("aviatesAudio.playDepartureAlert"); } catch { }
+
+            // Brief animation pause before computing
+            await Task.Delay(300);
+            _animating = false;
+            StateHasChanged();
+
+            await CalculateAsync();
+        });
+    }
+
+    private async Task CalculateAsync()
+    {
+        if (_plan is null) return;
+        _loading = true;
+        _error   = null;
+        StateHasChanged();
+
+        try
+        {
+            // Parse METAR for atmospheric conditions
+            var metarData = await JS.InvokeAsync<MetarParseResult?>(
+                "AviatesPerf.parseMetar", _plan.DepartureMetar);
+
+            _oat = metarData?.oat ?? 15;
+            _qnh = metarData?.qnh ?? 1013;
+            _elevationFt     = _plan.DepartureElevationFt > 0 ? _plan.DepartureElevationFt : 0;
+            _takeoffWeightKg = _plan.TakeoffWeightKg > 0 ? _plan.TakeoffWeightKg : 65000;
+            double runwayM   = _plan.DepartureRunwayLengthM > 0 ? _plan.DepartureRunwayLengthM : 2500;
+
+            // Headwind component (raw wind speed if no runway heading available)
+            double windKts = metarData?.windKts ?? 0;
+            _windStr = BuildWindString(metarData);
+
+            // Determine runway condition from METAR (simplified: RA/SN → WET)
+            _rwyCondition = IsWetRunway(_plan.DepartureMetar) ? "WET" : "DRY";
+
+            var input = new
+            {
+                aircraftIcao      = _plan.AircraftType,
+                takeoffWeightKg   = _takeoffWeightKg,
+                runwayLengthM     = runwayM,
+                runwayElevationFt = (double)_elevationFt,
+                oat               = _oat,
+                qnh               = (double)_qnh,
+                windKts           = windKts,
+                condition         = _rwyCondition,
+            };
+
+            _result = await JS.InvokeAsync<TokResult>("AviatesPerf.calculate", input);
+            _flexLabel  = BuildFlexLabel(_result);
+            _remarks    = BuildRemarks(_result, _plan);
+        }
+        catch (Exception ex)
+        {
+            _error = "Performance calculation failed: " + ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RecalculateAsync()
+    {
+        _seqNumber = Random.Shared.Next(100_000_000, 999_999_999).ToString();
+        await CalculateAsync();
+    }
+
+    private void Close()
+    {
+        _visible = false;
+        _dragging = false;
+        StateHasChanged();
+    }
+
+    // ── Helpers ──────────────────────────────────────────────
+    private static string BuildFlexLabel(TokResult r)
+    {
+        if (r.performanceType == "flex")
+            return r.flexTemp.HasValue ? r.flexTemp.Value.ToString() + "°" : "TOGA";
+        return r.derateLabel ?? "TO";
+    }
+
+    private static IEnumerable<string> BuildRemarks(TokResult r, SimBriefFlightPlan plan)
+    {
+        var lines = new List<string>();
+        if (r.performanceType == "flex" && r.flexTemp.HasValue)
+            lines.Add($"FLEX - SEL TEMP {r.flexTemp.Value}");
+        else if (r.performanceType == "derate" && r.derateLabel is not null && r.derateLabel != "TO")
+            lines.Add($"DERATE - {r.derateLabel} ({Math.Round((1 - r.thrustFraction) * 100):F0}% REDUCTION)");
+        else
+            lines.Add("TOGA - FULL RATED THRUST");
+
+        lines.Add($"{r.flaps} / BLEEDS ON / PACKS NORMAL");
+
+        if (r.rtodM > 0)
+            lines.Add($"EST RTOD {r.rtodM} M");
+
+        return lines;
+    }
+
+    private static string BuildWindString(MetarParseResult? m)
+    {
+        if (m is null || m.windSpeedKts == 0) return "CALM";
+        var dir = m.windDir.ToString("D3");
+        return $"{dir}M{m.windSpeedKts:D2}KT";
+    }
+
+    private static bool IsWetRunway(string metar)
+    {
+        if (string.IsNullOrEmpty(metar)) return false;
+        return metar.Contains(" RA") || metar.Contains(" SN") || metar.Contains(" DZ")
+            || metar.Contains(" FG") || metar.Contains(" RASN");
+    }
+
+    public void Dispose()
+    {
+        PerfService.BriefingTriggered -= OnBriefingTriggered;
+    }
+
+    // ── JS-interop result types ──────────────────────────────
+    private class TokResult
+    {
+        public int     v1             { get; set; }
+        public int     vr             { get; set; }
+        public int     v2             { get; set; }
+        public int     vs             { get; set; }
+        public string  flaps          { get; set; } = "";
+        public string  flapName       { get; set; } = "";
+        public int?    flexTemp       { get; set; }
+        public string? derateLabel    { get; set; }
+        public double  thrustFraction { get; set; }
+        public int     rtodM          { get; set; }
+        public int     densityAltFt   { get; set; }
+        public double  isaDevC        { get; set; }
+        public int     pressureAltFt  { get; set; }
+        public string  performanceType{ get; set; } = "flex";
+        public string  aircraftFamily { get; set; } = "airbus";
+        public string  configUsed     { get; set; } = "";
+        public string[]warnings       { get; set; } = [];
+    }
+
+    private class MetarParseResult
+    {
+        public double oat          { get; set; }
+        public int    qnh          { get; set; }
+        public int    windDir      { get; set; }
+        public int    windSpeedKts { get; set; }
+        public double windKts      { get; set; }
+    }
+}
+
+<style>
+    /* ── Window container ───────────────────────────── */
+    .tok-window {
+        position: fixed;
+        top: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 620px;
+        max-width: calc(100vw - 32px);
+        z-index: 9999;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow:
+            0 0 0 1px rgba(61, 126, 238, 0.25),
+            0 8px 32px rgba(10, 13, 23, 0.75),
+            0 24px 64px rgba(10, 13, 23, 0.55),
+            0 2px 0 rgba(255,255,255,0.06) inset;
+        font-family: 'JetBrains Mono', 'Courier New', Courier, monospace;
+        user-select: none;
+    }
+
+    .tok-window--enter {
+        animation: tok-slide-in 0.42s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    }
+
+    @keyframes tok-slide-in {
+        from { opacity: 0; transform: translateX(-50%) translateY(-40px) scale(0.96); }
+        to   { opacity: 1; transform: translateX(-50%) translateY(0)     scale(1);    }
+    }
+
+    /* ── Title bar ──────────────────────────────────── */
+    .tok-titlebar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 14px;
+        background: #0d1020;
+        border-bottom: 1px solid rgba(255,255,255,0.07);
+        cursor: grab;
+    }
+    .tok-titlebar:active { cursor: grabbing; }
+
+    .tok-titlebar-left { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+
+    .tok-titlebar-dot {
+        width: 12px; height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        cursor: pointer;
+        transition: filter 0.15s;
+    }
+    .tok-titlebar-dot:hover { filter: brightness(1.3); }
+    .tok-dot-red   { background: #ff5f57; }
+    .tok-dot-amber { background: #febc2e; }
+    .tok-dot-green { background: #28c840; }
+
+    .tok-titlebar-title {
+        flex: 1;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        color: rgba(255,255,255,0.45);
+        text-transform: uppercase;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .tok-close-btn {
+        background: none;
+        border: none;
+        color: rgba(255,255,255,0.25);
+        font-size: 14px;
+        cursor: pointer;
+        padding: 0 2px;
+        line-height: 1;
+        flex-shrink: 0;
+        transition: color 0.15s;
+    }
+    .tok-close-btn:hover { color: #ff5f57; }
+
+    /* ── Paper ──────────────────────────────────────── */
+    .tok-paper {
+        background: #f4ede0;
+        padding: 20px 22px 16px;
+        color: #1a1410;
+        position: relative;
+        /* Subtle dot-matrix scanline texture */
+        background-image:
+            repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 17px,
+                rgba(0,0,0,0.025) 17px,
+                rgba(0,0,0,0.025) 18px
+            );
+    }
+
+    /* ── Header block ───────────────────────────────── */
+    .tok-header-block { margin-bottom: 10px; }
+
+    .tok-header-row {
+        display: flex;
+        gap: 16px;
+        align-items: baseline;
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        color: #5a4e3a;
+        line-height: 1.6;
+    }
+    .tok-header-label { font-weight: 700; color: #1a1410; }
+    .tok-header-sep   { color: #8a7a60; }
+
+    .tok-header-route {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: #1a1410;
+        margin-top: 3px;
+    }
+    .tok-route-arrow { color: #8a7a60; font-weight: 400; }
+
+    /* ── Rule ───────────────────────────────────────── */
+    .tok-rule {
+        border: none;
+        border-top: 1px solid #c8b89a;
+        margin: 12px 0;
+    }
+    .tok-rule--thin {
+        border-top-style: dashed;
+        border-top-color: #d4c4a8;
+        margin: 8px 0;
+    }
+
+    /* ── Section header ─────────────────────────────── */
+    .tok-section-header {
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        font-weight: 700;
+        color: #3a3020;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+    }
+
+    /* ── Data grid ──────────────────────────────────── */
+    .tok-data-grid-header,
+    .tok-data-grid-row {
+        display: grid;
+        grid-template-columns: 52px 50px 48px 80px 50px 60px 1fr;
+        gap: 0;
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        line-height: 1.8;
+    }
+    .tok-data-grid-header {
+        color: #8a7a60;
+        font-size: 9px;
+        letter-spacing: 0.10em;
+        text-transform: uppercase;
+        border-bottom: 1px solid #d4c4a8;
+        padding-bottom: 2px;
+        margin-bottom: 2px;
+    }
+    .tok-data-grid-row {
+        font-weight: 700;
+        font-size: 11.5px;
+        color: #1a1410;
+    }
+    .tok-flex-val { color: #1a3a8a; }
+
+    /* ── V-speeds ───────────────────────────────────── */
+    .tok-vspeeds {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 14px 0 10px;
+    }
+    .tok-vspeed-block {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+    }
+    .tok-vspeed-label {
+        font-size: 9px;
+        letter-spacing: 0.16em;
+        font-weight: 700;
+        color: #8a7a60;
+        text-transform: uppercase;
+    }
+    .tok-vspeed-val {
+        font-size: 38px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #0d1a4a;
+        line-height: 1;
+    }
+    .tok-vspeed-sep {
+        font-size: 28px;
+        color: #c8b89a;
+        margin-top: 12px;
+    }
+
+    /* ── Remarks ────────────────────────────────────── */
+    .tok-rmks { margin: 4px 0; }
+    .tok-rmk-line {
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        color: #3a3020;
+        line-height: 1.8;
+    }
+    .tok-rmk-line::before {
+        content: 'RMKS ';
+        color: #8a7a60;
+        font-size: 9px;
+        letter-spacing: 0.10em;
+    }
+    .tok-rmk-line + .tok-rmk-line::before {
+        content: '      ';
+        white-space: pre;
+    }
+
+    /* ── Environmental grid ─────────────────────────── */
+    .tok-env-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px 16px;
+        margin: 4px 0;
+    }
+    .tok-env-item { display: flex; gap: 8px; align-items: baseline; }
+    .tok-env-label {
+        font-size: 9px;
+        letter-spacing: 0.10em;
+        color: #8a7a60;
+        min-width: 30px;
+        text-transform: uppercase;
+    }
+    .tok-env-val {
+        font-size: 10px;
+        font-weight: 700;
+        color: #2a2010;
+        letter-spacing: 0.04em;
+    }
+
+    /* ── Warnings ───────────────────────────────────── */
+    .tok-warning {
+        font-size: 9.5px;
+        letter-spacing: 0.04em;
+        color: #8a3000;
+        line-height: 1.7;
+    }
+
+    /* ── Footer ─────────────────────────────────────── */
+    .tok-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 4px;
+    }
+    .tok-footer-dep {
+        font-size: 9px;
+        letter-spacing: 0.12em;
+        color: #8a7a60;
+        text-transform: uppercase;
+    }
+    .tok-recalc-btn {
+        background: none;
+        border: 1px solid #c8b89a;
+        border-radius: 3px;
+        font-family: inherit;
+        font-size: 9px;
+        letter-spacing: 0.10em;
+        color: #5a4e3a;
+        padding: 3px 10px;
+        cursor: pointer;
+        text-transform: uppercase;
+        transition: background 0.15s, color 0.15s;
+    }
+    .tok-recalc-btn:hover { background: #1a3a8a; color: #fff; border-color: #1a3a8a; }
+
+    /* ── Computing animation ────────────────────────── */
+    .tok-computing {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 28px 0;
+    }
+    .tok-computing-label {
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        color: #8a7a60;
+        text-transform: uppercase;
+    }
+    .tok-computing-dot {
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: #1a3a8a;
+        animation: tok-dot-pulse 1s ease-in-out infinite;
+    }
+    .tok-computing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .tok-computing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes tok-dot-pulse {
+        0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+        40%            { opacity: 1;   transform: scale(1.2); }
+    }
+
+    /* ── Error ──────────────────────────────────────── */
+    .tok-error {
+        font-size: 10px;
+        color: #8a3000;
+        padding: 12px 0;
+        letter-spacing: 0.04em;
+    }
+</style>
