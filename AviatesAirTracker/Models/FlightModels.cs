@@ -258,6 +258,14 @@ public class SimBriefFlightPlan
     public string ArrivalMetar { get; set; } = "";
     public int AverageWindAtCruiseKts { get; set; }
     public int AverageWindDirectionAtCruise { get; set; }
+
+    // Timing — parsed from SimBrief /times/sched_dep (Unix timestamp)
+    public DateTime? ScheduledDepartureUtc { get; set; }
+
+    // Takeoff performance inputs — extracted from OFP weights/origin
+    public double TakeoffWeightKg { get; set; }
+    public int    DepartureRunwayLengthM { get; set; }
+    public int    DepartureElevationFt { get; set; }
 }
 
 // ============================================================

@@ -24,6 +24,12 @@ public class SimBriefService
 
     private readonly RestClient _client = new();
 
+    /// <summary>The most recently loaded OFP, or null if none has been fetched yet.</summary>
+    public SimBriefFlightPlan? CurrentPlan { get; private set; }
+
+    /// <summary>Raised after a flight plan is successfully parsed and stored in CurrentPlan.</summary>
+    public event EventHandler<SimBriefFlightPlan>? FlightPlanLoaded;
+
     // Maps internal fleet type codes → SimBrief ICAO designators.
     // SimBrief rejects unknown codes, so every type in aircraft_types must have an entry here.
     private static readonly Dictionary<string, string> _simBriefTypeMap =
@@ -70,6 +76,12 @@ public class SimBriefService
             var plan = ParseSimBriefJson(response.Content);
             Log.Information("[SimBrief] OFP fetched: {Dep}→{Arr} via {Route}",
                 plan?.DepartureICAO, plan?.ArrivalICAO, plan?.Route);
+
+            if (plan != null)
+            {
+                CurrentPlan = plan;
+                FlightPlanLoaded?.Invoke(this, plan);
+            }
 
             return plan;
         }
@@ -155,6 +167,35 @@ public class SimBriefService
             // METAR
             plan.DepartureMetar = root["weather"]?["orig_metar"]?.ToString() ?? "";
             plan.ArrivalMetar = root["weather"]?["dest_metar"]?.ToString() ?? "";
+
+            // Scheduled departure time (Unix timestamp → UTC DateTime)
+            if (long.TryParse(root["times"]?["sched_dep"]?.ToString(), out long schedDep) && schedDep > 0)
+                plan.ScheduledDepartureUtc = DateTimeOffset.FromUnixTimeSeconds(schedDep).UtcDateTime;
+
+            // Takeoff weight — same kg/lbs unit as fuel
+            double ToKg(double v) => fuelInKg ? v : v / 2.20462;
+            if (double.TryParse(root["weights"]?["est_tow"]?.ToString(), out double tow))
+                plan.TakeoffWeightKg = ToKg(tow);
+
+            // Departure elevation (ft)
+            if (int.TryParse(root["origin"]?["elevation"]?.ToString(), out int depElev))
+                plan.DepartureElevationFt = depElev;
+
+            // Planned departure runway length (ft → m) from runway data array
+            var rwyData = root["origin"]?["rwy_data"] as JArray ?? root["origin"]?["runway"] as JArray;
+            if (rwyData != null && !string.IsNullOrEmpty(plan.DepartureRunway))
+            {
+                foreach (var rwy in rwyData)
+                {
+                    var rwyId = rwy["ident"]?.ToString() ?? rwy["rwy_id"]?.ToString() ?? "";
+                    if (string.Equals(rwyId, plan.DepartureRunway, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (double.TryParse(rwy["length_ft"]?.ToString() ?? rwy["length"]?.ToString(), out double lenFt))
+                            plan.DepartureRunwayLengthM = (int)(lenFt * 0.3048);
+                        break;
+                    }
+                }
+            }
 
             // Waypoints
             plan.Waypoints = ParseWaypointsFromJson(root["navlog"]?["fix"]);
