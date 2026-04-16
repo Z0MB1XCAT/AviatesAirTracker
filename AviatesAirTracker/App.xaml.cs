@@ -184,6 +184,7 @@ public partial class App : Application
         services.AddSingleton<FlightSessionManager>();
         services.AddSingleton<DiscordPresenceService>();
         services.AddSingleton<SimBriefService>();
+        services.AddSingleton<TakeoffPerformanceService>();
         services.AddSingleton<ExportService>();
         services.AddSingleton<PilotStatsService>();
         services.AddSingleton<EventsService>();
@@ -213,6 +214,7 @@ public partial class App : Application
         _serviceProvider.GetService<DiscordPresenceService>()?.Dispose();
         _serviceProvider.GetService<AcarsPositionService>()?.Dispose();
         _serviceProvider.GetService<UpdateService>()?.Dispose();
+        _serviceProvider.GetService<TakeoffPerformanceService>()?.Dispose();
         Log.CloseAndFlush();
         _serviceProvider.Dispose();
         base.OnExit(e);
