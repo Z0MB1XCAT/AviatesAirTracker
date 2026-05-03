@@ -27,6 +27,13 @@ public class SimBriefService
     /// <summary>The most recently loaded OFP, or null if none has been fetched yet.</summary>
     public SimBriefFlightPlan? CurrentPlan { get; private set; }
 
+    /// <summary>Stores the plan and raises FlightPlanLoaded. Call this after a file-based import.</summary>
+    public void NotifyPlanLoaded(SimBriefFlightPlan plan)
+    {
+        CurrentPlan = plan;
+        FlightPlanLoaded?.Invoke(this, plan);
+    }
+
     /// <summary>Raised after a flight plan is successfully parsed and stored in CurrentPlan.</summary>
     public event EventHandler<SimBriefFlightPlan>? FlightPlanLoaded;
 
@@ -76,12 +83,6 @@ public class SimBriefService
             var plan = ParseSimBriefJson(response.Content);
             Log.Information("[SimBrief] OFP fetched: {Dep}→{Arr} via {Route}",
                 plan?.DepartureICAO, plan?.ArrivalICAO, plan?.Route);
-
-            if (plan != null)
-            {
-                CurrentPlan = plan;
-                FlightPlanLoaded?.Invoke(this, plan);
-            }
 
             return plan;
         }
@@ -315,6 +316,10 @@ public class SimBriefService
                     plan.Waypoints.Add(wp);
                 }
             }
+
+            // Scheduled departure time (Unix timestamp → UTC DateTime)
+            if (long.TryParse(root.Element("times")?.Element("sched_dep")?.Value, out long schedDep) && schedDep > 0)
+                plan.ScheduledDepartureUtc = DateTimeOffset.FromUnixTimeSeconds(schedDep).UtcDateTime;
 
             Log.Information("[SimBrief] XML OFP parsed: {Dep}→{Arr}, {WP} waypoints",
                 plan.DepartureICAO, plan.ArrivalICAO, plan.Waypoints.Count);

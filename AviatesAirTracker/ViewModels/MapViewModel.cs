@@ -131,9 +131,10 @@ public partial class MapViewModel : ObservableObject
 
     public IReadOnlyList<object>? GetPathIfChanged()
     {
+        var totalCount = _routeTracker.RecordedPathCount;
+        if (totalCount == _lastPathCount) return null;
+        _lastPathCount = totalCount;
         var path = _routeTracker.GetRecordedPathSnapshot();
-        if (path.Count == _lastPathCount) return null;
-        _lastPathCount = path.Count;
         return path
             .Select(p => (object)new { lat = p.Latitude, lon = p.Longitude, alt = p.AltitudeMSL })
             .ToList();

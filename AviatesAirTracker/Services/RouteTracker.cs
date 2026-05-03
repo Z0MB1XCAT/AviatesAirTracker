@@ -133,6 +133,12 @@ public class RouteTracker
         lock (_lock) { return _recordedPath.TakeLast(500).ToList(); }
     }
 
+    /// <summary>Total number of GPS points recorded this flight (not capped at 500).</summary>
+    public int RecordedPathCount
+    {
+        get { lock (_lock) return _recordedPath.Count; }
+    }
+
     public List<Waypoint> GetPlannedRoute()
     {
         lock (_lock) { return [.. _plannedRoute]; }

@@ -137,11 +137,11 @@ public partial class MainViewModel : ObservableObject
         IsLoadingSimBrief = true;
         try
         {
-            // FetchLatestOFPAsync fires FlightPlanLoaded internally — MapViewModel receives the event via subscription
             var plan = await _simBriefSvc.FetchLatestOFPAsync(user);
             if (plan != null)
             {
-                _session.AssignSimBriefPlan(plan);
+                _session.AssignSimBriefPlan(plan);       // populate RouteTracker first
+                _simBriefSvc.NotifyPlanLoaded(plan);     // then notify subscribers (including MapViewModel)
                 HeaderDep = plan.DepartureICAO; HeaderArr = plan.ArrivalICAO;
                 _alertService.ShowAlert($"SimBrief loaded: {plan.DepartureICAO}→{plan.ArrivalICAO}",
                     AlertLevel.Success, TimeSpan.FromSeconds(5));
