@@ -8,6 +8,7 @@ window.aviatesMap = {
     _airportMarkers: [],
     _waypointDots: [],
     _altPathLayer: null,
+    _altRenderer: null,
 
     init: function (lat, lon) {
         // Always destroy and recreate — handles page re-navigation cleanly
@@ -19,6 +20,7 @@ window.aviatesMap = {
             this._plannedLine = null;
             this._airportMarkers = [];
             this._waypointDots = [];
+            if (this._altRenderer) { this._altRenderer.remove(); this._altRenderer = null; }
             this._altPathLayer = null;
         }
 
@@ -191,6 +193,7 @@ window.aviatesMap = {
 
     updateFlightPathAltitude: function (points) {
         if (!this._map) return;
+        if (this._altRenderer) { this._altRenderer.remove(); this._altRenderer = null; }
         if (this._altPathLayer) {
             this._map.removeLayer(this._altPathLayer);
             this._altPathLayer = null;
@@ -204,6 +207,7 @@ window.aviatesMap = {
         }
 
         var renderer = L.canvas({ padding: 0.5 });
+        this._altRenderer = renderer;
         var layers = [];
         for (var i = 0; i < points.length - 1; i++) {
             var p1 = points[i], p2 = points[i + 1];
@@ -238,6 +242,7 @@ window.aviatesMap = {
 
     destroy: function () {
         if (this._map) {
+            if (this._altRenderer) { this._altRenderer.remove(); this._altRenderer = null; }
             if (this._altPathLayer) {
                 this._map.removeLayer(this._altPathLayer);
                 this._altPathLayer = null;
