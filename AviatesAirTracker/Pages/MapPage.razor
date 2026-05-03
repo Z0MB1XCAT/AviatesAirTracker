@@ -1,6 +1,315 @@
 @page "/map"
-@inject NavigationManager Nav
+@inject MapViewModel VM
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+@using AviatesAirTracker.Models
+@using System.Linq
+
+<div class="map-page">
+
+    <div id="leaflet-map"></div>
+
+    @* ── Top-left: Flight identity + Telemetry ── *@
+    <div class="hud hud--tl" id="hud-identity">
+        <div class="hud-drag" data-drag-handle title="Drag to move"></div>
+        <div class="hud-route-row">
+            <span class="hud-route">@VM.RouteLabel</span>
+            <span class="hud-phase"
+                  style="background:@(VM.PhaseColor)22;border-color:@(VM.PhaseColor)66;color:@VM.PhaseColor;">
+                @VM.PhaseText
+            </span>
+        </div>
+        <div class="hud-divider"></div>
+        <div class="hud-grid">
+            <span class="hud-label">ALT</span>  <span class="hud-val">@VM.AltText</span>
+            <span class="hud-label">VS</span>   <span class="hud-val">@VM.VsText</span>
+            <span class="hud-label">IAS</span>  <span class="hud-val">@VM.IasText</span>
+            <span class="hud-label">GS</span>   <span class="hud-val">@VM.GsText</span>
+            <span class="hud-label">HDG</span>  <span class="hud-val">@VM.HdgText</span>
+            <span class="hud-label">MACH</span> <span class="hud-val">@VM.MachText</span>
+        </div>
+    </div>
+
+    @* ── Bottom-left: Progress ── *@
+    <div class="hud hud--bl" id="hud-progress">
+        <div class="hud-drag" data-drag-handle title="Drag to move"></div>
+        <div class="hud-row">
+            <span class="hud-label">NEXT</span>
+            <span class="hud-val hud-val--accent">@VM.NextWaypoint</span>
+            <span class="hud-label hud-label--ml">ETA</span>
+            <span class="hud-val hud-val--accent">@VM.EtaZ</span>
+        </div>
+        <div class="hud-divider"></div>
+        <div class="hud-row">
+            <span class="hud-label">DIST REM</span>
+            <span class="hud-val">@VM.DistRemText</span>
+            <span class="hud-label hud-label--ml">FUEL</span>
+            <span class="hud-val">@VM.FuelRemText</span>
+        </div>
+    </div>
+
+    @* ── Bottom-right: Map controls ── *@
+    <div class="hud hud--br hud--controls" id="hud-controls">
+        <button class="map-ctrl-btn" title="Centre on aircraft" @onclick="CentreOnAircraftAsync">✈</button>
+        <button class="map-ctrl-btn" title="Zoom in"           @onclick="ZoomInAsync">+</button>
+        <button class="map-ctrl-btn" title="Zoom out"          @onclick="ZoomOutAsync">−</button>
+    </div>
+
+    @if (!VM.HasActiveFlight)
+    {
+        <div class="map-no-flight">@VM.NoFlightText</div>
+    }
+
+</div>
 
 @code {
-    protected override void OnInitialized() => Nav.NavigateTo("/acars", replace: true);
+    private bool _mapInitialized;
+
+    protected override void OnInitialized()
+    {
+        VM.MapRenderRequested += OnMapRenderRequested;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        await JS.InvokeVoidAsync("aviatesMap.init", VM.Lat, VM.Lon);
+        await JS.InvokeVoidAsync("aviatesTokDrag.initDrag", "hud-identity");
+        await JS.InvokeVoidAsync("aviatesTokDrag.initDrag", "hud-progress");
+
+        _mapInitialized = true;
+        VM.MapReady     = true;
+
+        // Push any SimBrief plan that was already loaded before this page was opened
+        var (plan, _) = VM.ConsumePlanSync();
+        if (plan is not null)
+            await PushPlannedRouteAsync(plan);
+    }
+
+    private void OnMapRenderRequested()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await PushMapToJSAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task PushMapToJSAsync()
+    {
+        if (!_mapInitialized) return;
+
+        await JS.InvokeVoidAsync("aviatesMap.updatePosition", VM.Lat, VM.Lon, VM.Hdg);
+
+        var pts = VM.GetPathIfChanged();
+        if (pts is not null)
+            await JS.InvokeVoidAsync("aviatesMap.updateFlightPathAltitude", pts);
+
+        var (plan, dirty) = VM.ConsumePlanSync();
+        if (dirty && plan is not null)
+            await PushPlannedRouteAsync(plan);
+    }
+
+    private async Task PushPlannedRouteAsync(SimBriefFlightPlan plan)
+    {
+        var waypointJs = plan.Waypoints
+            .Select(w => new { lat = w.Latitude, lon = w.Longitude, type = w.Type, id = w.Identifier })
+            .ToArray();
+
+        await JS.InvokeVoidAsync("aviatesMap.clearAirportMarkers");
+        await JS.InvokeVoidAsync("aviatesMap.setPlannedRoute", waypointJs);
+
+        if (plan.DepartureLat != 0 || plan.DepartureLon != 0)
+            await JS.InvokeVoidAsync("aviatesMap.addAirportMarker",
+                plan.DepartureLat, plan.DepartureLon, plan.DepartureICAO, "dep");
+
+        if (plan.ArrivalLat != 0 || plan.ArrivalLon != 0)
+            await JS.InvokeVoidAsync("aviatesMap.addAirportMarker",
+                plan.ArrivalLat, plan.ArrivalLon, plan.ArrivalICAO, "arr");
+
+        if (!string.IsNullOrEmpty(plan.AlternateICAO) &&
+            (plan.AlternateLat != 0 || plan.AlternateLon != 0))
+            await JS.InvokeVoidAsync("aviatesMap.addAirportMarker",
+                plan.AlternateLat, plan.AlternateLon, plan.AlternateICAO, "alt");
+
+        await JS.InvokeVoidAsync("aviatesMap.fitRouteBounds");
+    }
+
+    private Task CentreOnAircraftAsync() =>
+        JS.InvokeVoidAsync("aviatesMap.panTo", VM.Lat, VM.Lon).AsTask();
+
+    private Task ZoomInAsync() =>
+        JS.InvokeVoidAsync("aviatesMap.zoomIn").AsTask();
+
+    private Task ZoomOutAsync() =>
+        JS.InvokeVoidAsync("aviatesMap.zoomOut").AsTask();
+
+    public async ValueTask DisposeAsync()
+    {
+        VM.MapRenderRequested -= OnMapRenderRequested;
+        VM.MapReady     = false;
+        _mapInitialized = false;
+        try { await JS.InvokeVoidAsync("aviatesMap.destroy"); } catch { }
+    }
 }
+
+<style>
+    /* ── Full-page container ─────────────────────────────── */
+    .map-page {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+    }
+
+    #leaflet-map {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+    }
+
+    /* ── Shared HUD card ─────────────────────────────────── */
+    .hud {
+        position: absolute;
+        z-index: 100;
+        background: rgba(10, 13, 23, 0.88);
+        border: 1px solid rgba(61, 126, 238, 0.25);
+        border-radius: 6px;
+        backdrop-filter: blur(8px);
+        padding: 10px 13px;
+        font-family: 'JetBrains Mono', 'Courier New', monospace;
+        font-size: 9px;
+        letter-spacing: 0.06em;
+        min-width: 160px;
+        box-shadow: 0 4px 24px rgba(10, 13, 23, 0.6);
+    }
+
+    /* ── HUD positions ───────────────────────────────────── */
+    .hud--tl { top: 12px; left: 12px; }
+    .hud--bl { bottom: 12px; left: 12px; }
+    .hud--br { bottom: 12px; right: 12px; min-width: unset; padding: 6px; }
+
+    /* ── Drag handle strip ───────────────────────────────── */
+    .hud-drag {
+        height: 4px;
+        margin: -4px -13px 8px;
+        border-radius: 6px 6px 0 0;
+        background: rgba(61, 126, 238, 0.15);
+        cursor: grab;
+    }
+    .hud-drag:active { cursor: grabbing; }
+
+    /* ── Typography ──────────────────────────────────────── */
+    .hud-route-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+    .hud-route {
+        font-size: 11px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.85);
+        letter-spacing: 0.04em;
+    }
+    .hud-phase {
+        font-size: 7px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        padding: 2px 6px;
+        border-radius: 3px;
+        border: 1px solid;
+        white-space: nowrap;
+    }
+    .hud-divider {
+        height: 1px;
+        background: rgba(61, 126, 238, 0.15);
+        margin: 6px 0;
+    }
+    .hud-grid {
+        display: grid;
+        grid-template-columns: auto 1fr auto 1fr;
+        gap: 2px 8px;
+        align-items: baseline;
+    }
+    .hud-label {
+        color: rgba(255, 255, 255, 0.38);
+        font-size: 8px;
+        letter-spacing: 0.08em;
+        white-space: nowrap;
+    }
+    .hud-label--ml { margin-left: 12px; }
+    .hud-val {
+        color: #ffffff;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+    }
+    .hud-val--accent { color: #3D7EEE; }
+    .hud-row {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        flex-wrap: nowrap;
+    }
+
+    /* ── Controls card ───────────────────────────────────── */
+    .hud--controls {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .map-ctrl-btn {
+        width: 28px;
+        height: 28px;
+        background: rgba(61, 126, 238, 0.08);
+        border: 1px solid rgba(61, 126, 238, 0.25);
+        border-radius: 5px;
+        color: rgba(255, 255, 255, 0.65);
+        font-size: 14px;
+        line-height: 1;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.15s, color 0.15s;
+        font-family: inherit;
+    }
+    .map-ctrl-btn:hover {
+        background: rgba(61, 126, 238, 0.22);
+        color: #ffffff;
+    }
+    .map-ctrl-btn:active {
+        background: rgba(61, 126, 238, 0.35);
+    }
+
+    /* ── No-flight overlay ───────────────────────────────── */
+    .map-no-flight {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        color: rgba(255, 255, 255, 0.22);
+        text-transform: uppercase;
+        pointer-events: none;
+        z-index: 50;
+    }
+
+    /* ── Leaflet tooltip style ───────────────────────────── */
+    :global(.avt-wp-tooltip) {
+        background: rgba(10, 13, 23, 0.88) !important;
+        border: 1px solid rgba(61, 126, 238, 0.3) !important;
+        border-radius: 4px !important;
+        color: rgba(255, 255, 255, 0.75) !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 9px !important;
+        letter-spacing: 0.08em !important;
+        padding: 3px 7px !important;
+        box-shadow: none !important;
+    }
+    :global(.avt-wp-tooltip::before) { display: none !important; }
+</style>
