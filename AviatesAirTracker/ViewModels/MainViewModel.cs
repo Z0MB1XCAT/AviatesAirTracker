@@ -163,8 +163,8 @@ public partial class MainViewModel : ObservableObject
                 : SimBriefService.ParseJsonOFPFile(dlg.FileName);
             if (plan != null)
             {
-                _simBriefSvc.NotifyPlanLoaded(plan);
                 _session.AssignSimBriefPlan(plan);
+                _simBriefSvc.NotifyPlanLoaded(plan);
                 HeaderDep = plan.DepartureICAO; HeaderArr = plan.ArrivalICAO;
                 _alertService.ShowAlert($"OFP imported: {plan.DepartureICAO}→{plan.ArrivalICAO}",
                     AlertLevel.Success, TimeSpan.FromSeconds(5));
