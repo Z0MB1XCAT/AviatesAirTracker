@@ -150,7 +150,9 @@
         VM.MapRenderRequested -= OnMapRenderRequested;
         VM.MapReady     = false;
         _mapInitialized = false;
-        try { await JS.InvokeVoidAsync("aviatesMap.destroy"); } catch { }
+        try { await JS.InvokeVoidAsync("aviatesMap.destroy"); }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
     }
 }
 
@@ -282,6 +284,10 @@
     }
     .map-ctrl-btn:active {
         background: rgba(61, 126, 238, 0.35);
+    }
+    .map-ctrl-btn:focus-visible {
+        outline: 2px solid rgba(61, 126, 238, 0.7);
+        outline-offset: 2px;
     }
 
     /* ── No-flight overlay ───────────────────────────────── */

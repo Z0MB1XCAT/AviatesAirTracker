@@ -141,8 +141,8 @@ public partial class MapViewModel : ObservableObject
 
     public (SimBriefFlightPlan? Plan, bool Dirty) ConsumePlanSync()
     {
+        var dirty = _planNeedsSync; // volatile read — acquire fence must come first
         var plan  = _latestPlan;
-        var dirty = _planNeedsSync;
         _planNeedsSync = false;
         return (plan, dirty);
     }
