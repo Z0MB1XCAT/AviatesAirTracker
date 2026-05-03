@@ -162,6 +162,7 @@ public partial class MainViewModel : ObservableObject
                 : SimBriefService.ParseJsonOFPFile(dlg.FileName);
             if (plan != null)
             {
+                _simBriefSvc.NotifyPlanLoaded(plan);
                 _session.AssignSimBriefPlan(plan);
                 HeaderDep = plan.DepartureICAO; HeaderArr = plan.ArrivalICAO;
                 _alertService.ShowAlert($"OFP imported: {plan.DepartureICAO}→{plan.ArrivalICAO}",
@@ -215,7 +216,7 @@ public partial class MainViewModel : ObservableObject
             HeaderSpeed = $"{snap.IASKts:F0}";
             HeaderPhase = snap.Phase.ToString().ToUpper();
             LiveFlight.UpdateTelemetry(snap);
-            Map.UpdatePosition(snap);
+            Map.UpdateTelemetry(snap);
             Telemetry.AddSample(snap);
         });
 
