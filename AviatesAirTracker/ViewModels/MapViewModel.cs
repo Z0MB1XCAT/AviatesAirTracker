@@ -40,9 +40,9 @@ public partial class MapViewModel : ObservableObject
     public bool MapReady { get; set; }
 
     // ── Internal state ────────────────────────────────────────
-    private int  _tickCount;
+    private int  _tickCount = 4;
     private int  _lastPathCount = -1;
-    private bool _planNeedsSync;
+    private volatile bool _planNeedsSync;
     private SimBriefFlightPlan? _latestPlan;
 
     // ── Dependencies ──────────────────────────────────────────

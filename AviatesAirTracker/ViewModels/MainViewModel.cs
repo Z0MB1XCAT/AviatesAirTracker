@@ -137,6 +137,7 @@ public partial class MainViewModel : ObservableObject
         IsLoadingSimBrief = true;
         try
         {
+            // FetchLatestOFPAsync fires FlightPlanLoaded internally — MapViewModel receives the event via subscription
             var plan = await _simBriefSvc.FetchLatestOFPAsync(user);
             if (plan != null)
             {
