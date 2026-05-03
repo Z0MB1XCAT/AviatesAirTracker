@@ -7,6 +7,7 @@ window.aviatesMap = {
     _plannedLine: null,
     _airportMarkers: [],
     _waypointDots: [],
+    _altPathLayer: null,
 
     init: function (lat, lon) {
         // Always destroy and recreate — handles page re-navigation cleanly
@@ -18,6 +19,7 @@ window.aviatesMap = {
             this._plannedLine = null;
             this._airportMarkers = [];
             this._waypointDots = [];
+            this._altPathLayer = null;
         }
 
         this._map = L.map('leaflet-map', {
@@ -187,6 +189,41 @@ window.aviatesMap = {
         this._pathLine.setLatLngs(points.map(function (p) { return [p.lat, p.lon]; }));
     },
 
+    updateFlightPathAltitude: function (points) {
+        if (!this._map) return;
+        if (this._altPathLayer) {
+            this._map.removeLayer(this._altPathLayer);
+            this._altPathLayer = null;
+        }
+        if (!points || points.length < 2) return;
+
+        function altToColor(altFt) {
+            if (altFt <= 100) return 'hsl(0,0%,90%)';
+            var t = Math.min((altFt - 100) / 44900, 1.0);
+            return 'hsl(' + Math.round(270 * (1 - t)) + ',55%,42%)';
+        }
+
+        var renderer = L.canvas({ padding: 0.5 });
+        var layers = [];
+        for (var i = 0; i < points.length - 1; i++) {
+            var p1 = points[i], p2 = points[i + 1];
+            layers.push(L.polyline(
+                [[p1.lat, p1.lon], [p2.lat, p2.lon]],
+                {
+                    color: altToColor((p1.alt + p2.alt) / 2),
+                    weight: 3,
+                    opacity: 0.85,
+                    renderer: renderer
+                }
+            ));
+        }
+        this._altPathLayer = L.layerGroup(layers).addTo(this._map);
+    },
+
+    zoomIn: function () { if (this._map) this._map.zoomIn(); },
+
+    zoomOut: function () { if (this._map) this._map.zoomOut(); },
+
     panTo: function (lat, lon) {
         if (!this._map) return;
         this._map.panTo([lat, lon], { animate: true, duration: 0.5 });
@@ -201,6 +238,10 @@ window.aviatesMap = {
 
     destroy: function () {
         if (this._map) {
+            if (this._altPathLayer) {
+                this._map.removeLayer(this._altPathLayer);
+                this._altPathLayer = null;
+            }
             this._map.remove();
             this._map = null;
             this._aircraftMarker = null;
