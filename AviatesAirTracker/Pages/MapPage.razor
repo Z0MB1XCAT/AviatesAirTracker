@@ -1,6 +1,9 @@
 @page "/map"
 @inject MapViewModel VM
 @inject IJSRuntime JS
+@inject AviatesAirTracker.Services.SimBriefService SimBriefSvc
+@inject AviatesAirTracker.Services.SettingsService Settings
+@inject AviatesAirTracker.Services.FlightSessionManager Session
 @implements IAsyncDisposable
 @using AviatesAirTracker.Models
 @using System.Linq
@@ -55,6 +58,50 @@
         <button class="map-ctrl-btn" title="Zoom out"          @onclick="ZoomOutAsync">−</button>
     </div>
 
+    @* ── Top-right: SimBrief plan ── *@
+    <div class="hud hud--tr" id="hud-plan">
+        <div class="hud-drag" data-drag-handle title="Drag to move"></div>
+
+        @if (_planLoading)
+        {
+            <div class="hud-plan-loading">
+                <div class="hud-plan-spinner"></div>
+                <span class="hud-label">FETCHING OFP…</span>
+            </div>
+        }
+        else if (_currentPlan is not null)
+        {
+            <div class="hud-route-row">
+                <span class="hud-route">@_currentPlan.DepartureICAO → @_currentPlan.ArrivalICAO</span>
+            </div>
+            <div class="hud-divider"></div>
+            <span class="hud-label">@_currentPlan.AircraftType &nbsp;·&nbsp; @_currentPlan.Waypoints.Count WPT</span>
+            <div class="hud-divider"></div>
+            <button class="map-ctrl-btn hud-plan-btn" @onclick="ImportSimBriefAsync">REFRESH OFP</button>
+        }
+        else
+        {
+            @if (_planError is not null)
+            {
+                <div class="hud-plan-error">@_planError</div>
+                <div class="hud-divider"></div>
+            }
+
+            @if (string.IsNullOrWhiteSpace(Settings.Settings.SimBriefUsername))
+            {
+                <span class="hud-label">NO SIMBRIEF ID</span>
+                <div class="hud-divider"></div>
+                <a href="/settings" class="map-ctrl-btn hud-plan-btn" style="text-decoration:none;">CONFIGURE</a>
+            }
+            else
+            {
+                <span class="hud-label">NO FLIGHT PLAN</span>
+                <div class="hud-divider"></div>
+                <button class="map-ctrl-btn hud-plan-btn" @onclick="ImportSimBriefAsync">IMPORT OFP</button>
+            }
+        }
+    </div>
+
     @if (!VM.HasActiveFlight)
     {
         <div class="map-no-flight">@VM.NoFlightText</div>
@@ -64,10 +111,14 @@
 
 @code {
     private bool _mapInitialized;
+    private bool                _planLoading;
+    private string?             _planError;
+    private SimBriefFlightPlan? _currentPlan;
 
     protected override void OnInitialized()
     {
         VM.MapRenderRequested += OnMapRenderRequested;
+        SimBriefSvc.FlightPlanLoaded += OnFlightPlanLoaded;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -77,6 +128,7 @@
         await JS.InvokeVoidAsync("aviatesMap.init", VM.Lat, VM.Lon);
         await JS.InvokeVoidAsync("aviatesTokDrag.initDrag", "hud-identity");
         await JS.InvokeVoidAsync("aviatesTokDrag.initDrag", "hud-progress");
+        await JS.InvokeVoidAsync("aviatesTokDrag.initDrag", "hud-plan");
 
         _mapInitialized = true;
         VM.MapReady     = true;
@@ -85,6 +137,8 @@
         var (plan, _) = VM.ConsumePlanSync();
         if (plan is not null)
             await PushPlannedRouteAsync(plan);
+
+        _currentPlan = SimBriefSvc.CurrentPlan;
     }
 
     private void OnMapRenderRequested()
@@ -92,6 +146,15 @@
         _ = InvokeAsync(async () =>
         {
             await PushMapToJSAsync();
+            StateHasChanged();
+        });
+    }
+
+    private void OnFlightPlanLoaded(object? sender, SimBriefFlightPlan plan)
+    {
+        _ = InvokeAsync(() =>
+        {
+            _currentPlan = plan;
             StateHasChanged();
         });
     }
@@ -136,6 +199,40 @@
         await JS.InvokeVoidAsync("aviatesMap.fitRouteBounds");
     }
 
+    private async Task ImportSimBriefAsync()
+    {
+        var username = Settings.Settings.SimBriefUsername;
+        if (string.IsNullOrWhiteSpace(username)) return;
+
+        _planLoading = true;
+        _planError   = null;
+        StateHasChanged();
+
+        try
+        {
+            var plan = await SimBriefSvc.FetchLatestOFPAsync(username);
+            if (plan is not null)
+            {
+                _currentPlan = plan;
+                Session.AssignSimBriefPlan(plan);
+                SimBriefSvc.NotifyPlanLoaded(plan);
+            }
+            else
+            {
+                _planError = "NO OFP FOUND";
+            }
+        }
+        catch
+        {
+            _planError = "FETCH FAILED";
+        }
+        finally
+        {
+            _planLoading = false;
+            StateHasChanged();
+        }
+    }
+
     private Task CentreOnAircraftAsync() =>
         JS.InvokeVoidAsync("aviatesMap.panTo", VM.Lat, VM.Lon).AsTask();
 
@@ -148,6 +245,7 @@
     public async ValueTask DisposeAsync()
     {
         VM.MapRenderRequested -= OnMapRenderRequested;
+        SimBriefSvc.FlightPlanLoaded -= OnFlightPlanLoaded;
         VM.MapReady     = false;
         _mapInitialized = false;
         try { await JS.InvokeVoidAsync("aviatesMap.destroy"); }
@@ -190,6 +288,7 @@
     .hud--tl { top: 12px; left: 12px; }
     .hud--bl { bottom: 12px; left: 12px; }
     .hud--br { bottom: 12px; right: 12px; min-width: unset; padding: 6px; }
+    .hud--tr { top: 12px; right: 12px; min-width: 160px; }
 
     /* ── Drag handle strip ───────────────────────────────── */
     .hud-drag {
@@ -288,6 +387,40 @@
     .map-ctrl-btn:focus-visible {
         outline: 2px solid rgba(61, 126, 238, 0.7);
         outline-offset: 2px;
+    }
+
+    /* ── Top-right HUD position ─────────────────────────── */
+    .hud--tr { top: 12px; right: 12px; min-width: 160px; }
+
+    /* ── Plan HUD inner elements ────────────────────── */
+    .hud-plan-loading {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .hud-plan-spinner {
+        width: 12px;
+        height: 12px;
+        border: 1.5px solid rgba(61, 126, 238, 0.3);
+        border-top-color: #3D7EEE;
+        border-radius: 50%;
+        animation: hud-spin 0.8s linear infinite;
+        flex-shrink: 0;
+    }
+    @@keyframes hud-spin { to { transform: rotate(360deg); } }
+    .hud-plan-error {
+        font-size: 8px;
+        color: #F97316;
+        letter-spacing: 0.06em;
+    }
+    .hud-plan-btn {
+        width: 100%;
+        height: 22px;
+        font-size: 9px;
+        letter-spacing: 0.06em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     /* ── No-flight overlay ───────────────────────────────── */
