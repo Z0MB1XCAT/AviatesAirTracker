@@ -7,6 +7,7 @@
 @implements IAsyncDisposable
 @using AviatesAirTracker.Models
 @using System.Linq
+@using Serilog
 
 <div class="map-page">
 
@@ -139,6 +140,8 @@
             await PushPlannedRouteAsync(plan);
 
         _currentPlan = SimBriefSvc.CurrentPlan;
+        if (_currentPlan is not null)
+            StateHasChanged();
     }
 
     private void OnMapRenderRequested()
@@ -178,6 +181,9 @@
     private async Task PushPlannedRouteAsync(SimBriefFlightPlan plan)
     {
         var waypointJs = plan.Waypoints
+            .Where(w => (w.Latitude != 0 || w.Longitude != 0)
+                     && Math.Abs(w.Latitude)  <= 90
+                     && Math.Abs(w.Longitude) <= 180)
             .Select(w => new { lat = w.Latitude, lon = w.Longitude, type = w.Type, id = w.Identifier })
             .ToArray();
 
@@ -223,8 +229,9 @@
                 _planError = "NO OFP FOUND";
             }
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning(ex, "SimBrief OFP fetch failed");
             _planError = "FETCH FAILED";
         }
         finally
@@ -411,6 +418,7 @@
         color: #F97316;
         letter-spacing: 0.06em;
     }
+    /* Intentionally overrides map-ctrl-btn square dimensions for full-width HUD buttons */
     .hud-plan-btn {
         width: 100%;
         height: 22px;

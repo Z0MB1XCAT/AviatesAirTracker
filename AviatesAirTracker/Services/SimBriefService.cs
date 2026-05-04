@@ -34,6 +34,8 @@ public class SimBriefService
         FlightPlanLoaded?.Invoke(this, plan);
     }
 
+    public void ClearPlan() => CurrentPlan = null;
+
     /// <summary>Raised after a flight plan is successfully parsed and stored in CurrentPlan.</summary>
     public event EventHandler<SimBriefFlightPlan>? FlightPlanLoaded;
 
