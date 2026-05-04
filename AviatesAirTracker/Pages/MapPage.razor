@@ -155,6 +155,7 @@
         _ = InvokeAsync(() =>
         {
             _currentPlan = plan;
+            _planError   = null;
             StateHasChanged();
         });
     }
@@ -388,9 +389,6 @@
         outline: 2px solid rgba(61, 126, 238, 0.7);
         outline-offset: 2px;
     }
-
-    /* ── Top-right HUD position ─────────────────────────── */
-    .hud--tr { top: 12px; right: 12px; min-width: 160px; }
 
     /* ── Plan HUD inner elements ────────────────────── */
     .hud-plan-loading {
