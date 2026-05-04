@@ -849,6 +849,7 @@
                 // Wire into the active flight session so Discord Rich Presence
                 // picks up the correct DEP/ARR on its next update cycle.
                 Session.AssignSimBriefPlan(plan);
+                SimBriefSvc.NotifyPlanLoaded(plan);
 
                 if (_mapInitialized)
                 {
