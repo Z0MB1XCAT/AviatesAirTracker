@@ -148,8 +148,15 @@
     {
         _ = InvokeAsync(async () =>
         {
-            await PushMapToJSAsync();
-            StateHasChanged();
+            try
+            {
+                await PushMapToJSAsync();
+                StateHasChanged();
+            }
+            catch (JSException ex)
+            {
+                Log.Warning(ex, "Map JS render update failed");
+            }
         });
     }
 
@@ -188,7 +195,7 @@
             .ToArray();
 
         await JS.InvokeVoidAsync("aviatesMap.clearAirportMarkers");
-        await JS.InvokeVoidAsync("aviatesMap.setPlannedRoute", waypointJs);
+        await JS.InvokeVoidAsync("aviatesMap.setPlannedRoute", (object)waypointJs);
 
         if (plan.DepartureLat != 0 || plan.DepartureLon != 0)
             await JS.InvokeVoidAsync("aviatesMap.addAirportMarker",
