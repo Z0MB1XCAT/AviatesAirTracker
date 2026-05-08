@@ -134,6 +134,10 @@ public class MessagingService : IDisposable
 
         try
         {
+            // Retry sending messages that haven't reached the backend yet.
+            // Only retry every 30 seconds (one poll cycle) to avoid hammering the backend.
+            await RetrySendUnsyncedMessagesAsync(pilotId, acarsKey);
+
             // Fetch new direct messages
             var inboxMessages = await _backend.FetchInboxAsync(pilotId, acarsKey);
             foreach (var msg in inboxMessages)
@@ -172,14 +176,47 @@ public class MessagingService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Retries sending messages from the current pilot that haven't been synced to the backend yet.
+    /// </summary>
+    private async Task RetrySendUnsyncedMessagesAsync(string pilotId, string acarsKey)
+    {
+        try
+        {
+            var allMessages = await _messageRepo.GetInboxAsync(pilotId);
+            var unsyncedMessages = allMessages
+                .Where(m => m.SenderId == pilotId && !m.SyncedToBackend)
+                .ToList();
+
+            foreach (var msg in unsyncedMessages)
+            {
+                var sent = await _backend.SendMessageAsync(msg, acarsKey);
+                if (sent)
+                {
+                    msg.SyncedToBackend = true;
+                    Log.Debug("[Messaging] Synced unsent message {Id} to backend", msg.Id);
+                }
+                else
+                {
+                    msg.LastSyncAttempt = DateTime.UtcNow;
+                    Log.Debug("[Messaging] Retry send failed for message {Id}, will retry next poll", msg.Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "[Messaging] Retry sync error (non-critical)");
+        }
+    }
+
     // =====================================================
     // SEND
     // =====================================================
 
     /// <summary>
     /// Sends a direct message to a specific pilot.
-    /// Returns false if the content is blocked, the ACARS key is missing, or the backend
-    /// rejects the message — check <see cref="LastSendError"/> for the reason.
+    /// Returns false if the content is blocked or the ACARS key is missing.
+    /// Messages are saved locally immediately; backend sync happens asynchronously.
     /// </summary>
     public async Task<bool> SendDirectAsync(string recipientId, string content)
     {
@@ -216,24 +253,23 @@ public class MessagingService : IDisposable
             Type        = MessageType.Direct
         };
 
-        // Send to backend first. Only persist locally after the backend confirms receipt
-        // so the UI correctly reflects delivery state rather than always showing optimistic success.
-        var sent = await _backend.SendMessageAsync(msg, acarsKey);
-        if (!sent)
-        {
-            LastSendError = "Message could not be delivered. Check your connection and try again.";
-            Log.Warning("[Messaging] SendDirect to {Recipient} rejected by backend", recipientId);
-            return false;
-        }
-
+        // Save locally first (optimistic). Backend sync happens in PollAsync.
         await _messageRepo.SaveAsync(msg);
+
+        // Attempt to send to backend (non-blocking). If it fails, PollAsync will retry.
+        _ = _backend.SendMessageAsync(msg, acarsKey).ContinueWith(t =>
+        {
+            if (!t.Result)
+                Log.Debug("[Messaging] SendDirect to {Recipient} will retry on next poll", recipientId);
+        });
+
         return true;
     }
 
     /// <summary>
     /// Sends a message to the broadcast channel (visible to all pilots).
-    /// Returns false if the content is blocked, the ACARS key is missing, or the backend
-    /// rejects the message — check <see cref="LastSendError"/> for the reason.
+    /// Returns false if the content is blocked or the ACARS key is missing.
+    /// Messages are saved locally immediately; backend sync happens asynchronously.
     /// </summary>
     public async Task<bool> SendBroadcastAsync(string content)
     {
@@ -269,16 +305,16 @@ public class MessagingService : IDisposable
             Type        = MessageType.Broadcast
         };
 
-        // Only save locally after backend confirms receipt.
-        var sent = await _backend.SendMessageAsync(msg, acarsKey);
-        if (!sent)
-        {
-            LastSendError = "Broadcast could not be delivered. Check your connection and try again.";
-            Log.Warning("[Messaging] SendBroadcast rejected by backend");
-            return false;
-        }
-
+        // Save locally first (optimistic). Backend sync happens in PollAsync.
         await _messageRepo.SaveAsync(msg);
+
+        // Attempt to send to backend (non-blocking). If it fails, PollAsync will retry.
+        _ = _backend.SendMessageAsync(msg, acarsKey).ContinueWith(t =>
+        {
+            if (!t.Result)
+                Log.Debug("[Messaging] SendBroadcast will retry on next poll");
+        });
+
         return true;
     }
 

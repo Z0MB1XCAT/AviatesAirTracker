@@ -315,6 +315,8 @@ public class PilotMessage
     public DateTime? ReadAt     { get; set; }
     public bool     IsModerated { get; set; }        // set server-side
     public MessageType Type     { get; set; }
+    public bool     SyncedToBackend { get; set; }    // false until confirmed by backend
+    public DateTime? LastSyncAttempt { get; set; }   // for retry logic
 }
 
 public enum MessageType { Direct, Broadcast, System }
