@@ -172,7 +172,9 @@ public class SimBriefService
             plan.ArrivalMetar = root["weather"]?["dest_metar"]?.ToString() ?? "";
 
             // Scheduled departure time (Unix timestamp → UTC DateTime)
-            if (long.TryParse(root["times"]?["sched_dep"]?.ToString(), out long schedDep) && schedDep > 0)
+            var schedDepStr = root["times"]?["sched_dep"]?.ToString();
+            Log.Debug("[SimBrief] sched_dep from API: {ScheduledDep}", schedDepStr ?? "(null)");
+            if (long.TryParse(schedDepStr, out long schedDep) && schedDep > 0)
                 plan.ScheduledDepartureUtc = DateTimeOffset.FromUnixTimeSeconds(schedDep).UtcDateTime;
 
             // Takeoff weight — same kg/lbs unit as fuel
