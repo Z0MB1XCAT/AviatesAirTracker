@@ -491,16 +491,32 @@ public class JsonMessageRepository : IMessageRepository
         {
             if (message.Type == MessageType.Direct)
             {
-                if (!_direct.Any(m => m.Id == message.Id))
+                var existing = _direct.FirstOrDefault(m => m.Id == message.Id);
+                if (existing == null)
                 {
                     _direct.Add(message);
-                    Save();
                 }
+                else
+                {
+                    // Update existing message (e.g., SyncedToBackend flag)
+                    var idx = _direct.IndexOf(existing);
+                    _direct[idx] = message;
+                }
+                Save();
             }
             else
             {
-                if (!_broadcasts.Any(m => m.Id == message.Id))
+                var existing = _broadcasts.FirstOrDefault(m => m.Id == message.Id);
+                if (existing == null)
+                {
                     _broadcasts.Add(message);
+                }
+                else
+                {
+                    var idx = _broadcasts.IndexOf(existing);
+                    _broadcasts[idx] = message;
+                }
+                // Note: broadcasts are session-only (not persisted to disk)
             }
         }
         return Task.CompletedTask;

@@ -90,11 +90,13 @@ public class MessagingService : IDisposable
         _backend     = backend;
         _settings    = settings;
 
-        // Poll every 30 seconds; first tick fires after 5 seconds.
+        // Trigger initial poll immediately, then every 30 seconds.
+        // This ensures broadcasts/messages appear as soon as the UI loads.
+        _ = PollAsync();
         _pollTimer = new System.Threading.Timer(
             async _ => await PollAsync(),
             null,
-            TimeSpan.FromSeconds(5),
+            TimeSpan.FromSeconds(30),
             TimeSpan.FromSeconds(30));
     }
 
