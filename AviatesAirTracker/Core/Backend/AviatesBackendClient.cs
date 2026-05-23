@@ -133,7 +133,6 @@ public class AviatesBackendClient
                 landing_score   = flight.PrimaryLanding?.LandingScore ?? 0,
                 route           = flight.PlannedRoute,
                 planned_ofp     = flight.PlannedFlight?.OFPNumber ?? "",
-                acars_key       = acarsKey
             };
 
             var request = new RestRequest("/api/v1/pireps", Method.Post)
