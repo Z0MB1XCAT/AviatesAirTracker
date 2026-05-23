@@ -132,6 +132,14 @@ public partial class PilotHubViewModel : ObservableObject
         _      => "var(--red)"
     };
 
+    public static string ScoreColor(int score) => score switch
+    {
+        >= 90 => "var(--green)",
+        >= 75 => "var(--accent)",
+        >= 60 => "var(--yellow)",
+        _     => "var(--red)"
+    };
+
     private static (string nextRank, double pct) ComputeRankProgress(double hours, string rank) => rank switch
     {
         "Student Pilot"        => ("First Officer",         Math.Min(hours / 25.0, 1.0) * 100),

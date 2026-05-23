@@ -182,7 +182,7 @@
                                 <td style="font-family:var(--font-mono);font-size:12px;color:@PilotHubViewModel.VsColor(l.VerticalSpeedFPM);">@l.VerticalSpeedFPM.ToString("F0") fpm</td>
                                 <td style="font-family:var(--font-mono);font-size:12px;">@l.TouchdownPitchDeg.ToString("F1")°</td>
                                 <td style="font-family:var(--font-mono);font-size:12px;">@Math.Abs(l.CrosswindComponent).ToString("F0") kts</td>
-                                <td><strong style="font-family:var(--font-display);font-size:15px;color:@PilotHubViewModel.VsColor(l.VerticalSpeedFPM);">@l.LandingScore</strong></td>
+                                <td><strong style="font-family:var(--font-display);font-size:15px;color:@PilotHubViewModel.ScoreColor(l.LandingScore);">@l.LandingScore</strong></td>
                                 <td><span class="flight-chip @PilotHubViewModel.GradeChipClass(l.LandingScore)" style="display:inline-flex;">@PilotHubViewModel.GradeLetter(l.LandingScore)</span></td>
                             </tr>
                         }
