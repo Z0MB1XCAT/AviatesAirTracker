@@ -64,7 +64,7 @@ else
                 }
                 @foreach (var friend in _friends)
                 {
-                    var unreadFromFriend = _inboxMessages.Count(m => m.SenderId == friend.PilotId && m.ReadAt == null);
+                    var unreadFromFriend = _inboxMessages.Count(m => m.SenderId == friend.PilotId && m.RecipientId == MessagingService.MyPilotId && m.ReadAt == null);
                     <button class="msg-friend-item @(_selectedFriendId == friend.PilotId ? "active" : "")"
                             @onclick="() => SelectFriend(friend.PilotId)">
                         <div class="msg-friend-avatar">@GetInitials(friend.PilotName)</div>
@@ -94,7 +94,7 @@ else
                 else
                 {
                     var selectedFriend = _friends.FirstOrDefault(f => f.PilotId == _selectedFriendId);
-                    var conversation   = GetConversation(_selectedFriendId);
+                    var conversation   = _conversation;
 
                     <div class="msg-conv-header">
                         <div class="msg-friend-avatar small">@GetInitials(selectedFriend?.PilotName ?? "?")</div>
@@ -118,7 +118,7 @@ else
                         }
                         @foreach (var msg in conversation)
                         {
-                            var isMine = msg.SenderId == SettingsService.Settings.PilotId;
+                            var isMine = msg.SenderId == MessagingService.MyPilotId;
                             <div class="msg-bubble-wrap @(isMine ? "mine" : "theirs")">
                                 <div class="msg-bubble @(isMine ? "mine" : "theirs")">
                                     <div class="msg-bubble-content">@msg.Content</div>
@@ -174,7 +174,7 @@ else
                     }
                     @foreach (var msg in _broadcastMessages)
                     {
-                        var isMine = msg.SenderId == SettingsService.Settings.PilotId;
+                        var isMine = msg.SenderId == MessagingService.MyPilotId;
                         <div class="msg-bubble-wrap @(isMine ? "mine" : "theirs")">
                             @if (!isMine)
                             {
@@ -308,6 +308,7 @@ else
     private List<PilotMessage> _inboxMessages     = [];
     private List<PilotMessage> _broadcastMessages = [];
     private List<FriendEntry>  _friends           = [];
+    private List<PilotMessage> _conversation      = [];
 
     private string? _selectedFriendId;
     private string  _composeText    = "";
@@ -336,7 +337,8 @@ else
     private async Task RefreshAll()
     {
         _inboxMessages     = await MessagingService.GetInboxAsync();
-        _broadcastMessages = await MessagingService.GetBroadcastsAsync();
+        if (_selectedFriendId != null) _conversation = GetConversation(_selectedFriendId);
+        _broadcastMessages = (await MessagingService.GetBroadcastsAsync()).OrderBy(m => m.SentAt).ToList();
         _friends           = await MessagingService.GetFriendsAsync();
         _unreadCount       = await MessagingService.GetUnreadCountAsync();
     }
@@ -351,6 +353,7 @@ else
     private void SelectFriend(string pilotId)
     {
         _selectedFriendId = pilotId;
+        _conversation = GetConversation(pilotId);
         // Mark messages from this friend as read
         var unread = _inboxMessages.Where(m => m.SenderId == pilotId && m.ReadAt == null).ToList();
         foreach (var msg in unread)
@@ -399,7 +402,7 @@ else
             _broadcastText = text;
             _sendError     = MessagingService.LastSendError ?? "Failed to send broadcast.";
         }
-        _broadcastMessages = await MessagingService.GetBroadcastsAsync();
+        _broadcastMessages = (await MessagingService.GetBroadcastsAsync()).OrderBy(m => m.SentAt).ToList();
         _isSending = false;
         StateHasChanged();
     }
@@ -464,7 +467,7 @@ else
 
     private List<PilotMessage> GetConversation(string friendId)
     {
-        var myId = SettingsService.Settings.PilotId;
+        var myId = MessagingService.MyPilotId;
         return _inboxMessages
             .Where(m => (m.SenderId == friendId && m.RecipientId == myId) ||
                         (m.SenderId == myId && m.RecipientId == friendId))
@@ -484,11 +487,14 @@ else
 
     private static string FormatTime(DateTime dt)
     {
-        var diff = DateTime.UtcNow - dt;
-        if (diff.TotalSeconds < 60)  return "just now";
+        // Treat Unspecified kind as UTC (backend may omit timezone suffix)
+        var utc  = dt.Kind == DateTimeKind.Local ? dt.ToUniversalTime() : dt;
+        var diff = DateTime.UtcNow - utc;
+        if (diff.TotalSeconds < 0)   diff = TimeSpan.Zero; // guard against clock skew / future timestamps
+        if (diff.TotalSeconds < 30)  return "just now";
         if (diff.TotalMinutes < 60)  return $"{(int)diff.TotalMinutes}m ago";
         if (diff.TotalHours   < 24)  return $"{(int)diff.TotalHours}h ago";
-        return dt.ToString("MMM d, HH:mm");
+        return utc.ToLocalTime().ToString("MMM d, HH:mm");
     }
 
     public void Dispose()

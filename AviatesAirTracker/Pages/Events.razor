@@ -263,7 +263,7 @@ else
     private bool _creating;
     private readonly HashSet<int> _busyEvents = [];
 
-    private AviatesEvent? _featuredEvent => _events.FirstOrDefault(e => e.IsFeatured);
+    private AviatesEvent? _featuredEvent;
 
     protected override async Task OnInitializedAsync()
     {
@@ -284,6 +284,7 @@ else
             "my" => [],
             _ => await EventsService.GetEventsAsync("upcoming"),
         };
+        _featuredEvent = _events.FirstOrDefault(e => e.IsFeatured);
 
         _loading = false;
     }

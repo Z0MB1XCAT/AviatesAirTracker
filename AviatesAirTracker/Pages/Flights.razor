@@ -395,6 +395,7 @@ else
     private async Task RefreshDataAsync()
     {
         _flights = await FlightRepo.GetAllAsync();
+        _totalNm = _flights.Where(f => f.Status == FlightStatus.Completed).Sum(f => f.ActualDistanceNm);
         _pendingRequests = await DeletionRepo.GetAllAsync();
     }
 
@@ -510,7 +511,5 @@ else
         _                       => "pending"
     };
 
-    private double _totalNm => _flights
-        .Where(f => f.Status == FlightStatus.Completed)
-        .Sum(f => f.ActualDistanceNm);
+    private double _totalNm;
 }
