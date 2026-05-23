@@ -6,39 +6,28 @@ using System.Text.RegularExpressions;
 
 namespace AviatesAirTracker.Services;
 
-// ============================================================
-// MESSAGING SERVICE
-//
-// Manages pilot-to-pilot direct messages and broadcast channel.
-// - Polls backend every 30 seconds for new messages.
-// - Every message is authenticated via ACARS key (Bearer token),
-//   which the backend records for moderation — never exposed to
-//   other clients.
-// - Friends are identified by their friend code (XXXX-XXXX),
-//   derived from their ACARS key server-side.
-// ============================================================
-
 public class MessagingService : IDisposable
 {
-    private readonly IMessageRepository _messageRepo;
-    private readonly IFriendRepository  _friendRepo;
+    private readonly IMessageRepository  _messageRepo;
+    private readonly IFriendRepository   _friendRepo;
     private readonly AviatesBackendClient _backend;
-    private readonly SettingsService    _settings;
+    private readonly SettingsService     _settings;
     private readonly System.Threading.Timer _pollTimer;
+    private readonly SemaphoreSlim  _pollGate = new(1, 1);
+    private readonly CancellationTokenSource _cts = new();
+    private readonly object _pilotIdLock = new();
+    private string? _cachedPilotId;
     private bool _disposed;
 
     public event EventHandler<PilotMessage>? NewMessageReceived;
-    public event EventHandler<int>? UnreadCountChanged;
+    public event EventHandler<int>?          UnreadCountChanged;
 
-    public int    UnreadCount        { get; private set; }
-    /// <summary>Human-readable reason for the last failed send (content blocked, network error, etc.).</summary>
-    public string? LastSendError     { get; private set; }
+    public int    UnreadCount    { get; private set; }
+    public string? LastSendError { get; private set; }
+    public string MyPilotId => GetEffectivePilotId();
 
     // =====================================================
     // CONTENT FILTER
-    // Client-side pre-filter before a message reaches the backend.
-    // The backend performs its own moderation; this is an early
-    // gate that gives immediate feedback to the sender.
     // =====================================================
 
     private static readonly HashSet<string> _blockedWords = new(StringComparer.OrdinalIgnoreCase)
@@ -59,7 +48,6 @@ public class MessagingService : IDisposable
         "twat",
     };
 
-    // Pre-compiled patterns for each blocked word (word-boundary match, case-insensitive).
     private static readonly Regex[] _blockPatterns = _blockedWords
         .Select(w => new Regex(@"\b" + Regex.Escape(w) + @"\b",
             RegexOptions.IgnoreCase | RegexOptions.Compiled))
@@ -69,32 +57,33 @@ public class MessagingService : IDisposable
     {
         if (string.IsNullOrWhiteSpace(content)) return false;
 
-        // Normalise common leet/symbol substitutions used to bypass filters
+        // Normalise common substitutions. Also strip zero-width and RTL override chars.
         var normalized = content
             .Replace("@", "a").Replace("$", "s").Replace("0", "o")
             .Replace("1", "i").Replace("3", "e").Replace("4", "a")
             .Replace("5", "s").Replace("!", "i").Replace("+", "t")
-            .Replace("*", "");
+            .Replace("*", "").Replace("ph", "f")
+            // Strip zero-width characters and RTL override
+            .Replace("​", "").Replace("‌", "").Replace("‍", "")
+            .Replace("‮", "").Replace("﻿", "");
 
         return _blockPatterns.Any(p => p.IsMatch(normalized));
     }
 
     public MessagingService(
-        IMessageRepository messageRepo,
-        IFriendRepository  friendRepo,
+        IMessageRepository  messageRepo,
+        IFriendRepository   friendRepo,
         AviatesBackendClient backend,
-        SettingsService    settings)
+        SettingsService     settings)
     {
         _messageRepo = messageRepo;
         _friendRepo  = friendRepo;
         _backend     = backend;
         _settings    = settings;
 
-        // Trigger initial poll immediately, then every 30 seconds.
-        // This ensures broadcasts/messages appear as soon as the UI loads.
         _ = PollAsync();
         _pollTimer = new System.Threading.Timer(
-            async _ => await PollAsync(),
+            _ => { if (!_disposed) _ = PollAsync(); },
             null,
             TimeSpan.FromSeconds(30),
             TimeSpan.FromSeconds(30));
@@ -104,19 +93,24 @@ public class MessagingService : IDisposable
     // IDENTITY HELPERS
     // =====================================================
 
-    /// <summary>
-    /// Returns the configured PilotId, or a stable ID derived from the ACARS key when the
-    /// setting is blank (e.g. the backend did not return one during auth).
-    /// Must be consistent so locally-stored messages match backend-fetched ones.
-    /// </summary>
     private string GetEffectivePilotId()
     {
+        lock (_pilotIdLock)
+        {
+            if (_cachedPilotId != null) return _cachedPilotId;
+        }
+
         var id = _settings.Settings.PilotId;
-        if (!string.IsNullOrEmpty(id)) return id;
+        if (!string.IsNullOrEmpty(id))
+        {
+            lock (_pilotIdLock) { _cachedPilotId = id; }
+            return id;
+        }
 
         var key = _settings.Settings.AcarsKey;
         if (string.IsNullOrEmpty(key)) return "";
 
+        // Fallback: derive a stable local ID from the ACARS key until the server ID is fetched.
         var hash = System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes("AVIATES_PID_" + key));
         return "avt_" + Convert.ToHexString(hash)[..12].ToLowerInvariant();
@@ -126,45 +120,90 @@ public class MessagingService : IDisposable
     // POLLING
     // =====================================================
 
-    private async Task PollAsync()
+    private async Task EnsurePilotIdAsync(string acarsKey)
     {
-        var acarsKey = _settings.Settings.AcarsKey;
-        var pilotId  = GetEffectivePilotId();
+        lock (_pilotIdLock)
+        {
+            if (!string.IsNullOrEmpty(_cachedPilotId)) return;
+        }
 
-        // Only the ACARS key is strictly required for auth; PilotId guards local storage.
-        if (string.IsNullOrEmpty(acarsKey) || string.IsNullOrEmpty(pilotId)) return;
+        if (!string.IsNullOrEmpty(_settings.Settings.PilotId))
+        {
+            lock (_pilotIdLock) { _cachedPilotId = _settings.Settings.PilotId; }
+            return;
+        }
 
         try
         {
-            // Retry sending messages that haven't reached the backend yet.
-            // Only retry every 30 seconds (one poll cycle) to avoid hammering the backend.
+            var result = await _backend.ValidateAcarsKeyAsync(acarsKey);
+            if (result != null && !string.IsNullOrEmpty(result.PilotId))
+            {
+                // Write to cached field under lock; persist settings on calling thread context
+                lock (_pilotIdLock) { _cachedPilotId = result.PilotId; }
+                _settings.Settings.PilotId = result.PilotId;
+                _settings.Save();
+                Log.Information("[Messaging] PilotId bootstrapped from auth: {Id}", result.PilotId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "[Messaging] EnsurePilotId failed (non-critical, will retry next poll)");
+        }
+    }
+
+    private async Task PollAsync()
+    {
+        // Guard: skip if a poll is already in flight
+        if (!await _pollGate.WaitAsync(0)) return;
+        try
+        {
+            await PollCoreAsync();
+        }
+        finally
+        {
+            _pollGate.Release();
+        }
+    }
+
+    private async Task PollCoreAsync()
+    {
+        var acarsKey = _settings.Settings.AcarsKey;
+        if (string.IsNullOrEmpty(acarsKey)) return;
+
+        await EnsurePilotIdAsync(acarsKey);
+
+        var pilotId = GetEffectivePilotId();
+        if (string.IsNullOrEmpty(pilotId)) return;
+
+        try
+        {
             await RetrySendUnsyncedMessagesAsync(pilotId, acarsKey);
 
-            // Fetch new direct messages
-            var inboxMessages = await _backend.FetchInboxAsync(pilotId, acarsKey);
+            // PERF-001: fetch existing IDs once into a HashSet instead of calling GetInboxAsync per message
+            var inboxMessages  = await _backend.FetchInboxAsync(pilotId, acarsKey);
+            var existingDmIds  = new HashSet<Guid>((await _messageRepo.GetInboxAsync(pilotId)).Select(m => m.Id));
             foreach (var msg in inboxMessages)
             {
-                var existing = (await _messageRepo.GetInboxAsync(pilotId))
-                    .Any(m => m.Id == msg.Id);
-                if (!existing)
+                if (!existingDmIds.Contains(msg.Id))
                 {
+                    msg.SyncedToBackend = true;
                     await _messageRepo.SaveAsync(msg);
                     NewMessageReceived?.Invoke(this, msg);
                     Log.Debug("[Messaging] New DM from {Sender}", msg.SenderName);
                 }
             }
 
-            // Fetch broadcasts
-            var broadcasts = await _backend.FetchBroadcastsAsync(acarsKey);
+            var broadcasts        = await _backend.FetchBroadcastsAsync(acarsKey);
+            var existingBcastIds  = new HashSet<Guid>((await _messageRepo.GetBroadcastsAsync()).Select(m => m.Id));
             foreach (var msg in broadcasts)
             {
-                var existing = (await _messageRepo.GetBroadcastsAsync())
-                    .Any(m => m.Id == msg.Id);
-                if (!existing)
+                if (!existingBcastIds.Contains(msg.Id))
+                {
+                    msg.SyncedToBackend = true;
                     await _messageRepo.SaveAsync(msg);
+                }
             }
 
-            // Update unread count
             var newCount = await _messageRepo.GetUnreadCountAsync(pilotId);
             if (newCount != UnreadCount)
             {
@@ -178,24 +217,22 @@ public class MessagingService : IDisposable
         }
     }
 
-    /// <summary>
-    /// Retries sending messages from the current pilot that haven't been synced to the backend yet.
-    /// </summary>
     private async Task RetrySendUnsyncedMessagesAsync(string pilotId, string acarsKey)
     {
         try
         {
             var allMessages = await _messageRepo.GetInboxAsync(pilotId);
-            var unsyncedMessages = allMessages
+            var unsynced = allMessages
                 .Where(m => m.SenderId == pilotId && !m.SyncedToBackend)
                 .ToList();
 
-            foreach (var msg in unsyncedMessages)
+            foreach (var msg in unsynced)
             {
                 var sent = await _backend.SendMessageAsync(msg, acarsKey);
                 if (sent)
                 {
                     msg.SyncedToBackend = true;
+                    await _messageRepo.SaveAsync(msg);
                     Log.Debug("[Messaging] Synced unsent message {Id} to backend", msg.Id);
                 }
                 else
@@ -215,18 +252,18 @@ public class MessagingService : IDisposable
     // SEND
     // =====================================================
 
-    /// <summary>
-    /// Sends a direct message to a specific pilot.
-    /// Returns false if the content is blocked or the ACARS key is missing.
-    /// Messages are saved locally immediately; backend sync happens asynchronously.
-    /// </summary>
     public async Task<bool> SendDirectAsync(string recipientId, string content)
     {
         LastSendError = null;
 
+        // BUG-007: validate recipientId before proceeding
+        if (string.IsNullOrWhiteSpace(recipientId))
+        {
+            LastSendError = "Recipient not specified.";
+            return false;
+        }
         if (string.IsNullOrWhiteSpace(content)) return false;
 
-        // Client-side content moderation gate
         if (ContainsBlockedContent(content))
         {
             LastSendError = "Your message contains inappropriate language and was not sent.";
@@ -255,31 +292,34 @@ public class MessagingService : IDisposable
             Type        = MessageType.Direct
         };
 
-        // Save locally first (optimistic). Backend sync happens in PollAsync.
         await _messageRepo.SaveAsync(msg);
 
-        // Attempt to send to backend (non-blocking). If it fails, PollAsync will retry.
-        _ = _backend.SendMessageAsync(msg, acarsKey).ContinueWith(t =>
+        // PERF-003: use Task.Run instead of ContinueWith with async lambda
+        _ = Task.Run(async () =>
         {
-            if (!t.Result)
-                Log.Debug("[Messaging] SendDirect to {Recipient} will retry on next poll", recipientId);
+            try
+            {
+                var sent = await _backend.SendMessageAsync(msg, acarsKey);
+                if (sent)
+                {
+                    msg.SyncedToBackend = true;
+                    await _messageRepo.SaveAsync(msg);
+                }
+                else
+                    Log.Debug("[Messaging] SendDirect to {Recipient} will retry on next poll", recipientId);
+            }
+            catch (Exception ex) { Log.Warning(ex, "[Messaging] Background SendDirect failed"); }
         });
 
         return true;
     }
 
-    /// <summary>
-    /// Sends a message to the broadcast channel (visible to all pilots).
-    /// Returns false if the content is blocked or the ACARS key is missing.
-    /// Messages are saved locally immediately; backend sync happens asynchronously.
-    /// </summary>
     public async Task<bool> SendBroadcastAsync(string content)
     {
         LastSendError = null;
 
         if (string.IsNullOrWhiteSpace(content)) return false;
 
-        // Client-side content moderation gate
         if (ContainsBlockedContent(content))
         {
             LastSendError = "Your message contains inappropriate language and was not sent.";
@@ -307,14 +347,22 @@ public class MessagingService : IDisposable
             Type        = MessageType.Broadcast
         };
 
-        // Save locally first (optimistic). Backend sync happens in PollAsync.
         await _messageRepo.SaveAsync(msg);
 
-        // Attempt to send to backend (non-blocking). If it fails, PollAsync will retry.
-        _ = _backend.SendMessageAsync(msg, acarsKey).ContinueWith(t =>
+        _ = Task.Run(async () =>
         {
-            if (!t.Result)
-                Log.Debug("[Messaging] SendBroadcast will retry on next poll");
+            try
+            {
+                var sent = await _backend.SendMessageAsync(msg, acarsKey);
+                if (sent)
+                {
+                    msg.SyncedToBackend = true;
+                    await _messageRepo.SaveAsync(msg);
+                }
+                else
+                    Log.Debug("[Messaging] SendBroadcast will retry on next poll");
+            }
+            catch (Exception ex) { Log.Warning(ex, "[Messaging] Background SendBroadcast failed"); }
         });
 
         return true;
@@ -324,10 +372,6 @@ public class MessagingService : IDisposable
     // FRIENDS
     // =====================================================
 
-    /// <summary>
-    /// Resolves a friend code against the backend and adds the pilot to the friends list.
-    /// Returns the resolved FriendEntry on success, null if the code is invalid.
-    /// </summary>
     public async Task<FriendEntry?> AddFriendByCodeAsync(string friendCode, string? displayName = null)
     {
         var acarsKey = _settings.Settings.AcarsKey;
@@ -335,7 +379,6 @@ public class MessagingService : IDisposable
 
         friendCode = friendCode.Trim().ToUpperInvariant();
 
-        // Prevent adding yourself
         var myCode = _settings.Settings.FriendCode;
         if (!string.IsNullOrEmpty(myCode) &&
             friendCode.Equals(myCode, StringComparison.OrdinalIgnoreCase))
@@ -343,22 +386,10 @@ public class MessagingService : IDisposable
 
         var entry = await _backend.ResolveFriendCodeAsync(friendCode, acarsKey);
 
-        // If the backend is offline/unavailable, fall back to a local entry.
-        // Use the caller-supplied display name if provided, otherwise use the code.
-        if (entry == null)
-        {
-            var name = !string.IsNullOrWhiteSpace(displayName)
-                ? displayName.Trim()
-                : "Pilot " + friendCode;
-            entry = new FriendEntry
-            {
-                PilotId    = "fc:" + friendCode,
-                PilotName  = name,
-                FriendCode = friendCode,
-                Rank       = "Pilot",
-                AddedAt    = DateTime.UtcNow
-            };
-        }
+        // BUG-005: do NOT create a local fake entry when backend is offline.
+        // A fake "fc:" PilotId will never match the real pilot's ID from the backend,
+        // causing messages to be undeliverable even after connectivity is restored.
+        if (entry == null) return null;
 
         var alreadyAdded = await _friendRepo.ExistsAsync(entry.PilotId);
         if (!alreadyAdded)
@@ -370,7 +401,11 @@ public class MessagingService : IDisposable
     public async Task RemoveFriendAsync(string pilotId)
     {
         await _friendRepo.RemoveAsync(pilotId);
-        await _backend.RemoveFriendAsync(pilotId, _settings.Settings.AcarsKey);
+
+        // BUG-006: only call backend if we have a valid key
+        var acarsKey = _settings.Settings.AcarsKey;
+        if (!string.IsNullOrEmpty(acarsKey))
+            await _backend.RemoveFriendAsync(pilotId, acarsKey);
     }
 
     public Task<List<FriendEntry>> GetFriendsAsync() => _friendRepo.GetAllAsync();
@@ -385,16 +420,33 @@ public class MessagingService : IDisposable
     public Task<List<PilotMessage>> GetBroadcastsAsync()
         => _messageRepo.GetBroadcastsAsync();
 
-    public Task MarkReadAsync(Guid messageId)
-        => _messageRepo.MarkReadAsync(messageId);
+    public async Task MarkReadAsync(Guid messageId)
+    {
+        await _messageRepo.MarkReadAsync(messageId);
+        // SEC-015: refresh unread count immediately after marking read
+        var pilotId = GetEffectivePilotId();
+        if (!string.IsNullOrEmpty(pilotId))
+        {
+            var newCount = await _messageRepo.GetUnreadCountAsync(pilotId);
+            if (newCount != UnreadCount)
+            {
+                UnreadCount = newCount;
+                UnreadCountChanged?.Invoke(this, UnreadCount);
+            }
+        }
+    }
 
     public Task<int> GetUnreadCountAsync()
         => _messageRepo.GetUnreadCountAsync(GetEffectivePilotId());
 
+    // BUG-004: cancel in-flight polls on dispose
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
+        _cts.Cancel();
         _pollTimer.Dispose();
+        _pollGate.Dispose();
+        _cts.Dispose();
     }
 }
