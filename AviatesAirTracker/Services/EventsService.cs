@@ -1,15 +1,10 @@
+using System.Globalization;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using Serilog;
 
 namespace AviatesAirTracker.Services;
-
-// ============================================================
-// EVENTS SERVICE
-// Handles fetching, creating, and registering for community
-// events hosted on the Aviates Air backend.
-// ============================================================
 
 public class AviatesEvent
 {
@@ -30,11 +25,26 @@ public class AviatesEvent
     [JsonPropertyName("registration_count")]   public int    RegistrationCount   { get; set; }
     [JsonPropertyName("is_registered")]        public int    IsRegisteredRaw     { get; set; }
 
-    [JsonIgnore] public bool      IsFeatured   => IsFeaturedRaw != 0;
-    [JsonIgnore] public bool      IsRegistered => IsRegisteredRaw != 0;
-    [JsonIgnore] public DateTime? ParsedDate   => DateTime.TryParse(EventDate, out var d) ? d : null;
-    [JsonIgnore] public string    DisplayDay   => ParsedDate?.Day.ToString("D2") ?? "--";
-    [JsonIgnore] public string    DisplayMonth => ParsedDate?.ToString("MMM") ?? "---";
+    [JsonIgnore] public bool IsFeatured   => IsFeaturedRaw != 0;
+    [JsonIgnore] public bool IsRegistered => IsRegisteredRaw != 0;
+
+    // Parsed once and cached — EventDate is a date-only string (YYYY-MM-DD), always UTC.
+    private DateTime? _parsedDate;
+    [JsonIgnore]
+    public DateTime? ParsedDate
+    {
+        get
+        {
+            if (_parsedDate.HasValue) return _parsedDate;
+            if (DateTime.TryParseExact(EventDate, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var d))
+                _parsedDate = d;
+            return _parsedDate;
+        }
+    }
+
+    [JsonIgnore] public string DisplayDay   => ParsedDate?.Day.ToString("D2") ?? "--";
+    [JsonIgnore] public string DisplayMonth => ParsedDate?.ToString("MMM", CultureInfo.InvariantCulture) ?? "---";
 }
 
 public class CreateEventRequest
@@ -49,7 +59,7 @@ public class CreateEventRequest
     public int    MaxParticipants     { get; set; }
 }
 
-public class EventsService
+public class EventsService : IDisposable
 {
     private readonly HttpClient _http;
     private const string BaseUrl = "https://acars.flyaviatesair.uk";
@@ -79,7 +89,9 @@ public class EventsService
     {
         try
         {
-            var response = await _http.GetAsync($"/api/events/my?acarsKey={Uri.EscapeDataString(acarsKey)}");
+            using var req = new HttpRequestMessage(HttpMethod.Get, "/api/events/my");
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", acarsKey);
+            var response = await _http.SendAsync(req);
             if (!response.IsSuccessStatusCode) return [];
             var result = await response.Content.ReadFromJsonAsync<EventsListResponse>();
             return result?.Data ?? [];
@@ -95,8 +107,10 @@ public class EventsService
     {
         try
         {
-            var body = new { acarsKey };
-            var response = await _http.PostAsJsonAsync($"/api/events/{eventId}/register", body);
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"/api/events/{eventId}/register");
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", acarsKey);
+            req.Content = JsonContent.Create(new { });
+            var response = await _http.SendAsync(req);
             var result = await response.Content.ReadFromJsonAsync<EventsApiResult>();
             return response.IsSuccessStatusCode
                 ? (true, "")
@@ -113,8 +127,10 @@ public class EventsService
     {
         try
         {
-            var body = new { acarsKey };
-            var response = await _http.PostAsJsonAsync($"/api/events/{eventId}/unregister", body);
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"/api/events/{eventId}/unregister");
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", acarsKey);
+            req.Content = JsonContent.Create(new { });
+            var response = await _http.SendAsync(req);
             var result = await response.Content.ReadFromJsonAsync<EventsApiResult>();
             return response.IsSuccessStatusCode
                 ? (true, "")
@@ -133,7 +149,6 @@ public class EventsService
         {
             var body = new
             {
-                acarsKey,
                 title               = req.Title,
                 description         = req.Description,
                 eventDate           = req.EventDate,
@@ -143,7 +158,10 @@ public class EventsService
                 rankRestriction     = req.RankRestriction,
                 maxParticipants     = req.MaxParticipants,
             };
-            var response = await _http.PostAsJsonAsync("/api/events", body);
+            using var httpReq = new HttpRequestMessage(HttpMethod.Post, "/api/events");
+            httpReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", acarsKey);
+            httpReq.Content = JsonContent.Create(body);
+            var response = await _http.SendAsync(httpReq);
             var result = await response.Content.ReadFromJsonAsync<EventsApiResult>();
             return response.IsSuccessStatusCode
                 ? (true, "")
@@ -155,6 +173,8 @@ public class EventsService
             return (false, "Network error — please try again");
         }
     }
+
+    public void Dispose() => _http.Dispose();
 }
 
 public class EventsListResponse
