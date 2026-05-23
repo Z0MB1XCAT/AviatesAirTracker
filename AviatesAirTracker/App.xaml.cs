@@ -53,7 +53,6 @@ public partial class App : Application
             ConfigureServices(services);
 
             _serviceProvider = services.BuildServiceProvider();
-            ServiceLocator.Initialize(_serviceProvider);
 
             // Make the service provider available to BlazorWebView via dynamic resource
             Resources["services"] = _serviceProvider;
@@ -218,16 +217,5 @@ public partial class App : Application
         Log.CloseAndFlush();
         _serviceProvider.Dispose();
         base.OnExit(e);
-    }
-}
-
-public static class ServiceLocator
-{
-    private static IServiceProvider? _provider;
-    public static void Initialize(IServiceProvider p) => _provider = p;
-    public static T Get<T>() where T : notnull
-    {
-        if (_provider == null) throw new InvalidOperationException("Not initialized");
-        return _provider.GetRequiredService<T>();
     }
 }
