@@ -260,8 +260,9 @@ public class InMemoryMessageRepository : IMessageRepository
     {
         lock (_lock)
         {
+            // Return messages where the pilot is sender OR recipient — matches JsonMessageRepository contract
             return Task.FromResult(_messages
-                .Where(m => m.RecipientId == pilotId && !m.IsModerated && m.Type == MessageType.Direct)
+                .Where(m => (m.RecipientId == pilotId || m.SenderId == pilotId) && !m.IsModerated && m.Type == MessageType.Direct)
                 .OrderByDescending(m => m.SentAt)
                 .ToList());
         }
@@ -373,12 +374,12 @@ public class JsonFriendRepository : IFriendRepository
         catch (Exception ex) { Log.Warning(ex, "[FriendRepo] Failed to load"); }
     }
 
-    private void Save()
+    private void SaveSnapshot(List<FriendEntry> snapshot)
     {
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path, JsonSerializer.Serialize(_friends, _opts));
+            File.WriteAllText(_path, JsonSerializer.Serialize(snapshot, _opts));
         }
         catch (Exception ex) { Log.Warning(ex, "[FriendRepo] Failed to save"); }
     }
@@ -390,24 +391,28 @@ public class JsonFriendRepository : IFriendRepository
 
     public Task AddAsync(FriendEntry friend)
     {
+        List<FriendEntry>? snapshot = null;
         lock (_lock)
         {
             if (!_friends.Any(f => f.PilotId == friend.PilotId))
             {
                 _friends.Add(friend);
-                Save();
+                snapshot = _friends.ToList();
             }
         }
+        if (snapshot != null) SaveSnapshot(snapshot);
         return Task.CompletedTask;
     }
 
     public Task RemoveAsync(string pilotId)
     {
+        List<FriendEntry> snapshot;
         lock (_lock)
         {
             _friends.RemoveAll(f => f.PilotId == pilotId);
-            Save();
+            snapshot = _friends.ToList();
         }
+        SaveSnapshot(snapshot);
         return Task.CompletedTask;
     }
 
@@ -436,6 +441,18 @@ public class JsonMessageRepository : IMessageRepository
 
     public JsonMessageRepository() { Load(); }
 
+    // Two messages are the same if same sender/recipient/content and sent within 2 minutes of each other.
+    // Handles the case where the backend assigns a different ID to a locally-originated message.
+    private static bool IsDuplicate(PilotMessage a, PilotMessage b) =>
+        a.SenderId    == b.SenderId &&
+        a.RecipientId == b.RecipientId &&
+        string.Equals(a.Content?.Trim(), b.Content?.Trim(), StringComparison.Ordinal) &&
+        Math.Abs((NormalizeUtc(a.SentAt) - NormalizeUtc(b.SentAt)).TotalSeconds) < 120;
+
+    private static DateTime NormalizeUtc(DateTime dt) =>
+        dt.Kind == DateTimeKind.Local ? dt.ToUniversalTime()
+        : DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+
     private void Load()
     {
         try
@@ -443,19 +460,36 @@ public class JsonMessageRepository : IMessageRepository
             if (File.Exists(_path))
             {
                 var loaded = JsonSerializer.Deserialize<List<PilotMessage>>(File.ReadAllText(_path));
-                if (loaded != null) _direct.AddRange(loaded);
+                if (loaded != null)
+                {
+                    // Deduplicate: keep only the first occurrence of semantically identical messages.
+                    // Older messages loaded from disk may contain multiple copies caused by the
+                    // retry-send bug where SyncedToBackend was never persisted.
+                    var deduped = new List<PilotMessage>();
+                    foreach (var msg in loaded.OrderBy(m => NormalizeUtc(m.SentAt)))
+                    {
+                        if (!deduped.Any(x => IsDuplicate(x, msg)))
+                            deduped.Add(msg);
+                    }
+                    _direct.AddRange(deduped);
+                    if (deduped.Count != loaded.Count)
+                    {
+                        Log.Information("[MessageRepo] Removed {N} duplicate messages on load", loaded.Count - deduped.Count);
+                        SaveSnapshot(_direct);
+                    }
+                }
                 Log.Debug("[MessageRepo] Loaded {Count} direct messages from disk", _direct.Count);
             }
         }
         catch (Exception ex) { Log.Warning(ex, "[MessageRepo] Failed to load"); }
     }
 
-    private void Save()
+    private void SaveSnapshot(List<PilotMessage> snapshot)
     {
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path, JsonSerializer.Serialize(_direct, _opts));
+            File.WriteAllText(_path, JsonSerializer.Serialize(snapshot, _opts));
         }
         catch (Exception ex) { Log.Warning(ex, "[MessageRepo] Failed to save"); }
     }
@@ -487,48 +521,44 @@ public class JsonMessageRepository : IMessageRepository
 
     public Task SaveAsync(PilotMessage message)
     {
+        List<PilotMessage>? directSnapshot = null;
         lock (_lock)
         {
             if (message.Type == MessageType.Direct)
             {
-                var existing = _direct.FirstOrDefault(m => m.Id == message.Id);
-                if (existing == null)
-                {
+                var existingById = _direct.FirstOrDefault(m => m.Id == message.Id);
+                if (existingById != null)
+                    _direct[_direct.IndexOf(existingById)] = message;
+                else if (!_direct.Any(m => IsDuplicate(m, message)))
                     _direct.Add(message);
-                }
-                else
-                {
-                    // Update existing message (e.g., SyncedToBackend flag)
-                    var idx = _direct.IndexOf(existing);
-                    _direct[idx] = message;
-                }
-                Save();
+                directSnapshot = _direct.ToList();
             }
             else
             {
                 var existing = _broadcasts.FirstOrDefault(m => m.Id == message.Id);
                 if (existing == null)
-                {
                     _broadcasts.Add(message);
-                }
                 else
-                {
-                    var idx = _broadcasts.IndexOf(existing);
-                    _broadcasts[idx] = message;
-                }
-                // Note: broadcasts are session-only (not persisted to disk)
+                    _broadcasts[_broadcasts.IndexOf(existing)] = message;
             }
         }
+        if (directSnapshot != null) SaveSnapshot(directSnapshot);
         return Task.CompletedTask;
     }
 
     public Task MarkReadAsync(Guid messageId)
     {
+        List<PilotMessage>? snapshot = null;
         lock (_lock)
         {
             var msg = _direct.FirstOrDefault(m => m.Id == messageId);
-            if (msg != null) { msg.ReadAt = DateTime.UtcNow; Save(); }
+            if (msg != null)
+            {
+                msg.ReadAt = DateTime.UtcNow;
+                snapshot = _direct.ToList();
+            }
         }
+        if (snapshot != null) SaveSnapshot(snapshot);
         return Task.CompletedTask;
     }
 
@@ -635,12 +665,12 @@ public class JsonFlightRepository : IFlightRepository
         catch (Exception ex) { Log.Warning(ex, "[FlightRepo] Failed to load from disk"); }
     }
 
-    private void Save()
+    private void SaveSnapshot(List<FlightRecord> snapshot)
     {
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path, JsonSerializer.Serialize(_flights, _opts));
+            File.WriteAllText(_path, JsonSerializer.Serialize(snapshot, _opts));
         }
         catch (Exception ex) { Log.Warning(ex, "[FlightRepo] Failed to save to disk"); }
     }
@@ -669,36 +699,42 @@ public class JsonFlightRepository : IFlightRepository
 
     public Task SaveAsync(FlightRecord record)
     {
+        List<FlightRecord> snapshot;
         lock (_lock)
         {
             _flights.Add(record);
-            Save();
+            snapshot = _flights.ToList();
             Log.Debug("[FlightRepo] Flight saved: {Id}", record.Id);
         }
+        SaveSnapshot(snapshot);
         return Task.CompletedTask;
     }
 
     public Task UpdateAsync(FlightRecord record)
     {
+        List<FlightRecord>? snapshot = null;
         lock (_lock)
         {
             var idx = _flights.FindIndex(f => f.Id == record.Id);
             if (idx >= 0)
             {
                 _flights[idx] = record;
-                Save();
+                snapshot = _flights.ToList();
             }
         }
+        if (snapshot != null) SaveSnapshot(snapshot);
         return Task.CompletedTask;
     }
 
     public Task DeleteAsync(Guid id)
     {
+        List<FlightRecord> snapshot;
         lock (_lock)
         {
             _flights.RemoveAll(f => f.Id == id);
-            Save();
+            snapshot = _flights.ToList();
         }
+        SaveSnapshot(snapshot);
         return Task.CompletedTask;
     }
 
@@ -806,7 +842,6 @@ public class PilotProfile
     public string PilotId { get; set; } = "";
     public string Name { get; set; } = "";
     public string Email { get; set; } = "";
-    public string AcarsKey { get; set; } = "";
     public string SimBriefUsername { get; set; } = "";
     public string Airline { get; set; } = "AviatesAir";
     public DateTime JoinDate { get; set; }
