@@ -59,6 +59,11 @@ public class BookingsResponse
     [JsonPropertyName("bookings")] public List<FlightBooking> Bookings { get; set; } = [];
 }
 
+public class PositionResponse
+{
+    [JsonPropertyName("current_airport_iata")] public string? CurrentAirportIata { get; set; }
+}
+
 // ============================================================
 // BOOKING SERVICE
 // Manages flight bookings tied to the pilot's ACARS key.
@@ -237,6 +242,69 @@ public class BookingService
         {
             Log.Warning(ex, "[BookingService] Cancel booking error");
             return (false, "Network error. Please check your connection.");
+        }
+    }
+
+    // =====================================================
+    // SYNC POSITION FROM SUPABASE
+    // Overwrites the local CurrentAirportIata with the
+    // value stored in Supabase. Call on app startup / Routes init.
+    // Silently no-ops on failure — local cache stays valid.
+    // =====================================================
+
+    public async Task SyncPositionAsync()
+    {
+        var acarsKey = _settings.Settings.AcarsKey;
+        if (string.IsNullOrEmpty(acarsKey)) return;
+
+        try
+        {
+            _http.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", acarsKey);
+
+            var response = await _http.GetAsync("/api/pilot/position");
+            if (!response.IsSuccessStatusCode) return;
+
+            var body = await response.Content.ReadFromJsonAsync<PositionResponse>();
+            if (body == null) return;
+
+            _settings.Settings.CurrentAirportIata = body.CurrentAirportIata ?? "";
+            _settings.Save();
+            Log.Information("[Position] Synced from server: {IATA}", _settings.Settings.CurrentAirportIata);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Position] SyncPositionAsync failed — using local cache");
+        }
+    }
+
+    // =====================================================
+    // SET POSITION LOCALLY + SYNC TO SUPABASE
+    // Updates the local setting immediately (so the UI is
+    // instant) then fires a background PATCH to Supabase.
+    // =====================================================
+
+    public async Task SetPositionAsync(string iata)
+    {
+        _settings.Settings.CurrentAirportIata = iata;
+        _settings.Save();
+
+        var acarsKey = _settings.Settings.AcarsKey;
+        if (string.IsNullOrEmpty(acarsKey)) return;
+
+        try
+        {
+            _http.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", acarsKey);
+
+            await _http.PatchAsJsonAsync("/api/pilot/position",
+                new { current_airport_iata = iata });
+
+            Log.Information("[Position] Synced to server: {IATA}", iata);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Position] SetPositionAsync PATCH failed — local setting saved");
         }
     }
 }
