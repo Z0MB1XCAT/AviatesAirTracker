@@ -75,8 +75,7 @@ public partial class App : Application
                 var active = bookingSvc.ActiveBooking;
                 if (active != null && !string.IsNullOrEmpty(active.DestIata))
                 {
-                    settingsSvc.Settings.CurrentAirportIata = active.DestIata;
-                    settingsSvc.Save();
+                    _ = bookingSvc.SetPositionAsync(active.DestIata);
                     bookingSvc.SetActiveBooking(null);
                     Log.Information("[Location] Pilot position advanced to {IATA}", active.DestIata);
                 }

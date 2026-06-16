@@ -523,6 +523,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await BookingService.SyncPositionAsync();
         await LoadRoutes();
     }
 
@@ -574,8 +575,7 @@ else
 
     private async Task ClearPosition()
     {
-        SettingsService.Settings.CurrentAirportIata = "";
-        SettingsService.Save();
+        await BookingService.SetPositionAsync("");
         await LoadRoutes();
     }
 
@@ -672,8 +672,7 @@ else
         if (booking != null)
         {
             // Advance position to destination so the pilot is locked there for next booking
-            SettingsService.Settings.CurrentAirportIata = _modalRoute.DestIata;
-            SettingsService.Save();
+            await BookingService.SetPositionAsync(_modalRoute.DestIata);
 
             _lastBookedCallsign = booking.Callsign;
             _modalRoute         = null;
