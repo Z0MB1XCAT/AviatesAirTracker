@@ -70,8 +70,9 @@ public class SimBriefService
 
         try
         {
+            bool isNumericId = username.Trim().All(char.IsDigit);
             var request = new RestRequest(SIMBRIEF_API_BASE)
-                .AddParameter("username", username)
+                .AddParameter(isNumericId ? "userid" : "username", username.Trim())
                 .AddParameter("json", "1");
 
             var response = await _client.GetAsync(request);
@@ -204,6 +205,17 @@ public class SimBriefService
 
             // Waypoints
             plan.Waypoints = ParseWaypointsFromJson(root["navlog"]?["fix"]);
+
+            // OFP full text (may be empty on some OFP layouts)
+            plan.OFPText = root["text"]?.ToString() ?? "";
+
+            // NOTAMs
+            var notamToken = root["notams"]?["notam"];
+            if (notamToken is JArray notamArr)
+                plan.NOTAMs = notamArr
+                    .Select(n => n["body"]?.ToString() ?? n.ToString())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
 
             return plan;
         }
