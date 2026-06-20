@@ -269,7 +269,7 @@ public class SimBriefFlightPlan
 
     // OFP content
     public string OFPText { get; set; } = "";
-    public List<string> NOTAMs { get; set; } = new();
+    public List<string> NOTAMs { get; set; } = [];
 }
 
 // ============================================================
