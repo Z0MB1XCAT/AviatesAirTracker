@@ -207,9 +207,7 @@ public class SimBriefService
             plan.Waypoints = ParseWaypointsFromJson(root["navlog"]?["fix"]);
 
             // OFP full text (may be empty on some OFP layouts)
-            plan.OFPText = root["text"]?["plan_text"]?.ToString()
-                        ?? root["text"]?.ToString()
-                        ?? "";
+            plan.OFPText = root["text"]?["plan_text"]?.ToString() ?? "";
 
             // NOTAMs
             var notamToken = root["notams"]?["notam"];
