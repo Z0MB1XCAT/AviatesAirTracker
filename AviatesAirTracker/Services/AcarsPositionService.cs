@@ -22,14 +22,17 @@ public class AcarsPositionService : IDisposable
     private readonly AviatesBackendClient _backend;
     private readonly SettingsService _settings;
 
-    private DateTime _lastCheck = DateTime.MinValue;
+    // DateTime is not a valid volatile field type (CS0677). Use a long ticks backing field
+    // with Interlocked for safe cross-thread access between the SimConnect pump and UI thread.
+    private long _lastCheckTicks = DateTime.MinValue.Ticks;
+    // TODO: make this configurable via AppSettings.AutoPirepIntervalMinutes
     private const int CHECK_INTERVAL_SECONDS = 30;
 
     /// <summary>Last time the 30-second gate fired (not necessarily when an HTTP call went out).</summary>
-    public DateTime LastCheckAt => _lastCheck;
+    public DateTime LastCheckAt => new DateTime(Interlocked.Read(ref _lastCheckTicks), DateTimeKind.Utc);
 
-    /// <summary>Raised each time the outer 30-second gate fires (true = HTTP call was attempted).</summary>
-    public event Action<bool>? GateFired;
+    /// <summary>Raised each time the outer 30-second gate fires.</summary>
+    public event Action? GateFired;
 
     public AcarsPositionService(
         FlightSessionManager session,
@@ -53,11 +56,12 @@ public class AcarsPositionService : IDisposable
             return;
 
         // Outer throttle: avoid spawning a Task every 50ms
-        if ((DateTime.UtcNow - _lastCheck).TotalSeconds < CHECK_INTERVAL_SECONDS)
+        var now = DateTime.UtcNow;
+        if ((now.Ticks - Interlocked.Read(ref _lastCheckTicks)) < TimeSpan.TicksPerSecond * CHECK_INTERVAL_SECONDS)
             return;
 
-        _lastCheck = DateTime.UtcNow;
-        GateFired?.Invoke(true);
+        Interlocked.Exchange(ref _lastCheckTicks, now.Ticks);
+        GateFired?.Invoke();
 
         var key = _settings.Settings.AcarsKey.Trim();
         if (string.IsNullOrEmpty(key)) return;
