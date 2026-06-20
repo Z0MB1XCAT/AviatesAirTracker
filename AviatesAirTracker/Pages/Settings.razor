@@ -99,16 +99,16 @@
             <div style="display:flex;flex-direction:column;gap:var(--sp-4);">
                 <div class="form-group">
                     <label class="form-label" style="display:flex;align-items:center;gap:6px;">
-                        SimBrief Pilot ID
+                        SimBrief Username or ID
                         @if (_isVerified && !string.IsNullOrEmpty(SettingsService.Settings.SimBriefUsername))
                         {
                             <span style="font-size:10px;font-weight:600;color:var(--text-muted);">· synced from account</span>
                         }
                     </label>
-                    <input class="form-input" type="text" @bind="SettingsService.Settings.SimBriefUsername" placeholder="Your SimBrief numeric ID" />
+                    <input class="form-input" type="text" @bind="SettingsService.Settings.SimBriefUsername" placeholder="Username or numeric pilot ID" />
                 </div>
                 <div style="background:var(--surface-2);border-radius:var(--r-md);padding:10px 13px;font-size:12px;color:var(--text-muted);line-height:1.5;">
-                    You can override this — your account value is only applied on first sync.
+                    Accepts your SimBrief username (e.g. <strong>jsmith</strong>) or numeric pilot ID. You can override this — your account value is only applied on first sync.
                 </div>
             </div>
         </div>
@@ -172,6 +172,28 @@
                         </div>
                     </div>
                 }
+
+                <!-- Auto position report interval -->
+                <div class="form-group">
+                    <label class="form-label">Auto Position Report Interval</label>
+                    <select class="form-input" @bind="SettingsService.Settings.AutoPirepIntervalMinutes">
+                        <option value="0">Off</option>
+                        <option value="1">Every 1 minute</option>
+                        <option value="5">Every 5 minutes</option>
+                        <option value="10">Every 10 minutes</option>
+                        <option value="15">Every 15 minutes</option>
+                        <option value="30">Every 30 minutes</option>
+                    </select>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5;">
+                        Automatically sends position reports to the Aviates Air network while airborne. Requires a valid ACARS key.
+                    </div>
+                </div>
+
+                <!-- FMC shortcut hint -->
+                <div style="background:var(--surface-2);border-radius:var(--r-md);padding:10px 13px;display:flex;align-items:center;gap:10px;">
+                    <span style="font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:0.05em;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xs);padding:2px 7px;color:var(--text-primary);white-space:nowrap;">Ctrl+Shift+F</span>
+                    <span style="font-size:12px;color:var(--text-muted);">Opens the FMC overlay from anywhere on the ACARS page — a hidden shortcut.</span>
+                </div>
             </div>
         </div>
 
