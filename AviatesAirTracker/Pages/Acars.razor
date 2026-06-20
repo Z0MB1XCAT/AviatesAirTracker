@@ -531,7 +531,20 @@
         <div class="panel-card">
             <div class="panel-header" style="margin-bottom:var(--sp-3);">
                 <span class="panel-title">Position Report</span>
-                <span style="font-size:11px;color:var(--text-muted);">Auto-filled from telemetry</span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    @if (Settings.Settings.AutoPirepIntervalMinutes > 0)
+                    {
+                        <span style="font-size:10px;font-weight:700;letter-spacing:0.06em;color:var(--green);background:var(--green-light);padding:2px 7px;border-radius:var(--r-xs);">AUTO</span>
+                    }
+                    @if (_posReportHistory.Count > 0)
+                    {
+                        <span style="font-size:11px;color:var(--text-muted);">Last: @_posReportHistory[^1].ToString("HH:mm")Z</span>
+                    }
+                    else
+                    {
+                        <span style="font-size:11px;color:var(--text-muted);">Auto-filled from telemetry</span>
+                    }
+                </div>
             </div>
             <!-- Telemetry data grid -->
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-3);margin-bottom:var(--sp-3);">
@@ -560,6 +573,17 @@
                     <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-primary);">@_sessionState</div>
                 </div>
             </div>
+            <!-- Cruise compliance -->
+            @{
+                var (cruiseLabel, cruiseColor) = CruiseCheck();
+            }
+            @if (cruiseLabel != "—")
+            {
+                <div style="background:var(--surface-2);border-radius:var(--r-md);padding:8px 12px;margin-bottom:var(--sp-3);display:flex;align-items:center;justify-content:space-between;">
+                    <span style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;">Cruise FL@((_flightPlan!.CruiseAltitudeFt / 100).ToString("D3"))</span>
+                    <span style="font-family:var(--font-mono);font-size:12px;font-weight:700;color:@cruiseColor;">@cruiseLabel</span>
+                </div>
+            }
             <!-- Remarks -->
             <div style="margin-bottom:var(--sp-3);">
                 <label style="display:block;font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Remarks</label>
@@ -567,16 +591,33 @@
                           style="width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 12px;font-family:var(--font-mono);font-size:12px;color:var(--text-primary);resize:vertical;min-height:60px;outline:none;"
                           placeholder="ATC remarks, weather observations, or notes..."></textarea>
             </div>
+            <!-- Recent auto-reports -->
+            @if (_posReportHistory.Count > 0)
+            {
+                <div style="margin-bottom:var(--sp-3);">
+                    <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Recent Reports</div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        @foreach (var rpt in Enumerable.Reverse(_posReportHistory).Take(5))
+                        {
+                            <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);background:var(--surface-2);padding:3px 8px;border-radius:var(--r-xs);border:1px solid var(--border);">@rpt.ToString("HH:mm")Z</span>
+                        }
+                    </div>
+                </div>
+            }
             <!-- Actions -->
             <div style="display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;">
                 <button @onclick="CopyPirep" class="btn btn-primary btn-sm">
                     @(_pirepCopied ? "✓ Copied to clipboard" : "Copy PIREP Text")
                 </button>
-                <button disabled style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-full);padding:8px 18px;font-size:13px;font-weight:600;color:var(--text-muted);cursor:not-allowed;"
-                        title="Available when Aviates backend is connected">
-                    Submit Position Report
+                <button @onclick="SubmitPositionReport"
+                        disabled="@(_pirepSubmitting || _snap == null || string.IsNullOrWhiteSpace(Settings.Settings.AcarsKey))"
+                        class="btn btn-ghost btn-sm">
+                    @(_pirepSubmitting ? "Sending..." : _pirepSubmitResult ?? "Submit Position Report")
                 </button>
-                <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">Backend pending</span>
+                @if (string.IsNullOrWhiteSpace(Settings.Settings.AcarsKey))
+                {
+                    <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">Configure ACARS key in Settings</span>
+                }
             </div>
         </div>
 
@@ -695,6 +736,11 @@
     private bool _metarRefreshing;
     private System.Threading.Timer? _metarTimer;
 
+    // Position report history
+    private readonly List<DateTime> _posReportHistory = new();
+    private bool _pirepSubmitting;
+    private string? _pirepSubmitResult;
+
     // ── Lifecycle ────────────────────────────────────────────
 
     protected override void OnInitialized()
@@ -708,6 +754,7 @@
         Session.TelemetryUpdated           += OnTelemetryUpdated;
         Session.SessionStateChanged        += OnSessionStateChanged;
         PhaseDetector.PhaseChanged         += OnPhaseChanged;
+        PosService.GateFired               += OnPosGateFired;
 
         _clockTimer = new System.Threading.Timer(
             _ => InvokeAsync(() => { _utcNow = DateTime.UtcNow.ToString("HH:mm") + "Z"; return Task.CompletedTask; }),
@@ -749,6 +796,7 @@
         _clockTimer?.Dispose();
 
         PhaseDetector.PhaseChanged         -= OnPhaseChanged;
+        PosService.GateFired               -= OnPosGateFired;
         SimConnect.ConnectionStatusChanged -= OnConnectionStatusChanged;
         SimConnect.AircraftIdentReceived   -= OnAircraftIdentReceived;
         Session.TelemetryUpdated           -= OnTelemetryUpdated;
@@ -832,6 +880,43 @@
     {
         _eventLog.Add((DateTime.UtcNow, $"Phase: {e.Previous} → {e.Current}"));
         InvokeAsync(StateHasChanged);
+    }
+
+    private void OnPosGateFired()
+    {
+        if (_posReportHistory.Count >= 10) _posReportHistory.RemoveAt(0);
+        _posReportHistory.Add(DateTime.UtcNow);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SubmitPositionReport()
+    {
+        if (_snap == null || string.IsNullOrWhiteSpace(Settings.Settings.AcarsKey)) return;
+        _pirepSubmitting = true;
+        _pirepSubmitResult = null;
+        StateHasChanged();
+        try
+        {
+            await BackendClient.SendPositionReportAsync(
+                _snap.Latitude, _snap.Longitude, _snap.AltitudeMSL,
+                (int)_snap.GroundSpeedKts, _sessionState.ToString(),
+                Settings.Settings.AcarsKey);
+            _pirepSubmitResult = "✓ Sent";
+            if (_posReportHistory.Count >= 10) _posReportHistory.RemoveAt(0);
+            _posReportHistory.Add(DateTime.UtcNow);
+        }
+        catch
+        {
+            _pirepSubmitResult = "Failed";
+        }
+        finally
+        {
+            _pirepSubmitting = false;
+            StateHasChanged();
+            await Task.Delay(2500);
+            _pirepSubmitResult = null;
+            StateHasChanged();
+        }
     }
 
     [JSInvokable]
@@ -1068,6 +1153,20 @@
         if (rem < 0.5) return "—";
         var etaMin = rem / _snap.GroundSpeedKts * 60;
         return DateTime.UtcNow.AddMinutes(etaMin).ToString("HH:mm") + "Z";
+    }
+
+    // ── Cruise compliance ────────────────────────────────────
+
+    private (string label, string color) CruiseCheck()
+    {
+        if (_flightPlan == null || _flightPlan.CruiseAltitudeFt <= 0 || _snap == null)
+            return ("—", "var(--text-muted)");
+        if (_snap.Phase != FlightPhase.Cruise) return ("—", "var(--text-muted)");
+        var deviation = _snap.AltitudeMSL - _flightPlan.CruiseAltitudeFt;
+        var abs = Math.Abs(deviation);
+        if (abs < 300) return ("On FL", "var(--green)");
+        var sign = deviation > 0 ? "+" : "";
+        return ($"{sign}{(int)deviation} ft", abs > 1000 ? "var(--red)" : "var(--amber)");
     }
 
     // ── Route deviation ───────────────────────────────────────
