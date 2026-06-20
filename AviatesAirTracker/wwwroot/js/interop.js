@@ -396,6 +396,7 @@ window.acarsInterop = {
     },
 
     initFmcShortcut: function (dotNetRef) {
+        this.disposeFmcShortcut();
         this._fmcRef = dotNetRef;
         this._fmcHandler = function (e) {
             if (e.ctrlKey && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
@@ -411,10 +412,7 @@ window.acarsInterop = {
             document.removeEventListener('keydown', this._fmcHandler);
             this._fmcHandler = null;
         }
-        if (this._fmcRef) {
-            this._fmcRef.dispose();
-            this._fmcRef = null;
-        }
+        this._fmcRef = null;
     }
 };
 
@@ -587,7 +585,14 @@ window.aviatesMapMini = (function () {
             if (!_map || !_marker) return;
             var ll = [lat, lon];
             _marker.setLatLng(ll);
-            _marker.setIcon(arrowIcon(hdg));
+            // Mutate the existing SVG transform rather than recreating the icon on every tick
+            var el = _marker.getElement ? _marker.getElement() : null;
+            if (el) {
+                var svg = el.querySelector('svg');
+                if (svg) svg.style.transform = 'rotate(' + hdg + 'deg)';
+            } else {
+                _marker.setIcon(arrowIcon(hdg)); // fallback if element not yet in DOM
+            }
             _map.panTo(ll, { animate: true, duration: 1 });
         },
 
