@@ -207,15 +207,24 @@ public class SimBriefService
             plan.Waypoints = ParseWaypointsFromJson(root["navlog"]?["fix"]);
 
             // OFP full text (may be empty on some OFP layouts)
-            plan.OFPText = root["text"]?.ToString() ?? "";
+            plan.OFPText = root["text"]?["plan_text"]?.ToString()
+                        ?? root["text"]?.ToString()
+                        ?? "";
 
             // NOTAMs
             var notamToken = root["notams"]?["notam"];
             if (notamToken is JArray notamArr)
                 plan.NOTAMs = notamArr
-                    .Select(n => n["body"]?.ToString() ?? n.ToString())
+                    .Select(n => n["body"]?.ToString())
                     .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Select(s => s!)
                     .ToList();
+            else if (notamToken != null)
+            {
+                var body = notamToken["body"]?.ToString();
+                if (!string.IsNullOrWhiteSpace(body))
+                    plan.NOTAMs = [body];
+            }
 
             return plan;
         }
