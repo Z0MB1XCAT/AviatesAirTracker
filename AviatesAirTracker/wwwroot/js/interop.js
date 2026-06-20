@@ -393,6 +393,28 @@ window.acarsInterop = {
             e.preventDefault();
             apply(brt + (e.deltaY < 0 ? 0.05 : -0.05));
         }, { passive: false });
+    },
+
+    initFmcShortcut: function (dotNetRef) {
+        this._fmcRef = dotNetRef;
+        this._fmcHandler = function (e) {
+            if (e.ctrlKey && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+                e.preventDefault();
+                dotNetRef.invokeMethodAsync('OpenFmc');
+            }
+        };
+        document.addEventListener('keydown', this._fmcHandler);
+    },
+
+    disposeFmcShortcut: function () {
+        if (this._fmcHandler) {
+            document.removeEventListener('keydown', this._fmcHandler);
+            this._fmcHandler = null;
+        }
+        if (this._fmcRef) {
+            this._fmcRef.dispose();
+            this._fmcRef = null;
+        }
     }
 };
 
@@ -534,3 +556,43 @@ window.aviatesTheme = {
         }
     }
 };
+
+// ── ACARS page mini map (separate Leaflet instance — no conflict with aviatesMap) ──
+window.aviatesMapMini = (function () {
+    var _map = null;
+    var _marker = null;
+    var DARK_TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    var TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>';
+
+    function arrowIcon(hdg) {
+        var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28"' +
+                  ' style="transform:rotate(' + hdg + 'deg);transform-origin:center;">' +
+                  '<polygon points="12,2 8,20 12,16 16,20" fill="#3D7EEE" stroke="#fff" stroke-width="1.2"/>' +
+                  '</svg>';
+        return L.divIcon({ html: svg, className: '', iconAnchor: [14, 14] });
+    }
+
+    return {
+        init: function (lat, lon) {
+            if (_map) this.destroy();
+            var el = document.getElementById('acars-mini-map');
+            if (!el) return;
+            _map = L.map(el, { zoomControl: false, attributionControl: false })
+                    .setView([lat || 51.5, lon || -0.1], 8);
+            L.tileLayer(DARK_TILE, { attribution: TILE_ATTR, maxZoom: 18 }).addTo(_map);
+            _marker = L.marker([lat || 51.5, lon || -0.1], { icon: arrowIcon(0) }).addTo(_map);
+        },
+
+        update: function (lat, lon, hdg) {
+            if (!_map || !_marker) return;
+            var ll = [lat, lon];
+            _marker.setLatLng(ll);
+            _marker.setIcon(arrowIcon(hdg));
+            _map.panTo(ll, { animate: true, duration: 1 });
+        },
+
+        destroy: function () {
+            if (_map) { _map.remove(); _map = null; _marker = null; }
+        }
+    };
+})();
