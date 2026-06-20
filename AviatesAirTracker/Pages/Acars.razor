@@ -356,6 +356,27 @@
     </div>
 </div>
 
+<!-- Flight event log -->
+@if (_eventLog.Count > 0)
+{
+    <div class="panel-card anim-up-d3" style="margin-bottom:var(--sp-5);">
+        <div class="panel-header" style="margin-bottom:var(--sp-3);">
+            <span class="panel-title">Flight Events</span>
+            <button @onclick="() => { _eventLog.Clear(); StateHasChanged(); }"
+                    style="font-size:11px;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:var(--r-xs);">Clear</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;">
+            @foreach (var (evtTime, evtDesc) in Enumerable.Reverse(_eventLog))
+            {
+                <div style="display:flex;align-items:baseline;gap:12px;">
+                    <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);flex-shrink:0;">@evtTime.ToString("HH:mm:ss")Z</span>
+                    <span style="font-size:12px;color:var(--text-secondary);">@evtDesc</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
 <!-- SimBrief OFP details (full-width strip below the map, only when a plan is loaded) -->
 @if (_flightPlan != null)
 {
@@ -464,6 +485,43 @@
                             </div>
                         </div>
                         <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);line-height:1.7;background:var(--surface-2);padding:10px 12px;border-radius:var(--r-md);">@_altMetar</div>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- NOTAMs panel -->
+        @if (_flightPlan.NOTAMs is { Count: > 0 })
+        {
+            <div class="panel-card">
+                <div class="panel-header" style="margin-bottom:var(--sp-2);cursor:pointer;" @onclick="() => _showNotams = !_showNotams">
+                    <span class="panel-title">NOTAMs <span style="font-size:11px;font-weight:500;color:var(--text-muted);">(@_flightPlan.NOTAMs.Count)</span></span>
+                    <span style="font-size:12px;color:var(--text-muted);">@(_showNotams ? "▲" : "▼")</span>
+                </div>
+                @if (_showNotams)
+                {
+                    <div style="display:flex;flex-direction:column;gap:var(--sp-3);">
+                        @foreach (var notam in _flightPlan.NOTAMs)
+                        {
+                            <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);line-height:1.65;white-space:pre-wrap;">@notam</div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- OFP text viewer -->
+        @if (!string.IsNullOrWhiteSpace(_flightPlan.OFPText))
+        {
+            <div class="panel-card">
+                <div class="panel-header" style="margin-bottom:var(--sp-2);cursor:pointer;" @onclick="() => _showOfp = !_showOfp">
+                    <span class="panel-title">OFP Text</span>
+                    <span style="font-size:12px;color:var(--text-muted);">@(_showOfp ? "▲" : "▼")</span>
+                </div>
+                @if (_showOfp)
+                {
+                    <div style="max-height:400px;overflow-y:auto;background:var(--surface-2);border-radius:var(--r-md);padding:12px 14px;">
+                        <pre style="font-family:var(--font-mono);font-size:10px;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap;margin:0;">@_flightPlan.OFPText</pre>
                     </div>
                 }
             </div>
@@ -597,6 +655,13 @@
 
     // FMC panel
     private bool _showFmc;
+
+    // Flight event log
+    private readonly List<(DateTime Time, string Description)> _eventLog = new();
+
+    // Collapsible panels
+    private bool _showNotams = true;
+    private bool _showOfp;
 
     // Mini map + FMC shortcut
     private bool _miniMapInitialized;
@@ -765,6 +830,7 @@
 
     private void OnPhaseChanged(object? _, FlightPhaseChangedEvent e)
     {
+        _eventLog.Add((DateTime.UtcNow, $"Phase: {e.Previous} → {e.Current}"));
         InvokeAsync(StateHasChanged);
     }
 
