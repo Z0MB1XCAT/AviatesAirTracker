@@ -328,6 +328,8 @@ public class AppSettings
     public string CurrentAirportIata { get; set; } = "";
     // UI theme preference. "system" follows OS dark/light mode automatically.
     public string Theme { get; set; } = "system"; // "system" | "light" | "dark"
+    // Interval (minutes) between automatic ACARS position reports. 0 = off.
+    public int AutoPirepIntervalMinutes { get; set; } = 5;
 }
 
 // ============================================================

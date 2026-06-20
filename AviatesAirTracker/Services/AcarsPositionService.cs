@@ -25,6 +25,12 @@ public class AcarsPositionService : IDisposable
     private DateTime _lastCheck = DateTime.MinValue;
     private const int CHECK_INTERVAL_SECONDS = 30;
 
+    /// <summary>Last time the 30-second gate fired (not necessarily when an HTTP call went out).</summary>
+    public DateTime LastCheckAt => _lastCheck;
+
+    /// <summary>Raised each time the outer 30-second gate fires (true = HTTP call was attempted).</summary>
+    public event Action<bool>? GateFired;
+
     public AcarsPositionService(
         FlightSessionManager session,
         AviatesBackendClient backend,
@@ -51,6 +57,7 @@ public class AcarsPositionService : IDisposable
             return;
 
         _lastCheck = DateTime.UtcNow;
+        GateFired?.Invoke(true);
 
         var key = _settings.Settings.AcarsKey.Trim();
         if (string.IsNullOrEmpty(key)) return;
