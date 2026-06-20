@@ -266,6 +266,10 @@ public class SimBriefFlightPlan
     public double TakeoffWeightKg { get; set; }
     public int    DepartureRunwayLengthM { get; set; }
     public int    DepartureElevationFt { get; set; }
+
+    // OFP content
+    public string OFPText { get; set; } = "";
+    public List<string> NOTAMs { get; set; } = new();
 }
 
 // ============================================================
