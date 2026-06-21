@@ -218,7 +218,7 @@
                 <span class="panel-title">Flight Plan</span>
                 @if (_flightPlan != null)
                 {
-                    <button @onclick="ClearPlan" style="font-size:11px;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:var(--r-xs);">Clear</button>
+                    <button @onclick="ClearPlanAsync" style="font-size:11px;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:var(--r-xs);">Clear</button>
                 }
             </div>
 
@@ -1011,11 +1011,12 @@
         }
     }
 
-    private void ClearPlan()
+    private async Task ClearPlanAsync()
     {
         _flightPlan    = null;
         _simBriefError = null;
         SimBriefSvc.ClearPlan();
+        await Settings.SaveSimBriefPlanAsync(null);
     }
 
     // ── Flight completion panel ──────────────────────────────
@@ -1030,17 +1031,16 @@
 
     private async void OnStatsRefreshed()
     {
-        // Only act if a flight just completed (not a routine refresh)
-        if (_completedRecord == null) return;
-
-        _rankUp = PilotHub.PilotRank != _rankBefore ? PilotHub.PilotRank : null;
-
-        // Clear the persisted plan — it has been flown
-        await Settings.SaveSimBriefPlanAsync(null);
-        _flightPlan = null;
-
-        _showCompletionPanel = true;
-        await InvokeAsync(StateHasChanged);
+        if (_disposed || _completedRecord == null) return;
+        try
+        {
+            _rankUp = PilotHub.PilotRank != _rankBefore ? PilotHub.PilotRank : null;
+            await Settings.SaveSimBriefPlanAsync(null);
+            _flightPlan = null;
+            _showCompletionPanel = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException) { }
     }
 
     private void DismissCompletionPanel()

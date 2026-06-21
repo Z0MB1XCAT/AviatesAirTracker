@@ -3237,8 +3237,6 @@ input, textarea, select { font-family: inherit; }
     outline: 2px solid #3D7EEE;
     outline-offset: 2px;
 }
-  caret-color: #3D7EEE;
-}
 
 .login-input::placeholder {
   font-family: 'DM Sans', sans-serif;
@@ -3251,6 +3249,7 @@ input, textarea, select { font-family: inherit; }
   border-color: rgba(61, 126, 238, 0.48);
   box-shadow: 0 0 0 3px rgba(61, 126, 238, 0.11);
   background: rgba(255, 255, 255, 0.055);
+  caret-color: #3D7EEE;
 }
 
 .login-input--error {
