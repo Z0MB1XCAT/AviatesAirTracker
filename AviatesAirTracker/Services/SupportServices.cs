@@ -297,6 +297,45 @@ public class SettingsService
         _settings.FriendCode = GenerateFriendCode(_settings.AcarsKey);
         Save();
     }
+
+    private static readonly string SimBriefPlanPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "AviatesAirTracker", "simbrief_plan.json");
+
+    public async Task SaveSimBriefPlanAsync(AviatesAirTracker.Models.SimBriefFlightPlan? plan)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(SimBriefPlanPath)!);
+            if (plan == null)
+            {
+                if (File.Exists(SimBriefPlanPath)) File.Delete(SimBriefPlanPath);
+                return;
+            }
+            var json = JsonSerializer.Serialize(plan, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(SimBriefPlanPath, json);
+            Log.Debug("[Settings] SimBrief plan saved to disk");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Settings] Failed to save SimBrief plan");
+        }
+    }
+
+    public async Task<AviatesAirTracker.Models.SimBriefFlightPlan?> LoadSimBriefPlanAsync()
+    {
+        try
+        {
+            if (!File.Exists(SimBriefPlanPath)) return null;
+            var json = await File.ReadAllTextAsync(SimBriefPlanPath);
+            return JsonSerializer.Deserialize<AviatesAirTracker.Models.SimBriefFlightPlan>(json);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Settings] Failed to load SimBrief plan");
+            return null;
+        }
+    }
 }
 
 public class AppSettings
@@ -379,13 +418,15 @@ public class PilotStatsService
         };
 
         // Rank logic
-        stats.Rank = stats.TotalHoursBlock switch
+        stats.Rank = stats.TotalHoursAir switch
         {
-            < 25 => "Student Pilot",
-            < 100 => "First Officer",
-            < 500 => "Senior First Officer",
-            < 1000 => "Captain",
-            _ => "Senior Captain"
+            < 25   => "Cadet",
+            < 75   => "Junior FO",
+            < 200  => "FO",
+            < 450  => "Senior FO",
+            < 800  => "Junior Captain",
+            < 1500 => "Captain",
+            _      => "Senior Captain"
         };
 
         return stats;
