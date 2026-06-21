@@ -421,9 +421,9 @@ public class PilotStatsService
         stats.Rank = stats.TotalHoursAir switch
         {
             < 25   => "Cadet",
-            < 75   => "Junior FO",
-            < 200  => "FO",
-            < 450  => "Senior FO",
+            < 75   => "Junior First Officer",
+            < 200  => "First Officer",
+            < 450  => "Senior First Officer",
             < 800  => "Junior Captain",
             < 1500 => "Captain",
             _      => "Senior Captain"
