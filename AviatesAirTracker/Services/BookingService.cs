@@ -246,6 +246,50 @@ public class BookingService
     }
 
     // =====================================================
+    // COMPLETE ACTIVE BOOKING
+    // Marks the active booking as completed on the backend,
+    // advances the pilot's home base to the arrival airport,
+    // and clears ActiveBooking. Fire-and-forget safe.
+    // =====================================================
+
+    public async Task CompleteActiveBookingAsync()
+    {
+        if (ActiveBooking == null) return;
+
+        var booking  = ActiveBooking;
+        var acarsKey = _settings.Settings.AcarsKey;
+
+        // Clear immediately — UI should not show a stale active booking
+        ActiveBooking = null;
+
+        if (string.IsNullOrEmpty(acarsKey)) return;
+
+        try
+        {
+            _http.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", acarsKey);
+
+            var response = await _http.PatchAsync(
+                $"/api/bookings/{booking.Id}",
+                new StringContent("{}", System.Text.Encoding.UTF8, "application/json"));
+
+            if (response.IsSuccessStatusCode)
+                Log.Information("[BookingService] Booking {Id} completed", booking.Id);
+            else
+                Log.Warning("[BookingService] Complete booking {Id} failed: {Status}",
+                    booking.Id, response.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[BookingService] CompleteActiveBookingAsync error");
+        }
+
+        // Update home base regardless of API success
+        if (!string.IsNullOrEmpty(booking.DestIata))
+            await SetPositionAsync(booking.DestIata);
+    }
+
+    // =====================================================
     // SYNC POSITION FROM SUPABASE
     // Overwrites the local CurrentAirportIata with the
     // value stored in Supabase. Call on app startup / Routes init.
