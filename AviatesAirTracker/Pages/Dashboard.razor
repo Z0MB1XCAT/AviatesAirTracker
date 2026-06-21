@@ -1,4 +1,7 @@
 @page "/"
+@using AviatesAirTracker.ViewModels
+@inject PilotHubViewModel PilotHub
+@implements IDisposable
 
 <div class="dashboard-layout">
 
@@ -73,12 +76,10 @@
                 <div class="stat-body">
                     <div class="stat-meta">Flights Completed</div>
                     <div class="stat-value-row">
-                        <span class="stat-value">2</span>
-                        <span class="stat-unit">/ 8</span>
+                        <span class="stat-value">@PilotHub.TotalFlights</span>
                     </div>
                     <div class="stat-label">Flights</div>
                 </div>
-                <span class="stat-trend up">+2</span>
             </div>
             <div class="stat-card anim-up-d2">
                 <div class="stat-icon cyan">
@@ -87,14 +88,12 @@
                     </svg>
                 </div>
                 <div class="stat-body">
-                    <div class="stat-meta">Block Hours</div>
+                    <div class="stat-meta">Air Hours</div>
                     <div class="stat-value-row">
-                        <span class="stat-value">14</span>
-                        <span class="stat-unit">hrs</span>
+                        <span class="stat-value">@PilotHub.BlockHours</span>
                     </div>
                     <div class="stat-label">Hours Flown</div>
                 </div>
-                <span class="stat-trend up">+3h</span>
             </div>
             <div class="stat-card anim-up-d3">
                 <div class="stat-icon green">
@@ -105,12 +104,10 @@
                 <div class="stat-body">
                     <div class="stat-meta">Avg Landing</div>
                     <div class="stat-value-row">
-                        <span class="stat-value">82</span>
-                        <span class="stat-unit">/100</span>
+                        <span class="stat-value">@PilotHub.AvgLandingScore</span>
                     </div>
                     <div class="stat-label">Landing Score</div>
                 </div>
-                <span class="stat-trend flat">—</span>
             </div>
         </div>
 
@@ -442,3 +439,15 @@
 
     </div>
 </div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        PilotHub.DataRefreshed += OnDataRefreshed;
+        await PilotHub.RefreshAsync();
+    }
+
+    private void OnDataRefreshed() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => PilotHub.DataRefreshed -= OnDataRefreshed;
+}
