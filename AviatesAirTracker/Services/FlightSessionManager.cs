@@ -51,6 +51,7 @@ public class FlightSessionManager
     private readonly RunwayDetector _runwayDetector;
     private readonly ApproachMonitor _approachMonitor;
     private readonly AviatesBackendClient _backend;
+    private readonly BookingService _bookingService;
 
     // =====================================================
     // STATE
@@ -85,7 +86,8 @@ public class FlightSessionManager
         SettingsService settings,
         RunwayDetector runwayDetector,
         ApproachMonitor approachMonitor,
-        AviatesBackendClient backend)
+        AviatesBackendClient backend,
+        BookingService bookingService)
     {
         _telemetry = telemetry;
         _phaseDetector = phaseDetector;
@@ -99,6 +101,7 @@ public class FlightSessionManager
         _runwayDetector = runwayDetector;
         _approachMonitor = approachMonitor;
         _backend = backend;
+        _bookingService = bookingService;
 
         // Wire up phase changes
         _phaseDetector.PhaseChanged += OnPhaseChanged;
@@ -344,6 +347,7 @@ public class FlightSessionManager
         var completedFlight = CurrentFlight;
         Reset();
         _ = SubmitPirepSafeAsync(completedFlight);
+        _ = _bookingService.CompleteActiveBookingAsync();
     }
 
     private async Task SubmitPirepSafeAsync(FlightRecord flight)
