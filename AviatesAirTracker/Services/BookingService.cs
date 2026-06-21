@@ -271,7 +271,7 @@ public class BookingService
 
             var response = await _http.PatchAsync(
                 $"/api/bookings/{booking.Id}",
-                new StringContent("{}", System.Text.Encoding.UTF8, "application/json"));
+                new StringContent("""{"status":"completed"}""", System.Text.Encoding.UTF8, "application/json"));
 
             if (response.IsSuccessStatusCode)
                 Log.Information("[BookingService] Booking {Id} completed", booking.Id);
