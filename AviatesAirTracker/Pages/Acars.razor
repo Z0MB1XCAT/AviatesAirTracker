@@ -13,6 +13,7 @@
 @inject FlightPhaseDetector PhaseDetector
 @inject AcarsPositionService PosService
 @inject AviatesBackendClient BackendClient
+@inject AviatesAirTracker.ViewModels.PilotHubViewModel PilotHub
 @implements IAsyncDisposable
 
 <div class="page-header anim-up" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
@@ -724,6 +725,12 @@
     private string? _simBriefError;
     private bool _autoImportDone; // prevent repeated auto-import per session
 
+    // Flight completion panel
+    private bool          _showCompletionPanel = false;
+    private FlightRecord? _completedRecord     = null;
+    private string?       _rankUp              = null;
+    private string        _rankBefore          = "";
+
     // Live METAR state (refreshed independently from the OFP)
     private string? _depMetar;
     private string? _arrMetar;
@@ -765,6 +772,13 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Load persisted SimBrief plan from previous session if none active
+        if (_flightPlan == null)
+            _flightPlan = await Settings.LoadSimBriefPlanAsync();
+
+        Session.FlightCompleted += OnFlightCompleted;
+        PilotHub.DataRefreshed  += OnStatsRefreshed;
+
         // If MSFS is already connected when the page first loads, auto-import immediately
         if (_simStatus == SimConnectionStatus.Connected
             && _flightPlan == null
@@ -801,6 +815,8 @@
         SimConnect.AircraftIdentReceived   -= OnAircraftIdentReceived;
         Session.TelemetryUpdated           -= OnTelemetryUpdated;
         Session.SessionStateChanged        -= OnSessionStateChanged;
+        Session.FlightCompleted            -= OnFlightCompleted;
+        PilotHub.DataRefreshed             -= OnStatsRefreshed;
 
         try { await JS.InvokeVoidAsync("acarsInterop.disposeFmcShortcut"); } catch { }
         try { await JS.InvokeVoidAsync("aviatesMapMini.destroy"); } catch { }
@@ -966,6 +982,7 @@
             if (plan != null)
             {
                 _flightPlan = plan;
+                await Settings.SaveSimBriefPlanAsync(_flightPlan);
 
                 // Wire into the active flight session so Discord Rich Presence
                 // picks up the correct DEP/ARR on its next update cycle.
@@ -1000,6 +1017,57 @@
         _simBriefError = null;
         SimBriefSvc.ClearPlan();
     }
+
+    // ── Flight completion panel ──────────────────────────────
+
+    private void OnFlightCompleted(object? sender, FlightRecord record)
+    {
+        // Capture rank BEFORE stats refresh so we can detect a rank-up
+        _rankBefore      = PilotHub.PilotRank;
+        _completedRecord = record;
+        // Panel is shown in OnStatsRefreshed once PilotHubViewModel has updated
+    }
+
+    private async void OnStatsRefreshed()
+    {
+        // Only act if a flight just completed (not a routine refresh)
+        if (_completedRecord == null) return;
+
+        _rankUp = PilotHub.PilotRank != _rankBefore ? PilotHub.PilotRank : null;
+
+        // Clear the persisted plan — it has been flown
+        await Settings.SaveSimBriefPlanAsync(null);
+        _flightPlan = null;
+
+        _showCompletionPanel = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void DismissCompletionPanel()
+    {
+        _showCompletionPanel = false;
+        _completedRecord     = null;
+        _rankUp              = null;
+    }
+
+    private string FormatVS(FlightRecord r)
+    {
+        if (r.PrimaryLanding == null) return "—";
+        var vs = (int)r.PrimaryLanding.VerticalSpeedFPM;
+        return vs >= 0 ? $"+{vs} fpm" : $"{vs} fpm";
+    }
+
+    private string LandingVsClass(FlightRecord r)
+    {
+        if (r.PrimaryLanding == null) return "neutral";
+        var abs = Math.Abs(r.PrimaryLanding.VerticalSpeedFPM);
+        return abs <= 150 ? "green" : abs <= 300 ? "amber" : "red";
+    }
+
+    private static string FormatAirTime(TimeSpan t)
+        => t.TotalHours >= 1
+            ? $"{(int)t.TotalHours}h {t.Minutes:00}m"
+            : $"{t.Minutes}m";
 
     // ── Banner helpers ───────────────────────────────────────
 
@@ -1275,6 +1343,73 @@
         }
         catch { /* clipboard may be unavailable */ }
     }
+}
+
+@if (_showCompletionPanel && _completedRecord != null)
+{
+    <div class="completion-overlay" @onclick="DismissCompletionPanel">
+        <div class="completion-panel" @onclick:stopPropagation="true">
+
+            <div class="completion-header">
+                <span class="completion-eyebrow">✦ FLIGHT COMPLETE</span>
+                <div class="completion-route">
+                    @_completedRecord.DepartureICAO<span class="route-arrow-sep">→</span>@_completedRecord.ArrivalICAO
+                </div>
+                <div class="completion-sub">
+                    @_completedRecord.AircraftType
+                    @if (!string.IsNullOrEmpty(_completedRecord.Callsign))
+                    {
+                        <span> · @_completedRecord.Callsign</span>
+                    }
+                </div>
+            </div>
+
+            <div class="completion-stats">
+                <div class="completion-stat">
+                    <span class="completion-stat-label">Landing VS</span>
+                    <span class="completion-stat-value vs-@LandingVsClass(_completedRecord)">
+                        @FormatVS(_completedRecord)
+                    </span>
+                </div>
+                <div class="completion-stat">
+                    <span class="completion-stat-label">Score</span>
+                    <span class="completion-stat-value score-val">
+                        @(_completedRecord.PrimaryLanding?.LandingScore.ToString() ?? "—")<span class="stat-denom">/100</span>
+                    </span>
+                </div>
+                <div class="completion-stat">
+                    <span class="completion-stat-label">Air Time</span>
+                    <span class="completion-stat-value">@FormatAirTime(_completedRecord.AirTime)</span>
+                </div>
+                <div class="completion-stat">
+                    <span class="completion-stat-label">Distance</span>
+                    <span class="completion-stat-value">
+                        @(_completedRecord.ActualDistanceNm.ToString("F0"))<span class="stat-denom"> nm</span>
+                    </span>
+                </div>
+                <div class="completion-stat">
+                    <span class="completion-stat-label">Fuel Used</span>
+                    <span class="completion-stat-value">
+                        @(_completedRecord.FuelUsedLbs.ToString("F0"))<span class="stat-denom"> lbs</span>
+                    </span>
+                </div>
+            </div>
+
+            @if (_rankUp != null)
+            {
+                <div class="completion-rankup">
+                    <span class="rankup-icon">🎖</span>
+                    <div>
+                        <div class="rankup-label">Rank Up!</div>
+                        <div class="rankup-value">@_rankUp</div>
+                    </div>
+                </div>
+            }
+
+            <button class="completion-dismiss" @onclick="DismissCompletionPanel">Dismiss</button>
+
+        </div>
+    </div>
 }
 
 <style>
