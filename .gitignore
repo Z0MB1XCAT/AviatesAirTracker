@@ -39,3 +39,25 @@ desktop.ini
 
 # Exports (user-generated)
 Documents/AviatesAir/
+
+# Backend API source (private — not for public repo)
+BACKEND-API/
+
+# Dev scratch / session artifacts
+bugreport.md
+errorlol.md
+AUDIT-REPORT.md
+simbrieflol.md
+extrainstructions.md
+instructions.md
+
+# Dev reference images (design-time only)
+otbx2mdb.png
+reference.png
+
+# AI session planning docs (internal agent working notes)
+docs/superpowers/
+docs/agent-teams-reference.md
+
+# Build artifacts
+dist.zip
