@@ -135,6 +135,49 @@ async function syncDiscordRank(env, discordId, acarsKey, newRank, firstName) {
   }
 }
 
+// Formats a short flight-completion DM message.
+function formatFlightCompletionDM(body, firstName) {
+  const fn   = (body.flight_number  || '').trim() || 'Unknown';
+  const dep  = (body.departure_icao || '').trim().toUpperCase();
+  const arr  = (body.arrival_icao   || '').trim().toUpperCase();
+  const mins = parseInt(body.block_minutes, 10) || 0;
+  const h    = Math.floor(mins / 60);
+  const m    = mins % 60;
+  const block = h > 0 ? `${h}h ${m}m` : `${m}m`;
+  const dist  = (parseInt(body.distance_nm, 10) || 0).toLocaleString('en-US');
+  const score = Math.round(parseFloat(body.landing_score) || 0);
+  const vs    = parseInt(body.landing_vs_fpm, 10) || 0;
+  return (
+    `✈️ **Flight Filed** — Hey ${firstName}!\n` +
+    `**${fn}** · ${dep} → ${arr}\n` +
+    `Block time: ${block} · ${dist} nm\n` +
+    `Landing: ${score}/100 · ${vs} fpm`
+  );
+}
+
+// Opens (or reuses) a DM channel to a Discord user and sends a message.
+async function sendDiscordDm(env, discordId, content) {
+  if (!env.DISCORD_BOT_TOKEN) return;
+  const headers = {
+    'Authorization': `Bot ${env.DISCORD_BOT_TOKEN}`,
+    'Content-Type': 'application/json',
+  };
+  try {
+    const dmRes = await fetch('https://discord.com/api/v10/users/@me/channels', {
+      method: 'POST', headers,
+      body: JSON.stringify({ recipient_id: discordId }),
+    });
+    if (!dmRes.ok) return;
+    const { id: channelId } = await dmRes.json();
+    await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ content }),
+    });
+  } catch (e) {
+    console.error('Discord DM failed:', e);
+  }
+}
+
 // ─── DISTANCE CALCULATION ───────────────────────────────────────────────────────
 /**
  * Calculate great circle distance between two geographic points using haversine formula.
@@ -2537,7 +2580,7 @@ async function handleV1Api(request, env, ctx, url, pathname, corsHeaders) {
       status:          "accepted",
     });
 
-    // Fire-and-forget rank check — never blocks the PIREP response
+    // Fire-and-forget post-PIREP notifications — never blocks the response
     ctx.waitUntil((async () => {
       try {
         const discordRows = await sbGet(env,
@@ -2546,6 +2589,12 @@ async function handleV1Api(request, env, ctx, url, pathname, corsHeaders) {
         const du = discordRows?.[0];
         if (!du?.discord_id) return;
 
+        const firstName = du.first_name || 'Pilot';
+
+        // Always DM on flight completion
+        await sendDiscordDm(env, du.discord_id, formatFlightCompletionDM(body, firstName));
+
+        // Rank-up check — separate DM only if rank changed
         // Must include both ACARS and manual hours — same as /api/portal/profile
         const [statsRows, manualRows] = await Promise.all([
           sbRpc(env, 'get_pilot_stats',        { p_acars_key: acarsKey }),
@@ -2554,11 +2603,11 @@ async function handleV1Api(request, env, ctx, url, pathname, corsHeaders) {
         const totalHours = (Number(statsRows?.[0]?.total_hours)  || 0)
                          + (Number(manualRows?.[0]?.manual_hours) || 0);
         const { rank: newRank } = computeRank(totalHours);
-        if (newRank === du.discord_rank) return;
-
-        await syncDiscordRank(env, du.discord_id, acarsKey, newRank, du.first_name || 'Pilot');
+        if (newRank !== du.discord_rank) {
+          await syncDiscordRank(env, du.discord_id, acarsKey, newRank, firstName);
+        }
       } catch (e) {
-        console.error('PIREP rank sync failed:', e);
+        console.error('PIREP post-processing failed:', e);
       }
     })());
 
