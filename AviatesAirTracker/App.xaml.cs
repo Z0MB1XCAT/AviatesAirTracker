@@ -64,6 +64,7 @@ public partial class App : Application
 
             // Retry any PIREPs that failed or couldn't submit last session
             _ = RetryPendingPirepsAsync(_serviceProvider);
+            _ = SyncPirepHistoryAsync(_serviceProvider);
 
             // When a booked flight completes, advance the pilot's current airport to the
             // booking destination so the Routes page only shows departures from there next time.
@@ -150,6 +151,70 @@ public partial class App : Application
         catch (Exception ex)
         {
             Log.Warning(ex, "[Startup] PIREP retry scan failed (non-critical)");
+        }
+    }
+
+    private static async Task SyncPirepHistoryAsync(IServiceProvider sp)
+    {
+        try
+        {
+            var settings = sp.GetRequiredService<SettingsService>();
+            var key      = settings.Settings.AcarsKey.Trim();
+            if (string.IsNullOrEmpty(key)) return;
+
+            var backend = sp.GetRequiredService<AviatesBackendClient>();
+            var flights = sp.GetRequiredService<IFlightRepository>();
+
+            var remote = await backend.FetchMyPirepsAsync(key);
+            if (remote.Count == 0) return;
+
+            var local = await flights.GetAllAsync();
+            int added = 0;
+
+            foreach (var r in remote)
+            {
+                // Skip if already in local cache — match by flight number + block-out within 60 s
+                bool exists = local.Any(f =>
+                    f.FlightNumber == r.FlightNumber &&
+                    r.BlockOutTime.HasValue &&
+                    Math.Abs((f.BlockOutTime - r.BlockOutTime.Value).TotalSeconds) < 60);
+                if (exists) continue;
+
+                var record = new FlightRecord
+                {
+                    FlightNumber     = r.FlightNumber,
+                    Callsign         = r.Callsign,
+                    DepartureICAO    = r.DepartureICAO,
+                    ArrivalICAO      = r.ArrivalICAO,
+                    AircraftType     = r.AircraftType,
+                    BlockOutTime     = r.BlockOutTime ?? DateTime.UtcNow,
+                    BlockInTime      = r.BlockInTime  ?? DateTime.UtcNow,
+                    FuelUsedLbs      = r.FuelUsedLbs,
+                    ActualDistanceNm = r.DistanceNm,
+                    Status           = FlightStatus.Completed,
+                    SyncedToBackend  = true,
+                };
+
+                if (r.LandingVsFpm != 0 || r.LandingScore > 0)
+                {
+                    record.PrimaryLanding = new LandingResult
+                    {
+                        VerticalSpeedFPM = r.LandingVsFpm,
+                        LandingScore     = (int)r.LandingScore,
+                        AirportICAO      = r.ArrivalICAO,
+                    };
+                }
+
+                await flights.SaveAsync(record);
+                added++;
+            }
+
+            if (added > 0)
+                Log.Information("[Startup] Synced {Count} historical PIREP(s) from Supabase", added);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Startup] PIREP history sync failed (non-critical)");
         }
     }
 

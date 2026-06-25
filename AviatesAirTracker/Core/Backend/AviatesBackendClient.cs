@@ -220,6 +220,36 @@ public class AviatesBackendClient
     }
 
     // =====================================================
+    // PIREP HISTORY
+    // =====================================================
+
+    public async Task<List<RemotePirepRecord>> FetchMyPirepsAsync(string acarsKey)
+    {
+        try
+        {
+            var request = new RestRequest("/api/v1/pireps")
+                .AddQueryParameter("limit", "100")
+                .AddHeader("Authorization", $"Bearer {acarsKey}");
+
+            var response = await _client.ExecuteAsync(request);
+
+            if (!response.IsSuccessful || string.IsNullOrEmpty(response.Content))
+            {
+                Log.Debug("[BackendClient] FetchMyPireps non-success: {Status}", response.StatusCode);
+                return [];
+            }
+
+            var wrapper = JsonConvert.DeserializeObject<PirepListResponse>(response.Content);
+            return wrapper?.Pireps ?? [];
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[BackendClient] FetchMyPireps error");
+            return [];
+        }
+    }
+
+    // =====================================================
     // LIVE FLIGHT POSITION UPDATE (ACARS position report)
     // =====================================================
 
@@ -444,4 +474,29 @@ public class RouteValidationResult
     [JsonProperty("message")]     public string Message      { get; set; } = "";
     [JsonProperty("route_id")]    public string? RouteId     { get; set; }
     [JsonProperty("aircraft_ok")] public bool   AircraftOk  { get; set; }
+}
+
+public class RemotePirepRecord
+{
+    [JsonProperty("id")]             public int       Id            { get; set; }
+    [JsonProperty("flight_number")]  public string    FlightNumber  { get; set; } = "";
+    [JsonProperty("callsign")]       public string    Callsign      { get; set; } = "";
+    [JsonProperty("departure_icao")] public string    DepartureICAO { get; set; } = "";
+    [JsonProperty("arrival_icao")]   public string    ArrivalICAO   { get; set; } = "";
+    [JsonProperty("aircraft_type")]  public string    AircraftType  { get; set; } = "";
+    [JsonProperty("block_out_time")] public DateTime? BlockOutTime  { get; set; }
+    [JsonProperty("block_in_time")]  public DateTime? BlockInTime   { get; set; }
+    [JsonProperty("block_minutes")]  public int       BlockMinutes  { get; set; }
+    [JsonProperty("air_minutes")]    public int       AirMinutes    { get; set; }
+    [JsonProperty("distance_nm")]    public int       DistanceNm    { get; set; }
+    [JsonProperty("fuel_used_lbs")]  public int       FuelUsedLbs   { get; set; }
+    [JsonProperty("landing_vs_fpm")] public int       LandingVsFpm  { get; set; }
+    [JsonProperty("landing_score")]  public double    LandingScore  { get; set; }
+    [JsonProperty("submitted_at")]   public DateTime  SubmittedAt   { get; set; }
+    [JsonProperty("status")]         public string    Status        { get; set; } = "";
+}
+
+internal class PirepListResponse
+{
+    [JsonProperty("pireps")] public List<RemotePirepRecord> Pireps { get; set; } = [];
 }
