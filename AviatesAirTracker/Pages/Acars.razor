@@ -965,8 +965,13 @@
 
     private void TryConnect()
     {
+        var statusBefore = SimConnect.ConnectionStatus;
         _connectingInProgress = true;
         SimConnect.TryConnect();
+        // If TryConnect bailed out silently (guard hit), status didn't change
+        // and OnConnectionStatusChanged never ran — clear the flag now.
+        if (SimConnect.ConnectionStatus == statusBefore)
+            _connectingInProgress = false;
         StateHasChanged();
     }
 
