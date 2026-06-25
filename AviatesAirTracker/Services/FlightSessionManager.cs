@@ -265,7 +265,8 @@ public class FlightSessionManager
         };
 
         // Pre-populate from the active booking so the logbook shows the route number
-        // (e.g. "VAV103") instead of a truncated GUID. SimConnect ident overwrites if it fires.
+        // (e.g. "VAV103") instead of a truncated GUID. AircraftIdentReceived is not yet
+        // wired, so this is currently the sole source for FlightNumber and Callsign.
         if (_bookingService.ActiveBooking is { } booking)
         {
             if (!string.IsNullOrEmpty(booking.RouteCallsign))

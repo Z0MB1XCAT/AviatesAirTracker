@@ -80,7 +80,14 @@ public class BookingService
 
     // The booking currently being operated — set when pilot clicks "Start Flight",
     // read by the ACARS page to show context. Session-level state on the singleton.
-    public FlightBooking? ActiveBooking { get; private set; }
+    // volatile: CompleteActiveBookingAsync writes on a thread-pool thread; OnEnginesStarted
+    // reads on the SimConnect pump thread — the keyword prevents stale cached reads.
+    private volatile FlightBooking? _activeBooking;
+    public FlightBooking? ActiveBooking
+    {
+        get => _activeBooking;
+        private set => _activeBooking = value;
+    }
     public void SetActiveBooking(FlightBooking? booking) => ActiveBooking = booking;
 
     public BookingService(SettingsService settings)
