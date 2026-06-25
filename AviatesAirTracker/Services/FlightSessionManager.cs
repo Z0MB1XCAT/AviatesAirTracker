@@ -254,7 +254,7 @@ public class FlightSessionManager
     private void OnEnginesStarted(TelemetrySnapshot snap)
     {
         Log.Information("[FlightSession] Engines started, creating flight record");
-        
+
         CurrentFlight = new FlightRecord
         {
             FlightNumber = "",   // populated later via AircraftIdentReceived
@@ -263,7 +263,17 @@ public class FlightSessionManager
             FuelDepartureLbs = snap.Raw.FuelTotalLbs,
             Status = FlightStatus.InProgress
         };
-        
+
+        // Pre-populate from the active booking so the logbook shows the route number
+        // (e.g. "VAV103") instead of a truncated GUID. SimConnect ident overwrites if it fires.
+        if (_bookingService.ActiveBooking is { } booking)
+        {
+            if (!string.IsNullOrEmpty(booking.RouteCallsign))
+                CurrentFlight.FlightNumber = booking.RouteCallsign;
+            if (!string.IsNullOrEmpty(booking.Callsign))
+                CurrentFlight.Callsign = booking.Callsign;
+        }
+
         _fuelAtDeparture = snap.Raw.FuelTotalLbs;
         _flightRepo.SetCurrentFlight(CurrentFlight);
         _ = _flightRepo.SaveAsync(CurrentFlight);
