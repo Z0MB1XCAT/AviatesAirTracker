@@ -1023,10 +1023,12 @@
 
     private void OnFlightCompleted(object? sender, FlightRecord record)
     {
-        // Capture rank BEFORE stats refresh so we can detect a rank-up
-        _rankBefore      = PilotHub.PilotRank;
-        _completedRecord = record;
-        // Panel is shown in OnStatsRefreshed once PilotHubViewModel has updated
+        _rankBefore          = PilotHub.PilotRank;
+        _completedRecord     = record;
+        _rankUp              = null;   // rank badge updates once stats refresh
+        _flightPlan          = null;   // clear SimBrief display immediately
+        _showCompletionPanel = true;
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private async void OnStatsRefreshed()
@@ -1034,10 +1036,8 @@
         if (_disposed || _completedRecord == null) return;
         try
         {
+            await Settings.SaveSimBriefPlanAsync(null); // persist plan clearance to disk
             _rankUp = PilotHub.PilotRank != _rankBefore ? PilotHub.PilotRank : null;
-            await Settings.SaveSimBriefPlanAsync(null);
-            _flightPlan = null;
-            _showCompletionPanel = true;
             await InvokeAsync(StateHasChanged);
         }
         catch (ObjectDisposedException) { }
