@@ -37,7 +37,9 @@
     <div style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--text-muted);letter-spacing:0.05em;flex-shrink:0;">@_utcNow</div>
     @if (_simStatus != SimConnectionStatus.Connected)
     {
-        <button class="btn btn-primary btn-sm" @onclick="TryConnect">Connect</button>
+        <button class="btn btn-primary btn-sm" @onclick="TryConnect" disabled="@_connectingInProgress">
+            @(_connectingInProgress ? "Connecting…" : "Connect")
+        </button>
     }
     else if (_sessionState != FlightSessionState.Idle && _sessionState != FlightSessionState.Complete)
     {
@@ -698,6 +700,9 @@
     // FMC panel
     private bool _showFmc;
 
+    // Connection state
+    private bool _connectingInProgress;
+
     // Flight event log
     private readonly List<(DateTime Time, string Description)> _eventLog = new();
 
@@ -866,6 +871,7 @@
         _simStatus = status;
         InvokeAsync(async () =>
         {
+            _connectingInProgress = false;
             StateHasChanged();
             // Auto-import SimBrief OFP once per MSFS connection, if no plan is loaded yet
             if (status == SimConnectionStatus.Connected
@@ -957,7 +963,12 @@
         });
     }
 
-    private void TryConnect() => SimConnect.TryConnect();
+    private void TryConnect()
+    {
+        _connectingInProgress = true;
+        SimConnect.TryConnect();
+        StateHasChanged();
+    }
 
     private void ConfirmEndFlight()
     {
