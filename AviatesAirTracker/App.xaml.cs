@@ -179,10 +179,10 @@ public partial class App : Application
                     continue;
 
                 // Skip if already in local cache — match by flight number + block-out within 60 s
+                var rBlockOut = r.BlockOutTime ?? r.SubmittedAt;
                 bool exists = local.Any(f =>
                     f.FlightNumber == r.FlightNumber &&
-                    r.BlockOutTime.HasValue &&
-                    Math.Abs((f.BlockOutTime - r.BlockOutTime.Value).TotalSeconds) < 60);
+                    Math.Abs((f.BlockOutTime - rBlockOut).TotalSeconds) < 60);
                 if (exists) continue;
 
                 var record = new FlightRecord
