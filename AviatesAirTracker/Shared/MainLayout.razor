@@ -4,8 +4,11 @@
 @inject SettingsService SettingsService
 @inject UpdateService UpdateService
 @inject TakeoffPerformanceService TakeoffPerfService
+@inject AviatesAirTracker.Core.SimConnect.SimConnectManager SimConnectMgr
 @inject IJSRuntime JS
 @implements IAsyncDisposable
+
+@using AviatesAirTracker.Core.SimConnect
 
 @if (!_notAuthenticated)
 {
@@ -189,8 +192,8 @@
         <div class="sidebar-connection">
             <div class="conn-card">
                 <div class="conn-row">
-                    <span class="conn-dot disconnected"></span>
-                    <span class="conn-status-text">Offline Mode</span>
+                    <span class="conn-dot @_connDotClass"></span>
+                    <span class="conn-status-text">@_connStatusText</span>
                 </div>
             </div>
         </div>
@@ -286,6 +289,22 @@
     private bool        _isDownloading;
     private int         _dlProgress;
 
+    private SimConnectionStatus _connStatus = SimConnectionStatus.Disconnected;
+
+    private string _connDotClass => _connStatus switch
+    {
+        SimConnectionStatus.Connected  => "connected",
+        SimConnectionStatus.Connecting => "connecting",
+        _                              => "disconnected"
+    };
+
+    private string _connStatusText => _connStatus switch
+    {
+        SimConnectionStatus.Connected  => "MSFS Connected",
+        SimConnectionStatus.Connecting => "Connecting…",
+        _                              => "Offline Mode"
+    };
+
     protected override void OnInitialized()
     {
         if (string.IsNullOrWhiteSpace(SettingsService.Settings.AcarsKey))
@@ -299,6 +318,8 @@
         SettingsService.SettingsChanged     += OnSettingsChanged;
         UpdateService.UpdateFound           += OnUpdateFound;
         UpdateService.DownloadProgressChanged += OnDownloadProgress;
+        SimConnectMgr.ConnectionStatusChanged += OnSimConnectionChanged;
+        _connStatus = SimConnectMgr.ConnectionStatus;
         RefreshHeader();
 
         // If an update was already detected before the layout rendered, show it immediately
@@ -367,10 +388,16 @@
         _ = InvokeAsync(() => { _unreadCount = count; StateHasChanged(); });
     }
 
+    private void OnSimConnectionChanged(object? sender, SimConnectionStatus status)
+    {
+        _ = InvokeAsync(() => { _connStatus = status; StateHasChanged(); });
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_notAuthenticated) return; // nothing was subscribed
 
+        SimConnectMgr.ConnectionStatusChanged -= OnSimConnectionChanged;
         MessagingService.UnreadCountChanged   -= OnUnreadCountChanged;
         SettingsService.SettingsChanged       -= OnSettingsChanged;
         UpdateService.UpdateFound             -= OnUpdateFound;
