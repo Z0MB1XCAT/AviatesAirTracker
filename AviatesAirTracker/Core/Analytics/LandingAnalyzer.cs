@@ -517,7 +517,13 @@ public class LandingAnalyzer
         // If a touchdown was recorded but rollout never completed (e.g. flight ended
         // before speed dropped below 30kt), fire the landing result now so the modal appears.
         if (_capturingRollout && _touchdownSnapshot != null)
-            FinalizeLanding();
+        {
+            try { FinalizeLanding(); }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "[LandingAnalyzer] FinalizeLanding threw during Reset — continuing cleanup");
+            }
+        }
 
         _capturingRollout = false;
         ResetForNextLanding();
