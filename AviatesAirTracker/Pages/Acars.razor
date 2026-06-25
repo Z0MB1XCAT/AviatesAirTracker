@@ -1023,10 +1023,12 @@
 
     private void OnFlightCompleted(object? sender, FlightRecord record)
     {
+        if (_disposed) return;   // defensive; mirrors OnStatsRefreshed
         _rankBefore          = PilotHub.PilotRank;
         _completedRecord     = record;
         _rankUp              = null;   // rank badge updates once stats refresh
         _flightPlan          = null;   // clear SimBrief display immediately
+        _ = Settings.SaveSimBriefPlanAsync(null);   // one-shot disk clear, fire-and-forget
         _showCompletionPanel = true;
         _ = InvokeAsync(StateHasChanged);
     }
@@ -1036,7 +1038,6 @@
         if (_disposed || _completedRecord == null) return;
         try
         {
-            await Settings.SaveSimBriefPlanAsync(null); // persist plan clearance to disk
             _rankUp = PilotHub.PilotRank != _rankBefore ? PilotHub.PilotRank : null;
             await InvokeAsync(StateHasChanged);
         }
