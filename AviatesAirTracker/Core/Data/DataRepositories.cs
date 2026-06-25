@@ -628,6 +628,100 @@ public class InMemoryFlightDeletionRepository : IFlightDeletionRepository
 }
 
 // ============================================================
+// JSON-PERSISTED FLIGHT DELETION REPOSITORY
+// ============================================================
+
+public class JsonFlightDeletionRepository : IFlightDeletionRepository
+{
+    private readonly List<FlightDeletionRequest> _requests = [];
+    private readonly object _lock = new();
+    private readonly string _path = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "AviatesAirTracker", "deletion_requests.json");
+
+    private static readonly JsonSerializerOptions _opts = new()
+    {
+        WriteIndented = true,
+        Converters    = { new JsonStringEnumConverter() }
+    };
+
+    public JsonFlightDeletionRepository() { Load(); }
+
+    private void Load()
+    {
+        try
+        {
+            if (!File.Exists(_path)) return;
+            var loaded = JsonSerializer.Deserialize<List<FlightDeletionRequest>>(
+                File.ReadAllText(_path), _opts);
+            if (loaded != null)
+            {
+                _requests.AddRange(loaded);
+                Log.Debug("[DeletionRepo] Loaded {Count} requests from disk", _requests.Count);
+            }
+        }
+        catch (Exception ex) { Log.Warning(ex, "[DeletionRepo] Failed to load"); }
+    }
+
+    private void SaveSnapshot(List<FlightDeletionRequest> snapshot)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+            File.WriteAllText(_path, JsonSerializer.Serialize(snapshot, _opts));
+        }
+        catch (Exception ex) { Log.Warning(ex, "[DeletionRepo] Failed to save"); }
+    }
+
+    public Task<List<FlightDeletionRequest>> GetAllAsync()
+    {
+        lock (_lock)
+            return Task.FromResult(_requests.OrderByDescending(r => r.SubmittedAt).ToList());
+    }
+
+    public Task<FlightDeletionRequest?> GetPendingForFlightAsync(Guid flightId)
+    {
+        lock (_lock)
+            return Task.FromResult(_requests.FirstOrDefault(r =>
+                r.FlightId == flightId && r.Status == DeletionRequestStatus.Pending));
+    }
+
+    public Task SaveAsync(FlightDeletionRequest request)
+    {
+        List<FlightDeletionRequest> snapshot;
+        lock (_lock) { _requests.Add(request); snapshot = _requests.ToList(); }
+        SaveSnapshot(snapshot);
+        return Task.CompletedTask;
+    }
+
+    public Task ApproveAsync(Guid requestId)
+    {
+        List<FlightDeletionRequest> snapshot;
+        lock (_lock)
+        {
+            var r = _requests.FirstOrDefault(x => x.Id == requestId);
+            if (r != null) { r.Status = DeletionRequestStatus.Approved; r.ReviewedAt = DateTime.UtcNow; }
+            snapshot = _requests.ToList();
+        }
+        SaveSnapshot(snapshot);
+        return Task.CompletedTask;
+    }
+
+    public Task RejectAsync(Guid requestId)
+    {
+        List<FlightDeletionRequest> snapshot;
+        lock (_lock)
+        {
+            var r = _requests.FirstOrDefault(x => x.Id == requestId);
+            if (r != null) { r.Status = DeletionRequestStatus.Rejected; r.ReviewedAt = DateTime.UtcNow; }
+            snapshot = _requests.ToList();
+        }
+        SaveSnapshot(snapshot);
+        return Task.CompletedTask;
+    }
+}
+
+// ============================================================
 // JSON-PERSISTED FLIGHT REPOSITORY
 // Flight records survive app restarts — saved to AppData\Roaming.
 // Replaces InMemoryFlightRepository.

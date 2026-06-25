@@ -159,7 +159,7 @@ public partial class App : Application
         services.AddSingleton<IFlightRepository, JsonFlightRepository>();
         services.AddSingleton<IPilotRepository, InMemoryPilotRepository>();
         services.AddSingleton<ILandingRepository, JsonLandingRepository>();
-        services.AddSingleton<IFlightDeletionRepository, InMemoryFlightDeletionRepository>();
+        services.AddSingleton<IFlightDeletionRepository, JsonFlightDeletionRepository>();
         services.AddSingleton<IMessageRepository, JsonMessageRepository>();
         services.AddSingleton<IFriendRepository, JsonFriendRepository>();
         // Infrastructure
