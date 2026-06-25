@@ -413,9 +413,10 @@ else
                     Cancel
                 </button>
                 <button @onclick="ExecuteForceRemove"
+                        disabled="@_removingFlight"
                         style="background:var(--red);border:none;border-radius:999px;
                                padding:8px 22px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;">
-                    Remove
+                    @(_removingFlight ? "Removing…" : "Remove")
                 </button>
             </div>
         </div>
@@ -437,6 +438,7 @@ else
 
     // Force remove modal state
     private FlightRecord? _forceRemoveTarget;
+    private bool _removingFlight;
 
     // ── Lifecycle ─────────────────────────────────────────────
 
@@ -532,16 +534,24 @@ else
 
     private async Task ExecuteForceRemove()
     {
-        if (_forceRemoveTarget == null) return;
-        var target = _forceRemoveTarget;
-        _forceRemoveTarget = null;
+        if (_forceRemoveTarget == null || _removingFlight) return;
+        _removingFlight = true;
+        try
+        {
+            var target = _forceRemoveTarget;
+            _forceRemoveTarget = null;
 
-        if (Session.CurrentFlight?.Id == target.Id)
-            Session.Reset();
+            if (Session.CurrentFlight?.Id == target.Id)
+                Session.Reset();
 
-        await FlightRepo.DeleteAsync(target.Id);
-        await RefreshDataAsync();
-        StateHasChanged();
+            await FlightRepo.DeleteAsync(target.Id);
+            await RefreshDataAsync();
+        }
+        finally
+        {
+            _removingFlight = false;
+            StateHasChanged();
+        }
     }
 
     // ── Display helpers ───────────────────────────────────────

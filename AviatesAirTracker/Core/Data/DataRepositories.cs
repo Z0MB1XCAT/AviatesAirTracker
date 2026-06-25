@@ -700,6 +700,8 @@ public class JsonFlightDeletionRepository : IFlightDeletionRepository
         lock (_lock)
         {
             var r = _requests.FirstOrDefault(x => x.Id == requestId);
+            // FlightDeletionRequest is a reference type — mutating inside the lock is safe
+            // because SaveSnapshot captures the object references after mutation.
             if (r != null) { r.Status = DeletionRequestStatus.Approved; r.ReviewedAt = DateTime.UtcNow; }
             snapshot = _requests.ToList();
         }
@@ -713,6 +715,8 @@ public class JsonFlightDeletionRepository : IFlightDeletionRepository
         lock (_lock)
         {
             var r = _requests.FirstOrDefault(x => x.Id == requestId);
+            // FlightDeletionRequest is a reference type — mutating inside the lock is safe
+            // because SaveSnapshot captures the object references after mutation.
             if (r != null) { r.Status = DeletionRequestStatus.Rejected; r.ReviewedAt = DateTime.UtcNow; }
             snapshot = _requests.ToList();
         }
