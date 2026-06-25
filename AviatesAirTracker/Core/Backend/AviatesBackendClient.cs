@@ -223,7 +223,7 @@ public class AviatesBackendClient
     // PIREP HISTORY
     // =====================================================
 
-    public async Task<List<RemotePirepRecord>> FetchMyPirepsAsync(string acarsKey)
+    internal async Task<List<RemotePirepRecord>> FetchMyPirepsAsync(string acarsKey)
     {
         try
         {
@@ -476,7 +476,7 @@ public class RouteValidationResult
     [JsonProperty("aircraft_ok")] public bool   AircraftOk  { get; set; }
 }
 
-public class RemotePirepRecord
+internal class RemotePirepRecord
 {
     [JsonProperty("id")]             public int       Id            { get; set; }
     [JsonProperty("flight_number")]  public string    FlightNumber  { get; set; } = "";

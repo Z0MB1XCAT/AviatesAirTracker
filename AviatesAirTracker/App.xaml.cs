@@ -173,6 +173,11 @@ public partial class App : Application
 
             foreach (var r in remote)
             {
+                if (string.IsNullOrWhiteSpace(r.FlightNumber) ||
+                    string.IsNullOrWhiteSpace(r.DepartureICAO) ||
+                    string.IsNullOrWhiteSpace(r.ArrivalICAO))
+                    continue;
+
                 // Skip if already in local cache — match by flight number + block-out within 60 s
                 bool exists = local.Any(f =>
                     f.FlightNumber == r.FlightNumber &&
@@ -187,8 +192,8 @@ public partial class App : Application
                     DepartureICAO    = r.DepartureICAO,
                     ArrivalICAO      = r.ArrivalICAO,
                     AircraftType     = r.AircraftType,
-                    BlockOutTime     = r.BlockOutTime ?? DateTime.UtcNow,
-                    BlockInTime      = r.BlockInTime  ?? DateTime.UtcNow,
+                    BlockOutTime     = r.BlockOutTime ?? r.SubmittedAt,
+                    BlockInTime      = r.BlockInTime  ?? r.SubmittedAt,
                     FuelUsedLbs      = r.FuelUsedLbs,
                     ActualDistanceNm = r.DistanceNm,
                     Status           = FlightStatus.Completed,
@@ -200,7 +205,7 @@ public partial class App : Application
                     record.PrimaryLanding = new LandingResult
                     {
                         VerticalSpeedFPM = r.LandingVsFpm,
-                        LandingScore     = (int)r.LandingScore,
+                        LandingScore     = (int)Math.Round(Math.Clamp(r.LandingScore, 0.0, 100.0)),
                         AirportICAO      = r.ArrivalICAO,
                     };
                 }
