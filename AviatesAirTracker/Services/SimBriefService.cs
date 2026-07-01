@@ -377,7 +377,8 @@ public class SimBriefService
     {
         // ATC callsign = the pilot's generated booking callsign, e.g. "VAV64E"
         var callsign = booking.Callsign ?? "";
-        var airline  = "VAV";
+        // Airline (ICAO designator) varies by subsidiary: VAV mainline, VAH CityHopper, VAC Skycargo.
+        var airline  = Subsidiary.IcaoPrefix(booking.AircraftType);
 
         // Flight number = the route's scheduled callsign number, e.g. "VAV103" → "103"
         // Falls back to stripping the prefix off the generated callsign if no route callsign is set.
