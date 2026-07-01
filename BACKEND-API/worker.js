@@ -2225,7 +2225,7 @@ async function handleBookingsApi(request, env, corsHeaders) {
       if (!aircraftType)              return json({ error: "aircraft_type required"              }, 400, corsHeaders);
       if (!scheduledDep)              return json({ error: "scheduled_dep required"              }, 400, corsHeaders);
 
-      if (!/^VAV\d{1,4}[A-Z]{0,2}$/.test(callsign) || callsign.length > 7) {
+      if (!/^(VAV|VAC|VAH)\d{1,4}[A-Z]{0,2}$/.test(callsign) || callsign.length > 7) {
         return json({ error: "Invalid callsign format" }, 400, corsHeaders);
       }
 
