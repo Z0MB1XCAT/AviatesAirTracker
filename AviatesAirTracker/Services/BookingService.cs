@@ -98,12 +98,14 @@ public class BookingService
 
     // =====================================================
     // CALLSIGN GENERATION
-    //   Format: VAV + [1-4 digits] + [0-2 letters]
-    //   Examples: VAV9, VAV64E, VAV023F, VAV34NE, VAV2D
+    //   Format: <ICAO prefix> + [1-4 digits] + [0-2 letters]
+    //   Prefix varies by subsidiary: VAV mainline, VAH CityHopper, VAC Skycargo.
+    //   Examples: VAV9, VAH64E, VAC023F, VAV34NE, VAH2D
     // =====================================================
 
-    public static string GenerateCallsign()
+    public static string GenerateCallsign(string? aircraftType)
     {
+        var prefix = Subsidiary.IcaoPrefix(aircraftType);
         var rng = Random.Shared;
         // Total suffix length: 1–4 characters
         int total      = rng.Next(1, 5);
@@ -112,7 +114,7 @@ public class BookingService
         int numLetters = rng.Next(0, maxLetters + 1);
         int numDigits  = total - numLetters;
 
-        var sb = new System.Text.StringBuilder("VAV");
+        var sb = new System.Text.StringBuilder(prefix);
         for (int i = 0; i < numDigits; i++)
         {
             // First (and only) digit must not be 0 when it would be the sole suffix character
@@ -174,7 +176,7 @@ public class BookingService
         if (active.Count >= MaxBookings)
             return (null, $"You already have {MaxBookings} active bookings. Cancel one to add another.");
 
-        var callsign = GenerateCallsign();
+        var callsign = GenerateCallsign(aircraftType);
 
         var payload = new CreateBookingRequest
         {
