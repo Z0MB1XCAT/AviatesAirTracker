@@ -355,6 +355,7 @@ public class AppSettings
     public string DefaultExportFormat { get; set; } = "JSON";
     public string Units { get; set; } = "Aviation";  // Aviation / Metric
     public string BackendApiUrl { get; set; } = "https://acars.flyaviatesair.uk";
+    public string DispatchBackendUrl { get; set; } = "";
     public bool SyncToBackend { get; set; } = false;
     public bool DiscordPresenceEnabled { get; set; } = true;
     public string DiscordClientId { get; set; } = "1486109299506942079";
