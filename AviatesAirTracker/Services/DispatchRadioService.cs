@@ -37,6 +37,7 @@ public class DispatchRadioService : IDisposable
     private Task? _connectionLoopTask;
     private volatile bool _tuned;
     private long _lastSendTicks;
+    private long _connectionGeneration;
 
     public DispatchCommsState CommsState { get; private set; } = DispatchCommsState.Untuned;
     public double? DistanceNm { get; private set; }
@@ -58,13 +59,15 @@ public class DispatchRadioService : IDisposable
         if (isTuned && !_tuned)
         {
             _tuned = true;
+            Interlocked.Increment(ref _connectionGeneration);
             _cts = new CancellationTokenSource();
             _connectionLoopTask = Task.Run(() => MaintainConnectionAsync(_cts.Token));
         }
         else if (!isTuned && _tuned)
         {
             _tuned = false;
-            _ = DisconnectAsync();
+            long myGeneration = Interlocked.Read(ref _connectionGeneration);
+            _ = DisconnectAsync(myGeneration);
         }
 
         if (!_tuned) return;
@@ -174,7 +177,7 @@ public class DispatchRadioService : IDisposable
         }
     }
 
-    private async Task DisconnectAsync()
+    private async Task DisconnectAsync(long generation)
     {
         CommsState = DispatchCommsState.Untuned;
         DistanceNm = null;
@@ -182,11 +185,21 @@ public class DispatchRadioService : IDisposable
 
         _cts?.Cancel();
 
-        if (_socket?.State == WebSocketState.Open)
+        // Capture the socket instance we're responsible for tearing down right away.
+        // If a fast retune starts a new connection while we're awaiting the close
+        // below, the shared _socket field will move on to point at the new socket —
+        // we must not touch that new instance, only the one captured here.
+        var socket = _socket;
+
+        if (socket?.State == WebSocketState.Open)
         {
             try
             {
-                await _socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "untuned", CancellationToken.None);
+                // Bound the close handshake: on a degraded/slow link (exactly what this
+                // feature exists to detect) an unbounded CloseAsync could hang and delay
+                // untuning indefinitely.
+                using var closeCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "untuned", closeCts.Token);
             }
             catch (Exception ex)
             {
@@ -194,8 +207,15 @@ public class DispatchRadioService : IDisposable
             }
         }
 
-        _socket?.Dispose();
-        _socket = null;
+        socket?.Dispose();
+
+        // Only clear the shared _socket field if no newer connection generation has
+        // taken over while we were awaiting the close above. Otherwise a stale
+        // disconnect would null out (or dispose) the live socket of the new connection.
+        if (Interlocked.Read(ref _connectionGeneration) == generation)
+        {
+            _socket = null;
+        }
     }
 
     public void Dispose()
