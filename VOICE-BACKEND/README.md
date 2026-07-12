@@ -11,12 +11,14 @@
 
 ## 2. Open the port
 
-1. In the console, go to your VM's subnet → **Security Lists** → the default list → **Add Ingress Rule**.
+1. From your instance's details page, click the subnet link (listed under **Instance information → Primary VNIC → Subnet**).
+2. On the subnet's page, click the default **Security List** (in the "Security Lists" section near the bottom).
+3. Click **Add Ingress Rules** and fill in:
    - Source CIDR: `0.0.0.0/0`
    - Destination port range: `8080`
    - Protocol: TCP
-2. SSH into the VM: `ssh ubuntu@<your-vm-ip>`
-3. Ubuntu's firewall is off by default on Oracle images, but if `ufw` is active: `sudo ufw allow 8080/tcp`
+4. SSH into the VM: `ssh ubuntu@<your-vm-ip>`
+5. Ubuntu's firewall is off by default on Oracle images. Check first with `sudo ufw status`; if it reports "active", open the port with `sudo ufw allow 8080/tcp`.
 
 ## 3. Install Node.js 20
 
@@ -52,10 +54,16 @@ sudo chown -R aviates:aviates /opt/aviates-dispatch-backend
 
 Edit the systemd unit to set a real admin key (this gates the `/admin` WebSocket feed — anyone with this key can see all tuned pilots' positions, so keep it secret):
 
+Generate a strong key — at least 32 random hex characters:
+
+```bash
+openssl rand -hex 32
+```
+
 ```bash
 sudo cp deploy/aviates-dispatch-backend.service /etc/systemd/system/
 sudo nano /etc/systemd/system/aviates-dispatch-backend.service
-# replace ADMIN_WS_KEY=CHANGE_ME with a long random value
+# replace ADMIN_WS_KEY=CHANGE_ME with the value you just generated
 ```
 
 ```bash
@@ -63,6 +71,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now aviates-dispatch-backend
 sudo systemctl status aviates-dispatch-backend
 ```
+
+If the service fails to start, check the logs: `sudo journalctl -u aviates-dispatch-backend -f`
 
 ## 6. Verify
 
