@@ -22,14 +22,14 @@ This spec covers only that foundation. Two follow-on rounds are already anticipa
 | Dispatcher console | Web-based, added to the existing Next.js site at `AviatesAirWebsite`, under its admin section. |
 | Oracle account | Not yet provisioned — this round includes setup steps. |
 | Dispatch station location | EGNX (East Midlands Airport), 52.8311° N, 1.3281° W. |
-| Frequencies | VHF **123.575 MHz** (chosen because it falls in the civil airband but is not allocated to any real-world station or airport) and HF backup **6750 kHz** (arbitrary, not a real-world ARINC/Volmet channel). |
+| Frequencies | VHF **123.575 MHz** (chosen because it falls in the civil airband but is not allocated to any real-world station or airport) and HF backup **6750 kHz** (arbitrary, not a real-world ARINC/Volmet channel). **HF detection is deferred** — MSFS/SimConnect has no standard HF radio simvar (only `COM ACTIVE FREQUENCY:1/2/3`), so Phase 1 implements VHF tune detection only. Revisit once we know how a specific aircraft add-on simulates an HF set. |
 
 ## Components
 
 ### 1. Pilot client — `AviatesAirTracker/Services/DispatchRadioService.cs` (new)
 - Registered as a singleton in `App.xaml.cs` alongside the other services, following the existing DI pattern.
 - Subscribes to the same 20Hz telemetry tick already flowing through `FlightSessionManager`. Reads `AircraftState.COM1Frequency` (see `Core/SimConnect/SimConnectDefinitions.cs:99`) each tick.
-- State machine: `Untuned → Tuned` transition when COM1 frequency matches 123.575 (VHF) or the HF backup within a small epsilon (frequency comparisons are floating point). On transition to `Tuned`, opens a WebSocket to the backend. On transition back to `Untuned`, closes it cleanly.
+- State machine: `Untuned → Tuned` transition when COM1 frequency matches 123.575 (VHF) within a small epsilon (frequency comparisons are floating point). On transition to `Tuned`, opens a WebSocket to the backend. On transition back to `Untuned`, closes it cleanly. HF detection is deferred (see Decisions table).
 - While `Tuned`, sends a position update once per second (not 20Hz — this is coarse distance tracking, not flight telemetry) with pilot ID, callsign, lat/lon, and active frequency.
 - Receives `{ state, distanceNm }` pushes from the backend and exposes them as observable properties for later UI use (Phase 2 will surface this on-screen; this round just needs the plumbing).
 - Reconnect behavior mirrors the existing SimConnect auto-reconnect: retry every 5 seconds if the socket drops while still tuned, matching the pattern documented in `CLAUDE.md`'s threading model table.
