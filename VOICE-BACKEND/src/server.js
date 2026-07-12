@@ -66,7 +66,7 @@ export function createServer(config) {
       } catch {
         return;
       }
-      if (!msg.pilotId) return;
+      if (!msg || typeof msg !== 'object' || !msg.pilotId) return;
 
       pilotId = msg.pilotId;
 
@@ -96,24 +96,7 @@ export function createServer(config) {
 
   adminWss.on('connection', (ws) => {
     adminSockets.add(ws);
-    // Defer the initial snapshot slightly. If sent synchronously here, it
-    // can be flushed to the socket right behind the HTTP 101 handshake
-    // response (written moments earlier by ws's handleUpgrade), and on a
-    // fast loopback connection the two writes are read by the client as a
-    // single chunk: the client's 'open' event and the 'message' event for
-    // this snapshot then both fire synchronously in the same read, before
-    // any code awaiting 'open' resumes and has a chance to attach its
-    // 'message' listener. That listener attaches a tick too late and misses
-    // the snapshot, which then hangs forever waiting for a message that
-    // already came and went. A same-iteration setImmediate isn't enough
-    // separation to avoid this (it can still fire before the client's poll
-    // phase has processed the handshake at all); a short setTimeout gives
-    // the client a real chance to finish handling 'open' first.
-    setTimeout(() => {
-      if (ws.readyState === ws.OPEN) {
-        ws.send(JSON.stringify({ pilots: registry.list() }));
-      }
-    }, 10);
+    ws.send(JSON.stringify({ pilots: registry.list() }));
     ws.on('close', () => adminSockets.delete(ws));
   });
 
