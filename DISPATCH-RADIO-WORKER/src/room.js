@@ -22,9 +22,11 @@ export class DispatchRadioRoom extends DurableObject {
     this.rebuildRegistry();
 
     this.ctx.blockConcurrencyWhile(async () => {
-      const alarm = await this.ctx.storage.getAlarm();
-      if (alarm === null) {
-        await this.ctx.storage.setAlarm(Date.now() + SWEEP_INTERVAL_MS);
+      if (this.ctx.getWebSockets('pilot').length > 0) {
+        const alarm = await this.ctx.storage.getAlarm();
+        if (alarm === null) {
+          await this.ctx.storage.setAlarm(Date.now() + SWEEP_INTERVAL_MS);
+        }
       }
     });
   }
@@ -85,6 +87,14 @@ export class DispatchRadioRoom extends DurableObject {
 
     ws.send(JSON.stringify({ state, distanceNm }));
     this.broadcastToAdmins();
+    await this.ensureAlarmScheduled();
+  }
+
+  async ensureAlarmScheduled() {
+    const existing = await this.ctx.storage.getAlarm();
+    if (existing === null) {
+      await this.ctx.storage.setAlarm(Date.now() + SWEEP_INTERVAL_MS);
+    }
   }
 
   async webSocketClose(ws) {
@@ -114,7 +124,14 @@ export class DispatchRadioRoom extends DurableObject {
     }
     if (removedAny) this.broadcastToAdmins();
 
-    await this.ctx.storage.setAlarm(Date.now() + SWEEP_INTERVAL_MS);
+    // Only keep sweeping while pilots are connected. An idle room (nobody
+    // tuned in) should be allowed to hibernate rather than being kept awake
+    // by our own heartbeat — a new alarm gets armed the next time a pilot's
+    // first message arrives (see ensureAlarmScheduled in webSocketMessage).
+    const stillHasPilots = this.ctx.getWebSockets('pilot').length > 0;
+    if (stillHasPilots) {
+      await this.ctx.storage.setAlarm(Date.now() + SWEEP_INTERVAL_MS);
+    }
   }
 
   broadcastToAdmins() {
