@@ -62,6 +62,9 @@ public partial class App : Application
             // Resolve to subscribe to TelemetryUpdated (constructor wires the event)
             _serviceProvider.GetRequiredService<AcarsPositionService>();
 
+            // Resolve to subscribe to TelemetryUpdated (constructor wires the event)
+            _serviceProvider.GetRequiredService<DispatchRadioService>();
+
             // Retry any PIREPs that failed or couldn't submit last session
             _ = RetryPendingPirepsAsync(_serviceProvider);
             _ = SyncPirepHistoryAsync(_serviceProvider);
@@ -286,6 +289,7 @@ public partial class App : Application
         // Business
         services.AddSingleton<AviatesBackendClient>();
         services.AddSingleton<AcarsPositionService>();
+        services.AddSingleton<DispatchRadioService>();
         services.AddSingleton<MessagingService>();
         services.AddSingleton<RouteTracker>();
         services.AddSingleton<FlightSessionManager>();
@@ -320,6 +324,7 @@ public partial class App : Application
         _serviceProvider.GetService<SimConnectManager>()?.Disconnect();
         _serviceProvider.GetService<DiscordPresenceService>()?.Dispose();
         _serviceProvider.GetService<AcarsPositionService>()?.Dispose();
+        _serviceProvider.GetService<DispatchRadioService>()?.Dispose();
         _serviceProvider.GetService<UpdateService>()?.Dispose();
         _serviceProvider.GetService<TakeoffPerformanceService>()?.Dispose();
         Log.CloseAndFlush();

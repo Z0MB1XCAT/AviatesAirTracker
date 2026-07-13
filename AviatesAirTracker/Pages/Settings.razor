@@ -197,6 +197,22 @@
             </div>
         </div>
 
+        <!-- Dispatch Radio -->
+        <div class="panel-card anim-up-d2">
+            <div class="form-section-title">Dispatch Radio</div>
+            <div style="display:flex;flex-direction:column;gap:var(--sp-4);">
+                <div class="form-group">
+                    <label class="form-label">Dispatch Backend URL</label>
+                    <input class="form-input" type="text"
+                           @bind="SettingsService.Settings.DispatchBackendUrl"
+                           placeholder="ws://<oracle-vm-ip>:8080" />
+                </div>
+                <div style="background:var(--surface-2);border-radius:var(--r-md);padding:10px 13px;font-size:12px;color:var(--text-muted);line-height:1.5;">
+                    Tune COM1 to <strong>123.575 MHz</strong> in MSFS to connect to dispatch. Leave this blank if you don't have a dispatch backend URL yet.
+                </div>
+            </div>
+        </div>
+
         <!-- App Preferences -->
         <div class="panel-card anim-up-d2">
             <div class="form-section-title">Preferences</div>
