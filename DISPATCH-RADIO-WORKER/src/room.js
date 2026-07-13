@@ -1,0 +1,126 @@
+import { DurableObject } from 'cloudflare:workers';
+import { haversineNm, classify } from './distance.js';
+import { SessionRegistry } from './registry.js';
+
+const DISPATCH_LAT = 52.8311;
+const DISPATCH_LON = -1.3281;
+const CLEAR_RANGE_NM = 200;
+const DEGRADED_RANGE_NM = 400;
+const STALE_SESSION_MS = 15000;
+const SWEEP_INTERVAL_MS = 5000;
+
+export class DispatchRadioRoom extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.ctx = ctx;
+
+    // In-memory state does not survive hibernation. This registry is a
+    // rebuildable cache, not a source of truth — rebuildRegistry() below
+    // reconstructs it from live hibernatable sockets' attachments on every
+    // wake (cold start or resume-from-hibernation both re-run this constructor).
+    this.registry = new SessionRegistry();
+    this.rebuildRegistry();
+
+    this.ctx.blockConcurrencyWhile(async () => {
+      const alarm = await this.ctx.storage.getAlarm();
+      if (alarm === null) {
+        await this.ctx.storage.setAlarm(Date.now() + SWEEP_INTERVAL_MS);
+      }
+    });
+  }
+
+  rebuildRegistry() {
+    for (const ws of this.ctx.getWebSockets('pilot')) {
+      const data = ws.deserializeAttachment();
+      if (data?.pilotId) {
+        this.registry.upsert(data.pilotId, data);
+      }
+    }
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    const isAdmin = url.pathname === '/admin';
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+
+    this.ctx.acceptWebSocket(server, [isAdmin ? 'admin' : 'pilot']);
+
+    if (isAdmin) {
+      server.send(JSON.stringify({ pilots: this.registry.list() }));
+    }
+
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  async webSocketMessage(ws, message) {
+    if (this.ctx.getTags(ws).includes('admin')) return;
+
+    let msg;
+    try {
+      msg = JSON.parse(typeof message === 'string' ? message : new TextDecoder().decode(message));
+    } catch {
+      return;
+    }
+    if (!msg || typeof msg !== 'object' || !msg.pilotId) return;
+
+    const distanceNm = haversineNm(DISPATCH_LAT, DISPATCH_LON, msg.lat, msg.lon);
+    const state = classify(distanceNm, CLEAR_RANGE_NM, DEGRADED_RANGE_NM);
+
+    const record = {
+      pilotId: msg.pilotId,
+      callsign: msg.callsign,
+      lat: msg.lat,
+      lon: msg.lon,
+      freq: msg.freq,
+      distanceNm,
+      state,
+      lastSeen: Date.now(),
+    };
+
+    // Persist to the socket itself so a future hibernation/wake cycle can
+    // rebuild this pilot's entry (see rebuildRegistry above).
+    ws.serializeAttachment(record);
+    this.registry.upsert(msg.pilotId, record);
+
+    ws.send(JSON.stringify({ state, distanceNm }));
+    this.broadcastToAdmins();
+  }
+
+  async webSocketClose(ws) {
+    const data = ws.deserializeAttachment();
+    if (data?.pilotId) {
+      this.registry.remove(data.pilotId);
+      this.broadcastToAdmins();
+    }
+  }
+
+  async webSocketError(ws) {
+    await this.webSocketClose(ws);
+  }
+
+  async alarm() {
+    this.rebuildRegistry();
+
+    const now = Date.now();
+    let removedAny = false;
+    for (const ws of this.ctx.getWebSockets('pilot')) {
+      const data = ws.deserializeAttachment();
+      if (data?.lastSeen && now - data.lastSeen > STALE_SESSION_MS) {
+        this.registry.remove(data.pilotId);
+        ws.close(1000, 'stale session');
+        removedAny = true;
+      }
+    }
+    if (removedAny) this.broadcastToAdmins();
+
+    await this.ctx.storage.setAlarm(Date.now() + SWEEP_INTERVAL_MS);
+  }
+
+  broadcastToAdmins() {
+    const payload = JSON.stringify({ pilots: this.registry.list() });
+    for (const ws of this.ctx.getWebSockets('admin')) {
+      ws.send(payload);
+    }
+  }
+}

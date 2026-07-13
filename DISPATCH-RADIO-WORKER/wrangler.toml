@@ -1,0 +1,11 @@
+name = "aviates-dispatch-radio"
+main = "src/worker.js"
+compatibility_date = "2026-07-13"
+
+[[durable_objects.bindings]]
+name = "DISPATCH_ROOM"
+class_name = "DispatchRadioRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DispatchRadioRoom"]
