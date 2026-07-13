@@ -2,6 +2,8 @@
 **Date:** 2026-07-12
 **Scope:** Foundation only — Oracle VM, backend skeleton, distance/routing logic, pilot-client wiring, and a read-only admin view. No live voice audio (Phase 2) and no Hoppies ACARS fallback (separate follow-on spec) are part of this round.
 
+> **Superseded:** the backend described here (Node.js on an Oracle Cloud VM) was replaced by a Cloudflare Worker + Durable Object — see `docs/superpowers/specs/2026-07-13-dispatch-radio-cloudflare-backend-design.md`. The protocol, distance/threshold logic, and client/admin-page integration described below are unchanged and still accurate; only the "Backend host" decision and the Oracle deployment steps no longer apply.
+
 ---
 
 ## Background
