@@ -28,7 +28,7 @@ Phase 1 shipped a working Node.js backend (`VOICE-BACKEND/`) meant to run on an 
   - `src/registry.js` — ported with one change: instead of being instantiated once per Node process, its logic lives inside the Durable Object instance's in-memory state (see below).
   - `src/room.js` — the `DispatchRadioRoom` Durable Object class.
   - `src/worker.js` — the entry Worker: routes `/health`, `/pilot`, `/admin` to the single Durable Object instance.
-  - `test/*.test.js` — `@cloudflare/vitest-pool-workers`-based tests covering the same scenarios as Phase 1's Node test suite (distance/classify math, registry sweep, and a full pilot→room→admin integration test run against the local Workers runtime).
+  - `test/*.test.js` — plain Vitest tests (no Workers-specific test pool needed) covering `distance.js`/`registry.js`, the same scenarios as Phase 1's Node test suite. The `room.js`/`worker.js` Durable Object integration behavior is verified separately via `wrangler dev` plus a scripted WebSocket client (see Testing Plan) rather than an automated test-framework harness.
 
 ### 2. Durable Object design
 - **Single global instance:** the entry Worker always resolves the same Durable Object ID via `idFromName("global")` — one dispatch station, one registry, matching Phase 1's single-EGNX-station design. No per-tenant sharding needed for this scale.
@@ -54,9 +54,10 @@ Unchanged from Phase 1's intent, adapted to the new runtime:
 
 ## Testing Plan
 
-- Unit tests for `distance.js`/`registry.js` logic — same test cases as Phase 1, run under `@cloudflare/vitest-pool-workers` instead of Node's built-in test runner.
-- Integration test: connect a pilot and an admin WebSocket to a `wrangler dev`-hosted (or vitest-pool-workers-hosted) instance, send a position update, assert the `clear`/`degraded`/`acars_only` classification and admin broadcast — same scenarios as Phase 1's `server.test.js`, ported to the new test harness.
-- No automated test ever runs against real deployed Cloudflare infrastructure — all tests run against the local Workers runtime (`workerd`) that `wrangler dev`/vitest-pool-workers spin up.
+- Unit tests for `distance.js`/`registry.js` logic — same test cases as Phase 1, run under plain Vitest (these files have no Workers-runtime dependencies, so no specialized test pool is needed).
+- Integration check: connect a pilot and an admin WebSocket to a `wrangler dev`-hosted local instance via a small scripted client, send a position update, assert the `clear`/`degraded`/`acars_only` classification and admin broadcast — same scenarios as Phase 1's `server.test.js`, but run as a one-off verification script rather than an automated `vitest-pool-workers` suite, since that tool's WebSocket/Durable-Object testing API is newer and less certain to get exactly right than proven-by-execution local verification.
+- No automated test or verification script ever runs against real deployed Cloudflare infrastructure — everything runs against the local Workers runtime (`workerd`) that `wrangler dev` spins up.
+- One known gap: local verification cannot easily force an actual hibernation-evict-and-reload cycle, so the Durable Object's hibernation-safe state rebuild (see Durable Object design, above) is verified by following Cloudflare's documented pattern correctly rather than by a local test proving it. This gets implicitly exercised once real traffic hits a deployed instance and it goes quiet between pilots.
 - Manual end-to-end verification (once actually deployed, with the user's explicit go-ahead) mirrors Phase 1's Task 11: tune COM1 to 123.575 near EGNX, confirm "clear" on the admin page; reposition >400nm away, confirm "acars_only".
 
 ## Explicitly Out of Scope
