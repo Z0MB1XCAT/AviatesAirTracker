@@ -336,6 +336,12 @@ public class FlightSessionManager
     {
         if (CurrentFlight == null) return;
 
+        // Force-finalize a landing that touched down but hadn't finished its rollout yet
+        // (e.g. pilot ends the flight right after touchdown). Must happen before the flight
+        // record is built/broadcast and before Reset() nulls CurrentFlight, otherwise
+        // PrimaryLanding is dropped and the UI shows a blank landing rate/score.
+        _landingAnalyzer.FinalizePendingLanding();
+
         CurrentFlight.BlockInTime = snap.Timestamp;
         CurrentFlight.FuelArrivalLbs = snap.Raw.FuelTotalLbs;
         CurrentFlight.FuelUsedLbs = _fuelAtDeparture - snap.Raw.FuelTotalLbs;
@@ -460,6 +466,7 @@ public class FlightSessionManager
         else
         {
             // No live telemetry — finalize with minimal data
+            _landingAnalyzer.FinalizePendingLanding();
             CurrentFlight.Status = FlightStatus.Completed;
             CurrentFlight.BlockInTime = DateTime.UtcNow;
             CurrentFlight.FlightPath = _routeTracker.GetRecordedPath();

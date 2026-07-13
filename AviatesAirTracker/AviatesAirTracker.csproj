@@ -6,9 +6,9 @@
     <RootNamespace>AviatesAirTracker</RootNamespace>
     <AssemblyName>AviatesAirTracker</AssemblyName>
     <UseWPF>true</UseWPF>
-    <Version>1.6.0</Version>
-    <AssemblyVersion>1.6.0.0</AssemblyVersion>
-    <FileVersion>1.6.0.0</FileVersion>
+    <Version>1.7.1</Version>
+    <AssemblyVersion>1.7.1.0</AssemblyVersion>
+    <FileVersion>1.7.1.0</FileVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -79,6 +79,19 @@
     <None Include="Libs\SimConnect.dll" Condition="Exists('Libs\SimConnect.dll')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>Libs\SimConnect.dll</Link>
+    </None>
+    <!-- MSFS 2020 SDK DLLs — optional; place in Libs\MSFS2020\ to enable MSFS 2020 support.
+         Source: [MSFS 2020 SDK]\SimConnect SDK\lib\managed\ and lib\
+         See the comment block at the top of SimConnectManager.cs for instructions. -->
+    <None Include="Libs\MSFS2020\Microsoft.FlightSimulator.SimConnect.dll"
+          Condition="Exists('Libs\MSFS2020\Microsoft.FlightSimulator.SimConnect.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Libs\MSFS2020\Microsoft.FlightSimulator.SimConnect.dll</Link>
+    </None>
+    <None Include="Libs\MSFS2020\SimConnect.dll"
+          Condition="Exists('Libs\MSFS2020\SimConnect.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Libs\MSFS2020\SimConnect.dll</Link>
     </None>
   </ItemGroup>
 

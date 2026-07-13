@@ -82,11 +82,14 @@ public class MessagingService : IDisposable
         _settings    = settings;
 
         _ = PollAsync();
+        // 60s poll: each tick costs two backend requests (inbox + broadcasts).
+        // Halved from 30s to conserve the Cloudflare/Supabase free-plan quotas —
+        // a one-minute DM latency is acceptable for VA messaging.
         _pollTimer = new System.Threading.Timer(
             _ => { if (!_disposed) _ = PollAsync(); },
             null,
-            TimeSpan.FromSeconds(30),
-            TimeSpan.FromSeconds(30));
+            TimeSpan.FromSeconds(60),
+            TimeSpan.FromSeconds(60));
     }
 
     // =====================================================

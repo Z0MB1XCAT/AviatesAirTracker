@@ -62,9 +62,9 @@ public struct AircraftState
     // ---- FUEL ----
     public double FuelTotalLbs;            // FUEL TOTAL QUANTITY WEIGHT (lbs)
     public double FuelTotalGallons;        // FUEL TOTAL QUANTITY (gallons)
-    public double FuelLeftMainLbs;         // FUEL LEFT MAIN QUANTITY
-    public double FuelRightMainLbs;        // FUEL RIGHT MAIN QUANTITY
-    public double FuelUsedLbs;             // ENG FUEL USED SINCE START (lbs)
+    public double FuelLeftMainGal;         // FUEL TANK LEFT MAIN QUANTITY (gallons — volume var, cannot be requested in pounds)
+    public double FuelRightMainGal;        // FUEL TANK RIGHT MAIN QUANTITY (gallons)
+    public double FuelUsedLbs;             // GENERAL ENG FUEL USED SINCE START:1 (lbs)
 
     // ---- FLIGHT CONTROLS ----
     public double FlapsDegrees;            // FLAPS HANDLE INDEX (position index)
@@ -121,12 +121,12 @@ public struct AircraftState
     public double GrossWeight;             // TOTAL WEIGHT (lbs)
     public double EmptyWeight;             // EMPTY WEIGHT (lbs)
     public double MaxGrossWeight;          // MAX GROSS WEIGHT (lbs)
-    public double CGPercent;               // CG PERCENT MAC
+    public double CGPercent;               // CG PERCENT
 
     // ---- TRANSPONDER / FMS ----
     public double TransponderCode;         // TRANSPONDER CODE:1
     public double GPSFlightPlanActive;     // GPS IS ACTIVE FLIGHT PLAN
-    public double GPSNextWPDistance;       // GPS WP NEXT DISTANCE (nm)
+    public double GPSNextWPDistance;       // GPS WP DISTANCE (nm)
     public double GPSNextWPBearing;        // GPS WP BEARING
 
     // ---- MISC ----

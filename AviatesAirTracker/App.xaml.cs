@@ -91,6 +91,45 @@ public partial class App : Application
             });
 
             _serviceProvider.GetRequiredService<MainWindow>().Show();
+
+#if DEBUG
+            // Dev aid (debug builds only): `AviatesAirTracker.exe --debug-landing` fires a
+            // synthetic landing result 12s after startup so the touchdown report modal can be
+            // tested without flying. Values mimic a low-score landing.
+            if (Environment.GetCommandLineArgs().Contains("--debug-landing"))
+            {
+                var alertSvc = _serviceProvider.GetRequiredService<AlertService>();
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(12000);
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        Log.Information("[TempDebug] Firing synthetic landing result");
+                        alertSvc.ShowLandingResult(new LandingResult
+                        {
+                            Timestamp = DateTime.UtcNow,
+                            VerticalSpeedFPM = -1,
+                            GroundSpeedKts = 1,
+                            IASKts = 0,
+                            TouchdownPitchDeg = 0.2,
+                            TouchdownBankDeg = 0.2,
+                            HeadwindComponent = -1,
+                            CrosswindComponent = 11,
+                            LandingScore = 58,
+                            ScoreBreakdown = new LandingScoreBreakdown
+                            {
+                                VerticalSpeedScore = 30, PitchScore = 8, BankScore = 15,
+                                SpeedScore = 0, CrosswindScore = 3, StabilityScore = 2,
+                                TotalScore = 58
+                            },
+                            RunwayIdentifier = "RWY??",
+                            AirportICAO = "????"
+                        });
+                        Log.Information("[TempDebug] Synthetic landing dispatched");
+                    });
+                });
+            }
+#endif
         }
         catch (Exception ex)
         {

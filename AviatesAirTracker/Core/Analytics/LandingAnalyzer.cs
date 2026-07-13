@@ -42,6 +42,14 @@ public class LandingAnalyzer
     // =====================================================
     private bool _previouslyOnGround;
     private bool _hasBeenAirborne;   // Guard: prevent spurious touchdown on first ground tick at startup
+    // MSFS 2024 sometimes reports SIM ON GROUND = 0 for many seconds during pushback/taxi
+    // (observed 18s at the gate in the 2026-07-06 logs), which armed _hasBeenAirborne and fired
+    // a fake TOUCHDOWN when the flag flipped back. Becoming "airborne" now requires sustained
+    // off-ground samples while plausibly flying (IAS/AGL), not a single flag flicker.
+    private int _airborneSamples;
+    private const int AIRBORNE_CONFIRM_SAMPLES = 40;   // 2s at 20Hz
+    private const double AIRBORNE_MIN_IAS_KTS = 40.0;
+    private const double AIRBORNE_MIN_AGL_FT = 100.0;
     private DateTime _touchdownTime;
     private DateTime _airborneTime;
     private bool _flareDetected;
@@ -105,8 +113,17 @@ public class LandingAnalyzer
 
         // Touchdown detection (ground state transition)
         bool currentlyOnGround = snap.IsOnGround;
-        if (!currentlyOnGround)
-            _hasBeenAirborne = true;
+        bool plausiblyFlying = !currentlyOnGround &&
+                               (snap.IASKts >= AIRBORNE_MIN_IAS_KTS || snap.AltitudeAGL > AIRBORNE_MIN_AGL_FT);
+        if (plausiblyFlying)
+        {
+            if (++_airborneSamples >= AIRBORNE_CONFIRM_SAMPLES)
+                _hasBeenAirborne = true;
+        }
+        else if (!_hasBeenAirborne)
+        {
+            _airborneSamples = 0;
+        }
 
         if (currentlyOnGround && !_previouslyOnGround && _hasBeenAirborne)
         {
@@ -512,24 +529,34 @@ public class LandingAnalyzer
         _inApproach = false;
     }
 
-    public void Reset()
+    // If a touchdown was recorded but rollout never completed (e.g. flight ended
+    // before speed dropped below 30kt), fire the landing result now so the score/rate
+    // is captured instead of being silently dropped. Callers that are about to end a
+    // flight MUST call this before building/broadcasting the completed flight record —
+    // calling it only from Reset() is too late, since Reset() runs after the flight
+    // record has already been finalized and handed off.
+    public void FinalizePendingLanding()
     {
-        // If a touchdown was recorded but rollout never completed (e.g. flight ended
-        // before speed dropped below 30kt), fire the landing result now so the modal appears.
         if (_capturingRollout && _touchdownSnapshot != null)
         {
             try { FinalizeLanding(); }
             catch (Exception ex)
             {
-                Log.Error(ex, "[LandingAnalyzer] FinalizeLanding threw during Reset — continuing cleanup");
+                Log.Error(ex, "[LandingAnalyzer] FinalizeLanding threw during FinalizePendingLanding — continuing cleanup");
             }
         }
+    }
+
+    public void Reset()
+    {
+        FinalizePendingLanding();
 
         _capturingRollout = false;
         ResetForNextLanding();
         _preTouchdownBuffer.Clear();
         _previouslyOnGround = false;
         _hasBeenAirborne = false;
+        _airborneSamples = 0;
     }
 }
 

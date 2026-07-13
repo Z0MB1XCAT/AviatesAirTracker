@@ -27,6 +27,9 @@
         })();
     </script>
     <link rel="stylesheet" href="css/app.css" />
+    <!-- Blazor CSS-isolation bundle (*.razor.css files, e.g. LandingResultModal).
+         Without this link, scoped component styles silently never load. -->
+    <link rel="stylesheet" href="AviatesAirTracker.styles.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
