@@ -8,9 +8,13 @@ export default {
       return new Response('ok', { status: 200 });
     }
 
+    // Any new route needing the admin key must be added to this `if` block directly —
+    // the `else if` below only distinguishes "known path" from 404, it does not gate.
     if (url.pathname === '/admin') {
-      const key = url.searchParams.get('key');
-      if (env.ADMIN_WS_KEY && key !== env.ADMIN_WS_KEY) {
+      if (!env.ADMIN_WS_KEY) {
+        return new Response('Admin key not configured', { status: 500 });
+      }
+      if (url.searchParams.get('key') !== env.ADMIN_WS_KEY) {
         return new Response('Unauthorized', { status: 401 });
       }
     } else if (url.pathname !== '/pilot') {
