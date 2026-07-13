@@ -60,8 +60,9 @@ public class DispatchRadioService : IDisposable
         {
             _tuned = true;
             Interlocked.Increment(ref _connectionGeneration);
-            _cts = new CancellationTokenSource();
-            _connectionLoopTask = Task.Run(() => MaintainConnectionAsync(_cts.Token));
+            var cts = new CancellationTokenSource();
+            _cts = cts;
+            _connectionLoopTask = Task.Run(() => MaintainConnectionAsync(cts.Token));
         }
         else if (!isTuned && _tuned)
         {
