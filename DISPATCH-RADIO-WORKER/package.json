@@ -1,0 +1,15 @@
+{
+  "name": "aviates-dispatch-radio-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10",
+    "wrangler": "^4.110.0"
+  }
+}
