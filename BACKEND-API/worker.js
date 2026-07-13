@@ -30,6 +30,7 @@ const LIMITS = {
   msgSend:      { count: 60,  window: 60 },
   resolve:      { count: 10,  window: 60 },
   manualPirep:  { count: 5,   window: 86400 },
+  eventCreate:  { count: 5,   window: 600 },
 };
 
 const RESET_RATE_LIMIT_TTL_S = 2592000; // 30 days
@@ -155,6 +156,18 @@ function formatFlightCompletionDM(body, firstName) {
   );
 }
 
+// Wraps fetch with a single retry on Discord 429 rate-limit responses.
+async function discordFetch(url, options) {
+  const res = await fetch(url, options);
+  if (res.status === 429) {
+    const retryAfter = parseFloat(res.headers.get('Retry-After') || '1');
+    console.warn(`Discord rate-limited — retrying ${url} after ${retryAfter}s`);
+    await new Promise(r => setTimeout(r, retryAfter * 1000));
+    return fetch(url, options);
+  }
+  return res;
+}
+
 // Opens (or reuses) a DM channel to a Discord user and sends a message.
 async function sendDiscordDm(env, discordId, content) {
   if (!env.DISCORD_BOT_TOKEN) return;
@@ -163,13 +176,13 @@ async function sendDiscordDm(env, discordId, content) {
     'Content-Type': 'application/json',
   };
   try {
-    const dmRes = await fetch('https://discord.com/api/v10/users/@me/channels', {
+    const dmRes = await discordFetch('https://discord.com/api/v10/users/@me/channels', {
       method: 'POST', headers,
       body: JSON.stringify({ recipient_id: discordId }),
     });
     if (!dmRes.ok) return;
     const { id: channelId } = await dmRes.json();
-    await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+    await discordFetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
       method: 'POST', headers,
       body: JSON.stringify({ content }),
     });
@@ -432,13 +445,33 @@ function purgeCache(env, ctx, paths) {
 
 // ─── SHARED AUTH HELPER ──────────────────────────────────────────────────────
 // Validates an ACARS key against Supabase. Returns the user row or null.
+// Results are memoised per-isolate for 60s: the ACARS client polls messages
+// every 30s and pings positions in flight, so without this every request costs
+// a users-table round-trip. Trade-off: disabling a user can take up to 60s to
+// propagate on a warm isolate.
+const AUTH_CACHE_TTL_MS = 60_000;
+const AUTH_CACHE_MAX    = 500;
+const authCache = new Map(); // acarsKey → { expires, principal | null }
+
 async function verifyAcarsKey(env, key) {
   if (!key) return null;
-  const rows = await sbGet(env, `users?acars_key=eq.${encodeURIComponent(key)}&select=email,first_name,last_name,disabled&limit=1`);
-  if (!rows || rows.length === 0) return null;
-  const user = rows[0];
-  if (user.disabled) return null;
-  return { acarsKey: key, email: user.email, user };
+
+  const now = Date.now();
+  const hit = authCache.get(key);
+  if (hit && hit.expires > now) return hit.principal;
+
+  const rows = await sbGet(env, `users?acars_key=eq.${encodeURIComponent(key)}&select=email,first_name,last_name,verified,disabled&limit=1`);
+  const user = rows && rows.length > 0 ? rows[0] : null;
+  // verified === false blocks accounts that never confirmed their email —
+  // signup hands out the ACARS key before verification, so without this check
+  // the email step is bypassable for all API access.
+  const principal = (user && !user.disabled && user.verified !== false)
+    ? { acarsKey: key, email: user.email, user }
+    : null;
+
+  if (authCache.size >= AUTH_CACHE_MAX) authCache.clear();
+  authCache.set(key, { expires: now + AUTH_CACHE_TTL_MS, principal });
+  return principal;
 }
 
 // ─── DISCORD STATUS BOT ──────────────────────────────────────────────────────
@@ -1355,14 +1388,20 @@ export default {
             `manual_pireps?order=submitted_at.desc&limit=200${filter}&select=id,acars_key,flight_number,departure_icao,arrival_icao,aircraft_type,aircraft_reg,block_minutes,route,notes,vatsim_id,screenshot_url,status,admin_note,reviewed_by,submitted_at,reviewed_at`
           );
 
-          // Enrich with pilot names
-          const enriched = await Promise.all((rows || []).map(async (row) => {
+          // Enrich with pilot names — one users query for all distinct keys
+          // instead of one query per PIREP row (was an N+1 of up to 200 calls)
+          const keys = [...new Set((rows || []).map(r => r.acars_key).filter(Boolean))];
+          const nameByKey = {};
+          if (keys.length > 0) {
             const userRows = await sbGet(env,
-              `users?acars_key=eq.${encodeURIComponent(row.acars_key)}&select=first_name,last_name&limit=1`
-            );
-            const u = userRows?.[0] || {};
+              `users?acars_key=in.(${encodeURIComponent(keys.join(','))})&select=acars_key,first_name,last_name`
+            ).catch(() => []);
+            for (const u of (userRows || [])) nameByKey[u.acars_key] = u;
+          }
+          const enriched = (rows || []).map(row => {
+            const u = nameByKey[row.acars_key] || {};
             return { ...row, pilot_first_name: u.first_name || null, pilot_last_name: u.last_name || null };
-          }));
+          });
 
           return json({ success: true, data: enriched }, 200, corsHeaders);
         }
@@ -1610,8 +1649,7 @@ export default {
         const portalKey = authH.startsWith('Bearer ') ? authH.slice(7).trim() : '';
         if (!portalKey) return json({ success: false, error: 'Unauthorized' }, 401, corsHeaders);
 
-        const userRows = await sbGet(env, `users?acars_key=eq.${encodeURIComponent(portalKey)}&select=disabled&limit=1`);
-        if (!userRows || userRows.length === 0 || userRows[0].disabled)
+        if (!(await verifyAcarsKey(env, portalKey)))
           return json({ success: false, error: 'Unauthorized' }, 401, corsHeaders);
 
         if (!env.DISCORD_CLIENT_ID)
@@ -1695,8 +1733,7 @@ export default {
         const portalKey = authH.startsWith('Bearer ') ? authH.slice(7).trim() : '';
         if (!portalKey) return json({ success: false, error: 'Unauthorized' }, 401, corsHeaders);
 
-        const userRows = await sbGet(env, `users?acars_key=eq.${encodeURIComponent(portalKey)}&select=disabled&limit=1`);
-        if (!userRows || userRows.length === 0 || userRows[0].disabled)
+        if (!(await verifyAcarsKey(env, portalKey)))
           return json({ success: false, error: 'Unauthorized' }, 401, corsHeaders);
 
         await sbUpdate(env, 'users', `acars_key=eq.${encodeURIComponent(portalKey)}`, {
@@ -1755,10 +1792,7 @@ export default {
         const portalKey = authH.startsWith("Bearer ") ? authH.slice(7).trim() : "";
         if (!portalKey) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
 
-        const authRows = await sbGet(env,
-          `users?acars_key=eq.${encodeURIComponent(portalKey)}&select=disabled&limit=1`
-        );
-        if (!authRows || authRows.length === 0 || authRows[0].disabled) {
+        if (!(await verifyAcarsKey(env, portalKey))) {
           return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
         }
 
@@ -1775,10 +1809,7 @@ export default {
         const portalKey = authH.startsWith("Bearer ") ? authH.slice(7).trim() : "";
         if (!portalKey) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
 
-        const authRows = await sbGet(env,
-          `users?acars_key=eq.${encodeURIComponent(portalKey)}&select=disabled&limit=1`
-        );
-        if (!authRows || authRows.length === 0 || authRows[0].disabled)
+        if (!(await verifyAcarsKey(env, portalKey)))
           return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
 
         const rows = await sbGet(env,
@@ -1793,10 +1824,7 @@ export default {
         const portalKey = authH.startsWith("Bearer ") ? authH.slice(7).trim() : "";
         if (!portalKey) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
 
-        const authRows = await sbGet(env,
-          `users?acars_key=eq.${encodeURIComponent(portalKey)}&select=disabled&limit=1`
-        );
-        if (!authRows || authRows.length === 0 || authRows[0].disabled)
+        if (!(await verifyAcarsKey(env, portalKey)))
           return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
 
         if (!(await rateLimit(env, ctx, `manual_pirep:${portalKey}`, LIMITS.manualPirep)))
@@ -1854,10 +1882,7 @@ export default {
         const portalKey = authH.startsWith("Bearer ") ? authH.slice(7).trim() : "";
         if (!portalKey) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
 
-        const authRows = await sbGet(env,
-          `users?acars_key=eq.${encodeURIComponent(portalKey)}&select=disabled&limit=1`
-        );
-        if (!authRows || authRows.length === 0 || authRows[0].disabled)
+        if (!(await verifyAcarsKey(env, portalKey)))
           return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
 
         const fileBody = await request.arrayBuffer().catch(() => null);
@@ -1916,13 +1941,14 @@ export default {
         'apikey': env.SUPABASE_SERVICE_KEY,
         'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
       };
+      // 'api' and 'database' probed the exact same Supabase URL — run the
+      // check once and reuse the result for both embed fields.
       ctx.waitUntil(
         Promise.all([
           checkService('https://flyaviatesair.uk', 'website'),
-          checkService(`${env.SUPABASE_URL}/rest/v1/routes?select=id&limit=1`, 'api',      { headers: sbHeaders }),
           checkService(`${env.SUPABASE_URL}/rest/v1/routes?select=id&limit=1`, 'database', { headers: sbHeaders }),
         ])
-          .then(([website, api, database]) => buildStatusEmbed([website, api, database]))
+          .then(([website, database]) => buildStatusEmbed([website, { ...database, name: 'api' }, database]))
           .then(embed => postOrUpdateStatusEmbed(env, embed))
           .catch(e => console.error('Discord status cron failed:', e))
       );
@@ -2090,6 +2116,9 @@ async function handleEventsApi(request, env, corsHeaders, ctx) {
       const principal = await verifyAcarsKey(env, acarsKey);
       if (!principal) return json({ error: "Invalid or missing ACARS key" }, 401, corsHeaders);
 
+      if (!(await rateLimit(env, ctx, `eventcreate:${acarsKey}`, LIMITS.eventCreate)))
+        return rateLimitResponse(corsHeaders);
+
       const body = await safeJson(request);
       if (!body) return json({ error: "Invalid JSON" }, 400, corsHeaders);
 
@@ -2106,6 +2135,8 @@ async function handleEventsApi(request, env, corsHeaders, ctx) {
       if (!eventDate || !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
         return json({ error: "Valid event date (YYYY-MM-DD) required" }, 400, corsHeaders);
       }
+      if (containsBlockedContent(title) || containsBlockedContent(description))
+        return json({ error: "Event contains inappropriate content" }, 422, corsHeaders);
 
       const { user } = principal;
       const createdByName = `${user.first_name} ${user.last_name}`.trim();
@@ -2225,7 +2256,7 @@ async function handleBookingsApi(request, env, corsHeaders) {
       if (!aircraftType)              return json({ error: "aircraft_type required"              }, 400, corsHeaders);
       if (!scheduledDep)              return json({ error: "scheduled_dep required"              }, 400, corsHeaders);
 
-      if (!/^VAV\d{1,4}[A-Z]{0,2}$/.test(callsign) || callsign.length > 7) {
+      if (!/^(VAV|VAC|VAH)\d{1,4}[A-Z]{0,2}$/.test(callsign) || callsign.length > 7) {
         return json({ error: "Invalid callsign format" }, 400, corsHeaders);
       }
 
@@ -2959,10 +2990,31 @@ function containsBlockedContent(text) {
   return BLOCKED_WORDS_RE.test(normalized);
 }
 
-// Rate limit using KV. The counter write is non-blocking (ctx.waitUntil) so
-// the response is not delayed waiting for KV to acknowledge the write.
+// Rate limiting. Short windows (≤ 10 min) are counted in per-isolate memory:
+// the Workers free plan allows only 1,000 KV writes/day, and a KV read+write
+// per rate-limited request would burn that quota on normal traffic alone.
+// Per-isolate counters are slightly weaker (each edge location counts
+// independently and evicted isolates reset), but bursts from one client hit
+// the same isolate, which is what these limits exist to stop.
+// Long windows (manual PIREP daily cap) still use KV so they survive restarts.
+const memBuckets = new Map(); // key → { count, reset }
+
 async function rateLimit(env, ctx, key, rule) {
-  const now  = Math.floor(Date.now() / 1000);
+  const now = Math.floor(Date.now() / 1000);
+
+  if (rule.window <= 600) {
+    let bucket = memBuckets.get(key);
+    if (!bucket || now > bucket.reset) {
+      bucket = { count: 0, reset: now + rule.window };
+      memBuckets.set(key, bucket);
+    }
+    bucket.count++;
+    if (memBuckets.size > 5000) {
+      for (const [k, b] of memBuckets) if (now > b.reset) memBuckets.delete(k);
+    }
+    return bucket.count <= rule.count;
+  }
+
   const raw  = await env.RATE_LIMIT_KV.get(key);
   let bucket = raw ? JSON.parse(raw) : { count: 0, reset: now + rule.window };
 

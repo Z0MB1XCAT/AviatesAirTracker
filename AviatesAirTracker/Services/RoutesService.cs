@@ -73,3 +73,42 @@ public class RoutesListResponse
     [JsonPropertyName("meta")] public RoutesMeta         Meta { get; set; } = new();
     [JsonPropertyName("data")] public List<AviatesRoute> Data { get; set; } = [];
 }
+
+// ============================================================
+// SUBSIDIARY / ICAO LOOKUP
+// Single source of truth for which aircraft types fly for which
+// subsidiary, and the ICAO designator each subsidiary uses for
+// ATC callsigns and SimBrief dispatch. Route flight numbers
+// (e.g. "AV150") are unaffected — they always use "AV".
+// ============================================================
+
+public static class Subsidiary
+{
+    private static readonly HashSet<string> CityHopperTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "A319", "ATR 72", "ATR 42"
+    };
+
+    private static readonly HashSet<string> CargoTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "A350F"
+    };
+
+    /// <summary>Resolves the ICAO designator (VAV/VAC/VAH) for a given aircraft type.</summary>
+    public static string IcaoPrefix(string? aircraftType)
+    {
+        var type = (aircraftType ?? "").Trim();
+        if (CargoTypes.Contains(type))      return "VAC";
+        if (CityHopperTypes.Contains(type)) return "VAH";
+        return "VAV";
+    }
+
+    /// <summary>Resolves the human-readable subsidiary name for a given aircraft type.</summary>
+    public static string Name(string? aircraftType)
+    {
+        var type = (aircraftType ?? "").Trim();
+        if (CargoTypes.Contains(type))      return "Skycargo";
+        if (CityHopperTypes.Contains(type)) return "CityHopper";
+        return "Mainline";
+    }
+}

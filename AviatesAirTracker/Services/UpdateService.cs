@@ -187,9 +187,14 @@ public class UpdateService : IDisposable
 
             Log.Information("[Update] Download complete. Launching installer: {Path}", destPath);
 
+            // /VERYSILENT: no wizard UI
+            // /SUPPRESSMSGBOXES: no dialogs
+            // /NORESTART: never reboot Windows
+            // The installer's [Run] section relaunches the app automatically after install.
             Process.Start(new ProcessStartInfo
             {
                 FileName        = destPath,
+                Arguments       = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART",
                 UseShellExecute = true,
             });
 

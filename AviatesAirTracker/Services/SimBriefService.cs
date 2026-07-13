@@ -377,14 +377,21 @@ public class SimBriefService
     {
         // ATC callsign = the pilot's generated booking callsign, e.g. "VAV64E"
         var callsign = booking.Callsign ?? "";
-        var airline  = "VAV";
+        // Airline (ICAO designator) varies by subsidiary: VAV mainline, VAH CityHopper, VAC Skycargo.
+        var airline  = Subsidiary.IcaoPrefix(booking.AircraftType);
 
-        // Flight number = the route's scheduled callsign number, e.g. "VAV103" → "103"
+        // Flight number = the route's scheduled callsign number, e.g. "VAH103" → "103"
         // Falls back to stripping the prefix off the generated callsign if no route callsign is set.
+        // Strips whichever ICAO prefix is present — VAV/VAC/VAH all vary by subsidiary now.
         var routeCs = booking.RouteCallsign;
-        var fltnum  = !string.IsNullOrEmpty(routeCs) && routeCs.StartsWith("VAV", StringComparison.OrdinalIgnoreCase) && routeCs.Length > 3
+        var fltnum  = !string.IsNullOrEmpty(routeCs) && routeCs.Length > 3 && StartsWithIcaoPrefix(routeCs)
             ? routeCs[3..]
-            : (callsign.StartsWith("VAV", StringComparison.OrdinalIgnoreCase) && callsign.Length > 3 ? callsign[3..] : callsign);
+            : (callsign.Length > 3 && StartsWithIcaoPrefix(callsign) ? callsign[3..] : callsign);
+
+        static bool StartsWithIcaoPrefix(string s) =>
+            s.StartsWith("VAV", StringComparison.OrdinalIgnoreCase) ||
+            s.StartsWith("VAC", StringComparison.OrdinalIgnoreCase) ||
+            s.StartsWith("VAH", StringComparison.OrdinalIgnoreCase);
 
         // Deterministic static_id — allows fetching this specific plan later by ID
         // rather than "latest by username", avoiding ambiguity if multiple plans exist.

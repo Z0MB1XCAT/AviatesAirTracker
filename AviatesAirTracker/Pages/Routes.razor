@@ -375,6 +375,9 @@ else
                     <div class="form-input" style="pointer-events:none;color:var(--text-primary);font-family:var(--font-mono);font-size:13px;">
                         @_modalRoute.AircraftType
                     </div>
+                    <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">
+                        Flying for <strong style="color:var(--accent);">@Subsidiary.Name(_modalRoute.AircraftType)</strong>
+                    </div>
                 </div>
 
                 <!-- Registration -->
@@ -591,7 +594,7 @@ else
         _selectedAircraft      = route.AircraftType.Trim();
         _selectedRegistration  = "";
         _registrations         = [];
-        _previewCallsign       = BookingService.GenerateCallsign();
+        _previewCallsign       = BookingService.GenerateCallsign(route.AircraftType);
         await LoadRegistrationsAsync(_selectedAircraft);
     }
 
@@ -604,7 +607,7 @@ else
 
     private void RegenerateCallsign()
     {
-        _previewCallsign = BookingService.GenerateCallsign();
+        _previewCallsign = BookingService.GenerateCallsign(_modalRoute?.AircraftType);
     }
 
     private void OnDateChange(ChangeEventArgs e)          => _bookingDate          = e.Value?.ToString() ?? _bookingDate;

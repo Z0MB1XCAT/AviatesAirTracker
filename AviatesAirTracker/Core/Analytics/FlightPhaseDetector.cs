@@ -11,6 +11,17 @@ public class FlightPhaseDetector
     private double _cruiseAltitudeSample = 0;
     private int _cruiseSamples = 0;
     private bool _hasLeftGround = false;
+    // Consecutive samples with VS below DESCENT_VS_FPM. A momentary VS dip during climb-out
+    // (AP altitude capture, windshear, level acceleration) must not flip a climb phase into
+    // Descent/Approach — require a sustained descent before leaving the climb family.
+    private int _sustainedDescentSamples = 0;
+    private const int DESCENT_CONFIRM_SAMPLES = 40; // 40 × 50ms = 2s at 20Hz
+    // MSFS 2024 sometimes reports SIM ON GROUND = 0 for seconds at a time during pushback/taxi.
+    // _hasLeftGround must only arm after sustained, plausible flight — otherwise a gate flicker
+    // classified the parked aircraft as "Landing" (seen in the 2026-07-06 logs).
+    private int _airborneSamples = 0;
+    private const int AIRBORNE_CONFIRM_SAMPLES = 40; // 2s at 20Hz
+    private const double AIRBORNE_MIN_AGL_FT = 100.0;
 
     public event EventHandler<FlightPhaseChangedEvent>? PhaseChanged;
 
@@ -107,14 +118,35 @@ public class FlightPhaseDetector
             return FlightPhase.Takeoff;
         }
 
-        _hasLeftGround = true;
+        // Off-ground sample. Only treat it as real flight once it's sustained and plausible —
+        // a ground-flag flicker while parked/taxiing must not arm landing detection.
+        bool plausiblyFlying = ias >= APPROACH_MIN_IAS_KTS || agl > AIRBORNE_MIN_AGL_FT;
+        if (plausiblyFlying)
+        {
+            if (++_airborneSamples >= AIRBORNE_CONFIRM_SAMPLES)
+                _hasLeftGround = true;
+        }
+        else if (!_hasLeftGround)
+        {
+            _airborneSamples = 0;
+            // Slow/low and never flown: this is a ground-flag glitch at the gate or on a taxiway.
+            // Hold the current phase instead of classifying a parked aircraft as airborne.
+            return _currentPhase;
+        }
+
+        bool climbingOut = _currentPhase == FlightPhase.Takeoff ||
+                           _currentPhase == FlightPhase.InitialClimb ||
+                           _currentPhase == FlightPhase.Climb;
+
+        // Track sustained descent — used to confirm a genuine climb→descent transition.
+        if (vs < DESCENT_VS_FPM)
+            _sustainedDescentSamples++;
+        else
+            _sustainedDescentSamples = 0;
 
         if (agl < FLARE_AGL)
         {
-            bool isClimbingOut = _currentPhase == FlightPhase.Takeoff ||
-                                 _currentPhase == FlightPhase.InitialClimb ||
-                                 _currentPhase == FlightPhase.Climb;
-            if (!isClimbingOut)
+            if (!climbingOut && _hasLeftGround)
                 return FlightPhase.Landing;
         }
 
@@ -124,7 +156,10 @@ public class FlightPhaseDetector
         if (agl < CLIMB_AGL && vs > 0)
             return FlightPhase.InitialClimb;
 
-        if (agl < APPROACH_AGL && _hasLeftGround && ias >= APPROACH_MIN_IAS_KTS)
+        // Approach phases are only reachable once the climb-out is over. Without this guard a
+        // momentary VS dip during climb (AP capture, turbulence) below 5000ft AGL with gear
+        // still down classified the departure as FinalApproach/Approach.
+        if (agl < APPROACH_AGL && _hasLeftGround && ias >= APPROACH_MIN_IAS_KTS && !climbingOut)
         {
             bool gearActuallyDown = gearDown || (s.Raw.GearLeftTouchdown > 50 && s.Raw.GearRightTouchdown > 50);
 
@@ -143,13 +178,13 @@ public class FlightPhaseDetector
 
         if (vs < DESCENT_VS_FPM)
         {
-            if (_currentPhase == FlightPhase.Cruise || _currentPhase == FlightPhase.TopOfDescent)
-            {
-                if (_currentPhase == FlightPhase.Cruise)
-                    return FlightPhase.TopOfDescent;
+            // Leaving a climb phase for Descent requires the descent to be sustained (~2s),
+            // otherwise a single turbulence/level-off sample bounces the phase around.
+            if (climbingOut && _sustainedDescentSamples < DESCENT_CONFIRM_SAMPLES)
+                return _currentPhase;
 
-                return FlightPhase.Descent;
-            }
+            if (_currentPhase == FlightPhase.Cruise)
+                return FlightPhase.TopOfDescent;
 
             return FlightPhase.Descent;
         }
@@ -170,6 +205,8 @@ public class FlightPhaseDetector
         _cruiseAltitudeSample = 0;
         _cruiseSamples = 0;
         _hasLeftGround = false;
+        _sustainedDescentSamples = 0;
+        _airborneSamples = 0;
         _phaseEnteredAt = DateTime.UtcNow;
         Log.Information("[PhaseDetector] State machine reset");
     }
