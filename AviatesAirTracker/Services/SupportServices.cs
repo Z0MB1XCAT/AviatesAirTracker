@@ -356,6 +356,13 @@ public class AppSettings
     public string Units { get; set; } = "Aviation";  // Aviation / Metric
     public string BackendApiUrl { get; set; } = "https://acars.flyaviatesair.uk";
     public string DispatchBackendUrl { get; set; } = "";
+    // Push-to-talk binding for the dispatch voice channel. 0 = no keyboard
+    // hotkey bound. Guid.Empty / -1 = no joystick button bound. Both start
+    // unbound — voice PTT is inert until the pilot sets one in Settings.
+    public int PttHotkeyVkCode { get; set; } = 0;
+    public string PttHotkeyLabel { get; set; } = "";
+    public Guid PttJoystickGuid { get; set; } = Guid.Empty;
+    public int PttJoystickButton { get; set; } = -1;
     public bool SyncToBackend { get; set; } = false;
     public bool DiscordPresenceEnabled { get; set; } = true;
     public string DiscordClientId { get; set; } = "1486109299506942079";
