@@ -14,6 +14,7 @@ namespace AviatesAirTracker.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     private readonly SimConnectManager _simConnect;
+    private readonly PttInputService _pttInput;
     private readonly FlightSessionManager _session;
     private readonly AlertService _alertService;
     private readonly SettingsService _settings;
@@ -64,13 +65,13 @@ public partial class MainViewModel : ObservableObject
         SimConnectManager simConnect, FlightSessionManager session,
         AlertService alertService, SettingsService settings,
         TelemetryProcessor telemetryProcessor, SimBriefService simBriefSvc,
-        ExportService exportSvc,
+        ExportService exportSvc, PttInputService pttInput,
         DashboardViewModel dashboard, LiveFlightViewModel liveFlight,
         MapViewModel map, LandingAnalysisViewModel landingAnalysis,
         StatisticsViewModel statistics, SettingsViewModel settingsVm,
         ReplayViewModel replay, TelemetryViewModel telemetry)
     {
-        _simConnect = simConnect; _session = session;
+        _simConnect = simConnect; _session = session; _pttInput = pttInput;
         _alertService = alertService; _settings = settings;
         _telemetryProcessor = telemetryProcessor;
         _simBriefSvc = simBriefSvc; _exportSvc = exportSvc;
@@ -248,7 +249,11 @@ public partial class MainViewModel : ObservableObject
             NavigateToLanding();
         });
 
-    public void SetWindowHandle(IntPtr hwnd) => _simConnect.SetWindowHandle(hwnd);
+    public void SetWindowHandle(IntPtr hwnd)
+    {
+        _simConnect.SetWindowHandle(hwnd);
+        _pttInput.SetWindowHandle(hwnd);
+    }
     public void OnWindowMessage(IntPtr hwnd, int msg, IntPtr w, IntPtr l)
     {
         if (msg == 0x0402) _simConnect.HandleSimConnectMessage();

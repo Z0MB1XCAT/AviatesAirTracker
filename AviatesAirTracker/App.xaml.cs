@@ -289,6 +289,7 @@ public partial class App : Application
         // Business
         services.AddSingleton<AviatesBackendClient>();
         services.AddSingleton<AcarsPositionService>();
+        services.AddSingleton<PttInputService>();
         services.AddSingleton<DispatchRadioService>();
         services.AddSingleton<MessagingService>();
         services.AddSingleton<RouteTracker>();
@@ -324,6 +325,7 @@ public partial class App : Application
         _serviceProvider.GetService<SimConnectManager>()?.Disconnect();
         _serviceProvider.GetService<DiscordPresenceService>()?.Dispose();
         _serviceProvider.GetService<AcarsPositionService>()?.Dispose();
+        _serviceProvider.GetService<PttInputService>()?.Dispose();
         _serviceProvider.GetService<DispatchRadioService>()?.Dispose();
         _serviceProvider.GetService<UpdateService>()?.Dispose();
         _serviceProvider.GetService<TakeoffPerformanceService>()?.Dispose();
