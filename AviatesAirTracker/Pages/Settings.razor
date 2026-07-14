@@ -2,6 +2,7 @@
 @inject SettingsService SettingsService
 @inject AviatesBackendClient BackendClient
 @inject UpdateService UpdateService
+@inject PttInputService PttInput
 @inject IJSRuntime JS
 @using System.Reflection
 @implements IDisposable
@@ -210,6 +211,38 @@
                 <div style="background:var(--surface-2);border-radius:var(--r-md);padding:10px 13px;font-size:12px;color:var(--text-muted);line-height:1.5;">
                     Tune COM1 to <strong>123.575 MHz</strong> in MSFS to connect to dispatch. Leave this blank if you don't have a dispatch backend URL yet.
                 </div>
+                <div class="form-group">
+                    <label class="form-label">PTT Hotkey</label>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <input class="form-input" style="flex:1;" readonly
+                               value="@(_capturingHotkey ? "Press a key…" : PttHotkeyLabel)"
+                               @onkeydown="OnCaptureHotkey" @onkeydown:preventDefault="true"
+                               @onfocus="() => _capturingHotkey = true"
+                               @onblur="() => _capturingHotkey = false" />
+                        <button class="btn btn-secondary" type="button" @onclick="ClearHotkey">Clear</button>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Click the field, then press the key you want to hold to talk. Works even while MSFS has focus.</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">PTT Joystick Button</label>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <select class="form-input" style="flex:1;" @bind="_selectedJoystickGuid">
+                            <option value="">-- No joystick --</option>
+                            @foreach (var device in _joysticks)
+                            {
+                                <option value="@device.InstanceGuid">@device.ProductName</option>
+                            }
+                        </select>
+                        <button class="btn btn-secondary" type="button" @onclick="BindJoystickButtonAsync"
+                                disabled="@(string.IsNullOrEmpty(_selectedJoystickGuid) || _capturingJoystick)">
+                            @(_capturingJoystick ? "Press a button…" : "Bind Button")
+                        </button>
+                    </div>
+                    @if (SettingsService.Settings.PttJoystickButton >= 0)
+                    {
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Bound: button @(SettingsService.Settings.PttJoystickButton + 1)</div>
+                    }
+                </div>
             </div>
         </div>
 
@@ -398,9 +431,63 @@
             """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>"""),
     ];
 
+    private bool _capturingHotkey;
+    private bool _capturingJoystick;
+    private string _selectedJoystickGuid = "";
+    private IReadOnlyList<(Guid InstanceGuid, string ProductName)> _joysticks = Array.Empty<(Guid, string)>();
+
+    private string PttHotkeyLabel =>
+        SettingsService.Settings.PttHotkeyVkCode == 0
+            ? "Unbound — click and press a key"
+            : SettingsService.Settings.PttHotkeyLabel;
+
+    private void OnCaptureHotkey(KeyboardEventArgs e)
+    {
+        var vk = PttKeyMap.ToVirtualKey(e.Code);
+        if (vk is null) return;
+
+        SettingsService.Settings.PttHotkeyVkCode = vk.Value;
+        SettingsService.Settings.PttHotkeyLabel = PttKeyMap.Describe(e.Code);
+        SettingsService.Save();
+        _capturingHotkey = false;
+    }
+
+    private void ClearHotkey()
+    {
+        SettingsService.Settings.PttHotkeyVkCode = 0;
+        SettingsService.Settings.PttHotkeyLabel = "";
+        SettingsService.Save();
+    }
+
+    private async Task BindJoystickButtonAsync()
+    {
+        if (string.IsNullOrEmpty(_selectedJoystickGuid) || !Guid.TryParse(_selectedJoystickGuid, out var guid))
+            return;
+
+        _capturingJoystick = true;
+        StateHasChanged();
+
+        using var captureCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var button = await PttInput.CaptureNextJoystickButtonAsync(guid, captureCts.Token);
+
+        if (button is not null)
+        {
+            SettingsService.Settings.PttJoystickGuid = guid;
+            SettingsService.Settings.PttJoystickButton = button.Value;
+            SettingsService.Save();
+        }
+
+        _capturingJoystick = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
     protected override void OnInitialized()
     {
         UpdateNameDisplay();
+
+        _joysticks = PttInput.GetConnectedJoysticks();
+        if (SettingsService.Settings.PttJoystickGuid != Guid.Empty)
+            _selectedJoystickGuid = SettingsService.Settings.PttJoystickGuid.ToString();
         // If a key is already saved, mark as verified so the UI shows synced state
         if (!string.IsNullOrEmpty(SettingsService.Settings.AcarsKey) &&
             !string.IsNullOrEmpty(SettingsService.Settings.PilotName))
