@@ -1,6 +1,7 @@
 using Serilog;
 using SharpDX.DirectInput;
 using System.Runtime.InteropServices;
+using System.Threading.Channels;
 
 namespace AviatesAirTracker.Services;
 
@@ -32,10 +33,17 @@ namespace AviatesAirTracker.Services;
 //    from the UI thread during binding capture in Settings) and the
 //    background poll loop can otherwise touch the same DirectInput
 //    COM objects concurrently.
-//  - PttStateChanged is raised via Task.Run so a slow subscriber
-//    (e.g. DispatchRadioService) can never stall the WH_KEYBOARD_LL
-//    hook thread — a slow low-level keyboard hook can be silently
-//    uninstalled by the OS or stall system-wide keyboard input.
+//  - Both input sources write to a single unbounded Channel<bool>
+//    instead of raising PttStateChanged directly. A channel write is
+//    O(1)/non-blocking, so the WH_KEYBOARD_LL hook thread still
+//    returns immediately (a slow hook can be silently uninstalled by
+//    the OS or stall system-wide keyboard input) — but one dedicated
+//    consumer task (DispatchEventsAsync) drains the channel and
+//    invokes PttStateChanged sequentially, in the order events were
+//    raised. Firing PttStateChanged from independent Task.Run calls
+//    per event gave no ordering guarantee (a rapid press+release
+//    could deliver false before true, or run concurrently), which
+//    matters because this event drives dispatch-radio transmit state.
 // ============================================================
 
 public class PttInputService : IDisposable
@@ -59,6 +67,13 @@ public class PttInputService : IDisposable
     private bool _joystickButtonIsDown;
     private IntPtr _windowHandle;
 
+    // Single sequential dispatch queue for PttStateChanged so press/release
+    // transitions from either input source are always delivered in the
+    // order they occurred, on one dedicated thread — see the threading
+    // notes above.
+    private readonly Channel<bool> _eventChannel = Channel.CreateUnbounded<bool>();
+    private readonly Task _eventDispatchTask;
+
     public event EventHandler<bool>? PttStateChanged;
 
     public PttInputService(SettingsService settings)
@@ -67,6 +82,7 @@ public class PttInputService : IDisposable
         _hookProc = HookCallback;
         InstallKeyboardHook();
         _joystickPollTask = Task.Run(() => JoystickPollLoopAsync(_joystickCts.Token));
+        _eventDispatchTask = Task.Run(() => DispatchEventsAsync(_joystickCts.Token));
     }
 
     public void SetWindowHandle(IntPtr hwnd) => Volatile.Write(ref _windowHandle, hwnd);
@@ -155,15 +171,15 @@ public class PttInputService : IDisposable
                 if (isDown && !_keyIsDown)
                 {
                     _keyIsDown = true;
-                    // Dispatched off the hook thread — a low-level keyboard
-                    // hook must return quickly or the OS can silently
-                    // uninstall it / stall system-wide keyboard input.
-                    _ = Task.Run(() => PttStateChanged?.Invoke(this, true));
+                    // Non-blocking write — the hook thread must return
+                    // quickly (see threading notes above). Actual delivery
+                    // happens on DispatchEventsAsync's dedicated thread.
+                    _eventChannel.Writer.TryWrite(true);
                 }
                 else if (isUp && _keyIsDown)
                 {
                     _keyIsDown = false;
-                    _ = Task.Run(() => PttStateChanged?.Invoke(this, false));
+                    _eventChannel.Writer.TryWrite(false);
                 }
             }
         }
@@ -208,12 +224,12 @@ public class PttInputService : IDisposable
                     if (isDown && !_joystickButtonIsDown)
                     {
                         _joystickButtonIsDown = true;
-                        _ = Task.Run(() => PttStateChanged?.Invoke(this, true));
+                        _eventChannel.Writer.TryWrite(true);
                     }
                     else if (!isDown && _joystickButtonIsDown)
                     {
                         _joystickButtonIsDown = false;
-                        _ = Task.Run(() => PttStateChanged?.Invoke(this, false));
+                        _eventChannel.Writer.TryWrite(false);
                     }
                 }
                 catch (OperationCanceledException)
@@ -246,13 +262,37 @@ public class PttInputService : IDisposable
             // itself on the way out. Dispose() only cancels and waits for
             // this task, avoiding a race where Dispose() frees these COM
             // objects while the loop is still mid-Poll()/GetCurrentState().
+            // Both disposals happen under the same lock so a concurrent
+            // GetConnectedJoysticks()/CaptureNextJoystickButtonAsync() call
+            // can never observe _directInput disposed while _joystick isn't
+            // (or vice versa) mid-teardown.
             lock (_directInputLock)
             {
                 _joystick?.Dispose();
                 _joystick = null;
+                _directInput.Dispose();
             }
-            _directInput.Dispose();
             Log.Debug("[PttInput] Joystick poll loop stopped");
+        }
+    }
+
+    // Drains _eventChannel on one dedicated thread so PttStateChanged is
+    // always raised in the exact order press/release transitions occurred,
+    // regardless of which input source (keyboard or joystick) produced them.
+    private async Task DispatchEventsAsync(CancellationToken token)
+    {
+        try
+        {
+            await foreach (var pressed in _eventChannel.Reader.ReadAllAsync(token))
+            {
+                PttStateChanged?.Invoke(this, pressed);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected on Dispose — the channel writer is completed and the
+            // token cancelled together, so remaining queued events are
+            // simply dropped rather than delivered after shutdown.
         }
     }
 
@@ -260,14 +300,23 @@ public class PttInputService : IDisposable
     {
         if (_hookHandle != IntPtr.Zero) UnhookWindowsHookEx(_hookHandle);
 
+        _eventChannel.Writer.TryComplete();
         _joystickCts.Cancel();
+
+        // Both loops swallow OperationCanceledException internally, so under
+        // normal shutdown these tasks complete as RanToCompletion, not
+        // Canceled/Faulted — the try/catch below only guards against a
+        // genuinely unexpected exception escaping one of the loops.
         try
         {
-            _joystickPollTask.Wait(TimeSpan.FromSeconds(1));
+            if (!_joystickPollTask.Wait(TimeSpan.FromSeconds(1)))
+                Log.Warning("[PttInput] Joystick poll task did not stop within timeout during Dispose");
+            if (!_eventDispatchTask.Wait(TimeSpan.FromSeconds(1)))
+                Log.Warning("[PttInput] Event dispatch task did not stop within timeout during Dispose");
         }
-        catch (AggregateException)
+        catch (AggregateException ex)
         {
-            // Expected: the poll loop task completes via OperationCanceledException.
+            Log.Warning(ex, "[PttInput] Unexpected exception while waiting for background tasks to stop during Dispose");
         }
         _joystickCts.Dispose();
 
