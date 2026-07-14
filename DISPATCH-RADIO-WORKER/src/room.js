@@ -42,10 +42,29 @@ export class DispatchRadioRoom extends DurableObject {
 
   async fetch(request) {
     const url = new URL(request.url);
-    const isAdmin = url.pathname === '/admin';
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
 
+    if (url.pathname === '/voice') {
+      // The entry Worker already validated the admin key (if present) before
+      // forwarding here — see worker.js. A pilot voice link carries pilotId
+      // instead, used only to look up that pilot's current registry state
+      // when deciding relay eligibility (see relayVoiceFrame below). Uses
+      // distinct 'voice-pilot'/'voice-admin' tags, not 'pilot'/'admin' —
+      // those tags are reserved for the text-protocol sockets, and
+      // rebuildRegistry()/webSocketClose() assume every 'pilot'-tagged
+      // socket carries a full registry-record attachment. Tagging a voice
+      // socket 'pilot' too would corrupt the registry on rebuild.
+      const isDispatcherVoice = url.searchParams.has('key');
+      const pilotId = url.searchParams.get('pilotId');
+      this.ctx.acceptWebSocket(server, [isDispatcherVoice ? 'voice-admin' : 'voice-pilot']);
+      if (!isDispatcherVoice && pilotId) {
+        server.serializeAttachment({ pilotId });
+      }
+      return new Response(null, { status: 101, webSocket: client });
+    }
+
+    const isAdmin = url.pathname === '/admin';
     this.ctx.acceptWebSocket(server, [isAdmin ? 'admin' : 'pilot']);
 
     if (isAdmin) {
@@ -56,7 +75,14 @@ export class DispatchRadioRoom extends DurableObject {
   }
 
   async webSocketMessage(ws, message) {
-    if (this.ctx.getTags(ws).includes('admin')) return;
+    const tags = this.ctx.getTags(ws);
+
+    if (tags.includes('voice-pilot') || tags.includes('voice-admin')) {
+      this.relayVoiceFrame(ws, message);
+      return;
+    }
+
+    if (tags.includes('admin')) return;
 
     let msg;
     try {
@@ -98,6 +124,13 @@ export class DispatchRadioRoom extends DurableObject {
   }
 
   async webSocketClose(ws) {
+    // Only the text-protocol 'pilot' socket owns registry membership. A
+    // pilot's separate voice socket closing (e.g. between transmissions,
+    // or a brief voice-channel reconnect) must not evict them from the
+    // registry while their text socket is still open — otherwise they'd
+    // wrongly vanish from the admin's pilot list mid-flight.
+    if (!this.ctx.getTags(ws).includes('pilot')) return;
+
     const data = ws.deserializeAttachment();
     if (data?.pilotId) {
       this.registry.remove(data.pilotId);
@@ -138,6 +171,31 @@ export class DispatchRadioRoom extends DurableObject {
     const payload = JSON.stringify({ pilots: this.registry.list() });
     for (const ws of this.ctx.getWebSockets('admin')) {
       ws.send(payload);
+    }
+  }
+
+  // Dumb relay — never inspects audio payload content, only decides who
+  // receives it. Binary frames are raw audio chunks (with a sender-id
+  // envelope the client encodes/decodes); text frames are voice_start/
+  // voice_end speaking-indicator markers. Both use the same eligibility
+  // rule: every admin voice socket, plus every pilot voice socket whose
+  // current registry state isn't acars_only, excluding the sender.
+  relayVoiceFrame(senderWs, message) {
+    const isBinary = message instanceof ArrayBuffer;
+    const isMarker = !isBinary && typeof message === 'string';
+    if (!isBinary && !isMarker) return;
+
+    for (const ws of this.ctx.getWebSockets('voice-admin')) {
+      if (ws !== senderWs) ws.send(message);
+    }
+
+    for (const ws of this.ctx.getWebSockets('voice-pilot')) {
+      if (ws === senderWs) continue;
+      const data = ws.deserializeAttachment();
+      const entry = data?.pilotId ? this.registry.get(data.pilotId) : undefined;
+      if (entry && entry.state !== 'acars_only') {
+        ws.send(message);
+      }
     }
   }
 }
