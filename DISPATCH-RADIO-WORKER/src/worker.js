@@ -14,8 +14,24 @@ export default {
       if (!env.ADMIN_WS_KEY) {
         return new Response('Admin key not configured', { status: 500 });
       }
-      if (url.searchParams.get('key') !== env.ADMIN_WS_KEY) {
+      const key = url.searchParams.get('key');
+      if (key !== env.ADMIN_WS_KEY) {
         return new Response('Unauthorized', { status: 401 });
+      }
+    } else if (url.pathname === '/voice') {
+      // A dispatcher voice link carries `key` (same admin gating as
+      // /admin); a pilot voice link carries `pilotId` instead and needs
+      // no key, matching /pilot's existing no-auth behavior.
+      const key = url.searchParams.get('key');
+      if (key !== null) {
+        if (!env.ADMIN_WS_KEY) {
+          return new Response('Admin key not configured', { status: 500 });
+        }
+        if (key !== env.ADMIN_WS_KEY) {
+          return new Response('Unauthorized', { status: 401 });
+        }
+      } else if (!url.searchParams.get('pilotId')) {
+        return new Response('pilotId required', { status: 400 });
       }
     } else if (url.pathname !== '/pilot') {
       return new Response('Not found', { status: 404 });
