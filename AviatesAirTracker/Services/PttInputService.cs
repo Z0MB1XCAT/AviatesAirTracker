@@ -21,6 +21,21 @@ namespace AviatesAirTracker.Services;
 // Settings. Gating "only forward PTT while tuned in" is the
 // responsibility of DispatchRadioService, not this service — this
 // class only reports raw input state.
+//
+// Threading notes:
+//  - The joystick poll loop owns _joystick/_directInput and disposes
+//    them itself in a finally block when it exits, so Dispose() never
+//    races the poll loop for those objects — it just cancels and
+//    waits for the loop task to finish.
+//  - _directInput/_joystick access is additionally serialized with
+//    _directInputLock because CaptureNextJoystickButtonAsync (called
+//    from the UI thread during binding capture in Settings) and the
+//    background poll loop can otherwise touch the same DirectInput
+//    COM objects concurrently.
+//  - PttStateChanged is raised via Task.Run so a slow subscriber
+//    (e.g. DispatchRadioService) can never stall the WH_KEYBOARD_LL
+//    hook thread — a slow low-level keyboard hook can be silently
+//    uninstalled by the OS or stall system-wide keyboard input.
 // ============================================================
 
 public class PttInputService : IDisposable
@@ -36,9 +51,11 @@ public class PttInputService : IDisposable
     private IntPtr _hookHandle = IntPtr.Zero;
     private bool _keyIsDown;
 
+    private readonly object _directInputLock = new();
     private readonly DirectInput _directInput = new();
     private Joystick? _joystick;
     private readonly CancellationTokenSource _joystickCts = new();
+    private readonly Task _joystickPollTask;
     private bool _joystickButtonIsDown;
     private IntPtr _windowHandle;
 
@@ -49,17 +66,20 @@ public class PttInputService : IDisposable
         _settings = settings;
         _hookProc = HookCallback;
         InstallKeyboardHook();
-        _ = Task.Run(() => JoystickPollLoopAsync(_joystickCts.Token));
+        _joystickPollTask = Task.Run(() => JoystickPollLoopAsync(_joystickCts.Token));
     }
 
-    public void SetWindowHandle(IntPtr hwnd) => _windowHandle = hwnd;
+    public void SetWindowHandle(IntPtr hwnd) => Volatile.Write(ref _windowHandle, hwnd);
 
     public IReadOnlyList<(Guid InstanceGuid, string ProductName)> GetConnectedJoysticks()
     {
-        return _directInput
-            .GetDevices(DeviceClass.GameControl, DeviceEnumerationFlags.AttachedOnly)
-            .Select(d => (d.InstanceGuid, d.InstanceName))
-            .ToList();
+        lock (_directInputLock)
+        {
+            return _directInput
+                .GetDevices(DeviceClass.GameControl, DeviceEnumerationFlags.AttachedOnly)
+                .Select(d => (d.InstanceGuid, d.InstanceName))
+                .ToList();
+        }
     }
 
     // Polls the given device for up to the token's lifetime, returning the
@@ -67,27 +87,45 @@ public class PttInputService : IDisposable
     // Caller supplies a timeout via the token (see Settings.razor).
     public async Task<int?> CaptureNextJoystickButtonAsync(Guid deviceGuid, CancellationToken token)
     {
-        using var device = new Joystick(_directInput, deviceGuid);
-        if (_windowHandle != IntPtr.Zero)
-            device.SetCooperativeLevel(_windowHandle, CooperativeLevel.NonExclusive | CooperativeLevel.Background);
-        device.Acquire();
+        Joystick device;
+        lock (_directInputLock)
+        {
+            device = new Joystick(_directInput, deviceGuid);
+            var hwnd = Volatile.Read(ref _windowHandle);
+            if (hwnd != IntPtr.Zero)
+                device.SetCooperativeLevel(hwnd, CooperativeLevel.NonExclusive | CooperativeLevel.Background);
+            device.Acquire();
+        }
 
         try
         {
             while (!token.IsCancellationRequested)
             {
-                device.Poll();
-                var state = device.GetCurrentState();
-                for (int i = 0; i < state.Buttons.Length; i++)
+                int? pressed = null;
+                lock (_directInputLock)
                 {
-                    if (state.Buttons[i]) return i;
+                    device.Poll();
+                    var state = device.GetCurrentState();
+                    for (int i = 0; i < state.Buttons.Length; i++)
+                    {
+                        if (state.Buttons[i]) { pressed = i; break; }
+                    }
                 }
+
+                if (pressed.HasValue) return pressed.Value;
                 await Task.Delay(30, token);
             }
         }
         catch (OperationCanceledException)
         {
             // Timed out or cancelled — no button captured
+        }
+        finally
+        {
+            lock (_directInputLock)
+            {
+                device.Dispose();
+            }
         }
         return null;
     }
@@ -97,7 +135,7 @@ public class PttInputService : IDisposable
         using var curProcess = System.Diagnostics.Process.GetCurrentProcess();
         using var curModule = curProcess.MainModule;
         _hookHandle = SetWindowsHookEx(WH_KEYBOARD_LL, _hookProc,
-            GetModuleHandle(curModule?.ModuleName ?? ""), 0);
+            GetModuleHandle(curModule?.ModuleName), 0);
         if (_hookHandle == IntPtr.Zero)
             Log.Warning("[PttInput] Failed to install global keyboard hook");
     }
@@ -117,12 +155,15 @@ public class PttInputService : IDisposable
                 if (isDown && !_keyIsDown)
                 {
                     _keyIsDown = true;
-                    PttStateChanged?.Invoke(this, true);
+                    // Dispatched off the hook thread — a low-level keyboard
+                    // hook must return quickly or the OS can silently
+                    // uninstall it / stall system-wide keyboard input.
+                    _ = Task.Run(() => PttStateChanged?.Invoke(this, true));
                 }
                 else if (isUp && _keyIsDown)
                 {
                     _keyIsDown = false;
-                    PttStateChanged?.Invoke(this, false);
+                    _ = Task.Run(() => PttStateChanged?.Invoke(this, false));
                 }
             }
         }
@@ -131,60 +172,105 @@ public class PttInputService : IDisposable
 
     private async Task JoystickPollLoopAsync(CancellationToken token)
     {
-        while (!token.IsCancellationRequested)
+        try
         {
-            try
+            while (!token.IsCancellationRequested)
             {
-                var guid = _settings.Settings.PttJoystickGuid;
-                int buttonIndex = _settings.Settings.PttJoystickButton;
-
-                if (guid == Guid.Empty || buttonIndex < 0)
+                try
                 {
-                    await Task.Delay(500, token);
-                    continue;
+                    var guid = _settings.Settings.PttJoystickGuid;
+                    int buttonIndex = _settings.Settings.PttJoystickButton;
+
+                    if (guid == Guid.Empty || buttonIndex < 0)
+                    {
+                        await Task.Delay(500, token);
+                        continue;
+                    }
+
+                    bool isDown;
+                    lock (_directInputLock)
+                    {
+                        if (_joystick == null || _joystick.Information.InstanceGuid != guid)
+                        {
+                            _joystick?.Dispose();
+                            _joystick = new Joystick(_directInput, guid);
+                            var hwnd = Volatile.Read(ref _windowHandle);
+                            if (hwnd != IntPtr.Zero)
+                                _joystick.SetCooperativeLevel(hwnd, CooperativeLevel.NonExclusive | CooperativeLevel.Background);
+                            _joystick.Acquire();
+                        }
+
+                        _joystick.Poll();
+                        var state = _joystick.GetCurrentState();
+                        isDown = buttonIndex < state.Buttons.Length && state.Buttons[buttonIndex];
+                    }
+
+                    if (isDown && !_joystickButtonIsDown)
+                    {
+                        _joystickButtonIsDown = true;
+                        _ = Task.Run(() => PttStateChanged?.Invoke(this, true));
+                    }
+                    else if (!isDown && _joystickButtonIsDown)
+                    {
+                        _joystickButtonIsDown = false;
+                        _ = Task.Run(() => PttStateChanged?.Invoke(this, false));
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Propagate to the outer try so shutdown is handled once,
+                    // without falling into the generic catch below and logging
+                    // a misleading "device unplugged" warning on normal Dispose().
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug(ex, "[PttInput] Joystick poll error (device may have been unplugged)");
+                    lock (_directInputLock)
+                    {
+                        _joystick?.Dispose();
+                        _joystick = null;
+                    }
                 }
 
-                if (_joystick == null || _joystick.Information.InstanceGuid != guid)
-                {
-                    _joystick?.Dispose();
-                    _joystick = new Joystick(_directInput, guid);
-                    if (_windowHandle != IntPtr.Zero)
-                        _joystick.SetCooperativeLevel(_windowHandle, CooperativeLevel.NonExclusive | CooperativeLevel.Background);
-                    _joystick.Acquire();
-                }
-
-                _joystick.Poll();
-                var state = _joystick.GetCurrentState();
-                bool isDown = buttonIndex < state.Buttons.Length && state.Buttons[buttonIndex];
-
-                if (isDown && !_joystickButtonIsDown)
-                {
-                    _joystickButtonIsDown = true;
-                    PttStateChanged?.Invoke(this, true);
-                }
-                else if (!isDown && _joystickButtonIsDown)
-                {
-                    _joystickButtonIsDown = false;
-                    PttStateChanged?.Invoke(this, false);
-                }
+                await Task.Delay(30, token);
             }
-            catch (Exception ex)
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown via Dispose() — nothing to log.
+        }
+        finally
+        {
+            // This loop owns _joystick/_directInput, so it disposes them
+            // itself on the way out. Dispose() only cancels and waits for
+            // this task, avoiding a race where Dispose() frees these COM
+            // objects while the loop is still mid-Poll()/GetCurrentState().
+            lock (_directInputLock)
             {
-                Log.Debug(ex, "[PttInput] Joystick poll error (device may have been unplugged)");
                 _joystick?.Dispose();
                 _joystick = null;
             }
-
-            await Task.Delay(30, token);
+            _directInput.Dispose();
+            Log.Debug("[PttInput] Joystick poll loop stopped");
         }
     }
 
     public void Dispose()
     {
         if (_hookHandle != IntPtr.Zero) UnhookWindowsHookEx(_hookHandle);
+
         _joystickCts.Cancel();
-        _joystick?.Dispose();
-        _directInput.Dispose();
+        try
+        {
+            _joystickPollTask.Wait(TimeSpan.FromSeconds(1));
+        }
+        catch (AggregateException)
+        {
+            // Expected: the poll loop task completes via OperationCanceledException.
+        }
+        _joystickCts.Dispose();
+
         Log.Debug("[PttInput] Disposed");
     }
 
@@ -200,5 +286,5 @@ public class PttInputService : IDisposable
     private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-    private static extern IntPtr GetModuleHandle(string lpModuleName);
+    private static extern IntPtr GetModuleHandle(string? lpModuleName);
 }
