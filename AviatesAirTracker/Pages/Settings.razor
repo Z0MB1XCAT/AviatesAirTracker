@@ -5,6 +5,7 @@
 @inject PttInputService PttInput
 @inject IJSRuntime JS
 @using System.Reflection
+@using Serilog
 @implements IDisposable
 
 <div class="page-header anim-up">
@@ -216,7 +217,7 @@
                     <div style="display:flex;gap:8px;align-items:center;">
                         <input class="form-input" style="flex:1;" readonly
                                value="@(_capturingHotkey ? "Press a key…" : PttHotkeyLabel)"
-                               @onkeydown="OnCaptureHotkey" @onkeydown:preventDefault="true"
+                               @onkeydown="OnCaptureHotkey" @onkeydown:preventDefault="_capturingHotkey"
                                @onfocus="() => _capturingHotkey = true"
                                @onblur="() => _capturingHotkey = false" />
                         <button class="btn btn-secondary" type="button" @onclick="ClearHotkey">Clear</button>
@@ -444,7 +445,12 @@
     private void OnCaptureHotkey(KeyboardEventArgs e)
     {
         var vk = PttKeyMap.ToVirtualKey(e.Code);
-        if (vk is null) return;
+        if (vk is null)
+        {
+            _statusMessage = "That key can't be used as a PTT hotkey.";
+            _isError = true;
+            return;
+        }
 
         SettingsService.Settings.PttHotkeyVkCode = vk.Value;
         SettingsService.Settings.PttHotkeyLabel = PttKeyMap.Describe(e.Code);
@@ -467,18 +473,27 @@
         _capturingJoystick = true;
         StateHasChanged();
 
-        using var captureCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var button = await PttInput.CaptureNextJoystickButtonAsync(guid, captureCts.Token);
-
-        if (button is not null)
+        try
         {
-            SettingsService.Settings.PttJoystickGuid = guid;
-            SettingsService.Settings.PttJoystickButton = button.Value;
-            SettingsService.Save();
-        }
+            using var captureCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var button = await PttInput.CaptureNextJoystickButtonAsync(guid, captureCts.Token);
 
-        _capturingJoystick = false;
-        await InvokeAsync(StateHasChanged);
+            if (button is not null)
+            {
+                SettingsService.Settings.PttJoystickGuid = guid;
+                SettingsService.Settings.PttJoystickButton = button.Value;
+                SettingsService.Save();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Joystick button capture failed");
+        }
+        finally
+        {
+            _capturingJoystick = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     protected override void OnInitialized()

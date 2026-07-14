@@ -14,7 +14,6 @@ public static class PttKeyMap
         ["ShiftLeft"] = 0xA0, ["ShiftRight"] = 0xA1,
         ["Space"] = 0x20,
         ["CapsLock"] = 0x14,
-        ["Tab"] = 0x09,
         ["Backquote"] = 0xC0,
         ["F1"] = 0x70, ["F2"] = 0x71, ["F3"] = 0x72, ["F4"] = 0x73,
         ["F5"] = 0x74, ["F6"] = 0x75, ["F7"] = 0x76, ["F8"] = 0x77,
