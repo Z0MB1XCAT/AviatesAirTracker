@@ -31,6 +31,7 @@ public class DispatchRadioService : IDisposable
 
     private readonly FlightSessionManager _session;
     private readonly SettingsService _settings;
+    private readonly PttInputService _pttInput;
 
     private ClientWebSocket? _socket;
     private CancellationTokenSource? _cts;
@@ -43,13 +44,42 @@ public class DispatchRadioService : IDisposable
     public double? DistanceNm { get; private set; }
 
     public event EventHandler<DispatchCommsState>? CommsStateChanged;
+    public event EventHandler<double>? DistanceUpdated;
+    public event EventHandler<VoiceChannelInfo>? VoiceChannelConnectRequested;
+    public event EventHandler? VoiceChannelDisconnectRequested;
+    public event EventHandler? PttPressed;
+    public event EventHandler? PttReleased;
 
-    public DispatchRadioService(FlightSessionManager session, SettingsService settings)
+    public DispatchRadioService(FlightSessionManager session, SettingsService settings, PttInputService pttInput)
     {
         _session = session;
         _settings = settings;
+        _pttInput = pttInput;
         _session.TelemetryUpdated += OnTelemetryUpdated;
+        _pttInput.PttStateChanged += OnPttStateChanged;
         Log.Information("[DispatchRadio] Service initialized, VHF={Freq}", VhfFrequencyMhz);
+    }
+
+    // Only forward PTT while actually tuned in — you can't transmit on a
+    // frequency you're not tuned to.
+    //
+    // Wrapped in try/catch: PttInputService invokes PttStateChanged from a
+    // single dedicated dispatch thread with no try/catch of its own, so an
+    // unhandled exception here (including one thrown by a downstream
+    // PttPressed/PttReleased subscriber added later) would permanently kill
+    // PTT event delivery for the rest of the process. Swallow and log instead.
+    private void OnPttStateChanged(object? sender, bool pressed)
+    {
+        if (!_tuned) return;
+        try
+        {
+            if (pressed) PttPressed?.Invoke(this, EventArgs.Empty);
+            else PttReleased?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[DispatchRadio] PTT subscriber threw handling {State}", pressed ? "press" : "release");
+        }
     }
 
     private void OnTelemetryUpdated(object? sender, TelemetrySnapshot snap)
@@ -63,12 +93,14 @@ public class DispatchRadioService : IDisposable
             var cts = new CancellationTokenSource();
             _cts = cts;
             _connectionLoopTask = Task.Run(() => MaintainConnectionAsync(cts.Token));
+            VoiceChannelConnectRequested?.Invoke(this, new VoiceChannelInfo(_settings.Settings.PilotId, _settings.Settings.DispatchBackendUrl));
         }
         else if (!isTuned && _tuned)
         {
             _tuned = false;
             long myGeneration = Interlocked.Read(ref _connectionGeneration);
             _ = DisconnectAsync(myGeneration);
+            VoiceChannelDisconnectRequested?.Invoke(this, EventArgs.Empty);
         }
 
         if (!_tuned) return;
@@ -142,6 +174,7 @@ public class DispatchRadioService : IDisposable
             };
             DistanceNm = msg.DistanceNm;
             CommsStateChanged?.Invoke(this, CommsState);
+            DistanceUpdated?.Invoke(this, msg.DistanceNm);
         }
         catch (Exception ex)
         {
@@ -222,11 +255,14 @@ public class DispatchRadioService : IDisposable
     public void Dispose()
     {
         _session.TelemetryUpdated -= OnTelemetryUpdated;
+        _pttInput.PttStateChanged -= OnPttStateChanged;
         _cts?.Cancel();
         _socket?.Dispose();
         Log.Debug("[DispatchRadio] Disposed");
     }
 }
+
+public record VoiceChannelInfo(string PilotId, string BackendUrl);
 
 internal class DispatchPositionMessage
 {
