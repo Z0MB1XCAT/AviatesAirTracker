@@ -32,6 +32,7 @@
   let audioCtx = null;
   let mediaStream = null;
   let mediaRecorder = null;
+  let starting = false;
 
   /** senderId -> { chunks: ArrayBuffer[], timeoutHandle: number|null } */
   const activeSessions = new Map();
@@ -39,15 +40,6 @@
   function ensureAudioContext() {
     if (!audioCtx) audioCtx = new AudioContext();
     return audioCtx;
-  }
-
-  function encodeVoiceFrame(senderId, chunkArrayBuffer) {
-    const idBytes = new TextEncoder().encode(senderId);
-    const out = new Uint8Array(1 + idBytes.length + chunkArrayBuffer.byteLength);
-    out[0] = idBytes.length;
-    out.set(idBytes, 1);
-    out.set(new Uint8Array(chunkArrayBuffer), 1 + idBytes.length);
-    return out.buffer;
   }
 
   function decodeVoiceFrame(arrayBuffer) {
@@ -186,19 +178,22 @@
   // still tuned in, not wait for the next full tune/untune cycle.
   function openSocket() {
     if (!shouldStayConnected) return;
-    ws = new WebSocket(`${myBackendUrl}/voice?pilotId=${encodeURIComponent(myPilotId)}`);
-    ws.binaryType = 'arraybuffer';
-    ws.onmessage = (event) => {
+    const socket = new WebSocket(`${myBackendUrl}/voice?pilotId=${encodeURIComponent(myPilotId)}`);
+    socket.binaryType = 'arraybuffer';
+    socket.onmessage = (event) => {
       if (event.data instanceof ArrayBuffer) handleIncomingBinary(event.data);
       else handleIncomingMarker(event.data);
     };
-    ws.onclose = () => {
-      ws = null;
+    socket.onclose = () => {
+      // Guard against a stale handler from a socket that was already
+      // superseded by a later connect() nulling out a NEWER live socket.
+      if (ws === socket) ws = null;
       if (shouldStayConnected) {
         reconnectTimer = setTimeout(openSocket, RECONNECT_DELAY_MS);
       }
     };
-    ws.onerror = () => { /* onclose always follows onerror for a WebSocket */ };
+    socket.onerror = () => { /* onclose always follows onerror for a WebSocket */ };
+    ws = socket;
   }
 
   window.aviatesVoice = {
@@ -224,34 +219,52 @@
     },
 
     async startTransmit() {
-      if (!ws || ws.readyState !== WebSocket.OPEN || mediaRecorder) return;
+      if (!ws || ws.readyState !== WebSocket.OPEN || mediaRecorder || starting) return;
+      starting = true;
       try {
         mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       } catch (err) {
         console.error('[aviatesVoice] Microphone access denied', err);
+        starting = false;
         return;
       }
       mediaRecorder = new MediaRecorder(mediaStream, { mimeType: 'audio/webm;codecs=opus' });
-      mediaRecorder.ondataavailable = async (event) => {
+      // Fully synchronous — no await — so successive chunks (and critically
+      // the final chunk before stop()) are sent strictly in order, with no
+      // async gap for onstop's voice_end to race ahead of.
+      mediaRecorder.ondataavailable = (event) => {
         if (event.data.size === 0 || !ws || ws.readyState !== WebSocket.OPEN) return;
-        const arrayBuffer = await event.data.arrayBuffer();
-        ws.send(encodeVoiceFrame(myPilotId, arrayBuffer));
+        const idBytes = new TextEncoder().encode(myPilotId);
+        const header = new Uint8Array(1 + idBytes.length);
+        header[0] = idBytes.length;
+        header.set(idBytes, 1);
+        // WebSocket.send() accepts a Blob directly; the receiving socket's
+        // binaryType governs what its onmessage sees, not what the sender
+        // transmits, so this still arrives as an ArrayBuffer on the wire.
+        ws.send(new Blob([header, event.data]));
+      };
+      // The browser guarantees the final dataavailable is dispatched (and,
+      // since the handler above is synchronous, fully handled/sent) before
+      // 'stop' fires — so voice_end sent from here is correctly ordered
+      // after the last audio chunk, every time.
+      mediaRecorder.onstop = () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'voice_end', from: myPilotId }));
+        }
       };
       ws.send(JSON.stringify({ type: 'voice_start', from: myPilotId }));
       mediaRecorder.start(100);
+      starting = false;
     },
 
     stopTransmit() {
       if (mediaRecorder) {
-        mediaRecorder.stop();
+        mediaRecorder.stop(); // onstop (above) sends voice_end once the final chunk is flushed
         mediaRecorder = null;
       }
       if (mediaStream) {
         mediaStream.getTracks().forEach((t) => t.stop());
         mediaStream = null;
-      }
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'voice_end', from: myPilotId }));
       }
     },
   };
