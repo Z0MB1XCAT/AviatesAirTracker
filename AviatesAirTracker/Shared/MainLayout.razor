@@ -5,10 +5,12 @@
 @inject UpdateService UpdateService
 @inject TakeoffPerformanceService TakeoffPerfService
 @inject AviatesAirTracker.Core.SimConnect.SimConnectManager SimConnectMgr
+@inject DispatchRadioService DispatchRadio
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
 @using AviatesAirTracker.Core.SimConnect
+@using Serilog
 
 @if (!_notAuthenticated)
 {
@@ -319,6 +321,11 @@
         UpdateService.UpdateFound           += OnUpdateFound;
         UpdateService.DownloadProgressChanged += OnDownloadProgress;
         SimConnectMgr.ConnectionStatusChanged += OnSimConnectionChanged;
+        DispatchRadio.VoiceChannelConnectRequested += OnVoiceChannelConnectRequested;
+        DispatchRadio.VoiceChannelDisconnectRequested += OnVoiceChannelDisconnectRequested;
+        DispatchRadio.DistanceUpdated += OnVoiceDistanceUpdated;
+        DispatchRadio.PttPressed += OnPttPressed;
+        DispatchRadio.PttReleased += OnPttReleased;
         _connStatus = SimConnectMgr.ConnectionStatus;
         RefreshHeader();
 
@@ -393,11 +400,61 @@
         _ = InvokeAsync(() => { _connStatus = status; StateHasChanged(); });
     }
 
+    private void OnVoiceChannelConnectRequested(object? sender, VoiceChannelInfo info)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            try { await JS.InvokeVoidAsync("aviatesVoice.connect", info.PilotId, info.BackendUrl); }
+            catch (Exception ex) { Log.Warning(ex, "[DispatchRadio] Failed to connect voice channel"); }
+        });
+    }
+
+    private void OnVoiceChannelDisconnectRequested(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            try { await JS.InvokeVoidAsync("aviatesVoice.disconnect"); }
+            catch (Exception ex) { Log.Warning(ex, "[DispatchRadio] Failed to disconnect voice channel"); }
+        });
+    }
+
+    private void OnVoiceDistanceUpdated(object? sender, double distanceNm)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            try { await JS.InvokeVoidAsync("aviatesVoice.updateDistance", distanceNm); }
+            catch (Exception ex) { Log.Debug(ex, "[DispatchRadio] Failed to update voice distance"); }
+        });
+    }
+
+    private void OnPttPressed(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            try { await JS.InvokeVoidAsync("aviatesVoice.startTransmit"); }
+            catch (Exception ex) { Log.Warning(ex, "[DispatchRadio] Failed to start voice transmit"); }
+        });
+    }
+
+    private void OnPttReleased(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            try { await JS.InvokeVoidAsync("aviatesVoice.stopTransmit"); }
+            catch (Exception ex) { Log.Warning(ex, "[DispatchRadio] Failed to stop voice transmit"); }
+        });
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_notAuthenticated) return; // nothing was subscribed
 
         SimConnectMgr.ConnectionStatusChanged -= OnSimConnectionChanged;
+        DispatchRadio.VoiceChannelConnectRequested -= OnVoiceChannelConnectRequested;
+        DispatchRadio.VoiceChannelDisconnectRequested -= OnVoiceChannelDisconnectRequested;
+        DispatchRadio.DistanceUpdated -= OnVoiceDistanceUpdated;
+        DispatchRadio.PttPressed -= OnPttPressed;
+        DispatchRadio.PttReleased -= OnPttReleased;
         MessagingService.UnreadCountChanged   -= OnUnreadCountChanged;
         SettingsService.SettingsChanged       -= OnSettingsChanged;
         UpdateService.UpdateFound             -= OnUpdateFound;
