@@ -33,6 +33,7 @@
   let mediaStream = null;
   let mediaRecorder = null;
   let starting = false;
+  let pendingStop = false;
 
   /** senderId -> { chunks: ArrayBuffer[], timeoutHandle: number|null } */
   const activeSessions = new Map();
@@ -236,7 +237,11 @@
       try {
         if (!ws || ws.readyState !== WebSocket.OPEN) {
           // Socket dropped while the (potentially long) permission prompt
-          // was pending — abandon this transmit attempt cleanly.
+          // was pending — abandon this transmit attempt cleanly. Nothing
+          // was ever started, so a pending stop request has nothing left
+          // to do — clear it rather than letting it leak into (and wrongly
+          // auto-stop) the next, unrelated transmit attempt.
+          pendingStop = false;
           mediaStream.getTracks().forEach((t) => t.stop());
           mediaStream = null;
           return;
@@ -268,8 +273,21 @@
         };
         ws.send(JSON.stringify({ type: 'voice_start', from: myPilotId }));
         mediaRecorder.start(100);
+
+        // A release (stopTransmit()) that arrived while we were still
+        // awaiting getUserMedia() couldn't touch mediaRecorder (it didn't
+        // exist yet) and instead parked itself as pendingStop. Now that
+        // recording has actually started, honor that queued release
+        // immediately — otherwise the mic stays open/transmitting until
+        // some later, unrelated press+release cycle happens to catch
+        // mediaRecorder set, a real open-mic issue.
+        if (pendingStop) {
+          pendingStop = false;
+          this.stopTransmit();
+        }
       } catch (err) {
         console.error('[aviatesVoice] Failed to start recording', err);
+        pendingStop = false;
         mediaStream?.getTracks().forEach((t) => t.stop());
         mediaStream = null;
         mediaRecorder = null;
@@ -279,6 +297,14 @@
     },
 
     stopTransmit() {
+      if (starting) {
+        // getUserMedia()/recorder setup is still in flight — mediaRecorder
+        // doesn't exist yet, so there's nothing to stop right now. Defer:
+        // startTransmit() checks this flag right after it actually starts
+        // recording and immediately stops it for real at that point.
+        pendingStop = true;
+        return;
+      }
       if (mediaRecorder) {
         mediaRecorder.stop(); // onstop (above) sends voice_end once the final chunk is flushed
         mediaRecorder = null;
