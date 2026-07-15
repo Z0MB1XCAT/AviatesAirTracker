@@ -227,6 +227,7 @@
       } catch (err) {
         console.error('[aviatesVoice] Microphone access denied', err);
         starting = false;
+        pendingStop = false;
         return;
       }
 
