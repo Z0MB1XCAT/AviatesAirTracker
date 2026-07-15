@@ -1,4 +1,6 @@
 using AviatesAirTracker.ViewModels;
+using Microsoft.Web.WebView2.Core;
+using Serilog;
 using System.Windows;
 using System.Windows.Interop;
 
@@ -26,15 +28,22 @@ public partial class MainWindow : Window
         // context. WebView2 blocks microphone access by default; without
         // this handler, getUserMedia() would hang waiting on a permission
         // prompt the user has no way to see or answer.
-        await BlazorHost.WebView.EnsureCoreWebView2Async();
-        BlazorHost.WebView.CoreWebView2.PermissionRequested += OnPermissionRequested;
+        try
+        {
+            await BlazorHost.WebView.EnsureCoreWebView2Async();
+            BlazorHost.WebView.CoreWebView2.PermissionRequested += OnPermissionRequested;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to wire microphone auto-approve for voice PTT; mic prompts will use default WebView2 behavior");
+        }
     }
 
-    private void OnPermissionRequested(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2PermissionRequestedEventArgs e)
+    private void OnPermissionRequested(object? sender, CoreWebView2PermissionRequestedEventArgs e)
     {
-        if (e.PermissionKind == Microsoft.Web.WebView2.Core.CoreWebView2PermissionKind.Microphone)
+        if (e.PermissionKind == CoreWebView2PermissionKind.Microphone)
         {
-            e.State = Microsoft.Web.WebView2.Core.CoreWebView2PermissionState.Allow;
+            e.State = CoreWebView2PermissionState.Allow;
         }
     }
 
