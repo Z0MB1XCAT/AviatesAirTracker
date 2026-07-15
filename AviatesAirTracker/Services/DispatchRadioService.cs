@@ -44,11 +44,26 @@ public class DispatchRadioService : IDisposable
     public double? DistanceNm { get; private set; }
 
     public event EventHandler<DispatchCommsState>? CommsStateChanged;
+
+    /// <summary>Fires on the WebSocket receive-loop background task (see <see cref="ReceiveLoopAsync"/>).</summary>
     public event EventHandler<double>? DistanceUpdated;
+
+    /// <summary>Fires on the UI thread (the telemetry pump, via <see cref="OnTelemetryUpdated"/>).</summary>
     public event EventHandler<VoiceChannelInfo>? VoiceChannelConnectRequested;
+
+    /// <summary>Fires on the UI thread (the telemetry pump, via <see cref="OnTelemetryUpdated"/>).</summary>
     public event EventHandler? VoiceChannelDisconnectRequested;
+
+    /// <summary>Fires on <see cref="PttInputService"/>'s background dispatch task.</summary>
     public event EventHandler? PttPressed;
+
+    /// <summary>Fires on <see cref="PttInputService"/>'s background dispatch task (including synthesized releases raised from the UI thread on untune — see <see cref="OnTelemetryUpdated"/>).</summary>
     public event EventHandler? PttReleased;
+
+    // Tracks whether a press was actually forwarded to subscribers, so an
+    // untune mid-transmission can synthesize the matching release instead of
+    // leaving a subscriber's press/release pairing unbalanced.
+    private bool _pttForwardedAsPressed;
 
     public DispatchRadioService(FlightSessionManager session, SettingsService settings, PttInputService pttInput)
     {
@@ -73,8 +88,20 @@ public class DispatchRadioService : IDisposable
         if (!_tuned) return;
         try
         {
-            if (pressed) PttPressed?.Invoke(this, EventArgs.Empty);
-            else PttReleased?.Invoke(this, EventArgs.Empty);
+            if (pressed)
+            {
+                _pttForwardedAsPressed = true;
+                PttPressed?.Invoke(this, EventArgs.Empty);
+            }
+            else if (_pttForwardedAsPressed)
+            {
+                // Only forward a release if we actually forwarded the matching press.
+                // Without this guard, retuning back onto frequency mid-hold (after an
+                // untune already synthesized a release) would let the eventual physical
+                // release fire a bare PttReleased with no corresponding PttPressed.
+                _pttForwardedAsPressed = false;
+                PttReleased?.Invoke(this, EventArgs.Empty);
+            }
         }
         catch (Exception ex)
         {
@@ -93,13 +120,38 @@ public class DispatchRadioService : IDisposable
             var cts = new CancellationTokenSource();
             _cts = cts;
             _connectionLoopTask = Task.Run(() => MaintainConnectionAsync(cts.Token));
-            VoiceChannelConnectRequested?.Invoke(this, new VoiceChannelInfo(_settings.Settings.PilotId, _settings.Settings.DispatchBackendUrl));
+
+            // Don't tell a voice-channel subscriber to connect to a blank URL —
+            // MaintainConnectionAsync applies this same guard before opening the
+            // WebSocket, so mirror it here rather than making downstream
+            // consumers (e.g. the future aviatesVoice JS interop) reimplement it.
+            if (!string.IsNullOrWhiteSpace(_settings.Settings.DispatchBackendUrl))
+            {
+                VoiceChannelConnectRequested?.Invoke(this, new VoiceChannelInfo(_settings.Settings.PilotId, _settings.Settings.DispatchBackendUrl));
+            }
         }
         else if (!isTuned && _tuned)
         {
             _tuned = false;
             long myGeneration = Interlocked.Read(ref _connectionGeneration);
             _ = DisconnectAsync(myGeneration);
+
+            // If a PTT press was forwarded but never released (pilot retuned away
+            // mid-transmission), synthesize the matching release now so a
+            // subscriber never sees an unbalanced press with no release.
+            if (_pttForwardedAsPressed)
+            {
+                _pttForwardedAsPressed = false;
+                try
+                {
+                    PttReleased?.Invoke(this, EventArgs.Empty);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "[DispatchRadio] PTT subscriber threw handling synthesized release on untune");
+                }
+            }
+
             VoiceChannelDisconnectRequested?.Invoke(this, EventArgs.Empty);
         }
 

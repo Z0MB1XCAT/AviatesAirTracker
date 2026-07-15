@@ -62,7 +62,7 @@ public partial class App : Application
             // Resolve to subscribe to TelemetryUpdated (constructor wires the event)
             _serviceProvider.GetRequiredService<AcarsPositionService>();
 
-            // Resolve to subscribe to TelemetryUpdated (constructor wires the event)
+            // Resolve to subscribe to TelemetryUpdated and PttStateChanged (constructor wires both events)
             _serviceProvider.GetRequiredService<DispatchRadioService>();
 
             // Retry any PIREPs that failed or couldn't submit last session
