@@ -63,7 +63,7 @@ public class DispatchRadioService : IDisposable
     // Tracks whether a press was actually forwarded to subscribers, so an
     // untune mid-transmission can synthesize the matching release instead of
     // leaving a subscriber's press/release pairing unbalanced.
-    private bool _pttForwardedAsPressed;
+    private volatile bool _pttForwardedAsPressed;
 
     public DispatchRadioService(FlightSessionManager session, SettingsService settings, PttInputService pttInput)
     {
