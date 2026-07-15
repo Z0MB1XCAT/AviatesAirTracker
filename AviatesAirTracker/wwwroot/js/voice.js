@@ -281,8 +281,16 @@
         // immediately — otherwise the mic stays open/transmitting until
         // some later, unrelated press+release cycle happens to catch
         // mediaRecorder set, a real open-mic issue.
+        //
+        // starting must be cleared BEFORE calling stopTransmit() here:
+        // stopTransmit() itself checks `starting` and, while it's still
+        // true, treats any call as another deferred release rather than
+        // an actual stop — so clearing it early (finally below is a
+        // harmless no-op repeat) is what lets this call really stop the
+        // recorder instead of just re-arming pendingStop forever.
         if (pendingStop) {
           pendingStop = false;
+          starting = false;
           this.stopTransmit();
         }
       } catch (err) {
