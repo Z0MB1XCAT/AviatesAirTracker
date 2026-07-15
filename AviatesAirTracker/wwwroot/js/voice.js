@@ -228,33 +228,54 @@
         starting = false;
         return;
       }
-      mediaRecorder = new MediaRecorder(mediaStream, { mimeType: 'audio/webm;codecs=opus' });
-      // Fully synchronous — no await — so successive chunks (and critically
-      // the final chunk before stop()) are sent strictly in order, with no
-      // async gap for onstop's voice_end to race ahead of.
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size === 0 || !ws || ws.readyState !== WebSocket.OPEN) return;
-        const idBytes = new TextEncoder().encode(myPilotId);
-        const header = new Uint8Array(1 + idBytes.length);
-        header[0] = idBytes.length;
-        header.set(idBytes, 1);
-        // WebSocket.send() accepts a Blob directly; the receiving socket's
-        // binaryType governs what its onmessage sees, not what the sender
-        // transmits, so this still arrives as an ArrayBuffer on the wire.
-        ws.send(new Blob([header, event.data]));
-      };
-      // The browser guarantees the final dataavailable is dispatched (and,
-      // since the handler above is synchronous, fully handled/sent) before
-      // 'stop' fires — so voice_end sent from here is correctly ordered
-      // after the last audio chunk, every time.
-      mediaRecorder.onstop = () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'voice_end', from: myPilotId }));
+
+      // Everything below can throw (unsupported mimeType, ws having closed
+      // during the permission prompt, etc.) — all of it must go through
+      // finally so `starting` never gets stuck true and permanently
+      // no-ops every future startTransmit() call.
+      try {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          // Socket dropped while the (potentially long) permission prompt
+          // was pending — abandon this transmit attempt cleanly.
+          mediaStream.getTracks().forEach((t) => t.stop());
+          mediaStream = null;
+          return;
         }
-      };
-      ws.send(JSON.stringify({ type: 'voice_start', from: myPilotId }));
-      mediaRecorder.start(100);
-      starting = false;
+
+        mediaRecorder = new MediaRecorder(mediaStream, { mimeType: 'audio/webm;codecs=opus' });
+        // Fully synchronous — no await — so successive chunks (and critically
+        // the final chunk before stop()) are sent strictly in order, with no
+        // async gap for onstop's voice_end to race ahead of.
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size === 0 || !ws || ws.readyState !== WebSocket.OPEN) return;
+          const idBytes = new TextEncoder().encode(myPilotId);
+          const header = new Uint8Array(1 + idBytes.length);
+          header[0] = idBytes.length;
+          header.set(idBytes, 1);
+          // WebSocket.send() accepts a Blob directly; the receiving socket's
+          // binaryType governs what its onmessage sees, not what the sender
+          // transmits, so this still arrives as an ArrayBuffer on the wire.
+          ws.send(new Blob([header, event.data]));
+        };
+        // The browser guarantees the final dataavailable is dispatched (and,
+        // since the handler above is synchronous, fully handled/sent) before
+        // 'stop' fires — so voice_end sent from here is correctly ordered
+        // after the last audio chunk, every time.
+        mediaRecorder.onstop = () => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'voice_end', from: myPilotId }));
+          }
+        };
+        ws.send(JSON.stringify({ type: 'voice_start', from: myPilotId }));
+        mediaRecorder.start(100);
+      } catch (err) {
+        console.error('[aviatesVoice] Failed to start recording', err);
+        mediaStream?.getTracks().forEach((t) => t.stop());
+        mediaStream = null;
+        mediaRecorder = null;
+      } finally {
+        starting = false;
+      }
     },
 
     stopTransmit() {
