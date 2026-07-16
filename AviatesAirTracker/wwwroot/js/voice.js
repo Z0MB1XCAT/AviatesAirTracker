@@ -34,6 +34,8 @@
   let mediaRecorder = null;
   let starting = false;
   let pendingStop = false;
+  let selectedMicId = '';
+  let selectedSpeakerId = '';
 
   /** senderId -> { chunks: ArrayBuffer[], timeoutHandle: number|null } */
   const activeSessions = new Map();
@@ -41,6 +43,17 @@
   function ensureAudioContext() {
     if (!audioCtx) audioCtx = new AudioContext();
     return audioCtx;
+  }
+
+  // AudioContext.setSinkId() is a recent Web Audio API addition —
+  // feature-detected since it may not exist on every WebView2 runtime.
+  async function applySinkId(ctx, speakerId) {
+    if (!speakerId || typeof ctx.setSinkId !== 'function') return;
+    try {
+      await ctx.setSinkId(speakerId);
+    } catch (err) {
+      console.error('[aviatesVoice] Failed to set output device', err);
+    }
   }
 
   function decodeVoiceFrame(arrayBuffer) {
@@ -132,6 +145,7 @@
       const blob = new Blob(session.chunks, { type: 'audio/webm;codecs=opus' });
       const arrayBuffer = await blob.arrayBuffer();
       const ctx = ensureAudioContext();
+      if (selectedSpeakerId) await applySinkId(ctx, selectedSpeakerId);
       const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
       playDegradedClip(ctx, audioBuffer, computeDegradationFactor(currentDistanceNm));
     } catch (err) {
@@ -219,11 +233,52 @@
       currentDistanceNm = distanceNm;
     },
 
+    setMicrophone(deviceId) {
+      selectedMicId = deviceId || '';
+    },
+
+    setSpeaker(deviceId) {
+      selectedSpeakerId = deviceId || '';
+      if (audioCtx) applySinkId(audioCtx, selectedSpeakerId);
+    },
+
+    // Device labels are blank until mic permission has been granted at
+    // least once (browser privacy protection). This app auto-approves mic
+    // access via WebView2's CoreWebView2.PermissionRequested handler, but
+    // that only fires in response to an actual getUserMedia() call — prime
+    // it here (silently, briefly) so labels are populated the first time
+    // Settings asks for the device list, not just after the first real
+    // PTT transmission.
+    async getAudioDevices() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((t) => t.stop());
+      } catch (err) {
+        // Permission not available — device labels below may be blank, that's fine.
+      }
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        return {
+          inputs: devices
+            .filter((d) => d.kind === 'audioinput')
+            .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Microphone ${i + 1}` })),
+          outputs: devices
+            .filter((d) => d.kind === 'audiooutput')
+            .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Speaker ${i + 1}` })),
+        };
+      } catch (err) {
+        console.error('[aviatesVoice] Failed to enumerate audio devices', err);
+        return { inputs: [], outputs: [] };
+      }
+    },
+
     async startTransmit() {
       if (!ws || ws.readyState !== WebSocket.OPEN || mediaRecorder || starting) return;
       starting = true;
       try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: selectedMicId ? { deviceId: { exact: selectedMicId } } : true,
+        });
       } catch (err) {
         console.error('[aviatesVoice] Microphone access denied', err);
         starting = false;

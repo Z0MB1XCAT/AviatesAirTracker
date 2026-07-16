@@ -218,11 +218,18 @@
                         <input class="form-input" style="flex:1;" readonly
                                value="@(_capturingHotkey ? "Press a key…" : PttHotkeyLabel)"
                                @onkeydown="OnCaptureHotkey" @onkeydown:preventDefault="_capturingHotkey"
-                               @onfocus="() => _capturingHotkey = true"
+                               @onfocus="() => { _capturingHotkey = true; _hotkeyRejectedMessage = null; }"
                                @onblur="() => _capturingHotkey = false" />
                         <button class="btn btn-secondary" type="button" @onclick="ClearHotkey">Clear</button>
                     </div>
-                    <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Click the field, then press the key you want to hold to talk. Works even while MSFS has focus.</div>
+                    @if (!string.IsNullOrEmpty(_hotkeyRejectedMessage))
+                    {
+                        <div style="font-size:12px;color:#f87171;margin-top:4px;">@_hotkeyRejectedMessage</div>
+                    }
+                    else
+                    {
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Click the field, then press the key you want to hold to talk. Works even while MSFS has focus.</div>
+                    }
                 </div>
                 <div class="form-group">
                     <label class="form-label">PTT Joystick Button</label>
@@ -243,6 +250,26 @@
                     {
                         <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Bound: button @(SettingsService.Settings.PttJoystickButton + 1)</div>
                     }
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Microphone</label>
+                    <select class="form-input" value="@SettingsService.Settings.PttMicrophoneDeviceId" @onchange="OnMicrophoneChanged">
+                        <option value="">System default</option>
+                        @foreach (var mic in _microphones)
+                        {
+                            <option value="@mic.DeviceId">@mic.Label</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Speaker</label>
+                    <select class="form-input" value="@SettingsService.Settings.PttSpeakerDeviceId" @onchange="OnSpeakerChanged">
+                        <option value="">System default</option>
+                        @foreach (var speaker in _speakers)
+                        {
+                            <option value="@speaker.DeviceId">@speaker.Label</option>
+                        }
+                    </select>
                 </div>
             </div>
         </div>
@@ -433,6 +460,7 @@
     ];
 
     private bool _capturingHotkey;
+    private string? _hotkeyRejectedMessage;
     private bool _capturingJoystick;
     private string _selectedJoystickGuid = "";
     private IReadOnlyList<(Guid InstanceGuid, string ProductName)> _joysticks = Array.Empty<(Guid, string)>();
@@ -448,12 +476,12 @@
         var vk = PttKeyMap.ToVirtualKey(e.Code);
         if (vk is null)
         {
-            _statusMessage = "That key can't be used as a PTT hotkey.";
-            _isError = true;
+            _hotkeyRejectedMessage = $"\"{e.Key}\" can't be used as a PTT hotkey — try a different key.";
             _capturingHotkey = false;
             return;
         }
 
+        _hotkeyRejectedMessage = null;
         SettingsService.Settings.PttHotkeyVkCode = vk.Value;
         SettingsService.Settings.PttHotkeyLabel = PttKeyMap.Describe(e.Code);
         SettingsService.Save();
@@ -465,6 +493,53 @@
         SettingsService.Settings.PttHotkeyVkCode = 0;
         SettingsService.Settings.PttHotkeyLabel = "";
         SettingsService.Save();
+        _hotkeyRejectedMessage = null;
+    }
+
+    private sealed class AudioDeviceOption
+    {
+        public string DeviceId { get; set; } = "";
+        public string Label { get; set; } = "";
+    }
+
+    private sealed class AudioDeviceList
+    {
+        public List<AudioDeviceOption> Inputs { get; set; } = new();
+        public List<AudioDeviceOption> Outputs { get; set; } = new();
+    }
+
+    private List<AudioDeviceOption> _microphones = new();
+    private List<AudioDeviceOption> _speakers = new();
+
+    private async Task LoadAudioDevicesAsync()
+    {
+        try
+        {
+            var result = await JS.InvokeAsync<AudioDeviceList>("aviatesVoice.getAudioDevices");
+            _microphones = result.Inputs;
+            _speakers = result.Outputs;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Settings] Failed to load audio devices");
+        }
+    }
+
+    private async Task OnMicrophoneChanged(ChangeEventArgs e)
+    {
+        var deviceId = e.Value?.ToString() ?? "";
+        SettingsService.Settings.PttMicrophoneDeviceId = deviceId;
+        SettingsService.Save();
+        await JS.InvokeVoidAsync("aviatesVoice.setMicrophone", deviceId);
+    }
+
+    private async Task OnSpeakerChanged(ChangeEventArgs e)
+    {
+        var deviceId = e.Value?.ToString() ?? "";
+        SettingsService.Settings.PttSpeakerDeviceId = deviceId;
+        SettingsService.Save();
+        await JS.InvokeVoidAsync("aviatesVoice.setSpeaker", deviceId);
     }
 
     private async Task BindJoystickButtonAsync()
@@ -519,6 +594,14 @@
 
         // Wire up download progress from the shared service
         UpdateService.DownloadProgressChanged += OnUpdateProgress;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadAudioDevicesAsync();
+        }
     }
 
     private void OnPilotNameInput(ChangeEventArgs e)

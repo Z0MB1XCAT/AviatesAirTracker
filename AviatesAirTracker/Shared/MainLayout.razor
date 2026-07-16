@@ -368,6 +368,15 @@
         {
             await JS.InvokeVoidAsync("aviatesTheme.apply", SettingsService.Settings.Theme);
             await JS.InvokeVoidAsync("aviatesTheme.watchSystem");
+
+            // voice.js's module-level device selection starts blank on every
+            // fresh page load — push any previously saved preference now,
+            // rather than waiting for the pilot to revisit Settings (which
+            // is the only other place these get pushed, on change).
+            if (!string.IsNullOrEmpty(SettingsService.Settings.PttMicrophoneDeviceId))
+                await JS.InvokeVoidAsync("aviatesVoice.setMicrophone", SettingsService.Settings.PttMicrophoneDeviceId);
+            if (!string.IsNullOrEmpty(SettingsService.Settings.PttSpeakerDeviceId))
+                await JS.InvokeVoidAsync("aviatesVoice.setSpeaker", SettingsService.Settings.PttSpeakerDeviceId);
         }
     }
 

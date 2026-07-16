@@ -31,6 +31,18 @@ public static class PttKeyMap
         ["Numpad0"] = 0x60, ["Numpad1"] = 0x61, ["Numpad2"] = 0x62, ["Numpad3"] = 0x63,
         ["Numpad4"] = 0x64, ["Numpad5"] = 0x65, ["Numpad6"] = 0x66, ["Numpad7"] = 0x67,
         ["Numpad8"] = 0x68, ["Numpad9"] = 0x69,
+        // Punctuation/OEM keys — no good reason to exclude these from being
+        // bindable; they're all easily-reachable single keys just like the
+        // letters/digits above.
+        ["Minus"] = 0xBD, ["Equal"] = 0xBB,
+        ["BracketLeft"] = 0xDB, ["BracketRight"] = 0xDD,
+        ["Backslash"] = 0xDC, ["Semicolon"] = 0xBA, ["Quote"] = 0xDE,
+        ["Comma"] = 0xBC, ["Period"] = 0xBE, ["Slash"] = 0xBF,
+        // Navigation/editing keys — common, low-conflict PTT choices.
+        ["ArrowUp"] = 0x26, ["ArrowDown"] = 0x28, ["ArrowLeft"] = 0x25, ["ArrowRight"] = 0x27,
+        ["Insert"] = 0x2D, ["Delete"] = 0x2E, ["Home"] = 0x24, ["End"] = 0x23,
+        ["PageUp"] = 0x21, ["PageDown"] = 0x22,
+        ["Enter"] = 0x0D, ["NumpadEnter"] = 0x0D,
     };
 
     public static int? ToVirtualKey(string domCode) => Map.TryGetValue(domCode, out var vk) ? vk : null;
@@ -41,6 +53,13 @@ public static class PttKeyMap
         "AltLeft" => "Left Alt", "AltRight" => "Right Alt",
         "ShiftLeft" => "Left Shift", "ShiftRight" => "Right Shift",
         "Space" => "Space", "CapsLock" => "Caps Lock", "Tab" => "Tab", "Backquote" => "`",
+        "Minus" => "-", "Equal" => "=", "BracketLeft" => "[", "BracketRight" => "]",
+        "Backslash" => "\\", "Semicolon" => ";", "Quote" => "'",
+        "Comma" => ",", "Period" => ".", "Slash" => "/",
+        "ArrowUp" => "Up Arrow", "ArrowDown" => "Down Arrow", "ArrowLeft" => "Left Arrow", "ArrowRight" => "Right Arrow",
+        "Insert" => "Insert", "Delete" => "Delete", "Home" => "Home", "End" => "End",
+        "PageUp" => "Page Up", "PageDown" => "Page Down",
+        "Enter" => "Enter", "NumpadEnter" => "Numpad Enter",
         _ when domCode.StartsWith("Key") => domCode[3..],
         _ when domCode.StartsWith("Digit") => domCode[5..],
         _ when domCode.StartsWith("Numpad") => "Numpad " + domCode[6..],

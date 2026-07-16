@@ -363,6 +363,9 @@ public class AppSettings
     public string PttHotkeyLabel { get; set; } = "";
     public Guid PttJoystickGuid { get; set; } = Guid.Empty;
     public int PttJoystickButton { get; set; } = -1;
+    // Empty string = system default device for both.
+    public string PttMicrophoneDeviceId { get; set; } = "";
+    public string PttSpeakerDeviceId { get; set; } = "";
     public bool SyncToBackend { get; set; } = false;
     public bool DiscordPresenceEnabled { get; set; } = true;
     public string DiscordClientId { get; set; } = "1486109299506942079";
