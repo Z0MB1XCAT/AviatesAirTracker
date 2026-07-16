@@ -444,6 +444,7 @@
 
     private void OnCaptureHotkey(KeyboardEventArgs e)
     {
+        Log.Debug("[Settings] PTT hotkey capture received Code={Code} Key={Key}", e.Code, e.Key);
         var vk = PttKeyMap.ToVirtualKey(e.Code);
         if (vk is null)
         {

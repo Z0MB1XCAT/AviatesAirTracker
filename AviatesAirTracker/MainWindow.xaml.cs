@@ -32,10 +32,20 @@ public partial class MainWindow : Window
         {
             await BlazorHost.WebView.EnsureCoreWebView2Async();
             BlazorHost.WebView.CoreWebView2.PermissionRequested += OnPermissionRequested;
+
+            // WebView2 intercepts a set of "browser accelerator" keys (F3,
+            // F5-F7, F10, F11, Alt, Ctrl+F/G/H/J/N/O/P/R/S/Y/Z, browser
+            // back/forward, etc.) before they ever reach the page's DOM —
+            // by design, since a normal browser would use them for its own
+            // chrome. There's no chrome here, and the PTT hotkey capture
+            // field in Settings needs to see every key the pilot presses,
+            // so this app owns that entirely; disable WebView2's own
+            // handling of them.
+            BlazorHost.WebView.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Failed to wire microphone auto-approve for voice PTT; mic prompts will use default WebView2 behavior");
+            Log.Warning(ex, "Failed to wire microphone auto-approve / disable accelerator keys for voice PTT; some keys may not register in Settings");
         }
     }
 
