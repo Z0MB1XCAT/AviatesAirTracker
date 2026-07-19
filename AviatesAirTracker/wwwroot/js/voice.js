@@ -40,8 +40,22 @@
   /** senderId -> { chunks: ArrayBuffer[], timeoutHandle: number|null } */
   const activeSessions = new Map();
 
-  function ensureAudioContext() {
+  // AudioContext created outside a direct user gesture (e.g. reactively,
+  // when the first incoming voice frame arrives) can start — or drift back
+  // into — a 'suspended' state under browser/WebView2 autoplay policy.
+  // source.start() on a suspended context produces no audible output and
+  // no error, so this is easy to mistake for a relay/permission bug rather
+  // than what it actually is. Always attempt resume() before playback.
+  async function ensureAudioContext() {
     if (!audioCtx) audioCtx = new AudioContext();
+    if (audioCtx.state === 'suspended') {
+      try {
+        await audioCtx.resume();
+      } catch (err) {
+        console.error('[aviatesVoice] Failed to resume AudioContext', err);
+      }
+    }
+    console.log('[aviatesVoice] AudioContext state:', audioCtx.state);
     return audioCtx;
   }
 
@@ -144,7 +158,7 @@
     try {
       const blob = new Blob(session.chunks, { type: 'audio/webm;codecs=opus' });
       const arrayBuffer = await blob.arrayBuffer();
-      const ctx = ensureAudioContext();
+      const ctx = await ensureAudioContext();
       if (selectedSpeakerId) await applySinkId(ctx, selectedSpeakerId);
       const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
       playDegradedClip(ctx, audioBuffer, computeDegradationFactor(currentDistanceNm));
