@@ -207,13 +207,24 @@
   // still tuned in, not wait for the next full tune/untune cycle.
   function openSocket() {
     if (!shouldStayConnected) return;
-    const socket = new WebSocket(`${myBackendUrl}/voice?pilotId=${encodeURIComponent(myPilotId)}`);
+    const url = `${myBackendUrl}/voice?pilotId=${encodeURIComponent(myPilotId)}`;
+    console.log('[aviatesVoice] Connecting to', url);
+    const socket = new WebSocket(url);
     socket.binaryType = 'arraybuffer';
-    socket.onmessage = (event) => {
-      if (event.data instanceof ArrayBuffer) handleIncomingBinary(event.data);
-      else handleIncomingMarker(event.data);
+    socket.onopen = () => {
+      console.log('[aviatesVoice] Voice socket OPEN, pilotId=', myPilotId);
     };
-    socket.onclose = () => {
+    socket.onmessage = (event) => {
+      if (event.data instanceof ArrayBuffer) {
+        console.log('[aviatesVoice] Received binary frame, bytes=', event.data.byteLength);
+        handleIncomingBinary(event.data);
+      } else {
+        console.log('[aviatesVoice] Received marker frame:', event.data);
+        handleIncomingMarker(event.data);
+      }
+    };
+    socket.onclose = (event) => {
+      console.log('[aviatesVoice] Voice socket CLOSED, code=', event.code, 'reason=', event.reason);
       // Guard against a stale handler from a socket that was already
       // superseded by a later connect() nulling out a NEWER live socket.
       if (ws === socket) ws = null;
@@ -221,7 +232,10 @@
         reconnectTimer = setTimeout(openSocket, RECONNECT_DELAY_MS);
       }
     };
-    socket.onerror = () => { /* onclose always follows onerror for a WebSocket */ };
+    socket.onerror = (event) => {
+      console.error('[aviatesVoice] Voice socket ERROR', event);
+      /* onclose always follows onerror for a WebSocket */
+    };
     ws = socket;
   }
 
@@ -287,7 +301,15 @@
     },
 
     async startTransmit() {
-      if (!ws || ws.readyState !== WebSocket.OPEN || mediaRecorder || starting) return;
+      if (!ws || ws.readyState !== WebSocket.OPEN || mediaRecorder || starting) {
+        console.log(
+          '[aviatesVoice] startTransmit() ignored — ws=', !!ws,
+          'readyState=', ws ? ws.readyState : 'n/a',
+          'mediaRecorder=', !!mediaRecorder, 'starting=', starting
+        );
+        return;
+      }
+      console.log('[aviatesVoice] startTransmit() begin, pilotId=', myPilotId);
       starting = true;
       try {
         mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -318,11 +340,16 @@
         }
 
         mediaRecorder = new MediaRecorder(mediaStream, { mimeType: 'audio/webm;codecs=opus' });
+        console.log('[aviatesVoice] MediaRecorder created, mimeType=', mediaRecorder.mimeType);
+        let chunkCount = 0;
         // Fully synchronous — no await — so successive chunks (and critically
         // the final chunk before stop()) are sent strictly in order, with no
         // async gap for onstop's voice_end to race ahead of.
         mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size === 0 || !ws || ws.readyState !== WebSocket.OPEN) return;
+          if (event.data.size === 0 || !ws || ws.readyState !== WebSocket.OPEN) {
+            console.log('[aviatesVoice] chunk dropped — size=', event.data.size, 'ws open=', !!ws && ws.readyState === WebSocket.OPEN);
+            return;
+          }
           const idBytes = new TextEncoder().encode(myPilotId);
           const header = new Uint8Array(1 + idBytes.length);
           header[0] = idBytes.length;
@@ -331,17 +358,26 @@
           // binaryType governs what its onmessage sees, not what the sender
           // transmits, so this still arrives as an ArrayBuffer on the wire.
           ws.send(new Blob([header, event.data]));
+          chunkCount += 1;
+          if (chunkCount === 1 || chunkCount % 10 === 0) {
+            console.log('[aviatesVoice] sent chunk #', chunkCount, 'bytes=', event.data.size);
+          }
         };
         // The browser guarantees the final dataavailable is dispatched (and,
         // since the handler above is synchronous, fully handled/sent) before
         // 'stop' fires — so voice_end sent from here is correctly ordered
         // after the last audio chunk, every time.
         mediaRecorder.onstop = () => {
+          console.log('[aviatesVoice] MediaRecorder stopped, total chunks sent=', chunkCount);
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'voice_end', from: myPilotId }));
+            console.log('[aviatesVoice] sent voice_end');
+          } else {
+            console.log('[aviatesVoice] voice_end NOT sent — ws not open');
           }
         };
         ws.send(JSON.stringify({ type: 'voice_start', from: myPilotId }));
+        console.log('[aviatesVoice] sent voice_start');
         mediaRecorder.start(100);
 
         // A release (stopTransmit()) that arrived while we were still
