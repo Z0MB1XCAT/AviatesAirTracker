@@ -397,19 +397,18 @@ public class AviatesBackendClient
     private DateTime _lastPositionReport = DateTime.MinValue;
 
     /// <summary>
-    /// Sends a live ACARS position report to the backend (every 5 minutes).
+    /// Sends a live ACARS position report to the backend (every 30 seconds, for the live map).
     /// </summary>
     public async Task SendPositionReportAsync(
-        double lat, double lon, double altFt, int speedKts,
+        double lat, double lon, double altFt, int speedKts, int headingDeg,
         string phase, string acarsKey)
     {
-        if ((DateTime.UtcNow - _lastPositionReport).TotalMinutes < 5) return;
+        if ((DateTime.UtcNow - _lastPositionReport).TotalSeconds < 30) return;
 
         _lastPositionReport = DateTime.UtcNow;
 
         try
         {
-            // TODO: POST /api/v1/acars/position
             var request = new RestRequest("/api/v1/acars/position", Method.Post)
                 .AddHeader("Authorization", $"Bearer {acarsKey}")
                 .AddJsonBody(new
@@ -418,6 +417,7 @@ public class AviatesBackendClient
                     longitude = lon,
                     altitude  = (int)altFt,
                     speed     = speedKts,
+                    heading   = headingDeg,
                     phase     = phase,
                     timestamp = DateTime.UtcNow.ToString("o")
                 });
@@ -429,6 +429,95 @@ public class AviatesBackendClient
             Log.Debug(ex, "[BackendClient] Position report failed (non-critical)");
         }
     }
+
+    /// <summary>
+    /// Registers the start of a flight (or an updated flight plan) with the live map.
+    /// Safe to call multiple times for the same flight — the backend upserts.
+    /// </summary>
+    public async Task SendFlightStartAsync(
+        string? departureIcao, string? arrivalIcao, string? callsign,
+        List<Waypoint>? waypoints, string acarsKey)
+    {
+        try
+        {
+            var request = new RestRequest("/api/v1/acars/flight-start", Method.Post)
+                .AddHeader("Authorization", $"Bearer {acarsKey}")
+                .AddJsonBody(new
+                {
+                    departure_icao = departureIcao ?? "",
+                    arrival_icao   = arrivalIcao   ?? "",
+                    callsign       = callsign      ?? "",
+                    waypoints      = waypoints?.Select(w => new { lat = w.Latitude, lon = w.Longitude, id = w.Identifier }).ToList()
+                });
+
+            await _client.ExecuteAsync(request);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "[BackendClient] flight-start report failed (non-critical)");
+        }
+    }
+
+    /// <summary>Removes the pilot from the live map (call on landing/session end).</summary>
+    public async Task SendFlightEndAsync(string acarsKey)
+    {
+        try
+        {
+            var request = new RestRequest("/api/v1/acars/flight-end", Method.Post)
+                .AddHeader("Authorization", $"Bearer {acarsKey}");
+
+            await _client.ExecuteAsync(request);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "[BackendClient] flight-end report failed (non-critical)");
+        }
+    }
+
+    /// <summary>Toggles whether this pilot's position is shared on the live map. Enforced server-side.</summary>
+    public async Task<bool> SetLiveSharingAsync(bool enabled, string acarsKey)
+    {
+        try
+        {
+            var request = new RestRequest("/api/v1/acars/live-sharing", Method.Patch)
+                .AddHeader("Authorization", $"Bearer {acarsKey}")
+                .AddJsonBody(new { enabled });
+
+            var response = await _client.ExecuteAsync(request);
+            return response.IsSuccessful;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "[BackendClient] live-sharing toggle failed (non-critical)");
+            return false;
+        }
+    }
+
+    /// <summary>Fetches all currently-flying pilots for the live map. Public endpoint, no auth.</summary>
+    public async Task<List<LivePilotPosition>> FetchLivePositionsAsync()
+    {
+        try
+        {
+            var request = new RestRequest("/api/acars/live-positions", Method.Get);
+            var response = await _client.ExecuteAsync(request);
+
+            if (!response.IsSuccessful || string.IsNullOrEmpty(response.Content))
+                return new List<LivePilotPosition>();
+
+            var wrapper = JsonConvert.DeserializeObject<LivePositionsResponse>(response.Content);
+            return wrapper?.Positions ?? new List<LivePilotPosition>();
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "[BackendClient] FetchLivePositions failed (non-critical)");
+            return new List<LivePilotPosition>();
+        }
+    }
+}
+
+internal class LivePositionsResponse
+{
+    public List<LivePilotPosition> Positions { get; set; } = new();
 }
 
 // =====================================================
