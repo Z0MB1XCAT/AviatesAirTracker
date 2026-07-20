@@ -61,6 +61,7 @@ export class DispatchRadioRoom extends DurableObject {
       if (!isDispatcherVoice && pilotId) {
         server.serializeAttachment({ pilotId });
       }
+      console.log('[voice-debug] /voice connection accepted, isDispatcherVoice=', isDispatcherVoice, 'pilotId=', pilotId);
       return new Response(null, { status: 101, webSocket: client });
     }
 
@@ -185,16 +186,36 @@ export class DispatchRadioRoom extends DurableObject {
     const isMarker = !isBinary && typeof message === 'string';
     if (!isBinary && !isMarker) return;
 
-    for (const ws of this.ctx.getWebSockets('voice-admin')) {
-      if (ws !== senderWs) ws.send(message);
+    const senderTags = this.ctx.getTags(senderWs);
+    console.log(
+      '[voice-debug] relayVoiceFrame from tags=', senderTags,
+      'isBinary=', isBinary, 'bytes/text=', isBinary ? message.byteLength : message
+    );
+
+    const adminSockets = [...this.ctx.getWebSockets('voice-admin')];
+    console.log('[voice-debug] voice-admin socket count=', adminSockets.length);
+    for (const ws of adminSockets) {
+      if (ws !== senderWs) {
+        ws.send(message);
+        console.log('[voice-debug] -> relayed to an admin socket');
+      }
     }
 
-    for (const ws of this.ctx.getWebSockets('voice-pilot')) {
+    const pilotSockets = [...this.ctx.getWebSockets('voice-pilot')];
+    console.log('[voice-debug] voice-pilot socket count=', pilotSockets.length);
+    for (const ws of pilotSockets) {
       if (ws === senderWs) continue;
       const data = ws.deserializeAttachment();
       const entry = data?.pilotId ? this.registry.get(data.pilotId) : undefined;
+      console.log(
+        '[voice-debug] candidate pilot pilotId=', data?.pilotId,
+        'registryEntryExists=', !!entry, 'state=', entry ? entry.state : 'n/a'
+      );
       if (entry && entry.state !== 'acars_only') {
         ws.send(message);
+        console.log('[voice-debug] -> relayed to pilot', data.pilotId);
+      } else {
+        console.log('[voice-debug] -> SKIPPED pilot', data?.pilotId, 'reason=', !entry ? 'no registry entry for this pilotId' : 'state is acars_only');
       }
     }
   }
