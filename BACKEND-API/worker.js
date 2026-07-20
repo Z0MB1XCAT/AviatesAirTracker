@@ -3043,6 +3043,25 @@ async function handleV1Api(request, env, ctx, url, pathname, corsHeaders) {
     return json({ success: true }, 200, corsHeaders);
   }
 
+  // ── POST /api/v1/acars/flight-end ─────────────────────────────────────────
+  if (request.method === "POST" && pathname === "/api/v1/acars/flight-end") {
+    const principal = await verifyAcarsKey(env, acarsKey);
+    if (!principal) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
+    if (!(await rateLimit(env, ctx, `flightend:${acarsKey}`, LIMITS.flightEnd)))
+      return rateLimitResponse(corsHeaders);
+
+    if (!env.LIVE_MAP_ROOM) return json({ success: false, error: "Live map not configured" }, 500, corsHeaders);
+
+    const pilotId = await computePilotId(principal.user.email);
+    await liveMapRoomFetch(env, "/flight-end", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pilotId }),
+    });
+
+    return json({ success: true }, 200, corsHeaders);
+  }
+
   // ── DELETE /api/v1/friends/:pilotId ──────────────────────────────────────
   const friendsDeleteMatch = pathname.match(/^\/api\/v1\/friends\/([^/]+)$/);
   if (request.method === "DELETE" && friendsDeleteMatch) {
