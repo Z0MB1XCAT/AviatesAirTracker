@@ -3062,6 +3062,36 @@ async function handleV1Api(request, env, ctx, url, pathname, corsHeaders) {
     return json({ success: true }, 200, corsHeaders);
   }
 
+  // ── PATCH /api/v1/acars/live-sharing ──────────────────────────────────────
+  if (request.method === "PATCH" && pathname === "/api/v1/acars/live-sharing") {
+    const principal = await verifyAcarsKey(env, acarsKey);
+    if (!principal) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
+    if (!(await rateLimit(env, ctx, `livesharing:${acarsKey}`, LIMITS.liveSharing)))
+      return rateLimitResponse(corsHeaders);
+
+    const body = await safeJson(request);
+    if (!body || typeof body.enabled !== "boolean")
+      return json({ success: false, error: "enabled (boolean) required" }, 400, corsHeaders);
+
+    if (!env.ACARS_KV) return json({ success: false, error: "Position KV not configured" }, 500, corsHeaders);
+
+    const pilotId = await computePilotId(principal.user.email);
+    if (body.enabled) {
+      await env.ACARS_KV.delete(`live_share_opt_out:${pilotId}`);
+    } else {
+      await env.ACARS_KV.put(`live_share_opt_out:${pilotId}`, "true");
+      if (env.LIVE_MAP_ROOM) {
+        await liveMapRoomFetch(env, "/flight-end", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pilotId }),
+        });
+      }
+    }
+
+    return json({ success: true }, 200, corsHeaders);
+  }
+
   // ── DELETE /api/v1/friends/:pilotId ──────────────────────────────────────
   const friendsDeleteMatch = pathname.match(/^\/api\/v1\/friends\/([^/]+)$/);
   if (request.method === "DELETE" && friendsDeleteMatch) {
