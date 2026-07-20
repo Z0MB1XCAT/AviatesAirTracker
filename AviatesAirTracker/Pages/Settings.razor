@@ -297,13 +297,23 @@
                     <span class="toggle-track"></span>
                 </label>
             </div>
-            <div class="toggle-row" style="border-bottom:none;">
+            <div class="toggle-row">
                 <div class="toggle-info">
                     <div class="toggle-label">Minimize to Tray</div>
                     <div class="toggle-desc">Keep running in the system tray when window is closed</div>
                 </div>
                 <label class="toggle-switch">
                     <input type="checkbox" @bind="SettingsService.Settings.MinimizeToTray" />
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="toggle-row" style="border-bottom:none;">
+                <div class="toggle-info">
+                    <div class="toggle-label">Share My Live Position</div>
+                    <div class="toggle-desc">Show your flight on the Aviates Air live map for other pilots and the website. Takes effect immediately.</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" checked="@SettingsService.Settings.ShareLivePosition" @onchange="OnShareLivePositionChanged" />
                     <span class="toggle-track"></span>
                 </label>
             </div>
@@ -711,6 +721,17 @@
         SettingsService.Settings.Theme = theme;
         SettingsService.Save();
         await JS.InvokeVoidAsync("aviatesTheme.apply", theme);
+    }
+
+    private async Task OnShareLivePositionChanged(ChangeEventArgs e)
+    {
+        var enabled = e.Value is bool b && b;
+        SettingsService.Settings.ShareLivePosition = enabled;
+        SettingsService.Save();
+
+        var key = SettingsService.Settings.AcarsKey.Trim();
+        if (!string.IsNullOrEmpty(key))
+            await BackendClient.SetLiveSharingAsync(enabled, key);
     }
 
     private void SaveSettings()
