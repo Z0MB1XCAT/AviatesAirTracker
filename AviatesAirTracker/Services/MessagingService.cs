@@ -375,6 +375,28 @@ public class MessagingService : IDisposable
     // FRIENDS
     // =====================================================
 
+    /// <summary>
+    /// Adds (or returns the existing) friend entry for a pilot spotted on the live map.
+    /// No Friend Code required — the pilot's ID and name are already known from their
+    /// live position broadcast, and the backend's message-send endpoint has no
+    /// friendship requirement, so this is a purely local bookkeeping step.
+    /// </summary>
+    public async Task<FriendEntry> AddOrGetFriendFromLiveMapAsync(string pilotId, string pilotName)
+    {
+        var friends = await _friendRepo.GetAllAsync();
+        var existing = friends.FirstOrDefault(f => f.PilotId == pilotId);
+        if (existing is not null) return existing;
+
+        var entry = new FriendEntry
+        {
+            PilotId   = pilotId,
+            PilotName = pilotName,
+            AddedAt   = DateTime.UtcNow,
+        };
+        await _friendRepo.AddAsync(entry);
+        return entry;
+    }
+
     public async Task<FriendEntry?> AddFriendByCodeAsync(string friendCode, string? displayName = null)
     {
         var acarsKey = _settings.Settings.AcarsKey;
