@@ -33,19 +33,17 @@ public partial class MainWindow : Window
             await BlazorHost.WebView.EnsureCoreWebView2Async();
             BlazorHost.WebView.CoreWebView2.PermissionRequested += OnPermissionRequested;
 
-            // WebView2 intercepts a set of "browser accelerator" keys (F3,
-            // F5-F7, F10, F11, Alt, Ctrl+F/G/H/J/N/O/P/R/S/Y/Z, browser
-            // back/forward, etc.) before they ever reach the page's DOM —
-            // by design, since a normal browser would use them for its own
-            // chrome. There's no chrome here, and the PTT hotkey capture
-            // field in Settings needs to see every key the pilot presses,
-            // so this app owns that entirely; disable WebView2's own
-            // handling of them.
-            BlazorHost.WebView.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
+            // Deliberately NOT setting AreBrowserAcceleratorKeysEnabled = false
+            // here. That was an earlier attempt at fixing "PTT hotkey capture
+            // never detects the key" — turned out the real cause was a
+            // too-narrow key map (missing punctuation), not WebView2
+            // intercepting keys. Disabling accelerator keys also silently
+            // disables F12/Ctrl+Shift+I DevTools shortcuts, which made this
+            // app much harder to debug for no actual benefit — not worth it.
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Failed to wire microphone auto-approve / disable accelerator keys for voice PTT; some keys may not register in Settings");
+            Log.Warning(ex, "Failed to wire microphone auto-approve for voice PTT");
         }
     }
 
