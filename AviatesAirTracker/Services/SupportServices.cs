@@ -349,6 +349,7 @@ public class AppSettings
     public bool ShowApproachAlerts { get; set; } = true;
     public bool ShowLandingResult { get; set; } = true;
     public bool MinimizeToTray { get; set; } = false;
+    public bool ShareLivePosition { get; set; } = true;
     public bool StartMinimized { get; set; } = false;
     public double TelemetryHz { get; set; } = 20;
     public bool RecordTelemetryHistory { get; set; } = true;
