@@ -2975,11 +2975,14 @@ async function handleV1Api(request, env, ctx, url, pathname, corsHeaders) {
     const arrivalIcao   = (body.arrival_icao   || "").trim().toUpperCase().substring(0, 4);
     const callsign      = (body.callsign       || "").trim().substring(0, 10);
     const waypoints     = Array.isArray(body.waypoints)
-      ? body.waypoints.slice(0, 200).map(w => ({
-          lat: parseFloat(w.lat) || 0,
-          lon: parseFloat(w.lon) || 0,
-          id:  String(w.id || "").substring(0, 10),
-        }))
+      ? body.waypoints
+          .filter(w => typeof w === "object" && w !== null)
+          .slice(0, 200)
+          .map(w => ({
+            lat: parseFloat(w.lat) || 0,
+            lon: parseFloat(w.lon) || 0,
+            id:  String(w.id || "").substring(0, 10),
+          }))
       : null;
 
     await liveMapRoomFetch(env, "/flight-start", {
