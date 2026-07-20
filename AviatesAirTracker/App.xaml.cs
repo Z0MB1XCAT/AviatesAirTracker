@@ -289,6 +289,7 @@ public partial class App : Application
         // Business
         services.AddSingleton<AviatesBackendClient>();
         services.AddSingleton<AcarsPositionService>();
+        services.AddSingleton<OtherPilotsService>();
         services.AddSingleton<PttInputService>();
         services.AddSingleton<DispatchRadioService>();
         services.AddSingleton<MessagingService>();
