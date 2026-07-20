@@ -772,20 +772,9 @@ export default {
     }
     if (pathname === "/api/acars/live-positions") {
       if (request.method !== "GET") return json({ error: "Method not allowed" }, 405, corsHeaders);
-      if (!env.ACARS_KV) return json({ positions: [] }, 200, corsHeaders);
-      const raw = await env.ACARS_KV.get("live_positions").catch(() => null);
-      if (!raw) return json({ positions: [] }, 200, corsHeaders);
-      let manifest;
-      try {
-        manifest = JSON.parse(raw);
-      } catch {
-        return json({ positions: [] }, 200, corsHeaders);
-      }
-      const cutoff   = Date.now() - 15 * 60 * 1000;
-      // NaN from malformed updated_at compares false — entry silently excluded, which is safe
-      const positions = Object.entries(manifest)
-        .filter(([, v]) => new Date(v.updated_at).getTime() > cutoff)
-        .map(([id, v]) => ({ id, ...v }));
+      if (!env.LIVE_MAP_ROOM) return json({ positions: [] }, 200, corsHeaders);
+      const res = await liveMapRoomFetch(env, "/list", { method: "GET" }).catch(() => null);
+      const positions = res ? await res.json().catch(() => []) : [];
       return json({ positions }, 200, corsHeaders);
     }
     if (pathname.startsWith("/api/v1/")) {
