@@ -10,6 +10,7 @@ Add a live map showing pilots currently flying on Aviates Air, visible both on t
 ## Current State (research findings)
 
 - A minimal live-position pipeline already exists: the app POSTs `{lat, lon, alt, speed, phase}` to `/api/v1/acars/position` every 5 minutes while airborne; the worker stores it in a KV blob (`live_positions`, 15-min TTL) keyed by an anonymous hash of the ACARS key; `GET /api/acars/live-positions` reads it back. **No consumer uses this today** — `GET /api/public/stats` hardcodes `currentlyFlying: 0`.
+- Correction to an earlier research pass: `worker.js` (`C:\AviatesAirTracker\BACKEND-API\worker.js`) is the **only** copy — there is no second copy in the website repo. Verified via direct file search in `C:\AviatesAirWebsite` (only `node_modules` hits, nothing under version control, no `wrangler.toml` anywhere in that repo). The "Open implementation notes" section below is updated accordingly.
 - The position payload has no flight ID, callsign, dep/dest, or route/waypoints, and its anonymous pilot-key hash (`SHA-256("POS:"+acarsKey)`) does **not** match the hash messaging uses for `PilotId` (`SHA-256("AVIATES_ID:"+email)`) — a map pilot can't be matched to a messageable identity without a backend change.
 - No Supabase table stores live position or in-flight state — the only "live" state is the ephemeral KV blob above.
 - `DISPATCH-RADIO-WORKER` already runs a Durable Object (`DispatchRadioRoom`) with hibernatable WebSockets, an in-memory session registry, and a stale-session sweep via `ctx.storage.alarm()` — a proven low-cost realtime pattern in this codebase, though currently scoped only to dispatch-radio distance/voice relay.
@@ -80,5 +81,7 @@ No automated test suite exists in either repo (per project convention) — verif
 
 ## Open implementation notes for the plan
 
-- `worker.js` exists as near-duplicate copies in both repos (`BACKEND-API/worker.js` in the tracker repo is ahead of the website repo's copy) and is deployed **manually** by the user via the Cloudflare dashboard — the implementation plan must account for reconciling/deploying from one source of truth, and the user must be reminded to redeploy after changes since editing the repo file alone does not deploy it.
+- `worker.js` (`BACKEND-API/worker.js`, single source of truth — no second copy exists) is deployed **manually** by the user via the Cloudflare dashboard's code editor. Editing the repo file does not deploy it; the user must paste the updated file into the dashboard and redeploy themselves.
+- Introducing the new `LiveMapRoom` Durable Object requires a one-time manual step in the Cloudflare dashboard: adding a Durable Object Namespace binding (name `LIVE_MAP_ROOM`, class `LiveMapRoom`) with a "new class" migration. This cannot be scripted from the repo since there is no `wrangler.toml` for this worker — bindings are dashboard-managed.
 - `computePilotId` must be reused (not reimplemented) for the position payload's `pilotId` so it lines up with the messaging system's existing identity.
+- The privacy opt-out is enforced via a KV flag (reusing `ACARS_KV`, keyed by `pilotId`) rather than a new Supabase column — it's a low-frequency write (once per toggle, not per tick), avoids a production schema migration, and is checked server-side on every `flight-start`/`position` write so a modified client can't bypass it.
