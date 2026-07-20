@@ -2,6 +2,7 @@
 @inject MessagingService MessagingService
 @inject SettingsService SettingsService
 @implements IDisposable
+@using Microsoft.AspNetCore.Components
 
 <div class="page-header anim-up">
     <h1 class="page-title">Messages</h1>
@@ -324,6 +325,10 @@ else
     private int     _unreadCount;
     private bool    _hasAcarsKey;
 
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "open")]
+    public string? OpenPilotId { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         _hasAcarsKey = !string.IsNullOrEmpty(SettingsService.Settings.AcarsKey);
@@ -333,6 +338,9 @@ else
         MessagingService.UnreadCountChanged += OnUnreadCountChanged;
 
         await RefreshAll();
+
+        if (!string.IsNullOrEmpty(OpenPilotId) && _friends.Any(f => f.PilotId == OpenPilotId))
+            SelectFriendAndSwitchToInbox(OpenPilotId);
     }
 
     private async Task RefreshAll()
