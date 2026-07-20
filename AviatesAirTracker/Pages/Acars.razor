@@ -921,7 +921,7 @@
         {
             await BackendClient.SendPositionReportAsync(
                 _snap.Latitude, _snap.Longitude, _snap.AltitudeMSL,
-                (int)_snap.GroundSpeedKts, _sessionState.ToString(),
+                (int)_snap.GroundSpeedKts, (int)_snap.Raw.HeadingTrue, _sessionState.ToString(),
                 Settings.Settings.AcarsKey);
             _pirepSubmitResult = "✓ Sent";
             if (_posReportHistory.Count >= 10) _posReportHistory.RemoveAt(0);
