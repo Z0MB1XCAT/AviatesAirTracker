@@ -1,3 +1,5 @@
+import { DurableObject } from "cloudflare:workers";
+
 // ============================================================
 // AviatesAir — Cloudflare Worker (ES Module)
 // Handles: auth, ACARS, messaging, AND the new /api/routes Supabase API
@@ -34,6 +36,143 @@ const LIMITS = {
 };
 
 const RESET_RATE_LIMIT_TTL_S = 2592000; // 30 days
+
+// ============================================================
+//  LIVE MAP — Durable Object (LiveMapRoom)
+//
+//  Holds live in-flight pilot positions in memory + SQLite storage.
+//  Replaces the old KV-backed `live_positions` blob so a 30-second
+//  update cadence doesn't count against the 1,000 writes/day KV quota
+//  (Durable Object storage is not subject to that cap).
+//
+//  No WebSockets here — this is plain request/response via fetch(),
+//  called internally from the main Worker. 30-second polling doesn't
+//  need push, so there's no hibernation/reconnect complexity to manage.
+// ============================================================
+
+const LIVE_MAP_STALE_MS = 90 * 1000;
+const LIVE_MAP_SWEEP_INTERVAL_MS = 30 * 1000;
+
+class LiveMapRegistry {
+  constructor(now = () => Date.now()) {
+    this._now = now;
+    this._pilots = new Map(); // pilotId -> record
+  }
+
+  flightStart(pilotId, meta) {
+    const existing = this._pilots.get(pilotId) || {};
+    this._pilots.set(pilotId, { ...existing, ...meta, pilotId, updatedAt: this._now() });
+  }
+
+  updatePosition(pilotId, pos) {
+    const existing = this._pilots.get(pilotId) || { pilotId };
+    this._pilots.set(pilotId, { ...existing, ...pos, updatedAt: this._now() });
+  }
+
+  remove(pilotId) {
+    this._pilots.delete(pilotId);
+  }
+
+  sweepStale(maxAgeMs) {
+    const cutoff = this._now() - maxAgeMs;
+    for (const [pilotId, record] of this._pilots) {
+      if (record.updatedAt < cutoff) this._pilots.delete(pilotId);
+    }
+  }
+
+  list() {
+    return Array.from(this._pilots.values());
+  }
+
+  snapshot() {
+    return Array.from(this._pilots.entries());
+  }
+
+  hydrate(entries) {
+    this._pilots = new Map(entries);
+  }
+}
+
+export class LiveMapRoom extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.ctx = ctx;
+    this.registry = new LiveMapRegistry();
+    this.hydrated = false;
+  }
+
+  async ensureHydrated() {
+    if (this.hydrated) return;
+    const stored = await this.ctx.storage.get("pilots");
+    if (stored) this.registry.hydrate(stored);
+    this.hydrated = true;
+    const alarm = await this.ctx.storage.getAlarm();
+    if (alarm === null) {
+      await this.ctx.storage.setAlarm(Date.now() + LIVE_MAP_SWEEP_INTERVAL_MS);
+    }
+  }
+
+  async persist() {
+    await this.ctx.storage.put("pilots", this.registry.snapshot());
+  }
+
+  async fetch(request) {
+    await this.ensureHydrated();
+    const url = new URL(request.url);
+
+    if (request.method === "POST" && url.pathname === "/flight-start") {
+      const body = await request.json();
+      this.registry.flightStart(body.pilotId, body.meta);
+      await this.persist();
+      return new Response("ok");
+    }
+
+    if (request.method === "POST" && url.pathname === "/position") {
+      const body = await request.json();
+      this.registry.updatePosition(body.pilotId, body.pos);
+      await this.persist();
+      return new Response("ok");
+    }
+
+    if (request.method === "POST" && url.pathname === "/flight-end") {
+      const body = await request.json();
+      this.registry.remove(body.pilotId);
+      await this.persist();
+      return new Response("ok");
+    }
+
+    if (request.method === "GET" && url.pathname === "/list") {
+      this.registry.sweepStale(LIVE_MAP_STALE_MS);
+      await this.persist();
+      return new Response(JSON.stringify(this.registry.list()), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response("Not found", { status: 404 });
+  }
+
+  async alarm() {
+    await this.ensureHydrated();
+    this.registry.sweepStale(LIVE_MAP_STALE_MS);
+    await this.persist();
+    await this.ctx.storage.setAlarm(Date.now() + LIVE_MAP_SWEEP_INTERVAL_MS);
+  }
+}
+
+// Internal helper used by route handlers below to talk to the single
+// global LiveMapRoom instance.
+async function liveMapRoomFetch(env, path, init) {
+  const id = env.LIVE_MAP_ROOM.idFromName("global");
+  const stub = env.LIVE_MAP_ROOM.get(id);
+  return stub.fetch(new Request("https://live-map-room" + path, init));
+}
+
+async function isLiveSharingOptedOut(env, pilotId) {
+  if (!env.ACARS_KV) return false;
+  const val = await env.ACARS_KV.get(`live_share_opt_out:${pilotId}`);
+  return val === "true";
+}
 
 const AIRCRAFT_CRUISE_SPEEDS = {
   B738: 460,   // Boeing 737-800 (knots)
