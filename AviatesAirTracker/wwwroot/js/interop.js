@@ -6,6 +6,9 @@ window.aviatesMap = {
     _pathLine: null,
     _plannedLine: null,
     _airportMarkers: [],
+    _otherPilotMarkers: {},   // pilotId -> L.marker
+    _otherPilotRoutes: {},    // pilotId -> L.polyline
+    _otherPilotClickRef: null,
     _waypointDots: [],
     _altPathLayer: null,
     _altRenderer: null,
@@ -19,6 +22,10 @@ window.aviatesMap = {
             this._pathLine = null;
             this._plannedLine = null;
             this._airportMarkers = [];
+            Object.values(this._otherPilotMarkers).forEach(function (m) { m.remove(); });
+            Object.values(this._otherPilotRoutes).forEach(function (r) { r.remove(); });
+            this._otherPilotMarkers = {};
+            this._otherPilotRoutes = {};
             this._waypointDots = [];
             if (this._altRenderer) { this._altRenderer.remove(); this._altRenderer = null; }
             this._altPathLayer = null;
@@ -170,6 +177,59 @@ window.aviatesMap = {
         this._airportMarkers = [];
     },
 
+    setOtherPilotClickHandler: function (dotNetRef) {
+        this._otherPilotClickRef = dotNetRef;
+    },
+
+    upsertOtherPilot: function (pilotId, lat, lon, waypoints) {
+        if (!this._map) return;
+
+        var marker = this._otherPilotMarkers[pilotId];
+        if (!marker) {
+            marker = L.marker([lat, lon], {
+                icon: L.divIcon({
+                    className: 'avt-other-pilot-icon',
+                    html: '<div style="width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,0.55);border:2px solid rgba(61,126,238,0.9);"></div>',
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7],
+                })
+            }).addTo(this._map);
+            var self = this;
+            marker.on('click', function () {
+                if (self._otherPilotClickRef) {
+                    self._otherPilotClickRef.invokeMethodAsync('OnOtherPilotClicked', pilotId);
+                }
+            });
+            this._otherPilotMarkers[pilotId] = marker;
+        } else {
+            marker.setLatLng([lat, lon]);
+        }
+
+        var route = this._otherPilotRoutes[pilotId];
+        if (Array.isArray(waypoints) && waypoints.length > 0) {
+            var latlngs = waypoints
+                .filter(function (w) { return (w.lat !== 0 || w.lon !== 0) && Math.abs(w.lat) <= 90 && Math.abs(w.lon) <= 180; })
+                .map(function (w) { return [w.lat, w.lon]; });
+
+            if (!route) {
+                route = L.polyline(latlngs, { color: '#3D7EEE', weight: 1.5, opacity: 0.45, dashArray: '4,5' }).addTo(this._map);
+                this._otherPilotRoutes[pilotId] = route;
+            } else {
+                route.setLatLngs(latlngs);
+            }
+        } else if (route) {
+            route.remove();
+            delete this._otherPilotRoutes[pilotId];
+        }
+    },
+
+    removeOtherPilot: function (pilotId) {
+        var marker = this._otherPilotMarkers[pilotId];
+        if (marker) { marker.remove(); delete this._otherPilotMarkers[pilotId]; }
+        var route = this._otherPilotRoutes[pilotId];
+        if (route) { route.remove(); delete this._otherPilotRoutes[pilotId]; }
+    },
+
     fitRouteBounds: function () {
         if (!this._map) return;
         var allPoints = [];
@@ -253,6 +313,10 @@ window.aviatesMap = {
             this._pathLine = null;
             this._plannedLine = null;
             this._airportMarkers = [];
+            Object.values(this._otherPilotMarkers).forEach(function (m) { m.remove(); });
+            Object.values(this._otherPilotRoutes).forEach(function (r) { r.remove(); });
+            this._otherPilotMarkers = {};
+            this._otherPilotRoutes = {};
             this._waypointDots = [];
         }
     }
