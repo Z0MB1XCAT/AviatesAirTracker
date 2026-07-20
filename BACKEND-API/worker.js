@@ -3013,32 +3013,33 @@ async function handleV1Api(request, env, ctx, url, pathname, corsHeaders) {
     const body = await safeJson(request);
     if (!body) return json({ success: false, error: "Invalid JSON" }, 400, corsHeaders);
 
-    if (!env.ACARS_KV) return json({ success: false, error: "Position KV not configured" }, 500, corsHeaders);
-
-    const lat   = isFinite(parseFloat(body.latitude))  ? parseFloat(body.latitude)  : null;
-    const lon   = isFinite(parseFloat(body.longitude)) ? parseFloat(body.longitude) : null;
+    const lat = isFinite(parseFloat(body.latitude))  ? parseFloat(body.latitude)  : null;
+    const lon = isFinite(parseFloat(body.longitude)) ? parseFloat(body.longitude) : null;
     if (lat === null || lon === null)
       return json({ success: false, error: "Invalid position data" }, 400, corsHeaders);
-    const alt   = parseInt(body.altitude, 10)   || 0;
-    const speed = parseInt(body.speed, 10)      || 0;
-    const phase = (body.phase || "unknown").substring(0, 30);
+    const alt     = parseInt(body.altitude, 10) || 0;
+    const speed   = parseInt(body.speed, 10)    || 0;
+    const heading = parseInt(body.heading, 10)  || 0;
+    const phase   = (body.phase || "unknown").substring(0, 30);
 
-    // Hash the ACARS key so raw keys are never stored in the public manifest
-    const keyBuf   = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("POS:" + acarsKey));
-    const pilotKey = Array.from(new Uint8Array(keyBuf)).slice(0, 8).map(b => b.toString(16).padStart(2, "0")).join("");
+    const pilotId = await computePilotId(principal.user.email);
+    if (await isLiveSharingOptedOut(env, pilotId))
+      return json({ success: true, shared: false }, 200, corsHeaders);
 
-    // Single-key manifest: last-write-wins race is acceptable for this VA's scale (<50 concurrent pilots)
-    const raw = await env.ACARS_KV.get("live_positions").catch(() => null);
-    let manifest;
-    try { manifest = raw ? JSON.parse(raw) : {}; } catch { manifest = {}; }
+    if (!env.LIVE_MAP_ROOM) return json({ success: false, error: "Live map not configured" }, 500, corsHeaders);
 
-    manifest[pilotKey] = {
-      name:       `${principal.user.first_name} ${principal.user.last_name}`.trim(),
-      lat, lon, alt, speed, phase,
-      updated_at: new Date().toISOString(),
-    };
+    await liveMapRoomFetch(env, "/position", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pilotId,
+        pos: {
+          pilotName: `${principal.user.first_name} ${principal.user.last_name}`.trim(),
+          lat, lon, alt, speed, heading, phase,
+        },
+      }),
+    });
 
-    await env.ACARS_KV.put("live_positions", JSON.stringify(manifest), { expirationTtl: 900 });
     return json({ success: true }, 200, corsHeaders);
   }
 
