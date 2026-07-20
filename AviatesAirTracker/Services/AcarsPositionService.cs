@@ -1,5 +1,6 @@
 using AviatesAirTracker.Core.Backend;
 using AviatesAirTracker.Core.SimConnect;
+using AviatesAirTracker.Models;
 using Serilog;
 
 namespace AviatesAirTracker.Services;
@@ -8,12 +9,12 @@ namespace AviatesAirTracker.Services;
 // ACARS POSITION SERVICE
 //
 // Sends live aircraft position reports to the Aviates Air backend
-// while a flight is in progress. Mirrors DiscordPresenceService
-// in structure: subscribes to TelemetryUpdated and throttles calls.
+// while a flight is in progress, and registers/deregisters the
+// pilot's flight on the live map at the right phase transitions.
 //
 // Outer gate: 30-second check interval (avoids spawning a Task
-// on every 20Hz tick). The AviatesBackendClient.SendPositionReportAsync
-// has its own inner 5-minute throttle for the actual HTTP call.
+// on every 20Hz tick). AviatesBackendClient.SendPositionReportAsync
+// has its own inner 30-second throttle for the actual HTTP call.
 // ============================================================
 
 public class AcarsPositionService : IDisposable
@@ -21,11 +22,11 @@ public class AcarsPositionService : IDisposable
     private readonly FlightSessionManager _session;
     private readonly AviatesBackendClient _backend;
     private readonly SettingsService _settings;
+    private readonly SimBriefService _simBrief;
 
     // DateTime is not a valid volatile field type (CS0677). Use a long ticks backing field
     // with Interlocked for safe cross-thread access between the SimConnect pump and UI thread.
     private long _lastCheckTicks = DateTime.MinValue.Ticks;
-    // TODO: make this configurable via AppSettings.AutoPirepIntervalMinutes
     private const int CHECK_INTERVAL_SECONDS = 30;
 
     /// <summary>Last time the 30-second gate fired (not necessarily when an HTTP call went out).</summary>
@@ -37,13 +38,17 @@ public class AcarsPositionService : IDisposable
     public AcarsPositionService(
         FlightSessionManager session,
         AviatesBackendClient backend,
-        SettingsService settings)
+        SettingsService settings,
+        SimBriefService simBrief)
     {
-        _session = session;
-        _backend = backend;
+        _session  = session;
+        _backend  = backend;
         _settings = settings;
+        _simBrief = simBrief;
 
-        _session.TelemetryUpdated += OnTelemetryUpdated;
+        _session.TelemetryUpdated    += OnTelemetryUpdated;
+        _session.SessionStateChanged += OnSessionStateChanged;
+        _simBrief.FlightPlanLoaded   += OnFlightPlanLoaded;
         Log.Information("[AcarsPosition] Position reporting service initialized");
     }
 
@@ -63,22 +68,63 @@ public class AcarsPositionService : IDisposable
         Interlocked.Exchange(ref _lastCheckTicks, now.Ticks);
         GateFired?.Invoke();
 
+        if (!_settings.Settings.ShareLivePosition) return;
+
         var key = _settings.Settings.AcarsKey.Trim();
         if (string.IsNullOrEmpty(key)) return;
 
-        // Backend method self-throttles to one call per 5 minutes
+        // Backend method self-throttles to one call per 30 seconds
         _ = _backend.SendPositionReportAsync(
             snap.Latitude,
             snap.Longitude,
             snap.AltitudePressure,    // pressure altitude = flight level reference
             (int)snap.GroundSpeedKts,
+            (int)snap.Raw.HeadingTrue,
             snap.Phase.ToString(),
             key);
     }
 
+    private void OnSessionStateChanged(object? sender, FlightSessionState newState)
+    {
+        if (!_settings.Settings.ShareLivePosition) return;
+        var key = _settings.Settings.AcarsKey.Trim();
+        if (string.IsNullOrEmpty(key)) return;
+
+        if (newState == FlightSessionState.Taxiing)
+        {
+            var flight = _session.CurrentFlight;
+            _ = _backend.SendFlightStartAsync(
+                flight?.DepartureICAO, flight?.ArrivalICAO, flight?.Callsign,
+                null, key);
+        }
+        else if (newState == FlightSessionState.Complete)
+        {
+            _ = _backend.SendFlightEndAsync(key);
+        }
+    }
+
+    private void OnFlightPlanLoaded(object? sender, SimBriefFlightPlan plan)
+    {
+        // Only re-announce if a flight is actually in progress — SimBrief plans can be
+        // imported before engines start too, and that shouldn't register a "flight" yet.
+        if (_session.State is not (FlightSessionState.Taxiing or FlightSessionState.Airborne
+            or FlightSessionState.OnApproach or FlightSessionState.Landed))
+            return;
+
+        if (!_settings.Settings.ShareLivePosition) return;
+        var key = _settings.Settings.AcarsKey.Trim();
+        if (string.IsNullOrEmpty(key)) return;
+
+        _ = _backend.SendFlightStartAsync(
+            plan.DepartureICAO, plan.ArrivalICAO, _session.CurrentFlight?.Callsign,
+            plan.Waypoints, key);
+    }
+
     public void Dispose()
     {
-        _session.TelemetryUpdated -= OnTelemetryUpdated;
+        _session.TelemetryUpdated    -= OnTelemetryUpdated;
+        _session.SessionStateChanged -= OnSessionStateChanged;
+        _simBrief.FlightPlanLoaded   -= OnFlightPlanLoaded;
         Log.Debug("[AcarsPosition] Disposed");
     }
 }
