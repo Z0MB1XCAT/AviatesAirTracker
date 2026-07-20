@@ -4,13 +4,17 @@ import { DurableObject } from "cloudflare:workers";
 // AviatesAir — Cloudflare Worker (ES Module)
 // Handles: auth, ACARS, messaging, AND the new /api/routes Supabase API
 //
-// Bindings required in wrangler.toml:
-//   KV:      RATE_LIMIT_KV, MESSAGES_KV, FLIGHTS_KV, ACARS_KV,
-//            SESSIONS_KV, PIREPS_KV, TELEMETRY_KV, ACARS_LOGS
-//   Secrets: JWT_SECRET, RESEND_API_KEY, ADMIN_SECRET, UPLOAD_SECRET
-//            SUPABASE_URL, SUPABASE_SERVICE_KEY, ADMIN_JWT_SECRET
-//            DISCORD_BOT_TOKEN, DISCORD_CHANNEL_ID
-//   Env:     ADMIN_JWT_EXPIRY (optional, default: 604800 = 7 days)
+// Bindings required (configured in the Cloudflare dashboard — this
+// worker has no wrangler.toml, so these are NOT auto-provisioned):
+//   KV:              RATE_LIMIT_KV, MESSAGES_KV, FLIGHTS_KV, ACARS_KV,
+//                    SESSIONS_KV, PIREPS_KV, TELEMETRY_KV, ACARS_LOGS
+//   Durable Object:  LIVE_MAP_ROOM -> class LiveMapRoom (this file)
+//                    Requires a "new class" migration the first time
+//                    this binding is created in the dashboard.
+//   Secrets:         JWT_SECRET, RESEND_API_KEY, ADMIN_SECRET, UPLOAD_SECRET
+//                    SUPABASE_URL, SUPABASE_SERVICE_KEY, ADMIN_JWT_SECRET
+//                    DISCORD_BOT_TOKEN, DISCORD_CHANNEL_ID
+//   Env:             ADMIN_JWT_EXPIRY (optional, default: 604800 = 7 days)
 //
 // D1 bindings (ROUTES_DB, FLEET_DB) are NO LONGER needed — data lives in Supabase.
 // USERS_KV is NO LONGER needed — user auth reads/writes Supabase directly.
@@ -27,6 +31,9 @@ const LIMITS = {
   acarsAuth:    { count: 10,  window: 60 },
   acarsSend:    { count: 60,  window: 60 },
   flightUpdate: { count: 120, window: 60 },
+  flightStart:  { count: 20,  window: 60 },
+  flightEnd:    { count: 20,  window: 60 },
+  liveSharing:  { count: 10,  window: 60 },
   messagesSend: { count: 30,  window: 60 },
   pirepSubmit:  { count: 20,  window: 60 },
   msgSend:      { count: 60,  window: 60 },
