@@ -2950,6 +2950,53 @@ async function handleV1Api(request, env, ctx, url, pathname, corsHeaders) {
     })), 200, corsHeaders);
   }
 
+  // ── POST /api/v1/acars/flight-start ───────────────────────────────────────
+  if (request.method === "POST" && pathname === "/api/v1/acars/flight-start") {
+    if (!env.RATE_LIMIT_KV) return json({ success: false, error: "Rate limit KV not configured" }, 500, corsHeaders);
+
+    const principal = await verifyAcarsKey(env, acarsKey);
+    if (!principal) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
+    if (!(await rateLimit(env, ctx, `flightstart:${acarsKey}`, LIMITS.flightStart)))
+      return rateLimitResponse(corsHeaders);
+
+    const body = await safeJson(request);
+    if (!body) return json({ success: false, error: "Invalid JSON" }, 400, corsHeaders);
+
+    const pilotId = await computePilotId(principal.user.email);
+    if (await isLiveSharingOptedOut(env, pilotId))
+      return json({ success: true, shared: false }, 200, corsHeaders);
+
+    if (!env.LIVE_MAP_ROOM) return json({ success: false, error: "Live map not configured" }, 500, corsHeaders);
+
+    // ICAO (4-letter), matching the convention already used by /api/v1/pireps'
+    // departure_icao/arrival_icao and SimBriefFlightPlan.DepartureICAO/ArrivalICAO —
+    // not IATA, which this codebase reserves for a pilot's home-base airport field.
+    const departureIcao = (body.departure_icao || "").trim().toUpperCase().substring(0, 4);
+    const arrivalIcao   = (body.arrival_icao   || "").trim().toUpperCase().substring(0, 4);
+    const callsign      = (body.callsign       || "").trim().substring(0, 10);
+    const waypoints     = Array.isArray(body.waypoints)
+      ? body.waypoints.slice(0, 200).map(w => ({
+          lat: parseFloat(w.lat) || 0,
+          lon: parseFloat(w.lon) || 0,
+          id:  String(w.id || "").substring(0, 10),
+        }))
+      : null;
+
+    await liveMapRoomFetch(env, "/flight-start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pilotId,
+        meta: {
+          pilotName: `${principal.user.first_name} ${principal.user.last_name}`.trim(),
+          departureIcao, arrivalIcao, callsign, waypoints,
+        },
+      }),
+    });
+
+    return json({ success: true }, 200, corsHeaders);
+  }
+
   // ── POST /api/v1/acars/position ──────────────────────────────────────────
   if (request.method === "POST" && pathname === "/api/v1/acars/position") {
     if (!env.RATE_LIMIT_KV) return json({ success: false, error: "Rate limit KV not configured" }, 500, corsHeaders);
