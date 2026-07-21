@@ -93,9 +93,15 @@ public class AcarsPositionService : IDisposable
         if (newState == FlightSessionState.Taxiing)
         {
             var flight = _session.CurrentFlight;
+            // A SimBrief plan imported before taxi-out (the common pre-flight workflow) is
+            // already sitting in SimBriefService — use it immediately instead of sending an
+            // empty flight-start, so the live map gets the route/waypoints from the first tick.
+            var plan = _simBrief.CurrentPlan;
             _ = _backend.SendFlightStartAsync(
-                flight?.DepartureICAO, flight?.ArrivalICAO, flight?.Callsign,
-                null, key);
+                plan?.DepartureICAO ?? flight?.DepartureICAO,
+                plan?.ArrivalICAO ?? flight?.ArrivalICAO,
+                flight?.Callsign,
+                plan?.Waypoints, key);
         }
         else if (newState == FlightSessionState.Complete)
         {
