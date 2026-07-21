@@ -54,8 +54,12 @@ public class AcarsPositionService : IDisposable
 
     private void OnTelemetryUpdated(object? sender, TelemetrySnapshot snap)
     {
-        // Only report when actively airborne — no need to ping during taxi or idle
-        if (_session.State is not (FlightSessionState.Airborne
+        // Live map is meant to show pilots from taxi-out onward (matches flight-start's own
+        // trigger point and the flight-end/Complete cutoff below) — Taxiing must stay in this
+        // list or a pilot gets registered via flight-start with no position ticks to follow
+        // until they're airborne, leaving them with no lat/lon on the map in the meantime.
+        if (_session.State is not (FlightSessionState.Taxiing
+            or FlightSessionState.Airborne
             or FlightSessionState.OnApproach
             or FlightSessionState.Landed))
             return;
