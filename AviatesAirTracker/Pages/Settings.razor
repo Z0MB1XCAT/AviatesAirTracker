@@ -199,6 +199,106 @@
             </div>
         </div>
 
+        <!-- Hoppies ACARS -->
+        <div class="panel-card anim-up-d2">
+            <div class="form-section-title">Hoppies ACARS</div>
+            <div style="display:flex;flex-direction:column;gap:var(--sp-4);">
+                <div class="form-group">
+                    <label class="form-label">Your Hoppies Code</label>
+                    <div style="display:flex;gap:var(--sp-3);">
+                        <input class="form-input" type="password"
+                               style="flex:1;"
+                               value="@SettingsService.Settings.HoppiesPilotCode"
+                               @oninput="OnHoppiesPilotCodeInput"
+                               placeholder="Paste your personal Hoppies logon code" />
+                    </div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5;">
+                        Stored for a future feature. Not required for company messages to reach you — those use the VA's own Hoppies connection.
+                    </div>
+                </div>
+
+                <div class="toggle-row" style="border-bottom:none;padding-bottom:0;">
+                    <div class="toggle-info">
+                        <div class="toggle-label">Enable Hoppies ACARS Messages</div>
+                        <div class="toggle-desc">Send position and event updates over the Hoppies ACARS network</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" checked="@SettingsService.Settings.HoppiesEnabled" @onchange="OnHoppiesEnabledChanged" />
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+
+                <div style="display:flex;flex-direction:column;opacity:@(SettingsService.Settings.HoppiesEnabled ? "1" : "0.5");transition:opacity 0.2s;">
+                    <div class="toggle-row">
+                        <div class="toggle-info">
+                            <div class="toggle-label">Loadsheet</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked="@SettingsService.Settings.HoppiesSendLoadsheet"
+                                   disabled="@(!SettingsService.Settings.HoppiesEnabled)"
+                                   @onchange="@((ChangeEventArgs e) => OnCategoryToggle(v => SettingsService.Settings.HoppiesSendLoadsheet = v, e))" />
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <div class="toggle-info">
+                            <div class="toggle-label">Timing Reminders</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked="@SettingsService.Settings.HoppiesSendTimingReminders"
+                                   disabled="@(!SettingsService.Settings.HoppiesEnabled)"
+                                   @onchange="@((ChangeEventArgs e) => OnCategoryToggle(v => SettingsService.Settings.HoppiesSendTimingReminders = v, e))" />
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <div class="toggle-info">
+                            <div class="toggle-label">Airborne / Landing Calls</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked="@SettingsService.Settings.HoppiesSendAirborneLandingCalls"
+                                   disabled="@(!SettingsService.Settings.HoppiesEnabled)"
+                                   @onchange="@((ChangeEventArgs e) => OnCategoryToggle(v => SettingsService.Settings.HoppiesSendAirborneLandingCalls = v, e))" />
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <div class="toggle-info">
+                            <div class="toggle-label">Post-Flight Summary</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked="@SettingsService.Settings.HoppiesSendPostFlightSummary"
+                                   disabled="@(!SettingsService.Settings.HoppiesEnabled)"
+                                   @onchange="@((ChangeEventArgs e) => OnCategoryToggle(v => SettingsService.Settings.HoppiesSendPostFlightSummary = v, e))" />
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <div class="toggle-info">
+                            <div class="toggle-label">Weather Advisories</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked="@SettingsService.Settings.HoppiesSendWeatherAdvisories"
+                                   disabled="@(!SettingsService.Settings.HoppiesEnabled)"
+                                   @onchange="@((ChangeEventArgs e) => OnCategoryToggle(v => SettingsService.Settings.HoppiesSendWeatherAdvisories = v, e))" />
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row" style="border-bottom:none;">
+                        <div class="toggle-info">
+                            <div class="toggle-label">Hazard Advisories</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked="@SettingsService.Settings.HoppiesSendHazardAdvisories"
+                                   disabled="@(!SettingsService.Settings.HoppiesEnabled)"
+                                   @onchange="@((ChangeEventArgs e) => OnCategoryToggle(v => SettingsService.Settings.HoppiesSendHazardAdvisories = v, e))" />
+                            <span class="toggle-track"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Dispatch Radio -->
         <div class="panel-card anim-up-d2">
             <div class="form-section-title">Dispatch Radio</div>
@@ -626,6 +726,24 @@
         // Key changed manually — clear verified state until they re-sync
         _isVerified = false;
         _verifiedEmail = "";
+    }
+
+    private void OnHoppiesPilotCodeInput(ChangeEventArgs e)
+    {
+        SettingsService.Settings.HoppiesPilotCode = (e.Value?.ToString() ?? "").Trim();
+        SettingsService.Save();
+    }
+
+    private void OnHoppiesEnabledChanged(ChangeEventArgs e)
+    {
+        SettingsService.Settings.HoppiesEnabled = (bool)(e.Value ?? false);
+        SettingsService.Save();
+    }
+
+    private void OnCategoryToggle(Action<bool> setter, ChangeEventArgs e)
+    {
+        setter((bool)(e.Value ?? false));
+        SettingsService.Save();
     }
 
     private void UpdateNameDisplay()

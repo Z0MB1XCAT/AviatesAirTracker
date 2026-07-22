@@ -381,6 +381,17 @@ public class AppSettings
     public string Theme { get; set; } = "system"; // "system" | "light" | "dark"
     // Interval (minutes) between automatic ACARS position reports. 0 = off.
     public int AutoPirepIntervalMinutes { get; set; } = 5;
+
+    // Hoppies ACARS integration. HoppiesPilotCode is stored/validated but not used
+    // for sending in this build — reserved for a future two-way messaging feature.
+    public string HoppiesPilotCode { get; set; } = "";
+    public bool HoppiesEnabled { get; set; } = false;
+    public bool HoppiesSendLoadsheet { get; set; } = true;
+    public bool HoppiesSendTimingReminders { get; set; } = true;
+    public bool HoppiesSendAirborneLandingCalls { get; set; } = true;
+    public bool HoppiesSendPostFlightSummary { get; set; } = true;
+    public bool HoppiesSendWeatherAdvisories { get; set; } = true;
+    public bool HoppiesSendHazardAdvisories { get; set; } = true;
 }
 
 // ============================================================
