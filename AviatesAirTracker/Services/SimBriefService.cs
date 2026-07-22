@@ -172,9 +172,12 @@ public class SimBriefService
             plan.DepartureMetar = root["weather"]?["orig_metar"]?.ToString() ?? "";
             plan.ArrivalMetar = root["weather"]?["dest_metar"]?.ToString() ?? "";
 
-            // Scheduled departure time (Unix timestamp → UTC DateTime)
-            var schedDepStr = root["times"]?["sched_dep"]?.ToString();
-            Log.Debug("[SimBrief] sched_dep from API: {ScheduledDep}", schedDepStr ?? "(null)");
+            // Scheduled departure time (Unix timestamp → UTC DateTime).
+            // The real SimBrief OFP JSON has no "sched_dep" field — the correct field
+            // for scheduled off-block/departure time is "sched_out" (confirmed against
+            // a live OFP response; times.sched_dep was never a valid field name).
+            var schedDepStr = root["times"]?["sched_out"]?.ToString();
+            Log.Debug("[SimBrief] sched_out from API: {ScheduledDep}", schedDepStr ?? "(null)");
             if (long.TryParse(schedDepStr, out long schedDep) && schedDep > 0)
                 plan.ScheduledDepartureUtc = DateTimeOffset.FromUnixTimeSeconds(schedDep).UtcDateTime;
 
@@ -348,8 +351,10 @@ public class SimBriefService
                 }
             }
 
-            // Scheduled departure time (Unix timestamp → UTC DateTime)
-            if (long.TryParse(root.Element("times")?.Element("sched_dep")?.Value, out long schedDep) && schedDep > 0)
+            // Scheduled departure time (Unix timestamp → UTC DateTime).
+            // "sched_out" is the real field (scheduled off-block time) — see the JSON
+            // parser above for why "sched_dep" was wrong.
+            if (long.TryParse(root.Element("times")?.Element("sched_out")?.Value, out long schedDep) && schedDep > 0)
                 plan.ScheduledDepartureUtc = DateTimeOffset.FromUnixTimeSeconds(schedDep).UtcDateTime;
 
             Log.Information("[SimBrief] XML OFP parsed: {Dep}→{Arr}, {WP} waypoints",

@@ -259,7 +259,7 @@ public class SimBriefFlightPlan
     public int AverageWindAtCruiseKts { get; set; }
     public int AverageWindDirectionAtCruise { get; set; }
 
-    // Timing — parsed from SimBrief /times/sched_dep (Unix timestamp)
+    // Timing — parsed from SimBrief /times/sched_out (scheduled off-block time, Unix timestamp)
     public DateTime? ScheduledDepartureUtc { get; set; }
 
     // Takeoff performance inputs — extracted from OFP weights/origin
