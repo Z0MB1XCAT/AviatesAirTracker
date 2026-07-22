@@ -333,6 +333,7 @@ public partial class App : Application
         _serviceProvider.GetService<SimConnectManager>()?.Disconnect();
         _serviceProvider.GetService<DiscordPresenceService>()?.Dispose();
         _serviceProvider.GetService<AcarsPositionService>()?.Dispose();
+        _serviceProvider.GetService<HoppiesAcarsOrchestrator>()?.Dispose();
         _serviceProvider.GetService<PttInputService>()?.Dispose();
         _serviceProvider.GetService<DispatchRadioService>()?.Dispose();
         _serviceProvider.GetService<UpdateService>()?.Dispose();
