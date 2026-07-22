@@ -63,6 +63,8 @@ public class HoppiesAcarsOrchestrator : IDisposable
         _hazards = hazards;
         _weather = weather;
 
+        LoadState();
+
         _simBrief.FlightPlanLoaded += OnFlightPlanLoaded;
         _takeoffPerf.BriefingTriggered += OnLoadsheetDue;
         _phaseDetector.PhaseChanged += OnPhaseChanged;
@@ -280,6 +282,20 @@ public class HoppiesAcarsOrchestrator : IDisposable
     }
 
     // ── Persistence + logging ──
+
+    private void LoadState()
+    {
+        try
+        {
+            if (File.Exists(_statePath))
+                _state = JsonSerializer.Deserialize<HoppiesFlightState>(File.ReadAllText(_statePath)) ?? new HoppiesFlightState();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "[HoppiesAcars] Failed to load state");
+            _state = new HoppiesFlightState();
+        }
+    }
 
     private void SaveState()
     {
