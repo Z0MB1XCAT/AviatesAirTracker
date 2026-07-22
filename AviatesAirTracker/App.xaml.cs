@@ -62,6 +62,9 @@ public partial class App : Application
             // Resolve to subscribe to TelemetryUpdated (constructor wires the event)
             _serviceProvider.GetRequiredService<AcarsPositionService>();
 
+            // Resolve to subscribe to SimBrief/phase/loadsheet events (constructor wires them all)
+            _serviceProvider.GetRequiredService<HoppiesAcarsOrchestrator>();
+
             // Resolve to subscribe to TelemetryUpdated and PttStateChanged (constructor wires both events)
             _serviceProvider.GetRequiredService<DispatchRadioService>();
 
@@ -289,6 +292,10 @@ public partial class App : Application
         // Business
         services.AddSingleton<AviatesBackendClient>();
         services.AddSingleton<AcarsPositionService>();
+        services.AddSingleton<HoppiesAcarsClient>();
+        services.AddSingleton<HazardZoneService>();
+        services.AddSingleton<WeatherAdvisoryService>();
+        services.AddSingleton<HoppiesAcarsOrchestrator>();
         services.AddSingleton<OtherPilotsService>();
         services.AddSingleton<PttInputService>();
         services.AddSingleton<DispatchRadioService>();
