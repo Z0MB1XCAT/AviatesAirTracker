@@ -731,7 +731,6 @@
     private void OnHoppiesPilotCodeInput(ChangeEventArgs e)
     {
         SettingsService.Settings.HoppiesPilotCode = (e.Value?.ToString() ?? "").Trim();
-        SettingsService.Save();
     }
 
     private void OnHoppiesEnabledChanged(ChangeEventArgs e)
