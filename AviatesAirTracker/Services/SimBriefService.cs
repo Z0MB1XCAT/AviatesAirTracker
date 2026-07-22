@@ -183,6 +183,14 @@ public class SimBriefService
             if (double.TryParse(root["weights"]?["est_tow"]?.ToString(), out double tow))
                 plan.TakeoffWeightKg = ToKg(tow);
 
+            // Zero-fuel weight, passenger count, cargo weight — used by the Hoppies loadsheet
+            if (double.TryParse(root["weights"]?["est_zfw"]?.ToString(), out double zfw))
+                plan.ZeroFuelWeightKg = ToKg(zfw);
+            if (int.TryParse(root["weights"]?["pax_count"]?.ToString(), out int paxCount))
+                plan.PaxCount = paxCount;
+            if (double.TryParse(root["weights"]?["cargo"]?.ToString(), out double cargo))
+                plan.CargoKg = ToKg(cargo);
+
             // Departure elevation (ft)
             if (int.TryParse(root["origin"]?["elevation"]?.ToString(), out int depElev))
                 plan.DepartureElevationFt = depElev;

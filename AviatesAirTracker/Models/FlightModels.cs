@@ -267,6 +267,11 @@ public class SimBriefFlightPlan
     public int    DepartureRunwayLengthM { get; set; }
     public int    DepartureElevationFt { get; set; }
 
+    // Weights — extracted from OFP weights section, used by the Hoppies loadsheet
+    public double ZeroFuelWeightKg { get; set; }
+    public int    PaxCount { get; set; }
+    public double CargoKg { get; set; }
+
     // OFP content
     public string OFPText { get; set; } = "";
     public List<string> NOTAMs { get; set; } = [];
