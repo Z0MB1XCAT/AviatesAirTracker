@@ -62,9 +62,10 @@ public partial class WeatherAdvisoryService(SimBriefService simBrief)
         else
         {
             var wholeVis = WholeVisRegex().Match(metar);
-            if (wholeVis.Success && double.TryParse(wholeVis.Groups[1].Value, out var sm) && sm < LowVisibilitySm)
+            if (wholeVis.Success)
             {
-                advisories.Add($"VISIBILITY {wholeVis.Value} - LOW VIS OPS MAY APPLY");
+                if (double.TryParse(wholeVis.Groups[1].Value, out var sm) && sm < LowVisibilitySm)
+                    advisories.Add($"VISIBILITY {wholeVis.Value} - LOW VIS OPS MAY APPLY");
             }
             else
             {
