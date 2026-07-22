@@ -14,6 +14,7 @@
 @inject AcarsPositionService PosService
 @inject AviatesBackendClient BackendClient
 @inject AviatesAirTracker.ViewModels.PilotHubViewModel PilotHub
+@inject HoppiesAcarsOrchestrator HoppiesOrchestrator
 @implements IAsyncDisposable
 
 <div class="page-header anim-up" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
@@ -513,6 +514,30 @@
             </div>
         }
 
+        <!-- Hoppies ACARS Log panel -->
+        <div class="panel-card">
+            <div class="panel-header" style="margin-bottom:var(--sp-3);">
+                <span class="panel-title">Hoppies ACARS Log</span>
+            </div>
+            @if (_hoppiesLog.Count == 0)
+            {
+                <div style="font-size:12px;color:var(--text-muted);">No messages sent yet this session.</div>
+            }
+            else
+            {
+                <div style="display:flex;flex-direction:column;gap:var(--sp-2);max-height:300px;overflow-y:auto;">
+                    @foreach (var entry in _hoppiesLog)
+                    {
+                        <div style="display:flex;justify-content:space-between;gap:var(--sp-3);padding:var(--sp-2) 0;border-bottom:1px solid var(--border);">
+                            <span style="font-weight:600;color:var(--text-primary);">@entry.Category</span>
+                            <span style="color:@(entry.Success ? "var(--accent)" : "var(--red)");font-weight:600;">@(entry.Success ? "SENT" : "FAILED")</span>
+                            <span style="opacity:0.6;color:var(--text-muted);">@entry.SentAtUtc.ToString("HH:mm:ss")Z</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
         <!-- OFP text viewer -->
         @if (!string.IsNullOrWhiteSpace(_flightPlan.OFPText))
         {
@@ -753,6 +778,9 @@
     private bool _pirepSubmitting;
     private string? _pirepSubmitResult;
 
+    // Hoppies ACARS in-app message log (session-only, newest first, capped at 50)
+    private readonly List<HoppiesLogEntry> _hoppiesLog = new();
+
     // ── Lifecycle ────────────────────────────────────────────
 
     protected override void OnInitialized()
@@ -767,6 +795,7 @@
         Session.SessionStateChanged        += OnSessionStateChanged;
         PhaseDetector.PhaseChanged         += OnPhaseChanged;
         PosService.GateFired               += OnPosGateFired;
+        HoppiesOrchestrator.MessageSent    += OnHoppiesMessageSent;
 
         _clockTimer = new System.Threading.Timer(
             _ => InvokeAsync(() => { _utcNow = DateTime.UtcNow.ToString("HH:mm") + "Z"; return Task.CompletedTask; }),
@@ -816,6 +845,7 @@
 
         PhaseDetector.PhaseChanged         -= OnPhaseChanged;
         PosService.GateFired               -= OnPosGateFired;
+        HoppiesOrchestrator.MessageSent    -= OnHoppiesMessageSent;
         SimConnect.ConnectionStatusChanged -= OnConnectionStatusChanged;
         SimConnect.AircraftIdentReceived   -= OnAircraftIdentReceived;
         Session.TelemetryUpdated           -= OnTelemetryUpdated;
@@ -909,6 +939,14 @@
         if (_posReportHistory.Count >= 10) _posReportHistory.RemoveAt(0);
         _posReportHistory.Add(DateTime.UtcNow);
         InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnHoppiesMessageSent(object? sender, HoppiesLogEntry entry)
+    {
+        if (_disposed) return;
+        _hoppiesLog.Insert(0, entry);
+        if (_hoppiesLog.Count > 50) _hoppiesLog.RemoveAt(_hoppiesLog.Count - 1);
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task SubmitPositionReport()
