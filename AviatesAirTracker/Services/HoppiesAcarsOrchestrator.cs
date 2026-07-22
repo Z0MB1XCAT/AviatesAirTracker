@@ -85,13 +85,10 @@ public class HoppiesAcarsOrchestrator : IDisposable
         _lastPhase = FlightPhase.Unknown;
         ResetPushbackTimer();
 
-        if (!Enabled) return;
-
         if (plan.ScheduledDepartureUtc is { } dep)
             SchedulePushbackTimer(dep);
 
-        if (_settings.Settings.HoppiesSendWeatherAdvisories || _settings.Settings.HoppiesSendHazardAdvisories)
-            _ = SendDepartureAdvisoriesAsync(plan);
+        _ = SendDepartureAdvisoriesAsync(plan);
     }
 
     private void SchedulePushbackTimer(DateTime scheduledDepartureUtc)
@@ -132,7 +129,7 @@ public class HoppiesAcarsOrchestrator : IDisposable
 
         var flightNumber = Subsidiary.StripIcaoPrefix(
             !string.IsNullOrEmpty(booking.RouteCallsign) ? booking.RouteCallsign : booking.Callsign);
-        var message = HoppiesMessageComposer.Loadsheet(flightNumber, booking.Registration ?? "", plan);
+        var message = HoppiesMessageComposer.Loadsheet(flightNumber, booking.Registration ?? "", booking.AircraftType, plan);
 
         var success = await _client.SendTelexAsync(booking.Callsign, message);
         Log(success, "Loadsheet", message);
@@ -257,6 +254,8 @@ public class HoppiesAcarsOrchestrator : IDisposable
 
     private async Task SendAdvisoriesAsync(string icao, string phaseLabel)
     {
+        if (!Enabled) return;
+
         var booking = _booking.ActiveBooking;
         if (booking is null || string.IsNullOrEmpty(icao)) return;
 

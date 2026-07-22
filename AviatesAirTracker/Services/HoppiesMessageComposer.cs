@@ -11,7 +11,7 @@ public static class HoppiesMessageComposer
 {
     private static string Hms(TimeSpan t) => $"{(int)t.TotalHours:D2}:{t.Minutes:D2}";
 
-    public static string Loadsheet(string flightNumber, string registration, SimBriefFlightPlan plan)
+    public static string Loadsheet(string flightNumber, string registration, string aircraftType, SimBriefFlightPlan plan)
     {
         var date = plan.ScheduledDepartureUtc?.ToString("ddMMMyy", System.Globalization.CultureInfo.InvariantCulture).ToUpperInvariant() ?? "";
         var lines = new List<string>
@@ -25,7 +25,7 @@ public static class HoppiesMessageComposer
             $"PAX  {plan.PaxCount}"
         };
 
-        var wb = WeightBalanceDatabase.Compute(plan.AircraftType, plan.ZeroFuelWeightKg, plan.TakeoffWeightKg);
+        var wb = WeightBalanceDatabase.Compute(aircraftType, plan.ZeroFuelWeightKg, plan.TakeoffWeightKg);
         if (wb is not null)
         {
             lines.Add($"MACZFW {wb.MacZfwPercent:F1}");
