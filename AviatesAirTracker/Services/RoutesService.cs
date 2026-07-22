@@ -84,20 +84,27 @@ public class RoutesListResponse
 
 public static class Subsidiary
 {
+    // Normalized (uppercase, single-spaced) so "ATR72", "atr 72", and "ATR  72"
+    // all match the same entry — a raw string mismatch here used to silently
+    // fall through to VAV for CityHopper/Cargo aircraft.
     private static readonly HashSet<string> CityHopperTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "A319", "ATR 72", "ATR 42"
+        Normalize("A319"), Normalize("B736"), Normalize("ATR72"), Normalize("ATR 42")
     };
 
     private static readonly HashSet<string> CargoTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "A350F"
+        Normalize("B77F")
     };
+
+    private static string Normalize(string type) =>
+        string.Join(' ', (type ?? "").Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries))
+              .ToUpperInvariant();
 
     /// <summary>Resolves the ICAO designator (VAV/VAC/VAH) for a given aircraft type.</summary>
     public static string IcaoPrefix(string? aircraftType)
     {
-        var type = (aircraftType ?? "").Trim();
+        var type = Normalize(aircraftType ?? "");
         if (CargoTypes.Contains(type))      return "VAC";
         if (CityHopperTypes.Contains(type)) return "VAH";
         return "VAV";
@@ -106,9 +113,22 @@ public static class Subsidiary
     /// <summary>Resolves the human-readable subsidiary name for a given aircraft type.</summary>
     public static string Name(string? aircraftType)
     {
-        var type = (aircraftType ?? "").Trim();
+        var type = Normalize(aircraftType ?? "");
         if (CargoTypes.Contains(type))      return "Skycargo";
         if (CityHopperTypes.Contains(type)) return "CityHopper";
         return "Mainline";
     }
+
+    /// <summary>Strips a VAV/VAC/VAH ICAO prefix off a callsign, e.g. "VAH103" → "103".
+    /// Returns the input unchanged if it doesn't start with one of the three prefixes.</summary>
+    public static string StripIcaoPrefix(string callsign)
+    {
+        var cs = callsign ?? "";
+        return cs.Length > 3 && StartsWithIcaoPrefix(cs) ? cs[3..] : cs;
+    }
+
+    private static bool StartsWithIcaoPrefix(string s) =>
+        s.StartsWith("VAV", StringComparison.OrdinalIgnoreCase) ||
+        s.StartsWith("VAC", StringComparison.OrdinalIgnoreCase) ||
+        s.StartsWith("VAH", StringComparison.OrdinalIgnoreCase);
 }
