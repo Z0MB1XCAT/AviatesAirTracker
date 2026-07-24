@@ -134,9 +134,16 @@ else
                     <span class="aircraft-type-badge">@type.TypeCode</span>
                 </div>
 
-                <div class="fleet-plane-art"
-                     style="@(isOrdered ? "opacity:0.3;" : isSelected ? "opacity:1;transform:scale(1.08) translateX(4px);" : "")">
-                    @type.Emoji
+                @{ var photo = FleetPhoto(type.TypeCode); }
+                <div class="fleet-card-photo @(isOrdered ? "fleet-card-photo--dim" : "")">
+                    @if (photo is not null)
+                    {
+                        <img src="@photo" alt="@type.Name" class="fleet-card-img" />
+                    }
+                    else
+                    {
+                        <div class="fleet-card-photo-ph"><span class="fleet-card-photo-emoji">@type.Emoji</span></div>
+                    }
                 </div>
 
                 <div class="fleet-card-name" style="@(isOrdered ? "color:var(--text-muted);" : "")">
@@ -369,14 +376,13 @@ else
         border: 1.5px dashed var(--border);
         background: var(--surface-2);
     }
-    .fleet-plane-art {
-        font-size: 42px;
-        margin-bottom: var(--sp-3);
-        opacity: 0.85;
-        transition: transform 0.2s var(--ease-spring), opacity 0.2s;
-        display: inline-block;
-    }
-    .fleet-card:hover .fleet-plane-art { transform: translateX(4px) scale(1.05); opacity: 1; }
+    .fleet-card-photo { height: 132px; border-radius: var(--r-md); overflow: hidden; margin-bottom: var(--sp-4); position: relative; }
+    .fleet-card-img { width: 100%; height: 100%; object-fit: cover; object-position: center top; transition: transform 0.3s var(--ease-smooth); }
+    .fleet-card:hover .fleet-card-img { transform: scale(1.05); }
+    .fleet-card-photo--dim { opacity: 0.4; }
+    .fleet-card-photo-ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse 80% 120% at 50% -20%, var(--accent-light) 0%, transparent 60%), linear-gradient(160deg, var(--surface-2), var(--surface)); }
+    .fleet-card-photo-emoji { font-size: 40px; opacity: 0.55; }
     .fleet-card-expand {
         display: flex;
         align-items: center;
@@ -495,6 +501,26 @@ else
 </style>
 
 @code {
+    // Only three unique website photos exist today; every other type shows the
+    // branded gradient placeholder until real captures are supplied as
+    // wwwroot/images/fleet-<type>.webp.
+    //
+    // Real TypeCode values confirmed by querying the live Supabase aircraft_types
+    // table (select=type_code,name): A319, B777F, B777-300ER, B787-9, A350F,
+    // A320neo, B737-800, A321XLR, ATR 72, ATR 42. There is no A380 type in the
+    // fleet today, so "A380"/"A380-800"/"A388" are included as forward-looking
+    // guesses for when one is added — they are harmless no-ops until then.
+    private static readonly Dictionary<string, string> _fleetPhotos = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["A319"]     = "images/fleet-a319.webp",
+        ["A320neo"]  = "images/fleet-a320neo.webp",
+        ["A380"]     = "images/fleet-a380.webp",
+        ["A380-800"] = "images/fleet-a380.webp",
+        ["A388"]     = "images/fleet-a380.webp",
+    };
+    private string? FleetPhoto(string? typeCode)
+        => typeCode is not null && _fleetPhotos.TryGetValue(typeCode, out var p) ? p : null;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
