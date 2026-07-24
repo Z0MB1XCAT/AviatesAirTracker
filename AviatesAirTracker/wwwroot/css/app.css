@@ -1666,12 +1666,13 @@ input, textarea, select { font-family: inherit; }
   gap: var(--sp-5); z-index: 9999;
 }
 .boot-logo { display: flex; align-items: center; gap: var(--sp-3); animation: fade-in 0.6s ease both; }
-.boot-plane-icon { width: 40px; height: 40px; animation: plane-float 2s ease-in-out infinite; }
+.boot-wordmark { width: 240px; height: auto; animation: fade-in 0.6s ease both; }
 .boot-brand { font-family: var(--font-display); font-size: 28px; font-weight: 800; letter-spacing: 0.06em; color: #FFFFFF; }
 .boot-progress { width: 200px; height: 3px; background: rgba(255,255,255,0.1); border-radius: var(--r-full); overflow: hidden; animation: fade-in 0.6s 0.3s ease both; }
-.boot-progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--violet)); border-radius: var(--r-full); animation: boot-fill 1.8s var(--ease-smooth) 0.5s both; }
+.boot-progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--green)); border-radius: var(--r-full); animation: boot-fill 1.8s var(--ease-smooth) 0.5s both; }
 @keyframes boot-fill { from { width: 0; } to { width: 100%; } }
 .boot-status { font-size: 12px; color: rgba(255,255,255,0.35); letter-spacing: 0.06em; animation: fade-in 0.6s 0.5s ease both; }
+.boot-screen--hide { opacity: 0; transition: opacity 0.45s var(--ease-smooth); pointer-events: none; }
 
 /* ── 29. RESPONSIVE ──────────────────────────────────────── */
 @media (max-width: 1200px) {

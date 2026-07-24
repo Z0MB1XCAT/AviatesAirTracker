@@ -33,19 +33,13 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
-    <div id="app">
-        <div class="boot-screen">
-            <div class="boot-logo">
-                <svg class="boot-plane-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M6 26l10-4 4-12 4 4-6 8 14-4 4-8 3 1-2 9 9-2 1 3-9 3 2 9-3 1-4-8-14 5 5 9-4 1-6-11-10 3z" fill="#3B82F6"/>
-                </svg>
-                <span class="boot-brand">AVIATESAIR</span>
-            </div>
-            <div class="boot-progress">
-                <div class="boot-progress-bar"></div>
-            </div>
-            <span class="boot-status">Initializing operations center...</span>
+    <div id="app"></div>
+    <div class="boot-screen" id="bootScreen">
+        <div class="boot-logo">
+            <img src="images/AviatesairlogoWhite.webp" alt="AviatesAir" class="boot-wordmark" />
         </div>
+        <div class="boot-progress"><div class="boot-progress-bar"></div></div>
+        <span class="boot-status">Initializing operations center…</span>
     </div>
     <script src="_framework/blazor.webview.js" autostart="false"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -58,6 +52,27 @@
     <script src="js/performance/flaps.js"></script>
     <script src="js/performance/flex.js"></script>
     <script src="js/performance/index.js"></script>
+    <script>
+      (function () {
+        var boot = document.getElementById('bootScreen');
+        if (!boot) return;
+        var MIN_MS = 1800, shown = Date.now();
+        function dismiss() {
+          var wait = Math.max(0, MIN_MS - (Date.now() - shown));
+          setTimeout(function () {
+            boot.classList.add('boot-screen--hide');
+            setTimeout(function () { if (boot && boot.parentNode) boot.remove(); }, 450);
+          }, wait);
+        }
+        var app = document.getElementById('app');
+        var done = false;
+        var obs = new MutationObserver(function () {
+          if (!done && app.childElementCount > 0) { done = true; obs.disconnect(); dismiss(); }
+        });
+        obs.observe(app, { childList: true });
+        setTimeout(function () { if (!done) { done = true; obs.disconnect(); dismiss(); } }, 8000);
+      })();
+    </script>
     <script>Blazor.start();</script>
 </body>
 </html>
