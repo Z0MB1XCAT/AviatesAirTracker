@@ -529,6 +529,10 @@ input, textarea, select { font-family: inherit; }
   display: flex;
   align-items: center;
 }
+.hero-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; opacity: 0.9; z-index: 0; }
+.hero-photo-scrim { position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(90deg, var(--sb-bg) 30%, rgba(11,22,40,0.72) 55%, rgba(11,22,40,0.25) 100%); }
+.hero-card > .hero-content, .hero-card > .hero-art { position: relative; z-index: 2; }
 .hero-card::before {
   content: '';
   position: absolute;
