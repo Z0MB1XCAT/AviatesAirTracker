@@ -1,5 +1,6 @@
 @page "/flights"
 @using AviatesAirTracker.Core.Data
+@using AviatesAirTracker.Core.Reference
 @using AviatesAirTracker.Models
 @using AviatesAirTracker.Services
 @inject IFlightRepository FlightRepo
@@ -221,9 +222,19 @@ else
                                 </div>
                             </td>
                             <td>
-                                <span style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--text-primary);">
-                                    @RouteLabel(flight)
-                                </span>
+                                <div style="display:flex;align-items:center;gap:9px;">
+                                    @{ var dep = IcaoCountry.IsoFromIcao(flight.DepartureICAO);
+                                       var arr = IcaoCountry.IsoFromIcao(flight.ArrivalICAO); }
+                                    <span class="flag-route" title="@flight.DepartureICAO → @flight.ArrivalICAO">
+                                        @if (dep is not null)
+                                        { <span class="flag-route-dep" style="background-image:url('images/flags/@(dep).svg')"></span> }
+                                        @if (arr is not null)
+                                        { <span class="flag-route-arr" style="background-image:url('images/flags/@(arr).svg')"></span> }
+                                    </span>
+                                    <span style="font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--text-primary);">
+                                        @RouteLabel(flight)
+                                    </span>
+                                </div>
                             </td>
                             <td style="font-size:13px;color:var(--text-secondary);">
                                 @(string.IsNullOrWhiteSpace(flight.AircraftType) ? "—" : flight.AircraftType)

@@ -3448,3 +3448,12 @@ input, textarea, select { font-family: inherit; }
 .lrm-flag.flag-best{
     color:#EAB308;border-color:rgba(234,179,8,.45);background:rgba(234,179,8,.12);
 }
+
+.flag-route { position: relative; width: 52px; height: 34px; border-radius: 6px; overflow: hidden;
+  flex-shrink: 0; border: 1px solid var(--border); box-shadow: var(--shadow-xs); background: var(--surface-2); }
+.flag-route-dep, .flag-route-arr { position: absolute; top: 0; height: 100%; width: 66%;
+  background-size: cover; background-position: center; }
+.flag-route-dep { left: 0;  -webkit-mask-image: linear-gradient(90deg,#000 40%,transparent 100%);
+                            mask-image: linear-gradient(90deg,#000 40%,transparent 100%); }
+.flag-route-arr { right: 0; -webkit-mask-image: linear-gradient(90deg,transparent 0%,#000 60%);
+                            mask-image: linear-gradient(90deg,transparent 0%,#000 60%); }
