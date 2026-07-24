@@ -194,9 +194,27 @@ public class SimBriefService
             if (double.TryParse(root["weights"]?["cargo"]?.ToString(), out double cargo))
                 plan.CargoKg = ToKg(cargo);
 
-            // Departure elevation (ft)
+            // Departure / arrival field elevation (ft) — used to autofill EFB performance
             if (int.TryParse(root["origin"]?["elevation"]?.ToString(), out int depElev))
                 plan.DepartureElevationFt = depElev;
+            if (int.TryParse(root["destination"]?["elevation"]?.ToString(), out int arrElev))
+                plan.ArrivalElevationFt = arrElev;
+
+            // Planned arrival runway length (ft → m)
+            var arrRwyData = root["destination"]?["rwy_data"] as JArray ?? root["destination"]?["runway"] as JArray;
+            if (arrRwyData != null && !string.IsNullOrEmpty(plan.ArrivalRunway))
+            {
+                foreach (var rwy in arrRwyData)
+                {
+                    var rwyId = rwy["ident"]?.ToString() ?? rwy["rwy_id"]?.ToString() ?? "";
+                    if (string.Equals(rwyId, plan.ArrivalRunway, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (double.TryParse(rwy["length_ft"]?.ToString() ?? rwy["length"]?.ToString(), out double aLenFt))
+                            plan.ArrivalRunwayLengthM = (int)(aLenFt * 0.3048);
+                        break;
+                    }
+                }
+            }
 
             // Planned departure runway length (ft → m) from runway data array
             var rwyData = root["origin"]?["rwy_data"] as JArray ?? root["origin"]?["runway"] as JArray;
@@ -219,6 +237,15 @@ public class SimBriefService
 
             // OFP full text (may be empty on some OFP layouts)
             plan.OFPText = root["text"]?["plan_text"]?.ToString() ?? "";
+
+            // OFP PDF link — SimBrief exposes files.directory + files.pdf.link.
+            // The link may be relative to the directory or already absolute.
+            var pdfDir  = root["files"]?["directory"]?.ToString() ?? "";
+            var pdfLink = root["files"]?["pdf"]?["link"]?.ToString() ?? "";
+            if (!string.IsNullOrWhiteSpace(pdfLink))
+                plan.PdfUrl = pdfLink.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+                    ? pdfLink
+                    : pdfDir.TrimEnd('/') + "/" + pdfLink.TrimStart('/');
 
             // NOTAMs
             var notamToken = root["notams"]?["notam"];

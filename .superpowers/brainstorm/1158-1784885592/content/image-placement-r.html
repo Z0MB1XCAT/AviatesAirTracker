@@ -1,0 +1,259 @@
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+
+.slot { font-family: 'Plus Jakarta Sans', sans-serif; background: #080b14; color: #e7edf7;
+        border-radius: 10px; overflow: hidden; height: 172px; position: relative; }
+.slot * { box-sizing: border-box; }
+.ph { position: absolute; inset: 0; object-fit: cover; width: 100%; height: 100%; }
+.scrim-r { position:absolute; inset:0; background: linear-gradient(90deg,#0c111d 26%, rgba(12,17,29,.82) 52%, rgba(12,17,29,.25) 100%); }
+.scrim-b { position:absolute; inset:0; background: linear-gradient(to top, #080b14 8%, rgba(8,11,20,.45) 55%, rgba(8,11,20,.15) 100%); }
+.pad { position: relative; padding: 12px; height: 100%; display: flex; flex-direction: column; }
+.eyebrow { font-size: 7px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
+           color: #86bdf5; background: rgba(77,155,236,.12); border: 1px solid rgba(77,155,236,.22);
+           padding: 3px 8px; border-radius: 999px; align-self: flex-start; }
+.ttl { font-family: 'Syne',sans-serif; font-size: 15px; font-weight: 800; letter-spacing: -.02em;
+       line-height: 1.15; margin-top: 7px; }
+.sub { font-size: 9px; color: #a6b3cb; margin-top: 4px; line-height: 1.45; }
+.mono { font-family: 'JetBrains Mono',monospace; font-size: 8px; color: #6d7d9b; letter-spacing: .04em; }
+.tag { position:absolute; top:8px; right:8px; z-index:3; font-size:7px; font-weight:700;
+       letter-spacing:.1em; text-transform:uppercase; padding:3px 7px; border-radius:999px;
+       background: rgba(8,11,20,.72); border:1px solid rgba(255,255,255,.14); color:#a6b3cb;
+       backdrop-filter: blur(6px); }
+
+/* sidebar mock */
+.sbm { display:flex; height:100%; }
+.sbm-l { width: 108px; background:#0c111d; border-right:1px solid rgba(255,255,255,.07);
+         padding:12px 10px; display:flex; flex-direction:column; gap:10px; }
+.sbm-l img { width:82px; height:auto; opacity:.95; }
+.sbm-n { display:flex; flex-direction:column; gap:4px; }
+.sbm-n i { font-style:normal; font-size:7.5px; color:#6d7d9b; padding:4px 6px; border-radius:5px; }
+.sbm-n i.on { background: rgba(77,155,236,.12); color:#86bdf5; }
+.sbm-r { flex:1; position:relative; background:#080b14; }
+
+/* fleet cards */
+.fg { display:grid; grid-template-columns:1fr 1fr; gap:7px; height:100%; }
+.fc { background:#121a2a; border:1px solid rgba(255,255,255,.07); border-radius:8px; overflow:hidden;
+      display:flex; flex-direction:column; }
+.fc-img { height:62px; position:relative; overflow:hidden; }
+.fc-img img { width:100%; height:100%; object-fit:cover; filter: brightness(.9) saturate(.85); }
+.fc-b { padding:6px 8px; }
+.fc-b h5 { font-family:'Syne',sans-serif; font-size:9.5px; font-weight:700; margin:0; }
+.fc-b p { font-size:7.5px; color:#6d7d9b; margin:2px 0 0; }
+
+/* logbook rows */
+.lr { display:flex; align-items:center; gap:8px; padding:7px 8px; border-bottom:1px solid rgba(255,255,255,.06); }
+.lr img { width:44px; height:28px; object-fit:cover; border-radius:5px; flex-shrink:0; filter:brightness(.85); }
+.lr-t { flex:1; }
+.lr-t b { display:block; font-family:'Syne',sans-serif; font-size:9px; font-weight:700; }
+.lr-t span { font-size:7.5px; color:#6d7d9b; }
+.lr-s { font-size:7px; font-weight:700; padding:2px 7px; border-radius:999px;
+        background:rgba(62,199,172,.12); color:#74dcc6; }
+
+.cards { grid-template-columns: repeat(2, 1fr); }
+.card-image { padding: 9px; background:#0f141d; }
+.card-body p { font-size: 12.5px; line-height: 1.55; }
+.fn { font-family:'JetBrains Mono',monospace; font-size:11px; color:#7fb2ea; }
+</style>
+
+<h2>Where should the photography land?</h2>
+<p class="subtitle">Nine candidate slots, each shown in the dark skin you picked. Click every one you want — deselect any that feel like too much. All previews use your real assets from the website's <span class="fn">public/images</span>.</p>
+
+<div class="cards" data-multiselect>
+
+  <div class="card selected" data-choice="sidebar" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="slot">
+        <span class="tag">Logo fix</span>
+        <div class="sbm">
+          <div class="sbm-l">
+            <img src="/files/p-logo.png" alt="">
+            <div class="sbm-n"><i class="on">Dashboard</i><i>Flights</i><i>Fleet</i><i>ACARS</i><i>Map</i><i>Statistics</i></div>
+          </div>
+          <div class="sbm-r"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>1 · Sidebar brand mark</h3>
+      <p>The white wordmark <span class="fn">AviatesairlogoWhite.webp</span> replaces the generic plane glyph + hand-typed "AVIATESAIR" text. Same asset the site header uses.</p>
+    </div>
+  </div>
+
+  <div class="card selected" data-choice="boot" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="slot">
+        <span class="tag">Logo fix</span>
+        <img class="ph" src="/files/p-hero.png" style="opacity:.22" alt="">
+        <div class="scrim-b"></div>
+        <div class="pad" style="align-items:center;justify-content:center;gap:12px">
+          <img src="/files/p-logo.png" style="width:150px" alt="">
+          <div style="width:130px;height:3px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden">
+            <div style="width:58%;height:100%;background:linear-gradient(90deg,#4d9bec,#86bdf5)"></div>
+          </div>
+          <div class="mono">INITIALIZING OPERATIONS CENTER…</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>2 · Boot / splash screen</h3>
+      <p>Currently an inline SVG plane. Real wordmark over a dimmed <span class="fn">hero.webp</span> wash — the first thing you see on launch, so it sets the tone.</p>
+    </div>
+  </div>
+
+  <div class="card selected" data-choice="login" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="slot">
+        <img class="ph" src="/files/p-a350.png" alt="">
+        <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(8,11,20,.92) 34%,rgba(8,11,20,.35) 100%)"></div>
+        <div class="pad" style="justify-content:center;width:64%">
+          <img src="/files/p-logo.png" style="width:104px;margin-bottom:10px" alt="">
+          <div class="sub" style="margin:0 0 8px">Sign in with your ACARS key</div>
+          <div style="height:20px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.13)"></div>
+          <div style="height:20px;border-radius:6px;background:#4d9bec;margin-top:6px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>3 · Login screen</h3>
+      <p>Full-bleed aircraft photo behind a dark scrim, sign-in panel on the left. Mirrors the site's <span class="fn">.auth-page</span> hero treatment.</p>
+    </div>
+  </div>
+
+  <div class="card selected" data-choice="dashhero" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="slot">
+        <span class="tag">Dashboard</span>
+        <img class="ph" src="/files/p-a320.png" alt="">
+        <div class="scrim-r"></div>
+        <div class="pad" style="justify-content:center;width:70%">
+          <span class="eyebrow">● Virtual Airline Operations</span>
+          <div class="ttl">Fly with Precision.<br>Build Your Career.</div>
+          <div class="sub">Your next flight is waiting.</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>4 · Dashboard hero card</h3>
+      <p>Photo bleeds in from the right under a left-to-right scrim, text stays fully legible. The existing SVG route art either sits on top at low opacity or retires — your call later.</p>
+    </div>
+  </div>
+
+  <div class="card selected" data-choice="fleet" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="slot">
+        <span class="tag">Biggest win</span>
+        <div class="pad" style="padding:9px">
+          <div class="fg">
+            <div class="fc"><div class="fc-img"><img src="/files/p-a320.png" alt=""></div>
+              <div class="fc-b"><h5>A320neo</h5><p>Mainline · 12 aircraft</p></div></div>
+            <div class="fc"><div class="fc-img"><img src="/files/p-b748.png" alt=""></div>
+              <div class="fc-b"><h5>747-8F</h5><p>SkyCargo · 3 aircraft</p></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>5 · Fleet type cards</h3>
+      <p>You have 11 matching <span class="fn">fleet-*.webp</span> files — a319, a320neo, a350, a380, atr42, atr72, b38m, b736, b739er, b748, b77f. The Fleet page has zero images today; this is the single biggest change.</p>
+    </div>
+  </div>
+
+  <div class="card selected" data-choice="news" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="slot">
+        <div class="pad" style="padding:9px;gap:7px">
+          <div style="display:flex;gap:8px;background:#121a2a;border:1px solid rgba(255,255,255,.07);border-radius:8px;overflow:hidden;height:64px">
+            <div style="width:86px;flex-shrink:0"><img src="/files/p-news.png" style="width:100%;height:100%;object-fit:cover" alt=""></div>
+            <div style="padding:8px 8px 8px 0">
+              <div style="font-size:6.5px;font-weight:700;letter-spacing:.1em;color:#74dcc6">FLEET</div>
+              <div style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;margin-top:3px">CityHopper expands</div>
+              <div class="sub" style="margin-top:2px">Two ATR 72-600 join the regional fleet.</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;background:#121a2a;border:1px solid rgba(255,255,255,.07);border-radius:8px;overflow:hidden;height:64px">
+            <div style="width:86px;flex-shrink:0"><img src="/files/p-hero.png" style="width:100%;height:100%;object-fit:cover" alt=""></div>
+            <div style="padding:8px 8px 8px 0">
+              <div style="font-size:6.5px;font-weight:700;letter-spacing:.1em;color:#74dcc6">ACARS</div>
+              <div style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;margin-top:3px">Tracker update</div>
+              <div class="sub" style="margin-top:2px">Hoppies messaging now built in.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>6 · News cards</h3>
+      <p>Three <span class="fn">news-*.webp</span> exist. Backend news items would need an image field to pick the right one — otherwise it falls back to a branded gradient.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="logbook" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="slot">
+        <span class="tag">Optional</span>
+        <div class="pad" style="padding:6px">
+          <div class="lr"><img src="/files/p-a320.png" alt="">
+            <div class="lr-t"><b>EGLL → LEPA</b><span>A320neo · AVA1204 · 2h 14m</span></div>
+            <span class="lr-s">96</span></div>
+          <div class="lr"><img src="/files/p-a350.png" alt="">
+            <div class="lr-t"><b>EGKK → KJFK</b><span>A350-900 · AVA0021 · 7h 48m</span></div>
+            <span class="lr-s">91</span></div>
+          <div class="lr" style="border:none"><img src="/files/p-b748.png" alt="">
+            <div class="lr-t"><b>EGSS → OMDB</b><span>747-8F · AVC7701 · 6h 32m</span></div>
+            <span class="lr-s">88</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>7 · Logbook row thumbnails</h3>
+      <p>Match each flight's aircraft type to its photo. Adds a lot of colour to a dense table — but it also makes rows taller and busier. Genuinely optional.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="landing" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="slot">
+        <span class="tag">Optional</span>
+        <img class="ph" src="/files/p-a320.png" style="opacity:.16" alt="">
+        <div class="scrim-b"></div>
+        <div class="pad" style="align-items:center;justify-content:center">
+          <div style="font-family:'Syne',sans-serif;font-size:34px;font-weight:800;color:#74dcc6;line-height:1">96</div>
+          <div class="mono" style="margin-top:4px">-142 FPM · GREASED IT</div>
+          <div class="sub" style="text-align:center;margin-top:6px">EGLL 27R · A320neo · G-AVAN</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>8 · Landing result modal</h3>
+      <p>Type-matched photo at ~15% opacity behind the score. The modal is a celebration moment, so a little atmosphere suits it. Shared with the EFB landing view.</p>
+    </div>
+  </div>
+
+  <div class="card selected" data-choice="efb" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="slot">
+        <img class="ph" src="/files/p-hero.png" alt="">
+        <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(8,11,20,.25),rgba(8,11,20,.6))"></div>
+        <div class="pad" style="align-items:center;justify-content:center;gap:9px">
+          <div class="mono" style="font-size:11px;color:#e7edf7">14:32</div>
+          <div style="display:flex;gap:7px">
+            <div style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18)"></div>
+            <div style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18)"></div>
+            <div style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18)"></div>
+            <div style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18)"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>9 · EFB default wallpaper</h3>
+      <p>The EFB springboard already looks for a bundled <span class="fn">EfbWeb/wallpaper.jpg</span> before falling back to a gradient. Right now there isn't one — dropping in a real photo fills that slot.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:26px">
+  <p class="label">Worth knowing</p>
+  <p class="subtitle" style="margin:0">Every aircraft shot is a 1920×1080 sim capture with an <strong>AVIATESAIR watermark in the bottom-right corner</strong>. At card size a centre-crop cuts it off. I'd crop from the top-centre so the watermark drops out cleanly rather than getting sliced in half — shout if you'd rather keep it visible.</p>
+</div>

@@ -1,0 +1,561 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- head is metadata only for the source file; the runtime discards it -->
+  </head>
+  <body>
+    <template>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          font-family: "Outfit", sans-serif;
+          container-type: size;
+        }
+
+        /* full-bleed ground clip — never painted directly on #root */
+        .ground {
+          position: absolute;
+          inset: 0;
+          background-color: #0a0d17;
+        }
+
+        .grid-layer {
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(241, 245, 249, 0.1) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(241, 245, 249, 0.1) 1px, transparent 1px);
+          background-size: 2cqw 2cqw;
+          opacity: 0;
+        }
+
+        .hairline {
+          position: absolute;
+          left: 4cqw;
+          right: 4cqw;
+          height: 0.12cqw;
+          background: #f1f5f9;
+          transform: scaleX(0);
+          transform-origin: left center;
+        }
+        .hairline-top {
+          top: 3cqw;
+        }
+        .hairline-bottom {
+          bottom: 3cqw;
+        }
+
+        .meta-tag {
+          position: absolute;
+          top: 4.4cqw;
+          left: 4cqw;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          letter-spacing: 0.06em;
+          color: rgba(241, 245, 249, 0.55);
+          opacity: 0;
+        }
+
+        .page-num {
+          position: absolute;
+          bottom: 4.4cqw;
+          right: 4cqw;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          letter-spacing: 0.06em;
+          color: rgba(241, 245, 249, 0.55);
+          opacity: 0;
+        }
+
+        /* ---- scattered HUD glyphs (Scene 1) ---- */
+        .glyph-field {
+          position: absolute;
+          inset: 0;
+        }
+        .glyph {
+          position: absolute;
+          opacity: 0;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+        }
+        .glyph svg {
+          display: block;
+          overflow: visible;
+        }
+        .glyph-compass {
+          width: 6.5cqw;
+          height: 6.5cqw;
+        }
+        .glyph-tick {
+          width: 4.5cqw;
+          height: 4.5cqw;
+        }
+        .glyph-node {
+          width: 1.6cqw;
+          height: 1.6cqw;
+          border-radius: 0;
+          background: #f1f5f9;
+        }
+        .glyph-node.node-accent {
+          background: #3b82f6;
+        }
+
+        /* positions — layered depth, no single cluster, all above keep-out line */
+        #h2-glyph-1 { top: 16cqh; left: 24cqw; }
+        #h2-glyph-2 { top: 62cqh; left: 14cqw; }
+        #h2-glyph-3 { top: 20cqh; left: 68cqw; }
+        #h2-glyph-4 { top: 58cqh; left: 74cqw; }
+        #h2-glyph-5 { top: 38cqh; left: 10cqw; }
+        #h2-glyph-6 { top: 12cqh; left: 48cqw; }
+        #h2-glyph-7 { top: 68cqh; left: 42cqw; }
+        #h2-glyph-8 { top: 44cqh; left: 82cqw; }
+        #h2-glyph-9 { top: 30cqh; left: 36cqw; }
+
+        /* ---- wordmark lockup (Scene 2) ---- */
+        .lockup-stage {
+          position: absolute;
+          left: 50%;
+          top: 42cqh;
+          transform: translate(-50%, -50%);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        /* ambient glow — sits behind the wordmark, never a boxShadow on it.
+           Centering is done with negative margins (not a CSS transform) so the
+           GSAP scale/opacity tween below never clobbers a transform-based center. */
+        .lockup-glow {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 60cqw;
+          height: 60cqw;
+          margin-left: -30cqw;
+          margin-top: -30cqw;
+          scale: 0.85;
+          background: radial-gradient(
+            circle,
+            rgba(59, 130, 246, 0.55) 0%,
+            rgba(59, 130, 246, 0.18) 42%,
+            rgba(59, 130, 246, 0) 72%
+          );
+          opacity: 0;
+          pointer-events: none;
+          will-change: transform, opacity;
+          z-index: 0;
+        }
+
+        .mark-svg {
+          position: relative;
+          z-index: 1;
+          width: 5.6cqw;
+          height: 5.6cqw;
+          margin-bottom: 1.6cqw;
+          overflow: visible;
+        }
+        .mark-svg path {
+          fill: none;
+          stroke: #3b82f6;
+          stroke-width: 3;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+        .mark-svg circle {
+          fill: none;
+          stroke: #f1f5f9;
+          stroke-width: 2.5;
+        }
+
+        .wordmark-wrap {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .wordmark-row {
+          display: flex;
+          gap: 1.1cqw;
+        }
+
+        .wm-word {
+          font-family: "Outfit", sans-serif;
+          font-weight: 400;
+          font-size: 4.6cqw;
+          line-height: 0.95;
+          letter-spacing: -0.008em;
+          color: #f1f5f9;
+          opacity: 0;
+          transform: translateY(18px) scale(0.94);
+          will-change: transform, opacity;
+        }
+
+        /* underline stroke — SVG self-draw beneath the lockup */
+        .underline-svg {
+          margin-top: 1.4cqw;
+          width: 40cqw;
+          height: 1cqw;
+          overflow: visible;
+        }
+        .underline-svg path {
+          fill: none;
+          stroke: #3b82f6;
+          stroke-width: 2.5;
+          stroke-linecap: round;
+        }
+
+        /* tagline */
+        .tagline-row {
+          margin-top: 2.2cqw;
+          display: flex;
+          gap: 0.55cqw;
+          flex-wrap: nowrap;
+        }
+        .tag-word {
+          font-family: "Outfit", sans-serif;
+          font-weight: 400;
+          font-size: 1.5cqw;
+          color: rgba(241, 245, 249, 0.78);
+          opacity: 0;
+          transform: translateY(10px);
+          will-change: transform, opacity;
+          white-space: nowrap;
+        }
+
+        /* pixel-glitch column, low presence, right edge (declarative frame decoration) */
+        .glitch-col {
+          position: absolute;
+          top: 3cqw;
+          bottom: 3cqw;
+          right: 6cqw;
+          width: 3.5cqw;
+          opacity: 0;
+          background-image: repeating-linear-gradient(
+            90deg,
+            #f1f5f9 0 2px,
+            transparent 2px 8px
+          );
+          background-color: transparent;
+          -webkit-mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            #000 10%,
+            #000 26%,
+            transparent 32%,
+            transparent 60%,
+            #000 66%,
+            #000 82%,
+            transparent 88%
+          );
+          mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            #000 10%,
+            #000 26%,
+            transparent 32%,
+            transparent 60%,
+            #000 66%,
+            #000 82%,
+            transparent 88%
+          );
+        }
+      </style>
+
+      <div id="root" data-composition-id="02-product-intro" data-width="1920" data-height="1080">
+        <div class="ground clip" data-start="0" data-duration="5" data-track-index="0"></div>
+
+        <div class="grid-layer clip" id="h2-grid" data-start="0" data-duration="5" data-track-index="1"></div>
+
+        <div class="hairline hairline-top clip" id="h2-hairline-top" data-start="0" data-duration="5" data-track-index="2"></div>
+        <div class="hairline hairline-bottom clip" id="h2-hairline-bottom" data-start="0" data-duration="5" data-track-index="3"></div>
+
+        <div class="meta-tag clip" id="h2-meta-tag" data-start="0" data-duration="5" data-track-index="4">
+          AVIATES · SYSTEM ONLINE
+        </div>
+        <div class="page-num clip" id="h2-page-num" data-start="0" data-duration="5" data-track-index="5">
+          002
+        </div>
+
+        <div class="glitch-col clip" id="h2-glitch" data-start="0" data-duration="5" data-track-index="6"></div>
+
+        <!-- Scene 1: scattered HUD glyphs -->
+        <div class="glyph-field clip" data-start="0" data-duration="5" data-track-index="7">
+          <div class="glyph glyph-compass" id="h2-glyph-1">
+            <svg viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" />
+              <path d="M50 8 L50 24" />
+              <path d="M50 76 L50 92" />
+              <path d="M8 50 L24 50" />
+              <path d="M76 50 L92 50" />
+              <path d="M50 20 L58 50 L50 80 L42 50 Z" />
+            </svg>
+          </div>
+          <div class="glyph glyph-tick" id="h2-glyph-2">
+            <svg viewBox="0 0 100 100">
+              <path d="M10 70 L30 70 L30 50 L50 50 L50 30 L70 30 L70 10" />
+              <circle cx="70" cy="10" r="4" />
+            </svg>
+          </div>
+          <div class="glyph glyph-compass" id="h2-glyph-3">
+            <svg viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="34" />
+              <path d="M50 16 L50 30" />
+              <path d="M50 70 L50 84" />
+              <path d="M16 50 L30 50" />
+              <path d="M70 50 L84 50" />
+            </svg>
+          </div>
+          <div class="glyph glyph-tick" id="h2-glyph-4">
+            <svg viewBox="0 0 100 100">
+              <path d="M12 30 L88 30" />
+              <path d="M12 50 L60 50" />
+              <path d="M12 70 L74 70" />
+            </svg>
+          </div>
+          <div class="glyph glyph-node node-accent" id="h2-glyph-5"></div>
+          <div class="glyph glyph-node" id="h2-glyph-6"></div>
+          <div class="glyph glyph-node node-accent" id="h2-glyph-7"></div>
+          <div class="glyph glyph-node" id="h2-glyph-8"></div>
+          <div class="glyph glyph-tick" id="h2-glyph-9">
+            <svg viewBox="0 0 100 100">
+              <path d="M20 80 L20 40 L50 40 L50 20 L80 20" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- Scene 2 + 3: lockup -->
+        <div class="lockup-stage clip" data-start="0" data-duration="5" data-track-index="8">
+          <div class="lockup-glow" id="h2-lockup-glow"></div>
+
+          <svg class="mark-svg" id="h2-mark-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle id="h2-mark-ring" cx="50" cy="50" r="40" />
+            <path id="h2-mark-blade" d="M50 14 L62 50 L50 86 L38 50 Z" />
+          </svg>
+
+          <div class="wordmark-wrap">
+            <div class="wordmark-row">
+              <div class="wm-word" id="h2-wm-1">AVIATES</div>
+              <div class="wm-word" id="h2-wm-2">AIR</div>
+              <div class="wm-word" id="h2-wm-3">TRACKER</div>
+            </div>
+            <svg class="underline-svg" viewBox="0 0 400 10" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+              <path id="h2-underline-path" d="M4 5 L396 5" />
+            </svg>
+            <div class="tagline-row" id="h2-tagline-row">
+              <span class="tag-word">The</span>
+              <span class="tag-word">virtual</span>
+              <span class="tag-word">airline</span>
+              <span class="tag-word">companion</span>
+              <span class="tag-word">for</span>
+              <span class="tag-word">MSFS.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        (function () {
+          window.__timelines = window.__timelines || {};
+          var tl = gsap.timeline({ paused: true });
+
+          // ================= Furniture (ground / grid / hairlines) =================
+          tl.fromTo("#h2-grid", { opacity: 0 }, { opacity: 1, duration: 0.7, ease: "power3.out" }, 0);
+          tl.fromTo(
+            "#h2-hairline-top",
+            { scaleX: 0 },
+            { scaleX: 1, duration: 0.6, ease: "power3.out" },
+            0.1
+          );
+          tl.fromTo(
+            "#h2-hairline-bottom",
+            { scaleX: 0 },
+            { scaleX: 1, duration: 0.6, ease: "power3.out" },
+            0.1
+          );
+          tl.fromTo("#h2-meta-tag", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power3.out" }, 0.3);
+          tl.fromTo("#h2-page-num", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power3.out" }, 0.3);
+          tl.fromTo(
+            "#h2-glitch",
+            { opacity: 0 },
+            { opacity: 0.5, duration: 0.6, ease: "power3.out" },
+            0.4
+          );
+
+          // ================= Scene 1 (0.0-1.5s): scattered HUD glyphs pop in =================
+          // spring-pop-entrance: smooth power3.out settle, no overshoot, deterministic
+          // index-derived stagger; group lands inside a ~0.5s beat starting at 0.15s.
+          var glyphIds = [
+            "#h2-glyph-1", "#h2-glyph-2", "#h2-glyph-3", "#h2-glyph-4", "#h2-glyph-5",
+            "#h2-glyph-6", "#h2-glyph-7", "#h2-glyph-8", "#h2-glyph-9"
+          ];
+          var GLYPH_STAGGER = 0.055; // 9 * 0.055 = 0.495s, within the ~0.5s cap
+          glyphIds.forEach(function (sel, i) {
+            tl.fromTo(
+              sel,
+              { scale: 0, opacity: 0 },
+              {
+                scale: 1,
+                opacity: 0.55,
+                duration: 0.55,
+                ease: "power3.out",
+              },
+              0.15 + i * GLYPH_STAGGER
+            );
+          });
+
+          // gentle inward drift while scattered, before convergence begins
+          glyphIds.forEach(function (sel, i) {
+            // deterministic small drift per index toward center, eased in
+            var driftX = (i % 2 === 0 ? -1 : 1) * (6 + (i % 3) * 3);
+            var driftY = (i % 3 === 0 ? -1 : 1) * (4 + (i % 4) * 2);
+            tl.to(
+              sel,
+              {
+                x: driftX,
+                y: driftY,
+                duration: 0.8,
+                ease: "power1.inOut",
+              },
+              0.6
+            );
+          });
+
+          // ================= Scene 2 (1.5-3.2s): glyphs converge, mark draws, wordmark builds =================
+          // Convergence: glyphs scale down and fade as they collapse toward the lockup center.
+          glyphIds.forEach(function (sel, i) {
+            tl.to(
+              sel,
+              {
+                scale: 0.15,
+                opacity: 0,
+                x: 0,
+                y: 0,
+                duration: 0.7,
+                ease: "power2.in",
+              },
+              1.5 + i * 0.03
+            );
+          });
+
+          // SVG self-draw: the compass/blade mark strokes on as glyphs converge into it
+          var ring = document.getElementById("h2-mark-ring");
+          var blade = document.getElementById("h2-mark-blade");
+          var ringLen = ring.getTotalLength();
+          var bladeLen = blade.getTotalLength();
+          ring.style.strokeDasharray = String(ringLen);
+          ring.style.strokeDashoffset = String(ringLen);
+          blade.style.strokeDasharray = String(bladeLen);
+          blade.style.strokeDashoffset = String(bladeLen);
+
+          tl.to(
+            ring,
+            { strokeDashoffset: 0, duration: 0.7, ease: "power2.out" },
+            1.7
+          );
+          tl.to(
+            blade,
+            { strokeDashoffset: 0, duration: 0.45, ease: "power2.out" },
+            2.15
+          );
+
+          // wordmark words settle in (power3.out, fromTo) staggered left to right,
+          // synced to the mark completing its draw
+          var wmIds = ["#h2-wm-1", "#h2-wm-2", "#h2-wm-3"];
+          wmIds.forEach(function (sel, i) {
+            tl.fromTo(
+              sel,
+              { opacity: 0, y: 18, scale: 0.94 },
+              { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: "power3.out" },
+              2.35 + i * 0.12
+            );
+          });
+
+          // underline stroke draws beneath the wordmark right after it settles
+          var underline = document.getElementById("h2-underline-path");
+          var underlineLen = underline.getTotalLength();
+          underline.style.strokeDasharray = String(underlineLen);
+          underline.style.strokeDashoffset = String(underlineLen);
+          tl.to(
+            underline,
+            { strokeDashoffset: 0, duration: 0.5, ease: "power2.out" },
+            2.85
+          );
+
+          // ================= Scene 3 (3.2-5.0s): tagline reveal + ambient glow bloom + hold =================
+          // dynamic-content-sequencing / per-word staggered reveal on the tagline
+          var tagWords = gsap.utils.toArray(".tag-word");
+          var TAG_STAGGER = 0.09;
+          tagWords.forEach(function (el, i) {
+            tl.fromTo(
+              el,
+              { opacity: 0, y: 10 },
+              { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" },
+              3.3 + i * TAG_STAGGER
+            );
+          });
+
+          // ambient-glow-bloom: un-triggered radial halo blooms behind the wordmark,
+          // landing as the tagline finishes, then a bounded idle breathe through the hold
+          var GLOW_PEAK_OPACITY = 0.3;
+          var BLOOM_START = 3.3;
+          var BLOOM_DUR = 0.9;
+          tl.fromTo(
+            "#h2-lockup-glow",
+            { opacity: 0, scale: 0.85 },
+            { opacity: GLOW_PEAK_OPACITY, scale: 1, duration: BLOOM_DUR, ease: "power2.out" },
+            BLOOM_START
+          );
+
+          var glow = document.getElementById("h2-lockup-glow");
+          var glowPhase = { p: 0 };
+          var BREATHE_START = BLOOM_START + BLOOM_DUR; // 4.2
+          var BREATHE_DUR = 5.0 - BREATHE_START; // 0.8s remaining
+          var OPACITY_AMP = 0.03;
+          var SCALE_AMP = 0.015;
+          tl.to(
+            glowPhase,
+            {
+              p: Math.PI * 2 * 0.3,
+              duration: BREATHE_DUR,
+              ease: "none",
+              onUpdate: function () {
+                var s = Math.sin(glowPhase.p);
+                glow.style.opacity = String(GLOW_PEAK_OPACITY + s * OPACITY_AMP);
+                // centering is via margin (see CSS), so only `scale` needs writing here
+                glow.style.scale = String(1 + s * SCALE_AMP);
+              },
+            },
+            BREATHE_START
+          );
+
+          // subtle jitter on the settled wordmark through the hold (sine-wave-loop, low amplitude)
+          var wordmarkWrap = document.querySelector(".wordmark-wrap");
+          var jitterPhase = { p: 0 };
+          tl.to(
+            jitterPhase,
+            {
+              p: Math.PI * 2 * 0.6,
+              duration: 1.6,
+              ease: "none",
+              onUpdate: function () {
+                var y = Math.sin(jitterPhase.p) * 1.5;
+                wordmarkWrap.style.transform = "translateY(" + y.toFixed(2) + "px)";
+              },
+            },
+            3.4
+          );
+
+          window.__timelines["02-product-intro"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

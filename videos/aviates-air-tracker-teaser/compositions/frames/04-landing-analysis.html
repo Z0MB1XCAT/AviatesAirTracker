@@ -1,0 +1,636 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- head is metadata only for the source file; the runtime discards it -->
+  </head>
+  <body>
+    <template>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          font-family: "Outfit", sans-serif;
+          container-type: size;
+        }
+
+        /* full-bleed ground clip — never painted directly on #root */
+        .ground {
+          position: absolute;
+          inset: 0;
+          background-color: #0a0d17;
+        }
+
+        .grid-layer {
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(241, 245, 249, 0.1) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(241, 245, 249, 0.1) 1px, transparent 1px);
+          background-size: 2cqw 2cqw;
+          opacity: 0;
+        }
+
+        .hairline {
+          position: absolute;
+          left: 4cqw;
+          right: 4cqw;
+          height: 0.12cqw;
+          background: #f1f5f9;
+          transform: scaleX(0);
+          transform-origin: left center;
+        }
+        .hairline-top {
+          top: 3cqw;
+        }
+        .hairline-bottom {
+          bottom: 3cqw;
+        }
+
+        .meta-tag {
+          position: absolute;
+          top: 4.4cqw;
+          left: 4cqw;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          letter-spacing: 0.06em;
+          color: rgba(241, 245, 249, 0.55);
+          opacity: 0;
+        }
+
+        .page-num {
+          position: absolute;
+          bottom: 4.4cqw;
+          right: 4cqw;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          letter-spacing: 0.06em;
+          color: rgba(241, 245, 249, 0.55);
+          opacity: 0;
+        }
+
+        .glitch-col {
+          position: absolute;
+          top: 3cqw;
+          bottom: 3cqw;
+          left: 6cqw;
+          width: 3cqw;
+          opacity: 0;
+          background-image: repeating-linear-gradient(
+            90deg,
+            #f1f5f9 0 2px,
+            transparent 2px 8px
+          );
+          background-color: transparent;
+          -webkit-mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            #000 8%,
+            #000 22%,
+            transparent 28%,
+            transparent 54%,
+            #000 60%,
+            #000 78%,
+            transparent 84%
+          );
+          mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            #000 8%,
+            #000 22%,
+            transparent 28%,
+            transparent 54%,
+            #000 60%,
+            #000 78%,
+            transparent 84%
+          );
+        }
+
+        /* ---- Scene 1: headline ---- */
+        .headline-stage {
+          position: absolute;
+          left: 50%;
+          top: 17cqh;
+          transform: translateX(-50%);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+        }
+        .headline-row {
+          display: flex;
+          gap: 0.85cqw;
+          flex-wrap: nowrap;
+        }
+        .hl-word {
+          font-family: "Outfit", sans-serif;
+          font-weight: 400;
+          font-size: 3.6cqw;
+          line-height: 1.05;
+          letter-spacing: -0.006em;
+          color: #f1f5f9;
+          opacity: 0;
+          transform: translateY(16px);
+          will-change: transform, opacity;
+          white-space: nowrap;
+        }
+        .hl-word.accent {
+          color: #3b82f6;
+        }
+
+        /* ---- Scene 2: bar row ---- */
+        .bar-stage {
+          position: absolute;
+          left: 50%;
+          top: 44.5cqh;
+          transform: translate(-50%, -50%);
+          display: flex;
+          gap: 2.4cqw;
+          align-items: flex-end;
+          width: 62cqw;
+          justify-content: center;
+        }
+        .bar-unit {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.9cqw;
+          width: 6.4cqw;
+          opacity: 0;
+          transform: translateY(24px);
+          will-change: transform, opacity;
+        }
+        .bar-track {
+          position: relative;
+          width: 2.6cqw;
+          height: 17cqh;
+          background: rgba(241, 245, 249, 0.1);
+        }
+        .bar-fill {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          width: 100%;
+          height: 100%;
+          background: #3b82f6;
+          transform: scaleY(0);
+          transform-origin: bottom center;
+        }
+        .bar-value {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          letter-spacing: 0.04em;
+          color: #f1f5f9;
+          opacity: 0;
+        }
+        .bar-label {
+          font-family: "Outfit", sans-serif;
+          font-weight: 600;
+          font-size: 13px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: rgba(241, 245, 249, 0.7);
+        }
+        .bar-baseline {
+          position: absolute;
+          left: 50%;
+          bottom: 6.5cqh;
+          /* no CSS transform — GSAP owns xPercent + scaleX together (see script) so the
+             centering translate and the reveal scale never fight over the transform string */
+          transform-origin: left center;
+          width: 66cqw;
+          height: 0.12cqw;
+          background: #f1f5f9;
+        }
+
+        /* ---- zoom rig ---- */
+        .zoom-outer {
+          position: absolute;
+          inset: 0;
+          transform-origin: 50% 50%;
+          will-change: transform;
+        }
+        .zoom-inner {
+          position: absolute;
+          inset: 0;
+          will-change: transform;
+        }
+
+        /* ---- Scene 3: hero score ---- */
+        .score-glow {
+          position: absolute;
+          left: 50%;
+          top: 46cqh;
+          width: 46cqw;
+          height: 46cqw;
+          /* no CSS transform here — GSAP owns translate+scale together via a raw
+             transform string (see script) so the two never fight */
+          opacity: 0;
+          pointer-events: none;
+          will-change: transform, opacity;
+          z-index: 0;
+        }
+        .score-stage {
+          position: absolute;
+          left: 50%;
+          top: 46cqh;
+          /* no CSS transform here — GSAP owns translate+scale together via a raw
+             transform string (see script) so entrance-scale and jitter-y never fight */
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          z-index: 1;
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        .score-eyebrow {
+          font-family: "Outfit", sans-serif;
+          font-weight: 600;
+          font-size: 16px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: #3b82f6;
+          margin-bottom: 0.6cqw;
+        }
+        .score-wrap {
+          display: flex;
+          align-items: baseline;
+          gap: 0.6cqw;
+        }
+        .score-num {
+          font-family: "Outfit", sans-serif;
+          font-weight: 400;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: -0.015em;
+          color: #f1f5f9;
+          font-size: 90px;
+          line-height: 0.9;
+        }
+        .score-suffix {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 28px;
+          color: rgba(241, 245, 249, 0.55);
+          letter-spacing: 0.04em;
+        }
+
+        /* ---- Scene 4: closing line ---- */
+        .closing-stage {
+          position: absolute;
+          left: 50%;
+          top: 68cqh;
+          transform: translateX(-50%);
+          text-align: center;
+          opacity: 0;
+        }
+        .closing-line {
+          font-family: "Outfit", sans-serif;
+          font-weight: 400;
+          font-size: 1.9cqw;
+          letter-spacing: -0.004em;
+          color: rgba(241, 245, 249, 0.85);
+          white-space: nowrap;
+        }
+      </style>
+
+      <div id="root" data-composition-id="04-landing-analysis" data-width="1920" data-height="1080">
+        <div class="ground clip" data-start="0" data-duration="6" data-track-index="0"></div>
+
+        <div class="grid-layer clip" id="h4-grid" data-start="0" data-duration="6" data-track-index="1"></div>
+
+        <div class="hairline hairline-top clip" id="h4-hairline-top" data-start="0" data-duration="6" data-track-index="2"></div>
+        <div class="hairline hairline-bottom clip" id="h4-hairline-bottom" data-start="0" data-duration="6" data-track-index="3"></div>
+
+        <div class="meta-tag clip" id="h4-meta-tag" data-start="0" data-duration="6" data-track-index="4">
+          AVIATES · LANDING ANALYSIS
+        </div>
+        <div class="page-num clip" id="h4-page-num" data-start="0" data-duration="6" data-track-index="5">
+          004
+        </div>
+
+        <div class="glitch-col clip" id="h4-glitch" data-start="0" data-duration="6" data-track-index="6"></div>
+
+        <!-- Scene 1: headline -->
+        <div class="headline-stage clip" data-start="0" data-duration="6" data-track-index="7">
+          <div class="headline-row">
+            <span class="hl-word" id="h4-hw-1">SIX</span>
+            <span class="hl-word" id="h4-hw-2">POINTS.</span>
+            <span class="hl-word accent" id="h4-hw-3">ONE</span>
+            <span class="hl-word accent" id="h4-hw-4">SCORE.</span>
+          </div>
+        </div>
+
+        <!-- Zoom rig wraps Scene 2's bar row so it can collapse into the hero score -->
+        <div class="zoom-outer clip" id="h4-zoom-outer" data-start="0" data-duration="6" data-track-index="8">
+          <div class="zoom-inner" id="h4-zoom-inner">
+            <div class="bar-baseline clip" id="h4-bar-baseline" data-start="0" data-duration="6" data-track-index="9"></div>
+            <div class="bar-stage" id="h4-bar-stage">
+              <div class="bar-unit" id="h4-bar-1">
+                <div class="bar-value" id="h4-bv-1">96</div>
+                <div class="bar-track"><div class="bar-fill" id="h4-bf-1"></div></div>
+                <div class="bar-label">VS</div>
+              </div>
+              <div class="bar-unit" id="h4-bar-2">
+                <div class="bar-value" id="h4-bv-2">91</div>
+                <div class="bar-track"><div class="bar-fill" id="h4-bf-2"></div></div>
+                <div class="bar-label">Pitch</div>
+              </div>
+              <div class="bar-unit" id="h4-bar-3">
+                <div class="bar-value" id="h4-bv-3">95</div>
+                <div class="bar-track"><div class="bar-fill" id="h4-bf-3"></div></div>
+                <div class="bar-label">Bank</div>
+              </div>
+              <div class="bar-unit" id="h4-bar-4">
+                <div class="bar-value" id="h4-bv-4">89</div>
+                <div class="bar-track"><div class="bar-fill" id="h4-bf-4"></div></div>
+                <div class="bar-label">Speed</div>
+              </div>
+              <div class="bar-unit" id="h4-bar-5">
+                <div class="bar-value" id="h4-bv-5">97</div>
+                <div class="bar-track"><div class="bar-fill" id="h4-bf-5"></div></div>
+                <div class="bar-label">Crosswind</div>
+              </div>
+              <div class="bar-unit" id="h4-bar-6">
+                <div class="bar-value" id="h4-bv-6">96</div>
+                <div class="bar-track"><div class="bar-fill" id="h4-bf-6"></div></div>
+                <div class="bar-label">Stability</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scene 3: hero score -->
+        <div class="score-glow clip" id="h4-score-glow" data-start="0" data-duration="6" data-track-index="10"></div>
+        <div class="score-stage clip" id="h4-score-stage" data-start="0" data-duration="6" data-track-index="11">
+          <div class="score-eyebrow">Landing Score</div>
+          <div class="score-wrap">
+            <span class="score-num" id="h4-score-num">0</span><span class="score-suffix">/100</span>
+          </div>
+        </div>
+
+        <!-- Scene 4: closing line -->
+        <div class="closing-stage clip" id="h4-closing-stage" data-start="0" data-duration="6" data-track-index="12">
+          <div class="closing-line">HOW GOOD WAS THAT LANDING?</div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        (function () {
+          window.__timelines = window.__timelines || {};
+          var tl = gsap.timeline({ paused: true });
+
+          // ================= Furniture (ground / grid / hairlines) =================
+          tl.fromTo("#h4-grid", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power3.out" }, 0);
+          tl.fromTo(
+            "#h4-hairline-top",
+            { scaleX: 0 },
+            { scaleX: 1, duration: 0.6, ease: "power3.out" },
+            0.1
+          );
+          tl.fromTo(
+            "#h4-hairline-bottom",
+            { scaleX: 0 },
+            { scaleX: 1, duration: 0.6, ease: "power3.out" },
+            0.1
+          );
+          tl.fromTo("#h4-meta-tag", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power3.out" }, 0.3);
+          tl.fromTo("#h4-page-num", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power3.out" }, 0.3);
+          tl.fromTo(
+            "#h4-glitch",
+            { opacity: 0 },
+            { opacity: 0.4, duration: 0.6, ease: "power3.out" },
+            0.4
+          );
+
+          // ================= Scene 1 (0.0-1.0s): "SIX POINTS. ONE SCORE." =================
+          // dynamic-content-sequencing / per-word staggered reveal, centered upper-third
+          var hlWords = ["#h4-hw-1", "#h4-hw-2", "#h4-hw-3", "#h4-hw-4"];
+          var HL_STAGGER = 0.14;
+          hlWords.forEach(function (sel, i) {
+            tl.fromTo(
+              sel,
+              { opacity: 0, y: 16 },
+              { opacity: 1, y: 0, duration: 0.42, ease: "power3.out" },
+              0.15 + i * HL_STAGGER
+            );
+          });
+
+          // ================= Scene 2 (1.0-4.0s): six bars enter + fill, staggered =================
+          var barIds = ["#h4-bar-1", "#h4-bar-2", "#h4-bar-3", "#h4-bar-4", "#h4-bar-5", "#h4-bar-6"];
+          var fillIds = ["#h4-bf-1", "#h4-bf-2", "#h4-bf-3", "#h4-bf-4", "#h4-bf-5", "#h4-bf-6"];
+          var valueIds = ["#h4-bv-1", "#h4-bv-2", "#h4-bv-3", "#h4-bv-4", "#h4-bv-5", "#h4-bv-6"];
+          var barScores = [96, 91, 95, 89, 97, 96]; // VS / Pitch / Bank / Speed / Crosswind / Stability
+          var BAR_ENTER_START = 1.0;
+          var BAR_ENTER_STAGGER = 0.16;
+          var BAR_FILL_STAGGER = 0.22;
+
+          // baseline rule draws in first, under the row. fromTo declares xPercent
+          // explicitly alongside scaleX so GSAP owns the whole transform string
+          // (centering + reveal) with no leftover CSS transform to conflict with.
+          tl.fromTo(
+            "#h4-bar-baseline",
+            { xPercent: -50, scaleX: 0 },
+            { xPercent: -50, scaleX: 1, duration: 0.6, ease: "power3.out" },
+            BAR_ENTER_START
+          );
+
+          barIds.forEach(function (sel, i) {
+            tl.fromTo(
+              sel,
+              { opacity: 0, y: 24 },
+              { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" },
+              BAR_ENTER_START + i * BAR_ENTER_STAGGER
+            );
+          });
+
+          // bars fill one after another (never all at once) — value counts up in lockstep
+          var FILL_START = BAR_ENTER_START + barIds.length * BAR_ENTER_STAGGER + 0.1; // ~2.06
+          fillIds.forEach(function (sel, i) {
+            var startAt = FILL_START + i * BAR_FILL_STAGGER;
+            var pct = barScores[i] / 100;
+            tl.to(sel, { scaleY: pct, duration: 0.7, ease: "power3.out" }, startAt);
+
+            var counterObj = { v: 0 };
+            var valueEl = document.querySelector(valueIds[i]);
+            tl.to(
+              counterObj,
+              {
+                v: barScores[i],
+                duration: 0.7,
+                ease: "power3.out",
+                onUpdate: function () {
+                  valueEl.textContent = Math.round(counterObj.v);
+                },
+              },
+              startAt
+            );
+            tl.fromTo(
+              valueIds[i],
+              { opacity: 0 },
+              { opacity: 1, duration: 0.3, ease: "power2.out" },
+              startAt
+            );
+          });
+          // last fill lands ~ FILL_START + 5*0.22 + 0.7 = 3.86s, within the 4.0s Scene 2 window
+
+          // ================= Scene 3 (4.0-5.2s): zoom-to-target collapses bars into hero score =================
+          // coordinate-target-zoom: outer scales, inner counter-translates so the bar row's
+          // visual center (already frame-centered) lands dead-center as it zooms past view;
+          // bars fade out while the zoom carries them off, then the score stage cross-fades in.
+          var ZOOM_START = 4.0;
+          var ZOOM_DUR = 0.75;
+          tl.to(
+            "#h4-zoom-outer",
+            { scale: 2.6, duration: ZOOM_DUR, ease: "power3.inOut" },
+            ZOOM_START
+          );
+          tl.to(
+            "#h4-zoom-inner",
+            { x: 0, y: 0, duration: ZOOM_DUR, ease: "power3.inOut" },
+            ZOOM_START
+          );
+          tl.to(
+            "#h4-zoom-outer",
+            { opacity: 0, duration: 0.4, ease: "power2.in" },
+            ZOOM_START + 0.25
+          );
+
+          // hero score stage fades/scales in as the bar zoom carries past.
+          // Centering (translate -50%,-50%) is baked into the SAME raw transform
+          // string GSAP writes every frame, so entrance-scale and the later jitter
+          // (which also writes this element's transform) never fight the CSS.
+          var scoreStageState = { scale: 0.92 };
+          var scoreStageEl2 = document.getElementById("h4-score-stage");
+          function writeScoreStageTransform(yOffsetPx) {
+            var y = yOffsetPx || 0;
+            scoreStageEl2.style.transform =
+              "translate(-50%, calc(-50% + " + y.toFixed(2) + "px)) scale(" +
+              scoreStageState.scale.toFixed(4) + ")";
+          }
+          writeScoreStageTransform(0);
+          var SCORE_IN_START = ZOOM_START + 0.35;
+          tl.fromTo(
+            "#h4-score-stage",
+            { opacity: 0 },
+            { opacity: 1, duration: 0.5, ease: "power3.out" },
+            SCORE_IN_START
+          );
+          tl.to(
+            scoreStageState,
+            {
+              scale: 1,
+              duration: 0.5,
+              ease: "power3.out",
+              onUpdate: function () {
+                writeScoreStageTransform(0);
+              },
+            },
+            SCORE_IN_START
+          );
+
+          // counting-dynamic-scale: score counts up 0 -> 94 with font-size growing
+          var scoreEl = document.getElementById("h4-score-num");
+          var scoreState = { value: 0, fontSize: 46 };
+          var COUNT_START = SCORE_IN_START + 0.05;
+          var COUNT_DUR = 0.8;
+          tl.to(
+            scoreState,
+            {
+              value: 94,
+              fontSize: 132,
+              duration: COUNT_DUR,
+              ease: "power3.out",
+              onUpdate: function () {
+                scoreEl.textContent = Math.round(scoreState.value).toLocaleString();
+                scoreEl.style.fontSize = scoreState.fontSize.toFixed(1) + "px";
+              },
+            },
+            COUNT_START
+          );
+
+          // ambient-glow-bloom behind the hero score, landing on the count-up's settle.
+          // Centering is baked into the same raw transform string as the scale tween
+          // (never a bare CSS transform + a GSAP `scale` prop on the same element).
+          var glowEl = document.getElementById("h4-score-glow");
+          function writeGlowTransform(scale) {
+            glowEl.style.transform = "translate(-50%, -50%) scale(" + scale.toFixed(4) + ")";
+          }
+          writeGlowTransform(0.85);
+          var GLOW_PEAK_OPACITY = 0.32;
+          var BLOOM_START = COUNT_START + COUNT_DUR - 0.15;
+          var BLOOM_DUR = 0.55;
+          var glowBloomState = { scale: 0.85 };
+          tl.fromTo(
+            "#h4-score-glow",
+            { opacity: 0 },
+            { opacity: GLOW_PEAK_OPACITY, duration: BLOOM_DUR, ease: "power2.out" },
+            BLOOM_START
+          );
+          tl.to(
+            glowBloomState,
+            {
+              scale: 1,
+              duration: BLOOM_DUR,
+              ease: "power2.out",
+              onUpdate: function () {
+                writeGlowTransform(glowBloomState.scale);
+              },
+            },
+            BLOOM_START
+          );
+          var glowPhase = { p: 0 };
+          var BREATHE_START = BLOOM_START + BLOOM_DUR; // ~5.1
+          var BREATHE_DUR = Math.max(6.0 - BREATHE_START, 0.1);
+          tl.to(
+            glowPhase,
+            {
+              p: Math.PI * 2 * 0.35,
+              duration: BREATHE_DUR,
+              ease: "none",
+              onUpdate: function () {
+                var s = Math.sin(glowPhase.p);
+                glowEl.style.opacity = String(GLOW_PEAK_OPACITY + s * 0.03);
+                glowEl.style.transform =
+                  "translate(-50%, -50%) scale(" + (1 + s * 0.015).toFixed(4) + ")";
+              },
+            },
+            BREATHE_START
+          );
+
+          // ================= Scene 4 (5.2-6.0s): "HOW GOOD WAS THAT LANDING?" hard-cut =================
+          // discrete-text-sequence: instant hard cut, no transition, beneath the score
+          tl.fromTo(
+            "#h4-closing-stage",
+            { opacity: 0 },
+            { opacity: 1, duration: 0.01, ease: "none" },
+            5.2
+          );
+
+          // subtle jitter on the settled score through the final hold (sine-wave-loop, low
+          // amplitude). Reuses writeScoreStageTransform so the settled scale (1) from the
+          // entrance tween is preserved — jitter only adds a y offset, never clobbers scale.
+          var jitterPhase = { p: 0 };
+          tl.to(
+            jitterPhase,
+            {
+              p: Math.PI * 2 * 0.5,
+              duration: 0.8,
+              ease: "none",
+              onUpdate: function () {
+                var y = Math.sin(jitterPhase.p) * 1.4;
+                writeScoreStageTransform(y);
+              },
+            },
+            5.2
+          );
+
+          window.__timelines["04-landing-analysis"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

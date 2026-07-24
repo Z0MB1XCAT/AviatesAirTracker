@@ -1,0 +1,272 @@
+<h2>Altitude-Coded Flight Trail</h2>
+<p class="subtitle">The flown path changes colour smoothly based on altitude — white on the ground, rainbow climbing to red at cruise. Does this look right?</p>
+
+<style>
+  body-override { font-family: 'JetBrains Mono', monospace; }
+  .fmap {
+    background: #0A0D17;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(61,126,238,0.2);
+    font-family: 'JetBrains Mono', monospace;
+    position: relative;
+  }
+  .fmap-bg {
+    position: absolute;
+    inset: 0;
+    background: #141b2d;
+  }
+  .fmap-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(61,126,238,0.04) 19px, rgba(61,126,238,0.04) 20px),
+      repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(61,126,238,0.04) 19px, rgba(61,126,238,0.04) 20px);
+  }
+  .airport-dot {
+    position: absolute;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 2px solid;
+    transform: translate(-50%,-50%);
+    z-index: 5;
+  }
+  .airport-label {
+    position: absolute;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    transform: translate(-50%, 8px);
+    z-index: 5;
+    text-align: center;
+  }
+  .plane-icon {
+    position: absolute;
+    font-size: 20px;
+    filter: drop-shadow(0 0 8px #3D7EEE);
+    z-index: 10;
+    transform: translate(-50%,-50%) rotate(-40deg);
+  }
+  .hud {
+    position: absolute;
+    background: rgba(10,13,23,0.88);
+    border: 1px solid rgba(61,126,238,0.25);
+    border-radius: 6px;
+    backdrop-filter: blur(6px);
+    padding: 8px 11px;
+    z-index: 20;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+  }
+
+  /* Altitude legend */
+  .alt-legend {
+    display: flex;
+    align-items: stretch;
+    gap: 16px;
+    margin-top: 16px;
+    background: rgba(10,13,23,0.6);
+    border: 1px solid rgba(61,126,238,0.15);
+    border-radius: 6px;
+    padding: 12px 16px;
+  }
+  .alt-bar-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .alt-bar {
+    width: 24px;
+    height: 160px;
+    border-radius: 12px;
+    background: linear-gradient(
+      to top,
+      #ffffff 0%,
+      #ffffff 1%,
+      #cc44ff 4%,
+      #4466ff 15%,
+      #00ccff 30%,
+      #00ff88 45%,
+      #aaff00 60%,
+      #ffdd00 72%,
+      #ff8800 84%,
+      #ff2200 100%
+    );
+    box-shadow: 0 0 12px rgba(255,80,0,0.2);
+  }
+  .alt-ticks {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 160px;
+    font-size: 8px;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.06em;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .alt-tick { white-space: nowrap; }
+  .alt-tick span { color: rgba(255,255,255,0.25); margin-left: 2px; }
+  .alt-description {
+    flex: 1;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    line-height: 1.8;
+    color: rgba(255,255,255,0.5);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 4px 0;
+  }
+  .alt-row { display: flex; align-items: center; gap: 8px; }
+  .alt-swatch {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .alt-row strong { color: rgba(255,255,255,0.85); }
+</style>
+
+<!-- MAP MOCKUP with canvas-rendered altitude trail -->
+<div class="fmap" style="height:260px; margin-bottom:0;">
+  <div class="fmap-bg"></div>
+
+  <!-- Canvas draws the altitude-colored trail -->
+  <canvas id="trailCanvas" style="position:absolute;inset:0;width:100%;height:100%;z-index:2;"></canvas>
+
+  <!-- Airports -->
+  <div class="airport-dot" style="left:10%;top:82%;border-color:#22C55E;background:rgba(34,197,94,0.2);"></div>
+  <div class="airport-label" style="left:10%;top:82%;color:#22C55E;">EGLL</div>
+  <div class="airport-dot" style="left:88%;top:16%;border-color:#EF4444;background:rgba(239,68,68,0.2);"></div>
+  <div class="airport-label" style="left:88%;top:16%;color:#EF4444;">LEMD</div>
+
+  <!-- Plane at cruise -->
+  <div class="plane-icon" style="left:62%;top:44%;">✈</div>
+
+  <!-- HUD -->
+  <div class="hud" style="top:10px;left:10px;min-width:120px;">
+    <div style="color:rgba(255,255,255,0.35);font-size:8px;margin-bottom:3px;letter-spacing:0.1em;">FLOWN PATH</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:2px;">
+      <div style="width:40px;height:3px;border-radius:2px;background:linear-gradient(to right,#fff,#4466ff,#00ff88,#ffdd00,#ff2200);"></div>
+      <span style="color:rgba(255,255,255,0.5);font-size:8px;">0 → FL350</span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var canvas = document.getElementById('trailCanvas');
+  if (!canvas) return;
+  var rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width || 600;
+  canvas.height = rect.height || 260;
+  var W = canvas.width, H = canvas.height;
+  var ctx = canvas.getContext('2d');
+
+  // Altitude color: 0ft=white, 100ft starts rainbow, 45000ft=red
+  // Hue goes: 270(violet) → 240(blue) → 180(cyan) → 120(green) → 60(yellow) → 30(orange) → 0(red)
+  function altToColor(altFt) {
+    if (altFt <= 0) return 'rgba(255,255,255,0.9)';
+    if (altFt <= 100) {
+      var t = altFt / 100;
+      var r = 255, g = 255, b = 255;
+      // Blend from white toward violet (#cc44ff)
+      r = Math.round(255 - (255-204)*t);
+      g = Math.round(255 - (255-68)*t);
+      b = Math.round(255);
+      return 'rgba('+r+','+g+','+b+',0.95)';
+    }
+    var t = Math.min((altFt - 100) / (45000 - 100), 1.0);
+    // Hue from 270 (violet) down to 0 (red)
+    var hue = 270 * (1 - t);
+    var sat = 100;
+    var lit = 55;
+    return 'hsl('+hue+','+sat+'%,'+lit+'%)';
+  }
+
+  // Simulated flight path: takeoff from EGLL (10%, 82%), climb, cruise, descent toward LEMD (88%, 16%)
+  // Path points: [x%, y%, altFt]
+  var rawPoints = [
+    [0.10, 0.82, 0],
+    [0.13, 0.78, 200],
+    [0.16, 0.74, 800],
+    [0.20, 0.69, 3000],
+    [0.24, 0.64, 8000],
+    [0.28, 0.60, 14000],
+    [0.32, 0.57, 20000],
+    [0.36, 0.54, 26000],
+    [0.40, 0.52, 31000],
+    [0.44, 0.50, 35000],
+    [0.48, 0.48, 35000],
+    [0.52, 0.46, 35000],
+    [0.56, 0.44, 35000],
+    [0.60, 0.43, 35000],
+    [0.62, 0.44, 35000], // current position
+  ];
+
+  // Draw segments with gradient colour per segment
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  for (var i = 0; i < rawPoints.length - 1; i++) {
+    var p1 = rawPoints[i], p2 = rawPoints[i+1];
+    var x1 = p1[0]*W, y1 = p1[1]*H;
+    var x2 = p2[0]*W, y2 = p2[1]*H;
+    var midAlt = (p1[2] + p2[2]) / 2;
+
+    // Build a linear gradient along this segment
+    var grad = ctx.createLinearGradient(x1, y1, x2, y2);
+    grad.addColorStop(0, altToColor(p1[2]));
+    grad.addColorStop(1, altToColor(p2[2]));
+
+    ctx.beginPath();
+    ctx.strokeStyle = grad;
+    ctx.shadowColor = altToColor(midAlt);
+    ctx.shadowBlur = 6;
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  // Dashed planned route ahead
+  ctx.setLineDash([6, 4]);
+  ctx.lineWidth = 1.5;
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(61,126,238,0.35)';
+  ctx.beginPath();
+  ctx.moveTo(0.62*W, 0.44*H);
+  ctx.lineTo(0.88*W, 0.16*H);
+  ctx.stroke();
+  ctx.setLineDash([]);
+})();
+</script>
+
+<!-- ALTITUDE LEGEND -->
+<div class="alt-legend">
+  <div class="alt-bar-wrap">
+    <div class="alt-bar"></div>
+  </div>
+  <div class="alt-ticks">
+    <div class="alt-tick">45,000 ft <span>FL450</span></div>
+    <div class="alt-tick">36,000 ft <span>FL360</span></div>
+    <div class="alt-tick">27,000 ft <span>FL270</span></div>
+    <div class="alt-tick">18,000 ft <span>FL180</span></div>
+    <div class="alt-tick">9,000 ft <span>FL090</span></div>
+    <div class="alt-tick">0 ft <span>GND</span></div>
+  </div>
+  <div class="alt-description">
+    <div class="alt-row"><div class="alt-swatch" style="background:#ff2200;"></div><span><strong>Red</strong> — cruise altitude (35,000–45,000 ft)</span></div>
+    <div class="alt-row"><div class="alt-swatch" style="background:#ff8800;"></div><span><strong>Orange</strong> — high climb / descent (~25,000–40,000 ft)</span></div>
+    <div class="alt-row"><div class="alt-swatch" style="background:#ffdd00;"></div><span><strong>Yellow</strong> — mid climb / descent (~18,000 ft)</span></div>
+    <div class="alt-row"><div class="alt-swatch" style="background:#00ff88;"></div><span><strong>Green</strong> — lower climb (~8,000–14,000 ft)</span></div>
+    <div class="alt-row"><div class="alt-swatch" style="background:#4466ff;"></div><span><strong>Blue</strong> — initial climb (~2,000–6,000 ft)</span></div>
+    <div class="alt-row"><div class="alt-swatch" style="background:#cc44ff;"></div><span><strong>Violet</strong> — just off the ground (~100–1,000 ft)</span></div>
+    <div class="alt-row"><div class="alt-swatch" style="background:#ffffff;box-shadow:0 0 4px rgba(255,255,255,0.5);"></div><span><strong>White</strong> — ground / below 100 ft</span></div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:12px;">The dashed blue line ahead is the planned SimBrief route still to fly. Does the colour scale and legend feel right?</p>

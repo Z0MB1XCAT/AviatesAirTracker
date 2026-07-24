@@ -40,6 +40,18 @@ public class HoppiesAcarsOrchestrator : IDisposable
     /// <summary>Raised after every send attempt (success or failure) for the in-app log.</summary>
     public event EventHandler<HoppiesLogEntry>? MessageSent;
 
+    // Shared session log so any consumer (ACARS page, EFB) sees the same history
+    // even if it subscribed after messages were already sent. Bounded ring buffer.
+    private const int MaxLogEntries = 200;
+    private readonly List<HoppiesLogEntry> _log = [];
+    private readonly object _logLock = new();
+
+    /// <summary>Session history of Hoppies sends, newest last. Safe to read from any thread.</summary>
+    public IReadOnlyList<HoppiesLogEntry> MessageLog
+    {
+        get { lock (_logLock) return _log.ToList(); }
+    }
+
     public HoppiesAcarsOrchestrator(
         SettingsService settings,
         SimBriefService simBrief,
@@ -311,13 +323,21 @@ public class HoppiesAcarsOrchestrator : IDisposable
 
     private void Log(bool success, string category, string message)
     {
-        MessageSent?.Invoke(this, new HoppiesLogEntry
+        var entry = new HoppiesLogEntry
         {
             SentAtUtc = DateTime.UtcNow,
             Category = category,
             Message = message,
             Success = success
-        });
+        };
+
+        lock (_logLock)
+        {
+            _log.Add(entry);
+            if (_log.Count > MaxLogEntries) _log.RemoveRange(0, _log.Count - MaxLogEntries);
+        }
+
+        MessageSent?.Invoke(this, entry);
     }
 
     public void Dispose()

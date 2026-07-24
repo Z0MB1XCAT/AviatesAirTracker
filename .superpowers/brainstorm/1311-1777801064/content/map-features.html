@@ -1,0 +1,264 @@
+<h2>Map Content & HUD Cards</h2>
+<p class="subtitle">What does the map show, and what information floats over it?</p>
+
+<style>
+  .fmap {
+    background: #0A0D17;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(61,126,238,0.2);
+    font-family: 'JetBrains Mono', monospace;
+    height: 240px;
+    position: relative;
+  }
+  .fmap-bg {
+    position: absolute;
+    inset: 0;
+    background: #141b2d;
+    overflow: hidden;
+  }
+  .fmap-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(61,126,238,0.04) 19px, rgba(61,126,238,0.04) 20px),
+      repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(61,126,238,0.04) 19px, rgba(61,126,238,0.04) 20px);
+  }
+  .fmap-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 50%, rgba(61,126,238,0.05) 0%, transparent 70%);
+  }
+  /* Route elements */
+  svg.fmap-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .plane-icon {
+    position: absolute;
+    font-size: 20px;
+    filter: drop-shadow(0 0 8px #3D7EEE);
+    z-index: 10;
+    transform: translate(-50%,-50%);
+  }
+  .airport-dot {
+    position: absolute;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 2px solid;
+    transform: translate(-50%,-50%);
+    z-index: 5;
+  }
+  .airport-label {
+    position: absolute;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    transform: translate(-50%, 8px);
+    z-index: 5;
+    text-align: center;
+  }
+  .wp-dot {
+    position: absolute;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: rgba(61,126,238,0.6);
+    transform: translate(-50%,-50%);
+    z-index: 4;
+  }
+  .wp-label {
+    position: absolute;
+    font-size: 7px;
+    color: rgba(61,126,238,0.7);
+    letter-spacing: 0.06em;
+    transform: translate(4px, -8px);
+    z-index: 4;
+  }
+  /* HUD cards */
+  .hud {
+    position: absolute;
+    background: rgba(10,13,23,0.88);
+    border: 1px solid rgba(61,126,238,0.25);
+    border-radius: 6px;
+    backdrop-filter: blur(6px);
+    padding: 8px 11px;
+    z-index: 20;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+  }
+  .hud-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    line-height: 1.7;
+  }
+  .hud-label { color: rgba(255,255,255,0.4); font-size: 8px; }
+  .hud-val { color: #fff; font-weight: 700; font-size: 12px; }
+  .hud-val.accent { color: #3D7EEE; }
+  .hud-route { color: rgba(255,255,255,0.8); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; }
+  .hud-phase {
+    display: inline-block;
+    background: rgba(34,197,94,0.15);
+    border: 1px solid rgba(34,197,94,0.35);
+    border-radius: 3px;
+    padding: 1px 6px;
+    color: #22C55E;
+    font-size: 7px;
+    letter-spacing: 0.1em;
+  }
+  .hud-divider { height: 1px; background: rgba(61,126,238,0.15); margin: 5px 0; }
+  .wp-next {
+    position: absolute;
+    background: rgba(61,126,238,0.12);
+    border: 1px solid rgba(61,126,238,0.35);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 8px;
+    color: #3D7EEE;
+    letter-spacing: 0.08em;
+    z-index: 20;
+  }
+  .map-zoom {
+    position: absolute;
+    right: 10px; bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    z-index: 20;
+  }
+  .zoom-btn {
+    width: 22px; height: 22px;
+    background: rgba(10,13,23,0.85);
+    border: 1px solid rgba(61,126,238,0.2);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: rgba(255,255,255,0.5);
+  }
+</style>
+
+<div class="options">
+
+  <!-- Option A: Aircraft + planned route only, minimal HUD -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Minimal — Aircraft + Planned Route</h3>
+      <p>Just the aircraft position, planned SimBrief route line, departure/arrival airports, and one compact HUD card with altitude and speed.</p>
+      <div class="fmap" style="margin-top:10px;">
+        <div class="fmap-bg"></div>
+        <svg class="fmap-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <!-- Planned route dashed -->
+          <line x1="15" y1="75" x2="85" y2="25" stroke="#3D7EEE" stroke-width="0.6" stroke-dasharray="3,2" opacity="0.5"/>
+        </svg>
+        <!-- Airports -->
+        <div class="airport-dot" style="left:15%;top:75%;border-color:#22C55E;background:rgba(34,197,94,0.2);"></div>
+        <div class="airport-label" style="left:15%;top:75%;color:#22C55E;">EGLL</div>
+        <div class="airport-dot" style="left:85%;top:25%;border-color:#EF4444;background:rgba(239,68,68,0.2);"></div>
+        <div class="airport-label" style="left:85%;top:25%;color:#EF4444;">LEMD</div>
+        <!-- Aircraft -->
+        <div class="plane-icon" style="left:52%;top:55%;">✈</div>
+        <!-- Single HUD -->
+        <div class="hud" style="top:10px;left:10px;min-width:110px;">
+          <div class="hud-row"><span class="hud-label">ROUTE</span><span class="hud-route">EGLL→LEMD</span></div>
+          <div class="hud-divider"></div>
+          <div class="hud-row"><span class="hud-label">ALT</span><span class="hud-val">FL350</span></div>
+          <div class="hud-row"><span class="hud-label">IAS</span><span class="hud-val">248 KT</span></div>
+        </div>
+        <div class="map-zoom"><div class="zoom-btn">+</div><div class="zoom-btn">−</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: Aircraft + planned route + actual trail + waypoints + richer HUD -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Navigation — Route + Flown Path + Waypoints</h3>
+      <p>Planned route (dashed), actual path flown (solid trail), labelled waypoints, next fix highlighted, and a fuller HUD with ETA and VS.</p>
+      <div class="fmap" style="margin-top:10px;">
+        <div class="fmap-bg"></div>
+        <svg class="fmap-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <!-- Actual path flown (solid) -->
+          <polyline points="15,75 25,68 35,62 45,58 52,55" stroke="#3D7EEE" stroke-width="1.2" fill="none" opacity="0.7"/>
+          <!-- Planned route ahead (dashed) -->
+          <line x1="52" y1="55" x2="85" y2="25" stroke="#3D7EEE" stroke-width="0.6" stroke-dasharray="3,2" opacity="0.4"/>
+        </svg>
+        <!-- Waypoints -->
+        <div class="wp-dot" style="left:25%;top:68%;"></div><div class="wp-label" style="left:25%;top:68%;">KONAN</div>
+        <div class="wp-dot" style="left:35%;top:62%;"></div><div class="wp-label" style="left:35%;top:62%;">SILVA</div>
+        <div class="wp-dot" style="left:45%;top:58%;"></div><div class="wp-label" style="left:45%;top:58%;">XAMAN</div>
+        <!-- Next waypoint highlighted -->
+        <div class="wp-dot" style="left:65%;top:42%;background:#EAB308;width:7px;height:7px;"></div>
+        <div class="wp-label" style="left:65%;top:42%;color:#EAB308;font-size:8px;">▶ ETAMO</div>
+        <div class="airport-dot" style="left:15%;top:75%;border-color:#22C55E;background:rgba(34,197,94,0.2);"></div>
+        <div class="airport-label" style="left:15%;top:75%;color:#22C55E;">EGLL</div>
+        <div class="airport-dot" style="left:85%;top:25%;border-color:#EF4444;background:rgba(239,68,68,0.2);"></div>
+        <div class="airport-label" style="left:85%;top:25%;color:#EF4444;">LEMD</div>
+        <div class="plane-icon" style="left:52%;top:55%;">✈</div>
+        <!-- HUD -->
+        <div class="hud" style="top:10px;left:10px;min-width:130px;">
+          <div class="hud-row"><span class="hud-route">EGLL→LEMD</span><span class="hud-phase">CRUISE</span></div>
+          <div class="hud-divider"></div>
+          <div class="hud-row"><span class="hud-label">ALT</span><span class="hud-val">FL350</span><span class="hud-label">VS</span><span class="hud-val" style="font-size:10px;">+200</span></div>
+          <div class="hud-row"><span class="hud-label">IAS</span><span class="hud-val">248 KT</span><span class="hud-label">GS</span><span class="hud-val" style="font-size:10px;">461</span></div>
+        </div>
+        <div class="hud" style="bottom:10px;left:10px;">
+          <div class="hud-row"><span class="hud-label">NEXT</span><span class="hud-val accent">ETAMO</span><span class="hud-label">ETA</span><span class="hud-val accent">16:42Z</span></div>
+        </div>
+        <div class="map-zoom"><div class="zoom-btn">+</div><div class="zoom-btn">−</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C: Full situational awareness — all of the above + multiple HUD cards -->
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Full SA — Route + Trail + Waypoints + Rich HUD</h3>
+      <p>Everything in B, plus a full telemetry HUD card (alt, IAS, GS, HDG, VS, Mach), a flight progress card with distance remaining and fuel, and centre-on-aircraft button.</p>
+      <div class="fmap" style="margin-top:10px;">
+        <div class="fmap-bg"></div>
+        <svg class="fmap-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <polyline points="15,75 25,68 35,62 45,58 52,55" stroke="#3D7EEE" stroke-width="1.2" fill="none" opacity="0.7"/>
+          <line x1="52" y1="55" x2="85" y2="25" stroke="#3D7EEE" stroke-width="0.6" stroke-dasharray="3,2" opacity="0.4"/>
+        </svg>
+        <div class="wp-dot" style="left:25%;top:68%;"></div>
+        <div class="wp-dot" style="left:35%;top:62%;"></div>
+        <div class="wp-dot" style="left:45%;top:58%;"></div>
+        <div class="wp-dot" style="left:65%;top:42%;background:#EAB308;width:7px;height:7px;"></div>
+        <div class="wp-label" style="left:65%;top:42%;color:#EAB308;font-size:8px;">▶ ETAMO</div>
+        <div class="airport-dot" style="left:15%;top:75%;border-color:#22C55E;background:rgba(34,197,94,0.2);"></div>
+        <div class="airport-label" style="left:15%;top:75%;color:#22C55E;">EGLL</div>
+        <div class="airport-dot" style="left:85%;top:25%;border-color:#EF4444;background:rgba(239,68,68,0.2);"></div>
+        <div class="airport-label" style="left:85%;top:25%;color:#EF4444;">LEMD</div>
+        <div class="plane-icon" style="left:52%;top:55%;">✈</div>
+        <!-- Full telemetry HUD top-left -->
+        <div class="hud" style="top:10px;left:10px;min-width:140px;">
+          <div class="hud-row"><span class="hud-route" style="font-size:10px;">EGLL→LEMD</span><span class="hud-phase">CRUISE</span></div>
+          <div class="hud-divider"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;">
+            <div class="hud-row"><span class="hud-label">ALT</span><span class="hud-val" style="font-size:11px;">FL350</span></div>
+            <div class="hud-row"><span class="hud-label">VS</span><span class="hud-val" style="font-size:11px;">+200</span></div>
+            <div class="hud-row"><span class="hud-label">IAS</span><span class="hud-val" style="font-size:11px;">248</span></div>
+            <div class="hud-row"><span class="hud-label">GS</span><span class="hud-val" style="font-size:11px;">461</span></div>
+            <div class="hud-row"><span class="hud-label">HDG</span><span class="hud-val" style="font-size:11px;">193°</span></div>
+            <div class="hud-row"><span class="hud-label">MACH</span><span class="hud-val" style="font-size:11px;">.78</span></div>
+          </div>
+        </div>
+        <!-- Progress HUD bottom-left -->
+        <div class="hud" style="bottom:10px;left:10px;min-width:150px;">
+          <div class="hud-row"><span class="hud-label">NEXT</span><span class="hud-val accent" style="font-size:10px;">ETAMO</span><span class="hud-label" style="margin-left:8px;">ETA</span><span class="hud-val accent" style="font-size:10px;">16:42Z</span></div>
+          <div class="hud-divider"></div>
+          <div class="hud-row"><span class="hud-label">DIST REM</span><span class="hud-val" style="font-size:10px;">612 NM</span><span class="hud-label" style="margin-left:6px;">FUEL</span><span class="hud-val" style="font-size:10px;">8.4 T</span></div>
+        </div>
+        <!-- Centre btn -->
+        <div class="map-zoom" style="bottom:10px;right:10px;flex-direction:column;">
+          <div class="zoom-btn" style="font-size:9px;">✈</div>
+          <div class="zoom-btn">+</div>
+          <div class="zoom-btn">−</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

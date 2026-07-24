@@ -182,14 +182,18 @@ async function isLiveSharingOptedOut(env, pilotId) {
 }
 
 const AIRCRAFT_CRUISE_SPEEDS = {
-  B738: 460,   // Boeing 737-800 (knots)
-  B744: 490,   // Boeing 747-400 (knots)
-  B788: 490,   // Boeing 787 Dreamliner (knots)
-  A320: 460,   // Airbus A320 (knots)
-  A350: 490,   // Airbus A350 (knots)
-  E190: 430,   // Embraer E190 (knots)
-  ATR42: 280,  // ATR 42 (knots)
-  ATR72: 310,  // ATR 72 (knots)
+  B736: 450,   // Boeing 737-600 (knots)
+  B738: 455,   // Boeing 737-800 (knots)
+  B739: 455,   // Boeing 737-900 (knots)
+  B38M: 460,   // Boeing 737 MAX 8 (knots)
+  B748: 490,   // Boeing 747-400 (knots)
+  B77F: 485,   // Boeing 777-F (knots)
+  A319: 450,   // Airbus A319 (knots)
+  A320: 455,   // Airbus A320 (knots)
+  A350: 488,   // Airbus A350 (knots)
+  A380: 488,   // Airbus A380 (knots)
+  ATR42: 275,  // ATR 42 (knots)
+  ATR72: 280,  // ATR 72 (knots)
 };
 
 const RANKS = [

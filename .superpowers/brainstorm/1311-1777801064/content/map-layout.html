@@ -1,0 +1,277 @@
+<h2>Map Page — Overall Layout</h2>
+<p class="subtitle">How should the space be divided between the map and flight information?</p>
+
+<style>
+  .mock-map-page {
+    background: #0A0D17;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(61,126,238,0.2);
+    font-family: 'JetBrains Mono', monospace;
+    height: 220px;
+    position: relative;
+  }
+  .mock-sidebar-nav {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 44px;
+    background: #0d1020;
+    border-right: 1px solid rgba(255,255,255,0.07);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 10px;
+    gap: 8px;
+  }
+  .mock-nav-dot {
+    width: 20px; height: 20px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.08);
+  }
+  .mock-nav-dot.active { background: #3D7EEE; }
+  .mock-map-bg {
+    background: #141b2d;
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(61,126,238,0.35);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+  }
+  .mock-map-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 40% 50%, rgba(61,126,238,0.06) 0%, transparent 60%),
+      repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(61,126,238,0.04) 19px, rgba(61,126,238,0.04) 20px),
+      repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(61,126,238,0.04) 19px, rgba(61,126,238,0.04) 20px);
+    pointer-events: none;
+  }
+  .mock-plane {
+    position: absolute;
+    font-size: 18px;
+    transform: rotate(45deg);
+    filter: drop-shadow(0 0 6px #3D7EEE);
+    z-index: 2;
+  }
+  .mock-route-line {
+    position: absolute;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(61,126,238,0.6), rgba(61,126,238,0.2));
+    border-top: 1px dashed rgba(61,126,238,0.4);
+    z-index: 1;
+  }
+  .mock-panel {
+    position: absolute;
+    background: #10152b;
+    border-left: 1px solid rgba(61,126,238,0.15);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+  }
+  .mock-panel-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 9px;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.06em;
+  }
+  .mock-panel-val {
+    color: #3D7EEE;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .mock-chip {
+    background: rgba(61,126,238,0.15);
+    border: 1px solid rgba(61,126,238,0.3);
+    border-radius: 3px;
+    padding: 2px 6px;
+    font-size: 8px;
+    color: #3D7EEE;
+    letter-spacing: 0.08em;
+  }
+  .mock-bottom-bar {
+    position: absolute;
+    bottom: 0; left: 44px; right: 0;
+    height: 56px;
+    background: #10152b;
+    border-top: 1px solid rgba(61,126,238,0.15);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 24px;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.5);
+  }
+  .mock-bottom-stat { display: flex; flex-direction: column; gap: 2px; }
+  .mock-bottom-stat span:last-child { color: #fff; font-size: 13px; font-weight: 700; }
+  .mock-overlay-card {
+    position: absolute;
+    background: rgba(13,16,32,0.9);
+    border: 1px solid rgba(61,126,238,0.25);
+    border-radius: 6px;
+    backdrop-filter: blur(8px);
+    padding: 8px 12px;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    z-index: 10;
+  }
+  .mock-overlay-card .mock-panel-val { font-size: 11px; }
+  .mock-map-controls {
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 10;
+  }
+  .mock-control-btn {
+    width: 24px; height: 24px;
+    background: rgba(13,16,32,0.85);
+    border: 1px solid rgba(61,126,238,0.25);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: rgba(255,255,255,0.6);
+  }
+</style>
+
+<div class="options">
+
+  <!-- Option A: Full-screen map with overlay cards -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Full Map + Overlay Cards</h3>
+      <p>Map fills the entire content area. Flight data floats on top as draggable HUD cards.</p>
+      <div class="mock-map-page" style="margin-top:10px;">
+        <div class="mock-sidebar-nav">
+          <div class="mock-nav-dot"></div>
+          <div class="mock-nav-dot active"></div>
+          <div class="mock-nav-dot"></div>
+          <div class="mock-nav-dot"></div>
+        </div>
+        <!-- Full map -->
+        <div class="mock-map-bg" style="left:44px;right:0;top:0;bottom:0;">
+          LIVE MAP
+          <div class="mock-plane" style="left:55%;top:40%;">✈</div>
+          <div class="mock-route-line" style="left:25%;top:49.5%;width:55%;"></div>
+        </div>
+        <!-- Overlay cards -->
+        <div class="mock-overlay-card" style="left:56px;top:10px;">
+          <div style="color:rgba(255,255,255,0.4);font-size:8px;margin-bottom:4px;">EGLL → LEMD</div>
+          <div class="mock-panel-val">FL350</div>
+        </div>
+        <div class="mock-overlay-card" style="left:56px;bottom:10px;">
+          <div style="display:flex;gap:16px;">
+            <div class="mock-bottom-stat"><span>IAS</span><span style="color:#fff;font-size:12px;font-weight:700;">248</span></div>
+            <div class="mock-bottom-stat"><span>GS</span><span style="color:#fff;font-size:12px;font-weight:700;">461</span></div>
+            <div class="mock-bottom-stat"><span>HDG</span><span style="color:#fff;font-size:12px;font-weight:700;">193°</span></div>
+          </div>
+        </div>
+        <div class="mock-map-controls">
+          <div class="mock-control-btn">+</div>
+          <div class="mock-control-btn">−</div>
+          <div class="mock-control-btn">⊙</div>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Maximum map real estate</li><li>Immersive cockpit feel</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Data harder to scan at a glance</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: Split layout -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Split: Map + Info Panel</h3>
+      <p>Map on the left (~65%), structured flight data panel on the right.</p>
+      <div class="mock-map-page" style="margin-top:10px;">
+        <div class="mock-sidebar-nav">
+          <div class="mock-nav-dot"></div>
+          <div class="mock-nav-dot active"></div>
+          <div class="mock-nav-dot"></div>
+          <div class="mock-nav-dot"></div>
+        </div>
+        <!-- Map area -->
+        <div class="mock-map-bg" style="left:44px;right:34%;top:0;bottom:0;">
+          LIVE MAP
+          <div class="mock-plane" style="left:52%;top:42%;">✈</div>
+          <div class="mock-route-line" style="left:10%;top:49.5%;width:72%;"></div>
+        </div>
+        <!-- Info panel -->
+        <div class="mock-panel" style="right:0;top:0;bottom:0;width:34%;">
+          <div class="mock-chip" style="align-self:flex-start;">AIRBORNE</div>
+          <div class="mock-panel-row"><span>ALT</span><span class="mock-panel-val">FL350</span></div>
+          <div class="mock-panel-row"><span>IAS</span><span class="mock-panel-val">248 KT</span></div>
+          <div class="mock-panel-row"><span>GS</span><span class="mock-panel-val">461 KT</span></div>
+          <div class="mock-panel-row"><span>VS</span><span class="mock-panel-val">+200 FPM</span></div>
+          <div style="height:1px;background:rgba(61,126,238,0.15);margin:2px 0;"></div>
+          <div class="mock-panel-row"><span>EGLL</span><span style="color:rgba(255,255,255,0.3);font-size:8px;">DEP</span></div>
+          <div class="mock-panel-row"><span>LEMD</span><span style="color:rgba(255,255,255,0.3);font-size:8px;">ARR</span></div>
+          <div class="mock-panel-row"><span>ETA</span><span class="mock-panel-val">16:42Z</span></div>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>Pros</h4><ul><li>All data visible at once</li><li>Easy to scan</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Less map space</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C: Map + collapsible bottom strip -->
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Map + Bottom Data Strip</h3>
+      <p>Map fills most of the screen. A pinned data strip along the bottom shows key telemetry.</p>
+      <div class="mock-map-page" style="margin-top:10px;">
+        <div class="mock-sidebar-nav">
+          <div class="mock-nav-dot"></div>
+          <div class="mock-nav-dot active"></div>
+          <div class="mock-nav-dot"></div>
+          <div class="mock-nav-dot"></div>
+        </div>
+        <!-- Map area -->
+        <div class="mock-map-bg" style="left:44px;right:0;top:0;bottom:56px;">
+          LIVE MAP
+          <div class="mock-plane" style="left:52%;top:44%;">✈</div>
+          <div class="mock-route-line" style="left:10%;top:49%;width:72%;"></div>
+        </div>
+        <div class="mock-map-controls" style="right:12px;top:12px;">
+          <div class="mock-control-btn">+</div>
+          <div class="mock-control-btn">−</div>
+        </div>
+        <!-- Bottom strip -->
+        <div class="mock-bottom-bar">
+          <div class="mock-bottom-stat"><span>ROUTE</span><span>EGLL→LEMD</span></div>
+          <div style="width:1px;height:30px;background:rgba(255,255,255,0.08);"></div>
+          <div class="mock-bottom-stat"><span>ALT</span><span>FL350</span></div>
+          <div class="mock-bottom-stat"><span>IAS</span><span>248 KT</span></div>
+          <div class="mock-bottom-stat"><span>GS</span><span>461 KT</span></div>
+          <div class="mock-bottom-stat"><span>VS</span><span>+200 FPM</span></div>
+          <div style="margin-left:auto;">
+            <div class="mock-chip">AIRBORNE</div>
+          </div>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Near full-screen map</li><li>Data always visible</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Bottom strip is narrow for detail</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>

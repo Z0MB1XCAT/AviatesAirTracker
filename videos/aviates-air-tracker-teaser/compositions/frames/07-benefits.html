@@ -1,0 +1,394 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- head is metadata only for the source file; the runtime discards it -->
+  </head>
+  <body>
+    <template>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          font-family: "Outfit", sans-serif;
+          container-type: size;
+        }
+
+        /* full-bleed ground clip — never painted directly on #root */
+        .ground {
+          position: absolute;
+          inset: 0;
+          background-color: #0a0d17;
+        }
+
+        .grid-layer {
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(241, 245, 249, 0.1) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(241, 245, 249, 0.1) 1px, transparent 1px);
+          background-size: 2cqw 2cqw;
+        }
+
+        .hairline {
+          position: absolute;
+          left: 4cqw;
+          right: 4cqw;
+          height: 0.12cqw;
+          background: #f1f5f9;
+          transform: scaleX(0);
+          transform-origin: left center;
+        }
+        .hairline-top {
+          top: 3cqw;
+        }
+        .hairline-bottom {
+          bottom: 3cqw;
+        }
+
+        .meta-tag {
+          position: absolute;
+          top: 4.4cqw;
+          left: 4cqw;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          letter-spacing: 0.06em;
+          color: rgba(241, 245, 249, 0.55);
+          opacity: 0;
+        }
+
+        .page-num {
+          position: absolute;
+          top: 4.4cqw;
+          right: 4cqw;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          letter-spacing: 0.06em;
+          color: rgba(241, 245, 249, 0.55);
+          opacity: 0;
+        }
+
+        /* pixel-glitch column, right edge — signature decoration */
+        .glitch-col {
+          position: absolute;
+          top: 3cqw;
+          bottom: 3cqw;
+          right: 6cqw;
+          width: 3.2cqw;
+          opacity: 0;
+          background-image: repeating-linear-gradient(90deg, #f1f5f9 0 2px, transparent 2px 8px);
+          -webkit-mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            #000 8%,
+            #000 28%,
+            transparent 32%,
+            transparent 60%,
+            #000 66%,
+            #000 86%,
+            transparent 90%
+          );
+          mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            #000 8%,
+            #000 28%,
+            transparent 32%,
+            transparent 60%,
+            #000 66%,
+            #000 86%,
+            transparent 90%
+          );
+        }
+
+        /* metronome tick row — rhythm chrome, low area but above keep-out (83cqh cutoff) */
+        .metronome {
+          position: absolute;
+          left: 50%;
+          top: 74cqh;
+          transform: translateX(-50%);
+          display: flex;
+          gap: 1.4cqw;
+        }
+        .metronome i {
+          display: block;
+          width: 0.3cqw;
+          height: 1.6cqw;
+          background: #3b82f6;
+          opacity: 0.18;
+        }
+
+        /* staccato stage — dead-center, fixed anchor for the swapping line */
+        .stage {
+          position: absolute;
+          left: 50%;
+          top: 44cqh;
+          transform: translate(-50%, -50%);
+          width: 88cqw;
+          text-align: center;
+        }
+
+        /* beat-line and finale-wrap share the exact same center anchor (stacked, not flowed) */
+        .beat-line {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          display: block;
+          width: 100%;
+          font-family: "Outfit", sans-serif;
+          font-weight: 400;
+          font-size: 5.6cqw;
+          line-height: 0.98;
+          letter-spacing: -0.01em;
+          color: #f1f5f9;
+          opacity: 0;
+          will-change: opacity, filter;
+        }
+        /* the scale-punch tween needs its own transform — nest it in an inner span so it never
+           collides with the outer element's static centering transform (gsap_css_transform_conflict) */
+        .beat-line-inner {
+          display: inline-block;
+          transform-origin: 50% 50%;
+          will-change: transform;
+        }
+
+        /* finale wrap — shares the stage's exact center anchor with beat-line */
+        .finale-wrap {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          width: 100%;
+          text-align: center;
+        }
+
+        /* finale line — larger, bolder, the locked payoff. No CSS transform here (GSAP owns scale/opacity
+           exclusively — see gsap_css_transform_conflict); centering comes from the parent .finale-wrap. */
+        .finale-line {
+          display: inline-block;
+          font-family: "Outfit", sans-serif;
+          font-weight: 700;
+          font-size: 9.6cqw;
+          line-height: 0.92;
+          letter-spacing: -0.015em;
+          color: #f1f5f9;
+          opacity: 0;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+        }
+
+        /* underline sweep beneath the finale — accent punctuation. Centered via left+margin
+           (not a translateX transform) so GSAP's scaleX tween owns the transform exclusively. */
+        .finale-underline {
+          position: absolute;
+          left: 50%;
+          bottom: -2.4cqw;
+          width: 34cqw;
+          margin-left: -17cqw;
+          height: 0.16cqw;
+          background: #3b82f6;
+          transform-origin: 50% 50%;
+          will-change: transform;
+        }
+
+        /* ambient glow bloom behind the finale */
+        .finale-glow {
+          position: absolute;
+          inset: -18cqw;
+          background: radial-gradient(circle, rgba(59, 130, 246, 0.4) 0%, transparent 68%);
+          opacity: 0;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+          pointer-events: none;
+        }
+      </style>
+
+      <div id="root" data-composition-id="07-benefits" data-width="1920" data-height="1080">
+        <div class="ground clip" data-start="0" data-duration="4" data-track-index="0"></div>
+
+        <div class="grid-layer clip" data-start="0" data-duration="4" data-track-index="1"></div>
+
+        <div
+          class="hairline hairline-top clip"
+          id="h7-hairline-top"
+          data-start="0"
+          data-duration="4"
+          data-track-index="2"
+        ></div>
+        <div
+          class="hairline hairline-bottom clip"
+          id="h7-hairline-bottom"
+          data-start="0"
+          data-duration="4"
+          data-track-index="3"
+        ></div>
+
+        <div class="meta-tag clip" id="h7-meta-tag" data-start="0" data-duration="4" data-track-index="4">
+          AVIATES · SUMMARY
+        </div>
+        <div class="page-num clip" id="h7-page-num" data-start="0" data-duration="4" data-track-index="5">
+          07
+        </div>
+
+        <div class="glitch-col clip" id="h7-glitch" data-start="0" data-duration="4" data-track-index="6"></div>
+
+        <div class="metronome clip" id="h7-metronome" data-start="0" data-duration="4" data-track-index="7">
+          <i></i><i></i><i></i><i></i><i></i>
+        </div>
+
+        <div class="stage clip" data-start="0" data-duration="4" data-track-index="8">
+          <span class="beat-line" id="h7-beat-line"
+            ><span class="beat-line-inner" id="h7-beat-line-inner">LIVE MAP.</span></span
+          >
+          <div class="finale-wrap" id="h7-finale-wrap">
+            <div class="finale-glow" id="h7-finale-glow"></div>
+            <span class="finale-line" id="h7-finale-line">ONE APP.</span>
+            <div class="finale-underline" id="h7-finale-underline"></div>
+          </div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        (function () {
+          window.__timelines = window.__timelines || {};
+          var tl = gsap.timeline({ paused: true });
+
+          // ---- furniture: grid, hairlines, chrome, glitch — lands fast, first beat still hits by t<=0.5s ----
+          tl.fromTo("#h7-hairline-top", { scaleX: 0 }, { scaleX: 1, duration: 0.35, ease: "power3.out" }, 0);
+          tl.fromTo(
+            "#h7-hairline-bottom",
+            { scaleX: 0 },
+            { scaleX: 1, duration: 0.35, ease: "power3.out" },
+            0
+          );
+          tl.fromTo("#h7-meta-tag", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power3.out" }, 0.05);
+          tl.fromTo("#h7-page-num", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power3.out" }, 0.05);
+          tl.fromTo("#h7-glitch", { opacity: 0 }, { opacity: 0.55, duration: 0.35, ease: "power3.out" }, 0.08);
+
+          // ---- ONE shared beat grid drives every phrase + the metronome ticks (kinetic-beat-slam) ----
+          var PULSE = 0.6;
+          var BEATS = [0.0, PULSE * 1, PULSE * 2, PULSE * 3, PULSE * 4]; // 0.0, 0.6, 1.2, 1.8, 2.4
+          var TOTAL_DURATION = 4;
+
+          // metronome ticks flash on the same grid — rhythm chrome
+          var ticks = gsap.utils.toArray("#h7-metronome i");
+          ticks.forEach(function (tick, i) {
+            tl.to(
+              tick,
+              { opacity: 0.9, duration: 0.08, yoyo: true, repeat: 1, ease: "none" },
+              BEATS[i]
+            );
+          });
+
+          var beatLine = document.getElementById("h7-beat-line");
+          var beatLineInner = document.getElementById("h7-beat-line-inner");
+
+          // discrete-text-sequence: sub-shape A fixed-line hard-cut token swap for the first four beats
+          var SEQUENCE = [
+            { t: BEATS[0], text: "LIVE MAP." },
+            { t: BEATS[1], text: "LANDING SCORES." },
+            { t: BEATS[2], text: "CAREER STATS." },
+            { t: BEATS[3], text: "ACARS BOOKING." },
+          ];
+          function textAt(time) {
+            for (var i = SEQUENCE.length - 1; i >= 0; i--) {
+              if (time >= SEQUENCE[i].t) return SEQUENCE[i].text;
+            }
+            return SEQUENCE[0].text;
+          }
+
+          // beat-line is visible for Scenes 1-4, hard-cut opacity so first phrase is on screen at t=0
+          tl.set(beatLine, { opacity: 1 }, 0);
+
+          var driver = { t: 0 };
+          var lastText = "";
+          tl.to(
+            driver,
+            {
+              t: BEATS[4],
+              duration: BEATS[4],
+              ease: "none",
+              onUpdate: function () {
+                var text = textAt(driver.t);
+                if (text !== lastText) {
+                  beatLineInner.textContent = text;
+                  lastText = text;
+                }
+              },
+            },
+            0
+          );
+
+          // a tiny per-beat scale-punch on each hard cut keeps the swap feeling percussive, not static —
+          // targets the INNER span only, so it never fights the outer .beat-line's static centering transform
+          [BEATS[0], BEATS[1], BEATS[2], BEATS[3]].forEach(function (t) {
+            tl.fromTo(
+              beatLineInner,
+              { scale: 1.06 },
+              { scale: 1, duration: 0.22, ease: "power3.out" },
+              t
+            );
+          });
+
+          // beat-line hard-cuts OUT right as the finale slams in (Scene 5)
+          tl.set(beatLine, { opacity: 0 }, BEATS[4]);
+
+          // ---- Scene 5 (2.4-4.0s): kinetic-beat-slam finale — "ONE APP." spring-pop, the video's sanctioned overshoot ----
+          var finaleLine = document.getElementById("h7-finale-line");
+          tl.fromTo(
+            finaleLine,
+            { scale: 0, opacity: 0 },
+            {
+              scale: 1,
+              opacity: 1,
+              duration: 0.6,
+              ease: "back.out(1.7)", // sanctioned playful exception — the video's single climax beat
+            },
+            BEATS[4]
+          );
+
+          // ambient-glow-bloom lands as one beat with the finale's settle
+          tl.fromTo(
+            "#h7-finale-glow",
+            { opacity: 0, scale: 0.85 },
+            { opacity: 0.4, scale: 1, duration: 0.7, ease: "power2.out" },
+            BEATS[4] + 0.05
+          );
+
+          // underline sweep punctuates the finale landing
+          tl.fromTo(
+            "#h7-finale-underline",
+            { scaleX: 0 },
+            { scaleX: 1, duration: 0.45, ease: "power3.out" },
+            BEATS[4] + 0.35
+          );
+
+          // bounded idle breathe on the glow through the hold — finite, sin-driven, not a loop
+          var breathe = { p: 0 };
+          var breatheStart = BEATS[4] + 0.75;
+          var breatheDur = TOTAL_DURATION - breatheStart;
+          tl.to(
+            breathe,
+            {
+              p: Math.PI * 2 * (breatheDur / 3.0),
+              duration: breatheDur,
+              ease: "none",
+              onUpdate: function () {
+                var s = Math.sin(breathe.p);
+                document.getElementById("h7-finale-glow").style.opacity = String(0.4 + s * 0.03);
+              },
+            },
+            breatheStart
+          );
+
+          window.__timelines["07-benefits"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

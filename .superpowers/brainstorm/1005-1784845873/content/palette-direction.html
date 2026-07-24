@@ -1,0 +1,188 @@
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Outfit:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
+
+.dm { border-radius: 10px; overflow: hidden; display: flex; height: 260px; font-size: 11px; }
+.dm-sb { width: 88px; flex-shrink: 0; padding: 12px 10px; display: flex; flex-direction: column; gap: 14px; }
+.dm-brand { font-size: 10px; font-weight: 800; letter-spacing: 0.04em; font-style: italic; }
+.dm-nav { display: flex; flex-direction: column; gap: 5px; }
+.dm-nav i { display: block; height: 16px; border-radius: 5px; font-style: normal; font-size: 8px;
+            line-height: 16px; padding-left: 7px; }
+.dm-body { flex: 1; padding: 12px; display: flex; flex-direction: column; gap: 9px; overflow: hidden; }
+.dm-hero { border-radius: 10px; padding: 12px; height: 92px; position: relative; overflow: hidden; }
+.dm-eyebrow { font-size: 7px; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase;
+              padding: 3px 8px; border-radius: 999px; display: inline-block; }
+.dm-h1 { font-size: 15px; font-weight: 800; letter-spacing: -0.02em; margin-top: 7px; line-height: 1.15; }
+.dm-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.dm-stat { border-radius: 8px; padding: 9px; }
+.dm-stat b { display: block; font-size: 15px; font-weight: 800; letter-spacing: -0.02em; }
+.dm-stat span { font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.09em; }
+.dm-row { border-radius: 8px; padding: 9px 10px; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.dm-line { height: 7px; border-radius: 3px; }
+.dm-pill { font-size: 7px; padding: 2px 7px; border-radius: 999px; display: inline-block; font-weight: 700; }
+
+/* ─── A / B: Night Flight (website palette) ─── */
+.nf { font-family: 'Plus Jakarta Sans', sans-serif; background: #080b14; color: #e7edf7; }
+.nf .dm-sb { background: #0c111d; border-right: 1px solid rgba(255,255,255,.07); }
+.nf .dm-brand { color: #fff; }
+.nf .dm-nav i { color: #6d7d9b; }
+.nf .dm-nav i.on { background: rgba(77,155,236,.12); color: #86bdf5; border: 1px solid rgba(77,155,236,.2); }
+.nf .dm-hero { background: linear-gradient(135deg,#121a2a,#0c111d); border: 1px solid rgba(255,255,255,.13); }
+.nf .dm-hero::after { content:''; position:absolute; inset:0;
+  background: radial-gradient(ellipse 70% 90% at 85% 20%, rgba(77,155,236,.22), transparent 60%); }
+.nf .dm-eyebrow { background: rgba(77,155,236,.12); color: #86bdf5; border: 1px solid rgba(77,155,236,.2); }
+.nf .dm-h1 { font-family: 'Syne', sans-serif; color: #e7edf7; }
+.nf .dm-stat { background: #121a2a; border: 1px solid rgba(255,255,255,.07); }
+.nf .dm-stat b { font-family: 'Syne', sans-serif; color: #86bdf5; }
+.nf .dm-stat span { color: #6d7d9b; }
+.nf .dm-row { background: #121a2a; border: 1px solid rgba(255,255,255,.07); }
+.nf .dm-line { background: rgba(255,255,255,.07); }
+.nf .dm-pill { background: rgba(62,199,172,.12); color: #74dcc6; border: 1px solid rgba(62,199,172,.25); }
+
+/* ─── A light sibling: Daylight (same hues, light surfaces) ─── */
+.dl { font-family: 'Plus Jakarta Sans', sans-serif; background: #eef2fa; color: #0d1526; }
+.dl .dm-sb { background: #0c111d; border-right: 1px solid rgba(255,255,255,.07); }
+.dl .dm-brand { color: #fff; }
+.dl .dm-nav i { color: rgba(255,255,255,.5); }
+.dl .dm-nav i.on { background: rgba(77,155,236,.18); color: #86bdf5; }
+.dl .dm-hero { background: linear-gradient(135deg,#131c2e,#0c111d); border: 1px solid rgba(255,255,255,.1); }
+.dl .dm-hero::after { content:''; position:absolute; inset:0;
+  background: radial-gradient(ellipse 70% 90% at 85% 20%, rgba(77,155,236,.24), transparent 60%); }
+.dl .dm-eyebrow { background: rgba(77,155,236,.14); color: #86bdf5; }
+.dl .dm-h1 { font-family: 'Syne', sans-serif; color: #fff; }
+.dl .dm-stat { background: #fff; border: 1px solid #dde5f2; }
+.dl .dm-stat b { font-family: 'Syne', sans-serif; color: #2f6fbd; }
+.dl .dm-stat span { color: #7f8 da3; color: #7f8da3; }
+.dl .dm-row { background: #fff; border: 1px solid #dde5f2; }
+.dl .dm-line { background: #e6ecf6; }
+.dl .dm-pill { background: rgba(35,150,125,.12); color: #1d8f76; }
+
+/* ─── C: current app palette, accent swapped only ─── */
+.cu { font-family: 'DM Sans', sans-serif; background: #ECF0FB; color: #0F172A; }
+.cu .dm-sb { background: #0B1628; }
+.cu .dm-brand { color: #fff; }
+.cu .dm-nav i { color: rgba(255,255,255,.52); }
+.cu .dm-nav i.on { background: rgba(77,155,236,.16); color: #fff; }
+.cu .dm-hero { background: linear-gradient(135deg,#1e40af,#3B82F6); }
+.cu .dm-eyebrow { background: rgba(255,255,255,.18); color: #fff; }
+.cu .dm-h1 { font-family: 'Outfit', sans-serif; color: #fff; }
+.cu .dm-stat { background: #fff; border: 1px solid #E2E8F0; }
+.cu .dm-stat b { font-family: 'Outfit', sans-serif; color: #0F172A; }
+.cu .dm-stat span { color: #94A3B8; }
+.cu .dm-row { background: #fff; border: 1px solid #E2E8F0; }
+.cu .dm-line { background: #EEF2F8; }
+.cu .dm-pill { background: rgba(16,185,129,.10); color: #10B981; }
+
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pair-cap { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; opacity: .55;
+            margin: 6px 0 3px; font-weight: 700; }
+</style>
+
+<h2>How far should the app move toward the website?</h2>
+<p class="subtitle">Same dashboard layout in all three — only the palette, type and surface treatment change. The app currently has a light theme <em>and</em> a dark theme; the website is dark-only.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:10px;background:#161b22">
+      <div class="pair-cap" style="color:#8b98ac">Dark theme — "Night Flight"</div>
+      <div class="dm nf">
+        <div class="dm-sb">
+          <div class="dm-brand">AVIATESAIR</div>
+          <div class="dm-nav"><i class="on">Dashboard</i><i>Flights</i><i>Fleet</i><i>ACARS</i><i>Map</i></div>
+        </div>
+        <div class="dm-body">
+          <div class="dm-hero">
+            <span class="dm-eyebrow">● Virtual Airline Ops</span>
+            <div class="dm-h1">Fly with Precision.</div>
+          </div>
+          <div class="dm-stats">
+            <div class="dm-stat"><b>142</b><span>Flights</span></div>
+            <div class="dm-stat"><b>318h</b><span>Hours</span></div>
+            <div class="dm-stat"><b>96</b><span>Landing</span></div>
+          </div>
+          <div class="dm-row"><span class="dm-pill">ARRIVED</span><div class="dm-line" style="width:80%"></div><div class="dm-line" style="width:55%"></div></div>
+        </div>
+      </div>
+      <div class="pair-cap" style="color:#8b98ac">Light theme — same hues, light surfaces</div>
+      <div class="dm dl">
+        <div class="dm-sb">
+          <div class="dm-brand">AVIATESAIR</div>
+          <div class="dm-nav"><i class="on">Dashboard</i><i>Flights</i><i>Fleet</i><i>ACARS</i><i>Map</i></div>
+        </div>
+        <div class="dm-body">
+          <div class="dm-hero">
+            <span class="dm-eyebrow">● Virtual Airline Ops</span>
+            <div class="dm-h1">Fly with Precision.</div>
+          </div>
+          <div class="dm-stats">
+            <div class="dm-stat"><b>142</b><span>Flights</span></div>
+            <div class="dm-stat"><b>318h</b><span>Hours</span></div>
+            <div class="dm-stat"><b>96</b><span>Landing</span></div>
+          </div>
+          <div class="dm-row"><span class="dm-pill">ARRIVED</span><div class="dm-line" style="width:80%"></div><div class="dm-line" style="width:55%"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Retune both themes to the website palette</h3>
+      <p>Azure <code>#4d9bec</code>, mint, champagne + Syne headings replace the app's blue/Outfit. Dark theme becomes a near-match for the site; light theme keeps the same hues on light surfaces. Layout, sidebar and cards untouched. <strong>Both themes survive.</strong></p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:10px;background:#161b22">
+      <div class="pair-cap" style="color:#8b98ac">Dark only — light theme removed</div>
+      <div class="dm nf" style="height:auto">
+        <div class="dm-sb">
+          <div class="dm-brand">AVIATESAIR</div>
+          <div class="dm-nav"><i class="on">Dashboard</i><i>Flights</i><i>Fleet</i><i>ACARS</i><i>Map</i><i>Stats</i></div>
+        </div>
+        <div class="dm-body">
+          <div class="dm-hero" style="height:120px">
+            <span class="dm-eyebrow">● Virtual Airline Ops</span>
+            <div class="dm-h1">Fly with Precision.<br>Build Your Career.</div>
+          </div>
+          <div class="dm-stats">
+            <div class="dm-stat"><b>142</b><span>Flights</span></div>
+            <div class="dm-stat"><b>318h</b><span>Hours</span></div>
+            <div class="dm-stat"><b>96</b><span>Landing</span></div>
+          </div>
+          <div class="dm-row"><span class="dm-pill">ARRIVED</span><div class="dm-line" style="width:80%"></div><div class="dm-line" style="width:55%"></div><div class="dm-line" style="width:68%"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Go dark-only, mirror the site exactly</h3>
+      <p>Delete the light theme and the theme toggle. Tightest visual match to the website, and half the CSS surface to maintain. But daytime/bright-room users lose the light option, and the Settings toggle has to go.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:10px;background:#161b22">
+      <div class="pair-cap" style="color:#8b98ac">Accent swap only — everything else as-is</div>
+      <div class="dm cu" style="height:auto">
+        <div class="dm-sb">
+          <div class="dm-brand">AVIATESAIR</div>
+          <div class="dm-nav"><i class="on">Dashboard</i><i>Flights</i><i>Fleet</i><i>ACARS</i><i>Map</i><i>Stats</i></div>
+        </div>
+        <div class="dm-body">
+          <div class="dm-hero" style="height:120px">
+            <span class="dm-eyebrow">● Virtual Airline Ops</span>
+            <div class="dm-h1">Fly with Precision.<br>Build Your Career.</div>
+          </div>
+          <div class="dm-stats">
+            <div class="dm-stat"><b>142</b><span>Flights</span></div>
+            <div class="dm-stat"><b>318h</b><span>Hours</span></div>
+            <div class="dm-stat"><b>96</b><span>Landing</span></div>
+          </div>
+          <div class="dm-row"><span class="dm-pill">ARRIVED</span><div class="dm-line" style="width:80%"></div><div class="dm-line" style="width:55%"></div><div class="dm-line" style="width:68%"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Light touch: logos, photos, accent hue only</h3>
+      <p>Keep "High Altitude Command" as-is. Swap <code>#3B82F6</code> → <code>#4d9bec</code>, drop in the real logo and aircraft photography. Lowest risk, smallest diff — but the app still reads as a different product from the site.</p>
+    </div>
+  </div>
+
+</div>

@@ -115,6 +115,22 @@ Always call `aviatesMap.init` on `OnAfterRenderAsync(firstRender)` and `aviatesM
 
 `Core/Backend/AviatesBackendClient.cs` is wired into the DI container. `Services/IApiService.cs` + `NullApiService.cs` provide a stub. `MessagingService` actively polls the backend every 30 seconds using the ACARS key as a Bearer token (stored in `SettingsService`). Swap `NullApiService` for a real implementation when endpoints are ready — no page changes required.
 
+### EFB Companion (virtual tablet)
+
+A **new, self-contained module** that hosts a local web server on the LAN so a tablet/phone/second monitor can open the AviatesAir EFB. It only *consumes* existing services (telemetry pipeline, SimBrief, booking) — it does **not** modify them, and works with the live sim or the stub.
+
+- `Services/Efb/EfbServer.cs` — embedded ASP.NET Core **Kestrel** host (via `<FrameworkReference Include="Microsoft.AspNetCore.App" />`), bound to `0.0.0.0` on a random free port. Token + 6-digit-code pairing. WebSocket at `/efb/ws`, REST under `/efb/api`, serves the frontend from **embedded resources** (`EfbWeb/**`, prefix `AviatesAirTracker.EfbWeb.`).
+- `Services/Efb/EfbStateService.cs` — subscribes to `FlightSessionManager.TelemetryUpdated`/`SessionStateChanged`; folds telemetry + `SimBriefService.CurrentPlan` + `BookingService.ActiveBooking` into an `EfbSnapshot`; broadcasts throttled to ~4 Hz.
+- `Core/Efb/` — DTOs + `GeoMath`, aircraft performance profiles + calculator (training-grade, **not** certified), default checklists.
+- Frontend: `EfbWeb/` is a vanilla-JS **iOS-style springboard** (wallpaper + live flight widget + discrete full-screen apps). Flat files only (embedded-resource name → request-path is a plain prefix strip). Keep it offline-safe — the *only* online dependency is Leaflet + map tiles, lazily loaded when the Map app opens.
+- Reuses existing systems rather than duplicating them: **Messages** = `MessagingService` (friend codes, DMs, broadcasts, shared history); **Map traffic** = `OtherPilotsService`; **OFP** = `SimBriefFlightPlan.PdfUrl`.
+- Flight plan: an ACARS-imported plan flows into the EFB automatically. A plan imported *inside* the EFB is stored in `EfbStateService` only and must **never** call `SimBriefService.NotifyPlanLoaded` (that would leak into ACARS/Hoppies/takeoff-briefing).
+- Custom wallpaper is uploaded to the host and stored at `%AppData%\AviatesAirTracker\efb_wallpaper.img` (shared across paired devices). Default wallpaper order: uploaded → bundled `EfbWeb/wallpaper.jpg` → gradient.
+- **Landing reports are shared**: `Core/Analytics/LandingReport.cs` is the single projection rendered by BOTH the desktop `LandingResultModal.razor` and the EFB Landing app. Add pilot-facing landing data there, never to one UI only. Landings persist before the popup fires, so the EFB can always re-show them.
+- ATIS (`Services/Efb/EfbAtisService.cs`) prefers the VATSIM datafeed (cached 90 s) and falls back to a METAR-derived ATIS.
+- Settings: `AppSettings.Efb*` (`EfbEnabled`, `EfbAutoStart`, `EfbPort`, `EfbPairingSecret`, `EfbTheme`). Started in `App.xaml.cs` when enabled; disposed on exit.
+- Full docs: [docs/EFB.md](docs/EFB.md).
+
 ## Key File Locations
 
 | File | Purpose |
@@ -137,6 +153,10 @@ Always call `aviatesMap.init` on `OnAfterRenderAsync(firstRender)` and `aviatesM
 | `Services/RunwayDetector.cs` | Built-in runway database, touchdown identification |
 | `Models/FlightModels.cs` | `FlightRecord`, `LandingResult`, and other domain models |
 | `Controls/AviationControls.cs` | WPF vector instrument controls (CompassRose, etc.) |
+| `Services/Efb/EfbServer.cs` | Embedded Kestrel LAN server for the EFB companion (REST + WebSocket + pairing) |
+| `Services/Efb/EfbStateService.cs` | Telemetry→`EfbSnapshot` bridge feeding the EFB |
+| `Core/Efb/EfbPerformanceCalculator.cs` | EFB takeoff/landing performance (training-grade) |
+| `EfbWeb/` | Embedded zero-dependency EFB tablet frontend (HTML/CSS/JS) |
 
 ## Technology Stack
 

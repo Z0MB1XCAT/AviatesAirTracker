@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #000;
+      }
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #0A0D17;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="42"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div
+        id="el-01-hook"
+        class="scene"
+        data-composition-id="01-hook"
+        data-composition-src="compositions/frames/01-hook.html"
+        data-start="0"
+        data-duration="3.9"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-02-product-intro"
+        class="scene"
+        data-composition-id="02-product-intro"
+        data-composition-src="compositions/frames/02-product-intro.html"
+        data-start="3.5"
+        data-duration="5.5"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-03-live-tracking"
+        class="scene"
+        data-composition-id="03-live-tracking"
+        data-composition-src="compositions/frames/03-live-tracking.html"
+        data-start="8.5"
+        data-duration="6.5"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-04-landing-analysis"
+        class="scene"
+        data-composition-id="04-landing-analysis"
+        data-composition-src="compositions/frames/04-landing-analysis.html"
+        data-start="14.5"
+        data-duration="6.5"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-05-career-stats"
+        class="scene"
+        data-composition-id="05-career-stats"
+        data-composition-src="compositions/frames/05-career-stats.html"
+        data-start="20.5"
+        data-duration="5.5"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-06-acars-fleet"
+        class="scene"
+        data-composition-id="06-acars-fleet"
+        data-composition-src="compositions/frames/06-acars-fleet.html"
+        data-start="25.5"
+        data-duration="6.4"
+        data-track-index="1"
+      ></div>
+
+      <div
+        id="el-07-benefits"
+        class="scene"
+        data-composition-id="07-benefits"
+        data-composition-src="compositions/frames/07-benefits.html"
+        data-start="31.5"
+        data-duration="4.4"
+        data-track-index="0"
+      ></div>
+
+      <div
+        id="el-08-brand-outro"
+        class="scene"
+        data-composition-id="08-brand-outro"
+        data-composition-src="compositions/frames/08-brand-outro.html"
+        data-start="35.5"
+        data-duration="6.5"
+        data-track-index="1"
+      ></div>
+
+      <!-- BGM -->
+      <audio
+        id="el-bgm"
+        src="assets/bgm/track.mp3"
+        data-start="0"
+        data-duration="42"
+        data-track-index="11"
+        data-volume="0.9"
+      ></audio>
+
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+      // ── frame transitions (injected by transitions.mjs) ──
+      (function () { var tl = window.__timelines["main"];
+        tl.to("#el-01-hook", { scale: 2.5, opacity: 0, filter: "blur(8px)", duration: 0.4, ease: "power3.in" }, 3.5);
+        tl.fromTo("#el-02-product-intro", { scale: 0.5, opacity: 0, filter: "blur(8px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.4, ease: "power3.out" }, 3.5);
+        tl.to("#el-02-product-intro", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 8.5);
+        tl.fromTo("#el-03-live-tracking", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 8.5);
+        tl.to("#el-03-live-tracking", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 14.5);
+        tl.fromTo("#el-04-landing-analysis", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 14.5);
+        tl.to("#el-04-landing-analysis", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 20.5);
+        tl.fromTo("#el-05-career-stats", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 20.5);
+        tl.to("#el-05-career-stats", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 25.5);
+        tl.fromTo("#el-06-acars-fleet", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 25.5);
+        tl.to("#el-06-acars-fleet", { scale: 2.5, opacity: 0, filter: "blur(8px)", duration: 0.4, ease: "power3.in" }, 31.5);
+        tl.fromTo("#el-07-benefits", { scale: 0.5, opacity: 0, filter: "blur(8px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.4, ease: "power3.out" }, 31.5);
+        tl.to("#el-07-benefits", { scale: 2.5, opacity: 0, filter: "blur(8px)", duration: 0.4, ease: "power3.in" }, 35.5);
+        tl.fromTo("#el-08-brand-outro", { scale: 0.5, opacity: 0, filter: "blur(8px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.4, ease: "power3.out" }, 35.5);
+        tl.to({}, { duration: 42 }, 0); // full-span anchor — main.duration() == composition total (Studio master duration)
+      })();
+    </script>
+  </body>
+</html>

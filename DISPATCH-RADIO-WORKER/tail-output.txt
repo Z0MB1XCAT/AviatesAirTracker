@@ -1,0 +1,1600 @@
+
+ ⛅️ wrangler 4.110.0 (update available 4.112.0)
+───────────────────────────────────────────────
+Successfully created tail, expires at 2026-07-20T14:52:34Z
+Connected to aviates-dispatch-radio, waiting for logs...
+Unknown Event - Ok @ 20/07/2026, 09:55:24
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= false bytes/text= {"type":"voice_start","from":"dispatch"}
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:29
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1137
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:29
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1956
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:29
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1956
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:30
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:30
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:30
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:30
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:30
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:30
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:30
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:30
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:31
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:31
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:31
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:31
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:31
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:31
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:31
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:31
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:32
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:32
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:32
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:32
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:32
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:32
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:32
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:32
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:32
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:33
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:33
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:33
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:33
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:33
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:33
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:33
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:33
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1956
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:34
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= false bytes/text= {"type":"voice_end","from":"dispatch"}
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:34
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= false bytes/text= {"type":"voice_start","from":"dispatch"}
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:50
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1137
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:51
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1956
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:51
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1956
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:51
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:51
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:51
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:51
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:51
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:51
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:52
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:52
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:52
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:52
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 974
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:52
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= false bytes/text= {"type":"voice_end","from":"dispatch"}
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:52
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= false bytes/text= {"type":"voice_start","from":"dispatch"}
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:54
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1137
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:54
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1956
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:54
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1956
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:54
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:54
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:54
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:54
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:54
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:55
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:55
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:55
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:55
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:55
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:55
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 1957
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:55
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= true bytes/text= 974
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:55
+  (log) [voice-debug] relayVoiceFrame from tags= [ 'voice-admin' ] isBinary= false bytes/text= {"type":"voice_end","from":"dispatch"}
+  (log) [voice-debug] voice-admin socket count= 1
+  (log) [voice-debug] voice-pilot socket count= 0
+Unknown Event - Ok @ 20/07/2026, 09:55:58
+Unknown Event - Ok @ 20/07/2026, 09:55:59
+Unknown Event - Ok @ 20/07/2026, 09:56:00
+Unknown Event - Ok @ 20/07/2026, 09:56:01
+Unknown Event - Ok @ 20/07/2026, 09:56:02
+Alarm @ 20/07/2026, 09:56:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:56:04
+Unknown Event - Ok @ 20/07/2026, 09:56:04
+Unknown Event - Ok @ 20/07/2026, 09:56:05
+Unknown Event - Ok @ 20/07/2026, 09:56:06
+Unknown Event - Ok @ 20/07/2026, 09:56:07
+Alarm @ 20/07/2026, 09:56:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:56:09
+Unknown Event - Ok @ 20/07/2026, 09:56:09
+Unknown Event - Ok @ 20/07/2026, 09:56:10
+Unknown Event - Ok @ 20/07/2026, 09:56:11
+Unknown Event - Ok @ 20/07/2026, 09:56:12
+Alarm @ 20/07/2026, 09:56:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:56:14
+Unknown Event - Ok @ 20/07/2026, 09:56:14
+Unknown Event - Ok @ 20/07/2026, 09:56:15
+Unknown Event - Ok @ 20/07/2026, 09:56:16
+Unknown Event - Ok @ 20/07/2026, 09:56:17
+Alarm @ 20/07/2026, 09:56:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:56:19
+Unknown Event - Ok @ 20/07/2026, 09:56:19
+Unknown Event - Ok @ 20/07/2026, 09:56:20
+Unknown Event - Ok @ 20/07/2026, 09:56:21
+Unknown Event - Ok @ 20/07/2026, 09:56:23
+Alarm @ 20/07/2026, 09:56:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:56:24
+Unknown Event - Ok @ 20/07/2026, 09:56:25
+Unknown Event - Ok @ 20/07/2026, 09:56:26
+Unknown Event - Ok @ 20/07/2026, 09:56:27
+Unknown Event - Ok @ 20/07/2026, 09:56:28
+Alarm @ 20/07/2026, 09:56:29 - Ok
+Alarm @ 20/07/2026, 09:56:29 - Canceled
+Unknown Event - Ok @ 20/07/2026, 09:56:29
+Unknown Event - Ok @ 20/07/2026, 09:56:30
+Unknown Event - Ok @ 20/07/2026, 09:56:31
+Unknown Event - Ok @ 20/07/2026, 09:56:32
+Alarm @ 20/07/2026, 09:56:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:56:34
+Unknown Event - Ok @ 20/07/2026, 09:56:34
+Unknown Event - Ok @ 20/07/2026, 09:56:35
+Unknown Event - Ok @ 20/07/2026, 09:56:36
+Unknown Event - Ok @ 20/07/2026, 09:56:37
+Alarm @ 20/07/2026, 09:56:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:56:39
+Unknown Event - Ok @ 20/07/2026, 09:56:39
+Unknown Event - Ok @ 20/07/2026, 09:56:40
+Unknown Event - Ok @ 20/07/2026, 09:56:41
+Unknown Event - Ok @ 20/07/2026, 09:56:42
+Alarm @ 20/07/2026, 09:56:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:56:44
+Unknown Event - Ok @ 20/07/2026, 09:56:44
+Unknown Event - Ok @ 20/07/2026, 09:56:45
+Unknown Event - Ok @ 20/07/2026, 09:56:47
+Unknown Event - Ok @ 20/07/2026, 09:56:48
+Alarm @ 20/07/2026, 09:56:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:56:49
+Unknown Event - Ok @ 20/07/2026, 09:56:50
+Unknown Event - Ok @ 20/07/2026, 09:56:51
+Unknown Event - Ok @ 20/07/2026, 09:56:52
+Unknown Event - Ok @ 20/07/2026, 09:56:53
+Alarm @ 20/07/2026, 09:56:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:56:54
+Unknown Event - Ok @ 20/07/2026, 09:56:55
+Unknown Event - Ok @ 20/07/2026, 09:56:56
+Unknown Event - Ok @ 20/07/2026, 09:56:57
+Unknown Event - Ok @ 20/07/2026, 09:56:58
+Alarm @ 20/07/2026, 09:56:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:56:59
+Unknown Event - Ok @ 20/07/2026, 09:57:00
+Unknown Event - Ok @ 20/07/2026, 09:57:01
+Unknown Event - Ok @ 20/07/2026, 09:57:02
+Unknown Event - Ok @ 20/07/2026, 09:57:04
+Alarm @ 20/07/2026, 09:57:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:57:04
+Unknown Event - Ok @ 20/07/2026, 09:57:05
+Unknown Event - Ok @ 20/07/2026, 09:57:06
+Unknown Event - Ok @ 20/07/2026, 09:57:07
+Alarm @ 20/07/2026, 09:57:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:57:09
+Unknown Event - Ok @ 20/07/2026, 09:57:09
+Unknown Event - Ok @ 20/07/2026, 09:57:10
+Unknown Event - Ok @ 20/07/2026, 09:57:11
+Unknown Event - Ok @ 20/07/2026, 09:57:12
+Alarm @ 20/07/2026, 09:57:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:57:14
+Unknown Event - Ok @ 20/07/2026, 09:57:14
+Unknown Event - Ok @ 20/07/2026, 09:57:15
+Unknown Event - Ok @ 20/07/2026, 09:57:17
+Unknown Event - Ok @ 20/07/2026, 09:57:18
+Alarm @ 20/07/2026, 09:57:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:57:19
+Unknown Event - Ok @ 20/07/2026, 09:57:20
+Unknown Event - Ok @ 20/07/2026, 09:57:21
+Unknown Event - Ok @ 20/07/2026, 09:57:22
+Unknown Event - Ok @ 20/07/2026, 09:57:23
+Alarm @ 20/07/2026, 09:57:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:57:24
+Unknown Event - Ok @ 20/07/2026, 09:57:25
+Unknown Event - Ok @ 20/07/2026, 09:57:26
+Unknown Event - Ok @ 20/07/2026, 09:57:27
+Alarm @ 20/07/2026, 09:57:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:57:29
+Alarm @ 20/07/2026, 09:57:29 - Canceled
+Unknown Event - Ok @ 20/07/2026, 09:57:29
+Unknown Event - Ok @ 20/07/2026, 09:57:30
+Unknown Event - Ok @ 20/07/2026, 09:57:31
+Unknown Event - Ok @ 20/07/2026, 09:57:32
+Alarm @ 20/07/2026, 09:57:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:57:34
+Unknown Event - Ok @ 20/07/2026, 09:57:34
+Unknown Event - Ok @ 20/07/2026, 09:57:35
+Unknown Event - Ok @ 20/07/2026, 09:57:36
+Unknown Event - Ok @ 20/07/2026, 09:57:37
+Alarm @ 20/07/2026, 09:57:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:57:39
+Unknown Event - Ok @ 20/07/2026, 09:57:39
+Unknown Event - Ok @ 20/07/2026, 09:57:40
+Unknown Event - Ok @ 20/07/2026, 09:57:41
+Unknown Event - Ok @ 20/07/2026, 09:57:42
+Alarm @ 20/07/2026, 09:57:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:57:44
+Unknown Event - Ok @ 20/07/2026, 09:57:44
+Unknown Event - Ok @ 20/07/2026, 09:57:45
+Unknown Event - Ok @ 20/07/2026, 09:57:46
+Unknown Event - Ok @ 20/07/2026, 09:57:48
+Alarm @ 20/07/2026, 09:57:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:57:49
+Unknown Event - Ok @ 20/07/2026, 09:57:50
+Unknown Event - Ok @ 20/07/2026, 09:57:51
+Unknown Event - Ok @ 20/07/2026, 09:57:52
+Unknown Event - Ok @ 20/07/2026, 09:57:53
+Alarm @ 20/07/2026, 09:57:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:57:54
+Unknown Event - Ok @ 20/07/2026, 09:57:55
+Unknown Event - Ok @ 20/07/2026, 09:57:56
+Unknown Event - Ok @ 20/07/2026, 09:57:57
+Alarm @ 20/07/2026, 09:57:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:57:59
+Unknown Event - Ok @ 20/07/2026, 09:57:59
+Unknown Event - Ok @ 20/07/2026, 09:58:00
+Unknown Event - Ok @ 20/07/2026, 09:58:01
+Unknown Event - Ok @ 20/07/2026, 09:58:02
+Alarm @ 20/07/2026, 09:58:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:58:04
+Unknown Event - Ok @ 20/07/2026, 09:58:04
+Unknown Event - Ok @ 20/07/2026, 09:58:05
+Unknown Event - Ok @ 20/07/2026, 09:58:06
+Unknown Event - Ok @ 20/07/2026, 09:58:07
+Alarm @ 20/07/2026, 09:58:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:58:09
+Unknown Event - Ok @ 20/07/2026, 09:58:09
+Unknown Event - Ok @ 20/07/2026, 09:58:10
+Unknown Event - Ok @ 20/07/2026, 09:58:11
+Unknown Event - Ok @ 20/07/2026, 09:58:12
+Alarm @ 20/07/2026, 09:58:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:58:14
+Unknown Event - Ok @ 20/07/2026, 09:58:14
+Unknown Event - Ok @ 20/07/2026, 09:58:15
+Unknown Event - Ok @ 20/07/2026, 09:58:16
+Unknown Event - Ok @ 20/07/2026, 09:58:17
+Alarm @ 20/07/2026, 09:58:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:58:19
+Unknown Event - Ok @ 20/07/2026, 09:58:19
+Unknown Event - Ok @ 20/07/2026, 09:58:21
+Unknown Event - Ok @ 20/07/2026, 09:58:22
+Unknown Event - Ok @ 20/07/2026, 09:58:23
+Alarm @ 20/07/2026, 09:58:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:58:24
+Unknown Event - Ok @ 20/07/2026, 09:58:25
+Unknown Event - Ok @ 20/07/2026, 09:58:26
+Unknown Event - Ok @ 20/07/2026, 09:58:27
+Unknown Event - Ok @ 20/07/2026, 09:58:28
+Alarm @ 20/07/2026, 09:58:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:58:29
+Unknown Event - Ok @ 20/07/2026, 09:58:30
+Unknown Event - Ok @ 20/07/2026, 09:58:31
+Unknown Event - Ok @ 20/07/2026, 09:58:32
+Alarm @ 20/07/2026, 09:58:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:58:34
+Unknown Event - Ok @ 20/07/2026, 09:58:34
+Unknown Event - Ok @ 20/07/2026, 09:58:35
+Unknown Event - Ok @ 20/07/2026, 09:58:36
+Unknown Event - Ok @ 20/07/2026, 09:58:37
+Alarm @ 20/07/2026, 09:58:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:58:39
+Unknown Event - Ok @ 20/07/2026, 09:58:39
+Unknown Event - Ok @ 20/07/2026, 09:58:40
+Unknown Event - Ok @ 20/07/2026, 09:58:41
+Unknown Event - Ok @ 20/07/2026, 09:58:42
+Alarm @ 20/07/2026, 09:58:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:58:44
+Unknown Event - Ok @ 20/07/2026, 09:58:44
+Unknown Event - Ok @ 20/07/2026, 09:58:45
+Unknown Event - Ok @ 20/07/2026, 09:58:46
+Unknown Event - Ok @ 20/07/2026, 09:58:48
+Alarm @ 20/07/2026, 09:58:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:58:49
+Unknown Event - Ok @ 20/07/2026, 09:58:50
+Unknown Event - Ok @ 20/07/2026, 09:58:51
+Unknown Event - Ok @ 20/07/2026, 09:58:52
+Unknown Event - Ok @ 20/07/2026, 09:58:53
+Alarm @ 20/07/2026, 09:58:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:58:54
+Unknown Event - Ok @ 20/07/2026, 09:58:55
+Unknown Event - Ok @ 20/07/2026, 09:58:56
+Unknown Event - Ok @ 20/07/2026, 09:58:57
+Unknown Event - Ok @ 20/07/2026, 09:58:58
+Alarm @ 20/07/2026, 09:58:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:58:59
+Unknown Event - Ok @ 20/07/2026, 09:59:00
+Unknown Event - Ok @ 20/07/2026, 09:59:01
+Unknown Event - Ok @ 20/07/2026, 09:59:02
+Alarm @ 20/07/2026, 09:59:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:59:04
+Unknown Event - Ok @ 20/07/2026, 09:59:04
+Unknown Event - Ok @ 20/07/2026, 09:59:05
+Unknown Event - Ok @ 20/07/2026, 09:59:06
+Unknown Event - Ok @ 20/07/2026, 09:59:07
+Alarm @ 20/07/2026, 09:59:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:59:09
+Unknown Event - Ok @ 20/07/2026, 09:59:09
+Unknown Event - Ok @ 20/07/2026, 09:59:10
+Unknown Event - Ok @ 20/07/2026, 09:59:11
+Unknown Event - Ok @ 20/07/2026, 09:59:12
+Alarm @ 20/07/2026, 09:59:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:59:14
+Unknown Event - Ok @ 20/07/2026, 09:59:14
+Unknown Event - Ok @ 20/07/2026, 09:59:15
+Unknown Event - Ok @ 20/07/2026, 09:59:17
+Unknown Event - Ok @ 20/07/2026, 09:59:18
+Alarm @ 20/07/2026, 09:59:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:59:19
+Unknown Event - Ok @ 20/07/2026, 09:59:20
+Unknown Event - Ok @ 20/07/2026, 09:59:21
+Unknown Event - Ok @ 20/07/2026, 09:59:22
+Unknown Event - Ok @ 20/07/2026, 09:59:23
+Alarm @ 20/07/2026, 09:59:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:59:24
+Unknown Event - Ok @ 20/07/2026, 09:59:25
+Unknown Event - Ok @ 20/07/2026, 09:59:26
+Unknown Event - Ok @ 20/07/2026, 09:59:27
+Alarm @ 20/07/2026, 09:59:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:59:29
+Unknown Event - Ok @ 20/07/2026, 09:59:29
+Unknown Event - Ok @ 20/07/2026, 09:59:30
+Unknown Event - Ok @ 20/07/2026, 09:59:31
+Unknown Event - Ok @ 20/07/2026, 09:59:32
+Alarm @ 20/07/2026, 09:59:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:59:34
+Unknown Event - Ok @ 20/07/2026, 09:59:34
+Unknown Event - Ok @ 20/07/2026, 09:59:35
+Unknown Event - Ok @ 20/07/2026, 09:59:36
+Unknown Event - Ok @ 20/07/2026, 09:59:37
+Alarm @ 20/07/2026, 09:59:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:59:39
+Unknown Event - Ok @ 20/07/2026, 09:59:39
+Unknown Event - Ok @ 20/07/2026, 09:59:40
+Unknown Event - Ok @ 20/07/2026, 09:59:41
+Unknown Event - Ok @ 20/07/2026, 09:59:42
+Alarm @ 20/07/2026, 09:59:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:59:44
+Unknown Event - Ok @ 20/07/2026, 09:59:44
+Unknown Event - Ok @ 20/07/2026, 09:59:46
+Unknown Event - Ok @ 20/07/2026, 09:59:47
+Unknown Event - Ok @ 20/07/2026, 09:59:48
+Alarm @ 20/07/2026, 09:59:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:59:49
+Unknown Event - Ok @ 20/07/2026, 09:59:50
+Unknown Event - Ok @ 20/07/2026, 09:59:51
+Unknown Event - Ok @ 20/07/2026, 09:59:52
+Unknown Event - Ok @ 20/07/2026, 09:59:53
+Alarm @ 20/07/2026, 09:59:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:59:54
+Unknown Event - Ok @ 20/07/2026, 09:59:55
+Unknown Event - Ok @ 20/07/2026, 09:59:56
+Unknown Event - Ok @ 20/07/2026, 09:59:57
+Alarm @ 20/07/2026, 09:59:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 09:59:59
+Unknown Event - Ok @ 20/07/2026, 09:59:59
+Unknown Event - Ok @ 20/07/2026, 10:00:00
+Unknown Event - Ok @ 20/07/2026, 10:00:01
+Unknown Event - Ok @ 20/07/2026, 10:00:02
+Alarm @ 20/07/2026, 10:00:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:00:04
+Unknown Event - Ok @ 20/07/2026, 10:00:04
+Unknown Event - Ok @ 20/07/2026, 10:00:05
+Unknown Event - Ok @ 20/07/2026, 10:00:06
+Unknown Event - Ok @ 20/07/2026, 10:00:07
+Alarm @ 20/07/2026, 10:00:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:00:09
+Unknown Event - Ok @ 20/07/2026, 10:00:09
+Unknown Event - Ok @ 20/07/2026, 10:00:11
+Unknown Event - Ok @ 20/07/2026, 10:00:12
+Unknown Event - Ok @ 20/07/2026, 10:00:13
+Alarm @ 20/07/2026, 10:00:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:00:14
+Unknown Event - Ok @ 20/07/2026, 10:00:15
+Unknown Event - Ok @ 20/07/2026, 10:00:16
+Unknown Event - Ok @ 20/07/2026, 10:00:17
+Unknown Event - Ok @ 20/07/2026, 10:00:18
+Alarm @ 20/07/2026, 10:00:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:00:19
+Unknown Event - Ok @ 20/07/2026, 10:00:20
+Unknown Event - Ok @ 20/07/2026, 10:00:21
+Unknown Event - Ok @ 20/07/2026, 10:00:22
+Unknown Event - Ok @ 20/07/2026, 10:00:24
+Alarm @ 20/07/2026, 10:00:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:00:24
+Unknown Event - Ok @ 20/07/2026, 10:00:25
+Unknown Event - Ok @ 20/07/2026, 10:00:26
+Unknown Event - Ok @ 20/07/2026, 10:00:27
+Alarm @ 20/07/2026, 10:00:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:00:29
+Unknown Event - Ok @ 20/07/2026, 10:00:29
+Unknown Event - Ok @ 20/07/2026, 10:00:30
+Unknown Event - Ok @ 20/07/2026, 10:00:31
+Unknown Event - Ok @ 20/07/2026, 10:00:32
+Alarm @ 20/07/2026, 10:00:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:00:34
+Unknown Event - Ok @ 20/07/2026, 10:00:34
+Unknown Event - Ok @ 20/07/2026, 10:00:35
+Unknown Event - Ok @ 20/07/2026, 10:00:36
+Unknown Event - Ok @ 20/07/2026, 10:00:37
+Alarm @ 20/07/2026, 10:00:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:00:39
+Unknown Event - Ok @ 20/07/2026, 10:00:39
+Unknown Event - Ok @ 20/07/2026, 10:00:40
+Unknown Event - Ok @ 20/07/2026, 10:00:42
+Unknown Event - Ok @ 20/07/2026, 10:00:43
+Alarm @ 20/07/2026, 10:00:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:00:44
+Unknown Event - Ok @ 20/07/2026, 10:00:45
+Unknown Event - Ok @ 20/07/2026, 10:00:46
+Unknown Event - Ok @ 20/07/2026, 10:00:47
+Unknown Event - Ok @ 20/07/2026, 10:00:48
+Alarm @ 20/07/2026, 10:00:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:00:49
+Unknown Event - Ok @ 20/07/2026, 10:00:50
+Unknown Event - Ok @ 20/07/2026, 10:00:51
+Unknown Event - Ok @ 20/07/2026, 10:00:52
+Alarm @ 20/07/2026, 10:00:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:00:54
+Unknown Event - Ok @ 20/07/2026, 10:00:54
+Unknown Event - Ok @ 20/07/2026, 10:00:55
+Unknown Event - Ok @ 20/07/2026, 10:00:56
+Unknown Event - Ok @ 20/07/2026, 10:00:57
+Alarm @ 20/07/2026, 10:00:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:00:59
+Unknown Event - Ok @ 20/07/2026, 10:00:59
+Unknown Event - Ok @ 20/07/2026, 10:01:00
+Unknown Event - Ok @ 20/07/2026, 10:01:01
+Unknown Event - Ok @ 20/07/2026, 10:01:02
+Alarm @ 20/07/2026, 10:01:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:01:04
+Unknown Event - Ok @ 20/07/2026, 10:01:04
+Unknown Event - Ok @ 20/07/2026, 10:01:05
+Unknown Event - Ok @ 20/07/2026, 10:01:06
+Unknown Event - Ok @ 20/07/2026, 10:01:08
+Alarm @ 20/07/2026, 10:01:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:01:09
+Unknown Event - Ok @ 20/07/2026, 10:01:10
+Unknown Event - Ok @ 20/07/2026, 10:01:11
+Unknown Event - Ok @ 20/07/2026, 10:01:12
+Unknown Event - Ok @ 20/07/2026, 10:01:13
+Alarm @ 20/07/2026, 10:01:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:01:14
+Unknown Event - Ok @ 20/07/2026, 10:01:15
+Unknown Event - Ok @ 20/07/2026, 10:01:16
+Unknown Event - Ok @ 20/07/2026, 10:01:17
+Alarm @ 20/07/2026, 10:01:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:01:19
+Unknown Event - Ok @ 20/07/2026, 10:01:19
+Unknown Event - Ok @ 20/07/2026, 10:01:20
+Unknown Event - Ok @ 20/07/2026, 10:01:21
+Unknown Event - Ok @ 20/07/2026, 10:01:22
+Alarm @ 20/07/2026, 10:01:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:01:24
+Unknown Event - Ok @ 20/07/2026, 10:01:24
+Unknown Event - Ok @ 20/07/2026, 10:01:25
+Unknown Event - Ok @ 20/07/2026, 10:01:26
+Unknown Event - Ok @ 20/07/2026, 10:01:27
+Alarm @ 20/07/2026, 10:01:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:01:29
+Unknown Event - Ok @ 20/07/2026, 10:01:29
+Unknown Event - Ok @ 20/07/2026, 10:01:30
+Unknown Event - Ok @ 20/07/2026, 10:01:31
+Unknown Event - Ok @ 20/07/2026, 10:01:33
+Alarm @ 20/07/2026, 10:01:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:01:34
+Unknown Event - Ok @ 20/07/2026, 10:01:35
+Unknown Event - Ok @ 20/07/2026, 10:01:36
+Unknown Event - Ok @ 20/07/2026, 10:01:37
+Unknown Event - Ok @ 20/07/2026, 10:01:38
+Alarm @ 20/07/2026, 10:01:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:01:39
+Unknown Event - Ok @ 20/07/2026, 10:01:40
+Unknown Event - Ok @ 20/07/2026, 10:01:41
+Unknown Event - Ok @ 20/07/2026, 10:01:42
+Unknown Event - Ok @ 20/07/2026, 10:01:43
+Alarm @ 20/07/2026, 10:01:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:01:44
+Unknown Event - Ok @ 20/07/2026, 10:01:45
+Unknown Event - Ok @ 20/07/2026, 10:01:46
+Unknown Event - Ok @ 20/07/2026, 10:01:47
+Alarm @ 20/07/2026, 10:01:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:01:49
+Unknown Event - Ok @ 20/07/2026, 10:01:49
+Unknown Event - Ok @ 20/07/2026, 10:01:50
+Unknown Event - Ok @ 20/07/2026, 10:01:51
+Unknown Event - Ok @ 20/07/2026, 10:01:52
+Alarm @ 20/07/2026, 10:01:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:01:54
+Unknown Event - Ok @ 20/07/2026, 10:01:54
+Unknown Event - Ok @ 20/07/2026, 10:01:55
+Unknown Event - Ok @ 20/07/2026, 10:01:56
+Unknown Event - Ok @ 20/07/2026, 10:01:57
+Alarm @ 20/07/2026, 10:01:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:01:59
+Unknown Event - Ok @ 20/07/2026, 10:01:59
+Unknown Event - Ok @ 20/07/2026, 10:02:00
+Unknown Event - Ok @ 20/07/2026, 10:02:01
+Unknown Event - Ok @ 20/07/2026, 10:02:02
+Alarm @ 20/07/2026, 10:02:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:02:04
+Unknown Event - Ok @ 20/07/2026, 10:02:04
+Unknown Event - Ok @ 20/07/2026, 10:02:05
+Unknown Event - Ok @ 20/07/2026, 10:02:06
+Unknown Event - Ok @ 20/07/2026, 10:02:07
+Alarm @ 20/07/2026, 10:02:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:02:09
+Unknown Event - Ok @ 20/07/2026, 10:02:10
+Unknown Event - Ok @ 20/07/2026, 10:02:11
+Unknown Event - Ok @ 20/07/2026, 10:02:12
+Unknown Event - Ok @ 20/07/2026, 10:02:13
+Alarm @ 20/07/2026, 10:02:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:02:14
+Unknown Event - Ok @ 20/07/2026, 10:02:15
+Unknown Event - Ok @ 20/07/2026, 10:02:16
+Unknown Event - Ok @ 20/07/2026, 10:02:17
+Alarm @ 20/07/2026, 10:02:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:02:19
+Unknown Event - Ok @ 20/07/2026, 10:02:19
+Unknown Event - Ok @ 20/07/2026, 10:02:20
+Unknown Event - Ok @ 20/07/2026, 10:02:21
+Unknown Event - Ok @ 20/07/2026, 10:02:22
+Alarm @ 20/07/2026, 10:02:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:02:24
+Unknown Event - Ok @ 20/07/2026, 10:02:24
+Unknown Event - Ok @ 20/07/2026, 10:02:25
+Unknown Event - Ok @ 20/07/2026, 10:02:26
+Unknown Event - Ok @ 20/07/2026, 10:02:27
+Alarm @ 20/07/2026, 10:02:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:02:29
+Unknown Event - Ok @ 20/07/2026, 10:02:29
+Unknown Event - Ok @ 20/07/2026, 10:02:30
+Unknown Event - Ok @ 20/07/2026, 10:02:31
+Unknown Event - Ok @ 20/07/2026, 10:02:32
+Alarm @ 20/07/2026, 10:02:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:02:34
+Unknown Event - Ok @ 20/07/2026, 10:02:34
+Unknown Event - Ok @ 20/07/2026, 10:02:35
+Unknown Event - Ok @ 20/07/2026, 10:02:36
+Unknown Event - Ok @ 20/07/2026, 10:02:38
+Alarm @ 20/07/2026, 10:02:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:02:39
+Unknown Event - Ok @ 20/07/2026, 10:02:40
+Unknown Event - Ok @ 20/07/2026, 10:02:41
+Unknown Event - Ok @ 20/07/2026, 10:02:42
+Unknown Event - Ok @ 20/07/2026, 10:02:43
+Alarm @ 20/07/2026, 10:02:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:02:44
+Unknown Event - Ok @ 20/07/2026, 10:02:45
+Unknown Event - Ok @ 20/07/2026, 10:02:46
+Unknown Event - Ok @ 20/07/2026, 10:02:47
+Alarm @ 20/07/2026, 10:02:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:02:49
+Unknown Event - Ok @ 20/07/2026, 10:02:49
+Unknown Event - Ok @ 20/07/2026, 10:02:50
+Unknown Event - Ok @ 20/07/2026, 10:02:51
+Unknown Event - Ok @ 20/07/2026, 10:02:52
+Alarm @ 20/07/2026, 10:02:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:02:54
+Unknown Event - Ok @ 20/07/2026, 10:02:54
+Unknown Event - Ok @ 20/07/2026, 10:02:55
+Unknown Event - Ok @ 20/07/2026, 10:02:56
+Unknown Event - Ok @ 20/07/2026, 10:02:57
+Alarm @ 20/07/2026, 10:02:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:02:59
+Unknown Event - Ok @ 20/07/2026, 10:02:59
+Unknown Event - Ok @ 20/07/2026, 10:03:00
+Unknown Event - Ok @ 20/07/2026, 10:03:01
+Unknown Event - Ok @ 20/07/2026, 10:03:02
+Alarm @ 20/07/2026, 10:03:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:03:04
+Unknown Event - Ok @ 20/07/2026, 10:03:04
+Unknown Event - Ok @ 20/07/2026, 10:03:06
+Unknown Event - Ok @ 20/07/2026, 10:03:07
+Unknown Event - Ok @ 20/07/2026, 10:03:08
+Alarm @ 20/07/2026, 10:03:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:03:09
+Unknown Event - Ok @ 20/07/2026, 10:03:10
+Unknown Event - Ok @ 20/07/2026, 10:03:11
+Unknown Event - Ok @ 20/07/2026, 10:03:12
+Alarm @ 20/07/2026, 10:03:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:03:14
+Unknown Event - Ok @ 20/07/2026, 10:03:14
+Unknown Event - Ok @ 20/07/2026, 10:03:15
+Unknown Event - Ok @ 20/07/2026, 10:03:16
+Unknown Event - Ok @ 20/07/2026, 10:03:17
+Alarm @ 20/07/2026, 10:03:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:03:19
+Unknown Event - Ok @ 20/07/2026, 10:03:19
+Unknown Event - Ok @ 20/07/2026, 10:03:20
+Unknown Event - Ok @ 20/07/2026, 10:03:21
+Unknown Event - Ok @ 20/07/2026, 10:03:22
+Alarm @ 20/07/2026, 10:03:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:03:24
+Unknown Event - Ok @ 20/07/2026, 10:03:24
+Unknown Event - Ok @ 20/07/2026, 10:03:25
+Unknown Event - Ok @ 20/07/2026, 10:03:26
+Unknown Event - Ok @ 20/07/2026, 10:03:27
+Alarm @ 20/07/2026, 10:03:29 - Ok
+Alarm @ 20/07/2026, 10:03:29 - Canceled
+Unknown Event - Ok @ 20/07/2026, 10:03:29
+Unknown Event - Ok @ 20/07/2026, 10:03:30
+Unknown Event - Ok @ 20/07/2026, 10:03:31
+Unknown Event - Ok @ 20/07/2026, 10:03:32
+Unknown Event - Ok @ 20/07/2026, 10:03:33
+Alarm @ 20/07/2026, 10:03:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:03:34
+Unknown Event - Ok @ 20/07/2026, 10:03:35
+Unknown Event - Ok @ 20/07/2026, 10:03:36
+Unknown Event - Ok @ 20/07/2026, 10:03:37
+Unknown Event - Ok @ 20/07/2026, 10:03:38
+Alarm @ 20/07/2026, 10:03:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:03:39
+Unknown Event - Ok @ 20/07/2026, 10:03:40
+Unknown Event - Ok @ 20/07/2026, 10:03:41
+Unknown Event - Ok @ 20/07/2026, 10:03:42
+Alarm @ 20/07/2026, 10:03:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:03:44
+Unknown Event - Ok @ 20/07/2026, 10:03:44
+Unknown Event - Ok @ 20/07/2026, 10:03:45
+Unknown Event - Ok @ 20/07/2026, 10:03:46
+Unknown Event - Ok @ 20/07/2026, 10:03:47
+Alarm @ 20/07/2026, 10:03:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:03:49
+Unknown Event - Ok @ 20/07/2026, 10:03:49
+Unknown Event - Ok @ 20/07/2026, 10:03:50
+Unknown Event - Ok @ 20/07/2026, 10:03:51
+Unknown Event - Ok @ 20/07/2026, 10:03:52
+Alarm @ 20/07/2026, 10:03:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:03:54
+Unknown Event - Ok @ 20/07/2026, 10:03:54
+Unknown Event - Ok @ 20/07/2026, 10:03:55
+Unknown Event - Ok @ 20/07/2026, 10:03:56
+Unknown Event - Ok @ 20/07/2026, 10:03:58
+Alarm @ 20/07/2026, 10:03:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:03:59
+Unknown Event - Ok @ 20/07/2026, 10:04:00
+Unknown Event - Ok @ 20/07/2026, 10:04:01
+Unknown Event - Ok @ 20/07/2026, 10:04:02
+Unknown Event - Ok @ 20/07/2026, 10:04:03
+Alarm @ 20/07/2026, 10:04:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:04:04
+Unknown Event - Ok @ 20/07/2026, 10:04:05
+Unknown Event - Ok @ 20/07/2026, 10:04:06
+Unknown Event - Ok @ 20/07/2026, 10:04:07
+Unknown Event - Ok @ 20/07/2026, 10:04:08
+Alarm @ 20/07/2026, 10:04:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:04:09
+Unknown Event - Ok @ 20/07/2026, 10:04:10
+Unknown Event - Ok @ 20/07/2026, 10:04:11
+Unknown Event - Ok @ 20/07/2026, 10:04:12
+Alarm @ 20/07/2026, 10:04:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:04:14
+Unknown Event - Ok @ 20/07/2026, 10:04:14
+Unknown Event - Ok @ 20/07/2026, 10:04:15
+Unknown Event - Ok @ 20/07/2026, 10:04:16
+Unknown Event - Ok @ 20/07/2026, 10:04:17
+Alarm @ 20/07/2026, 10:04:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:04:19
+Unknown Event - Ok @ 20/07/2026, 10:04:19
+Unknown Event - Ok @ 20/07/2026, 10:04:20
+Unknown Event - Ok @ 20/07/2026, 10:04:21
+Unknown Event - Ok @ 20/07/2026, 10:04:22
+Alarm @ 20/07/2026, 10:04:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:04:24
+Unknown Event - Ok @ 20/07/2026, 10:04:24
+Unknown Event - Ok @ 20/07/2026, 10:04:26
+Unknown Event - Ok @ 20/07/2026, 10:04:27
+Unknown Event - Ok @ 20/07/2026, 10:04:28
+Alarm @ 20/07/2026, 10:04:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:04:29
+Unknown Event - Ok @ 20/07/2026, 10:04:30
+Unknown Event - Ok @ 20/07/2026, 10:04:31
+Unknown Event - Ok @ 20/07/2026, 10:04:32
+Alarm @ 20/07/2026, 10:04:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:04:34
+Unknown Event - Ok @ 20/07/2026, 10:04:34
+Unknown Event - Ok @ 20/07/2026, 10:04:35
+Unknown Event - Ok @ 20/07/2026, 10:04:36
+Unknown Event - Ok @ 20/07/2026, 10:04:37
+Alarm @ 20/07/2026, 10:04:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:04:39
+Unknown Event - Ok @ 20/07/2026, 10:04:39
+Unknown Event - Ok @ 20/07/2026, 10:04:40
+Unknown Event - Ok @ 20/07/2026, 10:04:41
+Unknown Event - Ok @ 20/07/2026, 10:04:42
+Alarm @ 20/07/2026, 10:04:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:04:44
+Unknown Event - Ok @ 20/07/2026, 10:04:44
+Unknown Event - Ok @ 20/07/2026, 10:04:45
+Unknown Event - Ok @ 20/07/2026, 10:04:46
+Unknown Event - Ok @ 20/07/2026, 10:04:47
+Alarm @ 20/07/2026, 10:04:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:04:49
+Unknown Event - Ok @ 20/07/2026, 10:04:50
+Unknown Event - Ok @ 20/07/2026, 10:04:51
+Unknown Event - Ok @ 20/07/2026, 10:04:52
+Unknown Event - Ok @ 20/07/2026, 10:04:53
+Alarm @ 20/07/2026, 10:04:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:04:54
+Unknown Event - Ok @ 20/07/2026, 10:04:55
+Unknown Event - Ok @ 20/07/2026, 10:04:56
+Unknown Event - Ok @ 20/07/2026, 10:04:57
+Unknown Event - Ok @ 20/07/2026, 10:04:58
+Alarm @ 20/07/2026, 10:04:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:04:59
+Unknown Event - Ok @ 20/07/2026, 10:05:00
+Unknown Event - Ok @ 20/07/2026, 10:05:01
+Unknown Event - Ok @ 20/07/2026, 10:05:02
+Alarm @ 20/07/2026, 10:05:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:05:04
+Unknown Event - Ok @ 20/07/2026, 10:05:04
+Unknown Event - Ok @ 20/07/2026, 10:05:05
+Unknown Event - Ok @ 20/07/2026, 10:05:06
+Unknown Event - Ok @ 20/07/2026, 10:05:07
+Alarm @ 20/07/2026, 10:05:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:05:09
+Unknown Event - Ok @ 20/07/2026, 10:05:09
+Unknown Event - Ok @ 20/07/2026, 10:05:10
+Unknown Event - Ok @ 20/07/2026, 10:05:11
+Unknown Event - Ok @ 20/07/2026, 10:05:12
+Alarm @ 20/07/2026, 10:05:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:05:14
+Unknown Event - Ok @ 20/07/2026, 10:05:14
+Unknown Event - Ok @ 20/07/2026, 10:05:15
+Unknown Event - Ok @ 20/07/2026, 10:05:16
+Unknown Event - Ok @ 20/07/2026, 10:05:17
+Alarm @ 20/07/2026, 10:05:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:05:19
+Unknown Event - Ok @ 20/07/2026, 10:05:19
+Unknown Event - Ok @ 20/07/2026, 10:05:20
+Unknown Event - Ok @ 20/07/2026, 10:05:21
+Unknown Event - Ok @ 20/07/2026, 10:05:23
+Alarm @ 20/07/2026, 10:05:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:05:24
+Unknown Event - Ok @ 20/07/2026, 10:05:25
+Unknown Event - Ok @ 20/07/2026, 10:05:26
+Unknown Event - Ok @ 20/07/2026, 10:05:27
+Unknown Event - Ok @ 20/07/2026, 10:05:28
+Alarm @ 20/07/2026, 10:05:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:05:29
+Unknown Event - Ok @ 20/07/2026, 10:05:30
+Unknown Event - Ok @ 20/07/2026, 10:05:31
+Unknown Event - Ok @ 20/07/2026, 10:05:32
+Unknown Event - Ok @ 20/07/2026, 10:05:33
+Alarm @ 20/07/2026, 10:05:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:05:34
+Unknown Event - Ok @ 20/07/2026, 10:05:35
+Unknown Event - Ok @ 20/07/2026, 10:05:36
+Unknown Event - Ok @ 20/07/2026, 10:05:37
+Alarm @ 20/07/2026, 10:05:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:05:39
+Unknown Event - Ok @ 20/07/2026, 10:05:39
+Unknown Event - Ok @ 20/07/2026, 10:05:40
+Unknown Event - Ok @ 20/07/2026, 10:05:41
+Unknown Event - Ok @ 20/07/2026, 10:05:42
+Alarm @ 20/07/2026, 10:05:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:05:44
+Unknown Event - Ok @ 20/07/2026, 10:05:44
+Unknown Event - Ok @ 20/07/2026, 10:05:45
+Unknown Event - Ok @ 20/07/2026, 10:05:47
+Unknown Event - Ok @ 20/07/2026, 10:05:48
+Alarm @ 20/07/2026, 10:05:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:05:49
+Unknown Event - Ok @ 20/07/2026, 10:05:50
+Unknown Event - Ok @ 20/07/2026, 10:05:51
+Unknown Event - Ok @ 20/07/2026, 10:05:52
+Unknown Event - Ok @ 20/07/2026, 10:05:53
+Alarm @ 20/07/2026, 10:05:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:05:54
+Unknown Event - Ok @ 20/07/2026, 10:05:55
+Unknown Event - Ok @ 20/07/2026, 10:05:56
+Unknown Event - Ok @ 20/07/2026, 10:05:57
+Unknown Event - Ok @ 20/07/2026, 10:05:58
+Alarm @ 20/07/2026, 10:05:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:05:59
+Unknown Event - Ok @ 20/07/2026, 10:06:00
+Unknown Event - Ok @ 20/07/2026, 10:06:01
+Unknown Event - Ok @ 20/07/2026, 10:06:02
+Alarm @ 20/07/2026, 10:06:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:06:04
+Unknown Event - Ok @ 20/07/2026, 10:06:04
+Unknown Event - Ok @ 20/07/2026, 10:06:05
+Unknown Event - Ok @ 20/07/2026, 10:06:06
+Unknown Event - Ok @ 20/07/2026, 10:06:07
+Alarm @ 20/07/2026, 10:06:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:06:09
+Unknown Event - Ok @ 20/07/2026, 10:06:09
+Unknown Event - Ok @ 20/07/2026, 10:06:10
+Unknown Event - Ok @ 20/07/2026, 10:06:11
+Unknown Event - Ok @ 20/07/2026, 10:06:12
+Alarm @ 20/07/2026, 10:06:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:06:14
+Unknown Event - Ok @ 20/07/2026, 10:06:14
+Unknown Event - Ok @ 20/07/2026, 10:06:15
+Unknown Event - Ok @ 20/07/2026, 10:06:16
+Unknown Event - Ok @ 20/07/2026, 10:06:17
+Alarm @ 20/07/2026, 10:06:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:06:19
+Unknown Event - Ok @ 20/07/2026, 10:06:20
+Unknown Event - Ok @ 20/07/2026, 10:06:21
+Unknown Event - Ok @ 20/07/2026, 10:06:22
+Unknown Event - Ok @ 20/07/2026, 10:06:23
+Alarm @ 20/07/2026, 10:06:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:06:24
+Unknown Event - Ok @ 20/07/2026, 10:06:25
+Unknown Event - Ok @ 20/07/2026, 10:06:26
+Unknown Event - Ok @ 20/07/2026, 10:06:27
+Alarm @ 20/07/2026, 10:06:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:06:29
+Unknown Event - Ok @ 20/07/2026, 10:06:29
+Unknown Event - Ok @ 20/07/2026, 10:06:30
+Unknown Event - Ok @ 20/07/2026, 10:06:31
+Unknown Event - Ok @ 20/07/2026, 10:06:32
+Alarm @ 20/07/2026, 10:06:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:06:34
+Unknown Event - Ok @ 20/07/2026, 10:06:34
+Unknown Event - Ok @ 20/07/2026, 10:06:35
+Unknown Event - Ok @ 20/07/2026, 10:06:36
+Unknown Event - Ok @ 20/07/2026, 10:06:37
+Alarm @ 20/07/2026, 10:06:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:06:39
+Unknown Event - Ok @ 20/07/2026, 10:06:39
+Unknown Event - Ok @ 20/07/2026, 10:06:40
+Unknown Event - Ok @ 20/07/2026, 10:06:41
+Unknown Event - Ok @ 20/07/2026, 10:06:42
+Alarm @ 20/07/2026, 10:06:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:06:44
+Unknown Event - Ok @ 20/07/2026, 10:06:44
+Unknown Event - Ok @ 20/07/2026, 10:06:45
+Unknown Event - Ok @ 20/07/2026, 10:06:46
+Unknown Event - Ok @ 20/07/2026, 10:06:48
+Alarm @ 20/07/2026, 10:06:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:06:49
+Unknown Event - Ok @ 20/07/2026, 10:06:50
+Unknown Event - Ok @ 20/07/2026, 10:06:51
+Unknown Event - Ok @ 20/07/2026, 10:06:52
+Unknown Event - Ok @ 20/07/2026, 10:06:53
+Alarm @ 20/07/2026, 10:06:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:06:54
+Unknown Event - Ok @ 20/07/2026, 10:06:55
+Unknown Event - Ok @ 20/07/2026, 10:06:56
+Unknown Event - Ok @ 20/07/2026, 10:06:57
+Alarm @ 20/07/2026, 10:06:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:06:59
+Unknown Event - Ok @ 20/07/2026, 10:06:59
+Unknown Event - Ok @ 20/07/2026, 10:07:00
+Unknown Event - Ok @ 20/07/2026, 10:07:01
+Unknown Event - Ok @ 20/07/2026, 10:07:02
+Alarm @ 20/07/2026, 10:07:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:07:04
+Unknown Event - Ok @ 20/07/2026, 10:07:04
+Unknown Event - Ok @ 20/07/2026, 10:07:05
+Unknown Event - Ok @ 20/07/2026, 10:07:06
+Unknown Event - Ok @ 20/07/2026, 10:07:07
+Alarm @ 20/07/2026, 10:07:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:07:09
+Unknown Event - Ok @ 20/07/2026, 10:07:09
+Unknown Event - Ok @ 20/07/2026, 10:07:10
+Unknown Event - Ok @ 20/07/2026, 10:07:11
+Unknown Event - Ok @ 20/07/2026, 10:07:13
+Alarm @ 20/07/2026, 10:07:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:07:14
+Unknown Event - Ok @ 20/07/2026, 10:07:15
+Unknown Event - Ok @ 20/07/2026, 10:07:16
+Unknown Event - Ok @ 20/07/2026, 10:07:17
+Unknown Event - Ok @ 20/07/2026, 10:07:18
+Alarm @ 20/07/2026, 10:07:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:07:19
+Unknown Event - Ok @ 20/07/2026, 10:07:20
+Unknown Event - Ok @ 20/07/2026, 10:07:21
+Unknown Event - Ok @ 20/07/2026, 10:07:22
+Alarm @ 20/07/2026, 10:07:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:07:24
+Unknown Event - Ok @ 20/07/2026, 10:07:24
+Unknown Event - Ok @ 20/07/2026, 10:07:25
+Unknown Event - Ok @ 20/07/2026, 10:07:26
+Unknown Event - Ok @ 20/07/2026, 10:07:27
+Alarm @ 20/07/2026, 10:07:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:07:29
+Unknown Event - Ok @ 20/07/2026, 10:07:29
+Unknown Event - Ok @ 20/07/2026, 10:07:30
+Unknown Event - Ok @ 20/07/2026, 10:07:31
+Unknown Event - Ok @ 20/07/2026, 10:07:32
+Alarm @ 20/07/2026, 10:07:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:07:34
+Unknown Event - Ok @ 20/07/2026, 10:07:34
+Unknown Event - Ok @ 20/07/2026, 10:07:35
+Unknown Event - Ok @ 20/07/2026, 10:07:36
+Unknown Event - Ok @ 20/07/2026, 10:07:37
+Alarm @ 20/07/2026, 10:07:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:07:39
+Unknown Event - Ok @ 20/07/2026, 10:07:39
+Unknown Event - Ok @ 20/07/2026, 10:07:41
+Unknown Event - Ok @ 20/07/2026, 10:07:42
+Unknown Event - Ok @ 20/07/2026, 10:07:43
+Alarm @ 20/07/2026, 10:07:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:07:44
+Unknown Event - Ok @ 20/07/2026, 10:07:45
+Unknown Event - Ok @ 20/07/2026, 10:07:46
+Unknown Event - Ok @ 20/07/2026, 10:07:47
+Unknown Event - Ok @ 20/07/2026, 10:07:48
+Alarm @ 20/07/2026, 10:07:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:07:49
+Unknown Event - Ok @ 20/07/2026, 10:07:50
+Unknown Event - Ok @ 20/07/2026, 10:07:51
+Unknown Event - Ok @ 20/07/2026, 10:07:52
+Alarm @ 20/07/2026, 10:07:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:07:54
+Unknown Event - Ok @ 20/07/2026, 10:07:54
+Unknown Event - Ok @ 20/07/2026, 10:07:55
+Unknown Event - Ok @ 20/07/2026, 10:07:56
+Unknown Event - Ok @ 20/07/2026, 10:07:57
+Alarm @ 20/07/2026, 10:07:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:07:59
+Unknown Event - Ok @ 20/07/2026, 10:07:59
+Unknown Event - Ok @ 20/07/2026, 10:08:00
+Unknown Event - Ok @ 20/07/2026, 10:08:01
+Unknown Event - Ok @ 20/07/2026, 10:08:02
+Alarm @ 20/07/2026, 10:08:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:08:04
+Unknown Event - Ok @ 20/07/2026, 10:08:05
+Unknown Event - Ok @ 20/07/2026, 10:08:06
+Unknown Event - Ok @ 20/07/2026, 10:08:07
+Unknown Event - Ok @ 20/07/2026, 10:08:08
+Alarm @ 20/07/2026, 10:08:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:08:09
+Unknown Event - Ok @ 20/07/2026, 10:08:10
+Unknown Event - Ok @ 20/07/2026, 10:08:11
+Unknown Event - Ok @ 20/07/2026, 10:08:12
+Unknown Event - Ok @ 20/07/2026, 10:08:13
+Alarm @ 20/07/2026, 10:08:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:08:14
+Unknown Event - Ok @ 20/07/2026, 10:08:15
+Unknown Event - Ok @ 20/07/2026, 10:08:16
+Unknown Event - Ok @ 20/07/2026, 10:08:17
+Alarm @ 20/07/2026, 10:08:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:08:19
+Unknown Event - Ok @ 20/07/2026, 10:08:19
+Unknown Event - Ok @ 20/07/2026, 10:08:20
+Unknown Event - Ok @ 20/07/2026, 10:08:21
+Unknown Event - Ok @ 20/07/2026, 10:08:22
+Alarm @ 20/07/2026, 10:08:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:08:24
+Unknown Event - Ok @ 20/07/2026, 10:08:24
+Unknown Event - Ok @ 20/07/2026, 10:08:25
+Unknown Event - Ok @ 20/07/2026, 10:08:26
+Unknown Event - Ok @ 20/07/2026, 10:08:27
+Alarm @ 20/07/2026, 10:08:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:08:29
+Unknown Event - Ok @ 20/07/2026, 10:08:29
+Unknown Event - Ok @ 20/07/2026, 10:08:31
+Unknown Event - Ok @ 20/07/2026, 10:08:32
+Unknown Event - Ok @ 20/07/2026, 10:08:33
+Alarm @ 20/07/2026, 10:08:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:08:34
+Unknown Event - Ok @ 20/07/2026, 10:08:35
+Unknown Event - Ok @ 20/07/2026, 10:08:36
+Unknown Event - Ok @ 20/07/2026, 10:08:37
+Unknown Event - Ok @ 20/07/2026, 10:08:38
+Alarm @ 20/07/2026, 10:08:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:08:39
+Unknown Event - Ok @ 20/07/2026, 10:08:40
+Unknown Event - Ok @ 20/07/2026, 10:08:41
+Unknown Event - Ok @ 20/07/2026, 10:08:42
+Alarm @ 20/07/2026, 10:08:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:08:44
+Unknown Event - Ok @ 20/07/2026, 10:08:44
+Unknown Event - Ok @ 20/07/2026, 10:08:45
+Unknown Event - Ok @ 20/07/2026, 10:08:46
+Unknown Event - Ok @ 20/07/2026, 10:08:47
+Alarm @ 20/07/2026, 10:08:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:08:49
+Unknown Event - Ok @ 20/07/2026, 10:08:49
+Unknown Event - Ok @ 20/07/2026, 10:08:50
+Unknown Event - Ok @ 20/07/2026, 10:08:51
+Unknown Event - Ok @ 20/07/2026, 10:08:53
+Alarm @ 20/07/2026, 10:08:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:08:54
+Unknown Event - Ok @ 20/07/2026, 10:08:55
+Unknown Event - Ok @ 20/07/2026, 10:08:56
+Unknown Event - Ok @ 20/07/2026, 10:08:57
+Unknown Event - Ok @ 20/07/2026, 10:08:58
+Alarm @ 20/07/2026, 10:08:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:08:59
+Unknown Event - Ok @ 20/07/2026, 10:09:00
+Unknown Event - Ok @ 20/07/2026, 10:09:01
+Unknown Event - Ok @ 20/07/2026, 10:09:02
+Unknown Event - Ok @ 20/07/2026, 10:09:03
+Alarm @ 20/07/2026, 10:09:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:09:04
+Unknown Event - Ok @ 20/07/2026, 10:09:05
+Unknown Event - Ok @ 20/07/2026, 10:09:06
+Unknown Event - Ok @ 20/07/2026, 10:09:07
+Unknown Event - Ok @ 20/07/2026, 10:09:08
+Alarm @ 20/07/2026, 10:09:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:09:09
+Unknown Event - Ok @ 20/07/2026, 10:09:10
+Unknown Event - Ok @ 20/07/2026, 10:09:11
+Unknown Event - Ok @ 20/07/2026, 10:09:12
+Alarm @ 20/07/2026, 10:09:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:09:14
+Unknown Event - Ok @ 20/07/2026, 10:09:14
+Unknown Event - Ok @ 20/07/2026, 10:09:15
+Unknown Event - Ok @ 20/07/2026, 10:09:16
+Unknown Event - Ok @ 20/07/2026, 10:09:17
+Alarm @ 20/07/2026, 10:09:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:09:19
+Unknown Event - Ok @ 20/07/2026, 10:09:19
+Unknown Event - Ok @ 20/07/2026, 10:09:20
+Unknown Event - Ok @ 20/07/2026, 10:09:21
+Unknown Event - Ok @ 20/07/2026, 10:09:22
+Alarm @ 20/07/2026, 10:09:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:09:24
+Unknown Event - Ok @ 20/07/2026, 10:09:25
+Unknown Event - Ok @ 20/07/2026, 10:09:26
+Unknown Event - Ok @ 20/07/2026, 10:09:27
+Unknown Event - Ok @ 20/07/2026, 10:09:28
+Alarm @ 20/07/2026, 10:09:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:09:29
+Unknown Event - Ok @ 20/07/2026, 10:09:30
+Unknown Event - Ok @ 20/07/2026, 10:09:31
+Unknown Event - Ok @ 20/07/2026, 10:09:32
+Unknown Event - Ok @ 20/07/2026, 10:09:33
+Alarm @ 20/07/2026, 10:09:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:09:34
+Unknown Event - Ok @ 20/07/2026, 10:09:35
+Unknown Event - Ok @ 20/07/2026, 10:09:36
+Unknown Event - Ok @ 20/07/2026, 10:09:37
+Alarm @ 20/07/2026, 10:09:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:09:39
+Unknown Event - Ok @ 20/07/2026, 10:09:39
+Unknown Event - Ok @ 20/07/2026, 10:09:40
+Unknown Event - Ok @ 20/07/2026, 10:09:41
+Unknown Event - Ok @ 20/07/2026, 10:09:42
+Alarm @ 20/07/2026, 10:09:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:09:44
+Unknown Event - Ok @ 20/07/2026, 10:09:44
+Unknown Event - Ok @ 20/07/2026, 10:09:45
+Unknown Event - Ok @ 20/07/2026, 10:09:46
+Unknown Event - Ok @ 20/07/2026, 10:09:47
+Alarm @ 20/07/2026, 10:09:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:09:49
+Unknown Event - Ok @ 20/07/2026, 10:09:49
+Unknown Event - Ok @ 20/07/2026, 10:09:50
+Unknown Event - Ok @ 20/07/2026, 10:09:51
+Unknown Event - Ok @ 20/07/2026, 10:09:53
+Alarm @ 20/07/2026, 10:09:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:09:54
+Unknown Event - Ok @ 20/07/2026, 10:09:55
+Unknown Event - Ok @ 20/07/2026, 10:09:56
+Unknown Event - Ok @ 20/07/2026, 10:09:57
+Unknown Event - Ok @ 20/07/2026, 10:09:58
+Alarm @ 20/07/2026, 10:09:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:09:59
+Unknown Event - Ok @ 20/07/2026, 10:10:00
+Unknown Event - Ok @ 20/07/2026, 10:10:01
+Unknown Event - Ok @ 20/07/2026, 10:10:02
+Unknown Event - Ok @ 20/07/2026, 10:10:03
+Alarm @ 20/07/2026, 10:10:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:10:04
+Unknown Event - Ok @ 20/07/2026, 10:10:05
+Unknown Event - Ok @ 20/07/2026, 10:10:06
+Unknown Event - Ok @ 20/07/2026, 10:10:07
+Alarm @ 20/07/2026, 10:10:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:10:09
+Unknown Event - Ok @ 20/07/2026, 10:10:09
+Unknown Event - Ok @ 20/07/2026, 10:10:10
+Unknown Event - Ok @ 20/07/2026, 10:10:11
+Unknown Event - Ok @ 20/07/2026, 10:10:12
+Alarm @ 20/07/2026, 10:10:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:10:14
+Unknown Event - Ok @ 20/07/2026, 10:10:14
+Unknown Event - Ok @ 20/07/2026, 10:10:15
+Unknown Event - Ok @ 20/07/2026, 10:10:16
+Unknown Event - Ok @ 20/07/2026, 10:10:18
+Alarm @ 20/07/2026, 10:10:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:10:19
+Unknown Event - Ok @ 20/07/2026, 10:10:20
+Unknown Event - Ok @ 20/07/2026, 10:10:21
+Unknown Event - Ok @ 20/07/2026, 10:10:22
+Unknown Event - Ok @ 20/07/2026, 10:10:23
+Alarm @ 20/07/2026, 10:10:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:10:24
+Unknown Event - Ok @ 20/07/2026, 10:10:25
+Unknown Event - Ok @ 20/07/2026, 10:10:26
+Unknown Event - Ok @ 20/07/2026, 10:10:27
+Alarm @ 20/07/2026, 10:10:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:10:29
+Unknown Event - Ok @ 20/07/2026, 10:10:29
+Unknown Event - Ok @ 20/07/2026, 10:10:30
+Unknown Event - Ok @ 20/07/2026, 10:10:31
+Unknown Event - Ok @ 20/07/2026, 10:10:32
+Alarm @ 20/07/2026, 10:10:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:10:34
+Unknown Event - Ok @ 20/07/2026, 10:10:34
+Unknown Event - Ok @ 20/07/2026, 10:10:35
+Unknown Event - Ok @ 20/07/2026, 10:10:36
+Unknown Event - Ok @ 20/07/2026, 10:10:37
+Alarm @ 20/07/2026, 10:10:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:10:39
+Unknown Event - Ok @ 20/07/2026, 10:10:39
+Unknown Event - Ok @ 20/07/2026, 10:10:40
+Unknown Event - Ok @ 20/07/2026, 10:10:41
+Unknown Event - Ok @ 20/07/2026, 10:10:42
+Alarm @ 20/07/2026, 10:10:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:10:44
+Unknown Event - Ok @ 20/07/2026, 10:10:45
+Unknown Event - Ok @ 20/07/2026, 10:10:46
+Unknown Event - Ok @ 20/07/2026, 10:10:47
+Unknown Event - Ok @ 20/07/2026, 10:10:48
+Alarm @ 20/07/2026, 10:10:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:10:49
+Unknown Event - Ok @ 20/07/2026, 10:10:50
+Unknown Event - Ok @ 20/07/2026, 10:10:51
+Unknown Event - Ok @ 20/07/2026, 10:10:52
+Unknown Event - Ok @ 20/07/2026, 10:10:53
+Alarm @ 20/07/2026, 10:10:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:10:54
+Unknown Event - Ok @ 20/07/2026, 10:10:55
+Unknown Event - Ok @ 20/07/2026, 10:10:56
+Unknown Event - Ok @ 20/07/2026, 10:10:57
+Alarm @ 20/07/2026, 10:10:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:10:59
+Unknown Event - Ok @ 20/07/2026, 10:10:59
+Unknown Event - Ok @ 20/07/2026, 10:11:00
+Unknown Event - Ok @ 20/07/2026, 10:11:01
+Unknown Event - Ok @ 20/07/2026, 10:11:02
+Alarm @ 20/07/2026, 10:11:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:11:04
+Unknown Event - Ok @ 20/07/2026, 10:11:04
+Unknown Event - Ok @ 20/07/2026, 10:11:05
+Unknown Event - Ok @ 20/07/2026, 10:11:06
+Unknown Event - Ok @ 20/07/2026, 10:11:07
+Alarm @ 20/07/2026, 10:11:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:11:09
+Unknown Event - Ok @ 20/07/2026, 10:11:10
+Unknown Event - Ok @ 20/07/2026, 10:11:11
+Unknown Event - Ok @ 20/07/2026, 10:11:12
+Unknown Event - Ok @ 20/07/2026, 10:11:13
+Alarm @ 20/07/2026, 10:11:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:11:14
+Unknown Event - Ok @ 20/07/2026, 10:11:15
+Unknown Event - Ok @ 20/07/2026, 10:11:16
+Unknown Event - Ok @ 20/07/2026, 10:11:17
+Unknown Event - Ok @ 20/07/2026, 10:11:18
+Alarm @ 20/07/2026, 10:11:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:11:19
+Unknown Event - Ok @ 20/07/2026, 10:11:20
+Unknown Event - Ok @ 20/07/2026, 10:11:21
+Unknown Event - Ok @ 20/07/2026, 10:11:22
+Alarm @ 20/07/2026, 10:11:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:11:24
+Unknown Event - Ok @ 20/07/2026, 10:11:24
+Unknown Event - Ok @ 20/07/2026, 10:11:25
+Unknown Event - Ok @ 20/07/2026, 10:11:26
+Unknown Event - Ok @ 20/07/2026, 10:11:27
+Alarm @ 20/07/2026, 10:11:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:11:29
+Unknown Event - Ok @ 20/07/2026, 10:11:29
+Unknown Event - Ok @ 20/07/2026, 10:11:30
+Unknown Event - Ok @ 20/07/2026, 10:11:31
+Unknown Event - Ok @ 20/07/2026, 10:11:32
+Alarm @ 20/07/2026, 10:11:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:11:34
+Unknown Event - Ok @ 20/07/2026, 10:11:34
+Unknown Event - Ok @ 20/07/2026, 10:11:35
+Unknown Event - Ok @ 20/07/2026, 10:11:36
+Unknown Event - Ok @ 20/07/2026, 10:11:38
+Alarm @ 20/07/2026, 10:11:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:11:39
+Unknown Event - Ok @ 20/07/2026, 10:11:40
+Unknown Event - Ok @ 20/07/2026, 10:11:41
+Unknown Event - Ok @ 20/07/2026, 10:11:42
+Unknown Event - Ok @ 20/07/2026, 10:11:43
+Alarm @ 20/07/2026, 10:11:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:11:44
+Unknown Event - Ok @ 20/07/2026, 10:11:45
+Unknown Event - Ok @ 20/07/2026, 10:11:46
+Unknown Event - Ok @ 20/07/2026, 10:11:47
+Alarm @ 20/07/2026, 10:11:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:11:49
+Unknown Event - Ok @ 20/07/2026, 10:11:49
+Unknown Event - Ok @ 20/07/2026, 10:11:50
+Unknown Event - Ok @ 20/07/2026, 10:11:51
+Unknown Event - Ok @ 20/07/2026, 10:11:52
+Alarm @ 20/07/2026, 10:11:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:11:54
+Unknown Event - Ok @ 20/07/2026, 10:11:54
+Unknown Event - Ok @ 20/07/2026, 10:11:55
+Unknown Event - Ok @ 20/07/2026, 10:11:56
+Unknown Event - Ok @ 20/07/2026, 10:11:57
+Alarm @ 20/07/2026, 10:11:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:11:59
+Unknown Event - Ok @ 20/07/2026, 10:11:59
+Unknown Event - Ok @ 20/07/2026, 10:12:00
+Unknown Event - Ok @ 20/07/2026, 10:12:01
+Unknown Event - Ok @ 20/07/2026, 10:12:02
+Alarm @ 20/07/2026, 10:12:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:12:04
+Unknown Event - Ok @ 20/07/2026, 10:12:05
+Unknown Event - Ok @ 20/07/2026, 10:12:06
+Unknown Event - Ok @ 20/07/2026, 10:12:07
+Unknown Event - Ok @ 20/07/2026, 10:12:08
+Alarm @ 20/07/2026, 10:12:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:12:09
+Unknown Event - Ok @ 20/07/2026, 10:12:10
+Unknown Event - Ok @ 20/07/2026, 10:12:11
+Unknown Event - Ok @ 20/07/2026, 10:12:12
+Unknown Event - Ok @ 20/07/2026, 10:12:13
+Alarm @ 20/07/2026, 10:12:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:12:14
+Unknown Event - Ok @ 20/07/2026, 10:12:15
+Unknown Event - Ok @ 20/07/2026, 10:12:16
+Unknown Event - Ok @ 20/07/2026, 10:12:17
+Alarm @ 20/07/2026, 10:12:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:12:19
+Unknown Event - Ok @ 20/07/2026, 10:12:19
+Unknown Event - Ok @ 20/07/2026, 10:12:20
+Unknown Event - Ok @ 20/07/2026, 10:12:21
+Unknown Event - Ok @ 20/07/2026, 10:12:22
+Alarm @ 20/07/2026, 10:12:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:12:24
+Unknown Event - Ok @ 20/07/2026, 10:12:24
+Unknown Event - Ok @ 20/07/2026, 10:12:25
+Unknown Event - Ok @ 20/07/2026, 10:12:26
+Unknown Event - Ok @ 20/07/2026, 10:12:27
+Alarm @ 20/07/2026, 10:12:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:12:29
+Unknown Event - Ok @ 20/07/2026, 10:12:29
+Unknown Event - Ok @ 20/07/2026, 10:12:30
+Unknown Event - Ok @ 20/07/2026, 10:12:31
+Unknown Event - Ok @ 20/07/2026, 10:12:32
+Alarm @ 20/07/2026, 10:12:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:12:34
+Unknown Event - Ok @ 20/07/2026, 10:12:34
+Unknown Event - Ok @ 20/07/2026, 10:12:36
+Unknown Event - Ok @ 20/07/2026, 10:12:37
+Unknown Event - Ok @ 20/07/2026, 10:12:38
+Alarm @ 20/07/2026, 10:12:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:12:39
+Unknown Event - Ok @ 20/07/2026, 10:12:40
+Unknown Event - Ok @ 20/07/2026, 10:12:41
+Unknown Event - Ok @ 20/07/2026, 10:12:42
+Unknown Event - Ok @ 20/07/2026, 10:12:43
+Alarm @ 20/07/2026, 10:12:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:12:44
+Unknown Event - Ok @ 20/07/2026, 10:12:45
+Unknown Event - Ok @ 20/07/2026, 10:12:46
+Unknown Event - Ok @ 20/07/2026, 10:12:47
+Unknown Event - Ok @ 20/07/2026, 10:12:48
+Alarm @ 20/07/2026, 10:12:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:12:49
+Unknown Event - Ok @ 20/07/2026, 10:12:50
+Unknown Event - Ok @ 20/07/2026, 10:12:51
+Unknown Event - Ok @ 20/07/2026, 10:12:52
+Alarm @ 20/07/2026, 10:12:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:12:54
+Unknown Event - Ok @ 20/07/2026, 10:12:54
+Unknown Event - Ok @ 20/07/2026, 10:12:55
+Unknown Event - Ok @ 20/07/2026, 10:12:56
+Unknown Event - Ok @ 20/07/2026, 10:12:57
+Alarm @ 20/07/2026, 10:12:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:12:59
+Unknown Event - Ok @ 20/07/2026, 10:12:59
+Unknown Event - Ok @ 20/07/2026, 10:13:00
+Unknown Event - Ok @ 20/07/2026, 10:13:01
+Unknown Event - Ok @ 20/07/2026, 10:13:02
+Alarm @ 20/07/2026, 10:13:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:13:04
+Unknown Event - Ok @ 20/07/2026, 10:13:04
+Unknown Event - Ok @ 20/07/2026, 10:13:05
+Unknown Event - Ok @ 20/07/2026, 10:13:07
+Unknown Event - Ok @ 20/07/2026, 10:13:08
+Alarm @ 20/07/2026, 10:13:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:13:09
+Unknown Event - Ok @ 20/07/2026, 10:13:10
+Unknown Event - Ok @ 20/07/2026, 10:13:11
+Unknown Event - Ok @ 20/07/2026, 10:13:12
+Unknown Event - Ok @ 20/07/2026, 10:13:13
+Alarm @ 20/07/2026, 10:13:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:13:14
+Unknown Event - Ok @ 20/07/2026, 10:13:15
+Unknown Event - Ok @ 20/07/2026, 10:13:16
+Unknown Event - Ok @ 20/07/2026, 10:13:17
+Unknown Event - Ok @ 20/07/2026, 10:13:18
+Alarm @ 20/07/2026, 10:13:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:13:19
+Unknown Event - Ok @ 20/07/2026, 10:13:20
+Unknown Event - Ok @ 20/07/2026, 10:13:21
+Unknown Event - Ok @ 20/07/2026, 10:13:22
+Alarm @ 20/07/2026, 10:13:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:13:24
+Unknown Event - Ok @ 20/07/2026, 10:13:24
+Unknown Event - Ok @ 20/07/2026, 10:13:25
+Unknown Event - Ok @ 20/07/2026, 10:13:26
+Unknown Event - Ok @ 20/07/2026, 10:13:27
+Alarm @ 20/07/2026, 10:13:29 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:13:29
+Unknown Event - Ok @ 20/07/2026, 10:13:29
+Unknown Event - Ok @ 20/07/2026, 10:13:30
+Unknown Event - Ok @ 20/07/2026, 10:13:31
+Unknown Event - Ok @ 20/07/2026, 10:13:32
+Alarm @ 20/07/2026, 10:13:34 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:13:34
+Unknown Event - Ok @ 20/07/2026, 10:13:34
+Unknown Event - Ok @ 20/07/2026, 10:13:35
+Unknown Event - Ok @ 20/07/2026, 10:13:36
+Unknown Event - Ok @ 20/07/2026, 10:13:38
+Alarm @ 20/07/2026, 10:13:39 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:13:39
+Unknown Event - Ok @ 20/07/2026, 10:13:40
+Unknown Event - Ok @ 20/07/2026, 10:13:41
+Unknown Event - Ok @ 20/07/2026, 10:13:42
+Unknown Event - Ok @ 20/07/2026, 10:13:43
+Alarm @ 20/07/2026, 10:13:44 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:13:44
+Unknown Event - Ok @ 20/07/2026, 10:13:45
+Unknown Event - Ok @ 20/07/2026, 10:13:46
+Unknown Event - Ok @ 20/07/2026, 10:13:47
+Alarm @ 20/07/2026, 10:13:49 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:13:49
+Unknown Event - Ok @ 20/07/2026, 10:13:49
+Unknown Event - Ok @ 20/07/2026, 10:13:50
+Unknown Event - Ok @ 20/07/2026, 10:13:51
+Unknown Event - Ok @ 20/07/2026, 10:13:52
+Alarm @ 20/07/2026, 10:13:54 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:13:54
+Unknown Event - Ok @ 20/07/2026, 10:13:54
+Unknown Event - Ok @ 20/07/2026, 10:13:55
+Unknown Event - Ok @ 20/07/2026, 10:13:56
+Unknown Event - Ok @ 20/07/2026, 10:13:57
+Alarm @ 20/07/2026, 10:13:59 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:13:59
+Unknown Event - Ok @ 20/07/2026, 10:13:59
+Unknown Event - Ok @ 20/07/2026, 10:14:01
+Unknown Event - Ok @ 20/07/2026, 10:14:02
+Unknown Event - Ok @ 20/07/2026, 10:14:03
+Alarm @ 20/07/2026, 10:14:04 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:14:04
+Unknown Event - Ok @ 20/07/2026, 10:14:05
+Unknown Event - Ok @ 20/07/2026, 10:14:06
+Unknown Event - Ok @ 20/07/2026, 10:14:07
+Unknown Event - Ok @ 20/07/2026, 10:14:08
+Alarm @ 20/07/2026, 10:14:09 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:14:09
+Unknown Event - Ok @ 20/07/2026, 10:14:10
+Unknown Event - Ok @ 20/07/2026, 10:14:11
+Unknown Event - Ok @ 20/07/2026, 10:14:12
+Alarm @ 20/07/2026, 10:14:14 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:14:14
+Unknown Event - Ok @ 20/07/2026, 10:14:14
+Unknown Event - Ok @ 20/07/2026, 10:14:15
+Unknown Event - Ok @ 20/07/2026, 10:14:16
+Unknown Event - Ok @ 20/07/2026, 10:14:17
+Alarm @ 20/07/2026, 10:14:19 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:14:19
+Unknown Event - Ok @ 20/07/2026, 10:14:19
+Unknown Event - Ok @ 20/07/2026, 10:14:20
+Unknown Event - Ok @ 20/07/2026, 10:14:21
+Unknown Event - Ok @ 20/07/2026, 10:14:22
+Alarm @ 20/07/2026, 10:14:24 - Ok
+Unknown Event - Ok @ 20/07/2026, 10:14:24
+Unknown Event - Ok @ 20/07/2026, 10:14:24
+Unknown Event - Ok @ 20/07/2026, 10:14:25
+Unknown Event - Ok @ 20/07/2026, 10:14:26
+Unknown Event - Ok @ 20/07/2026, 10:14:27
+Alarm @ 20/07/2026, 10:14:29 - Ok
+GET https://aviates-dispatch-radio.dexterhsrees.workers.dev/pilot - Canceled @ 20/07/2026, 09:55:55
+Unknown Event - Ok @ 20/07/2026, 10:14:29
+GET https://aviates-dispatch-radio.dexterhsrees.workers.dev/pilot - Canceled @ 20/07/2026, 09:55:58
+Unknown Event - Ok @ 20/07/2026, 10:14:29
+Unknown Event - Ok @ 20/07/2026, 10:14:31
+GET https://aviates-dispatch-radio.dexterhsrees.workers.dev/admin?key=REDACTED - Canceled @ 20/07/2026, 09:55:24
+GET https://aviates-dispatch-radio.dexterhsrees.workers.dev/voice?key=REDACTED - Canceled @ 20/07/2026, 09:55:24
+  (log) [voice-debug] /voice connection accepted, isDispatcherVoice= true pilotId= null
+GET https://aviates-dispatch-radio.dexterhsrees.workers.dev/voice?key=REDACTED - Canceled @ 20/07/2026, 09:55:24
+GET https://aviates-dispatch-radio.dexterhsrees.workers.dev/admin?key=REDACTED - Canceled @ 20/07/2026, 09:55:24
+Alarm @ 20/07/2026, 10:14:34 - Ok
+[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mTail connection lost. Reconnecting (attempt 1 of 5) in 1s...[0m
+
+
+Reconnected to aviates-dispatch-radio.
+[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mTail connection lost. Reconnecting (attempt 1 of 5) in 1s...[0m
+
+
+Reconnected to aviates-dispatch-radio.

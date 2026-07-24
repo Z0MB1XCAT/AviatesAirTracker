@@ -267,6 +267,10 @@ public class SimBriefFlightPlan
     public int    DepartureRunwayLengthM { get; set; }
     public int    DepartureElevationFt { get; set; }
 
+    // Landing performance inputs — same, for the destination
+    public int    ArrivalRunwayLengthM { get; set; }
+    public int    ArrivalElevationFt { get; set; }
+
     // Weights — extracted from OFP weights section, used by the Hoppies loadsheet
     public double ZeroFuelWeightKg { get; set; }
     public int    PaxCount { get; set; }
@@ -275,6 +279,10 @@ public class SimBriefFlightPlan
     // OFP content
     public string OFPText { get; set; } = "";
     public List<string> NOTAMs { get; set; } = [];
+
+    // Direct link to the generated OFP PDF (files.directory + files.pdf.link).
+    // Used by the EFB "OFP" app to display the briefing package.
+    public string PdfUrl { get; set; } = "";
 }
 
 // ============================================================

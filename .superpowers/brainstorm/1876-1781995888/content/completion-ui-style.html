@@ -1,0 +1,131 @@
+<h2>Flight Completion UI Style</h2>
+<p class="subtitle">When the aircraft shuts down at the gate, how should the app celebrate? Pick the style that feels right.</p>
+
+<div class="cards" style="grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+
+  <!-- Option A: Full-screen modal -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0A0D17; border-radius:8px; padding:16px; min-height:300px; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; overflow:hidden;">
+      <!-- Background glow -->
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 30%, rgba(61,126,238,0.18) 0%, transparent 70%);pointer-events:none;"></div>
+      <!-- Dimmed page behind -->
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,0.55);"></div>
+      <!-- Modal card -->
+      <div style="position:relative;z-index:2;background:linear-gradient(160deg,#111827,#0f172a);border:1px solid rgba(61,126,238,0.35);border-radius:14px;padding:18px 22px;width:100%;text-align:center;box-shadow:0 0 40px rgba(61,126,238,0.15);">
+        <div style="font-size:9px;letter-spacing:0.15em;color:#3D7EEE;text-transform:uppercase;margin-bottom:4px;">✦ Flight Complete</div>
+        <div style="font-size:22px;font-weight:900;color:#fff;margin-bottom:2px;">EGLL → KJFK</div>
+        <div style="font-size:10px;color:#64748b;margin-bottom:14px;">Airbus A380 · VAV064</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+          <div style="background:#0A0D17;border-radius:8px;padding:8px;">
+            <div style="font-size:8px;color:#64748b;text-transform:uppercase;margin-bottom:2px;">Landing VS</div>
+            <div style="font-size:16px;font-weight:800;color:#22c55e;">−182 fpm</div>
+          </div>
+          <div style="background:#0A0D17;border-radius:8px;padding:8px;">
+            <div style="font-size:8px;color:#64748b;text-transform:uppercase;margin-bottom:2px;">Score</div>
+            <div style="font-size:16px;font-weight:800;color:#3D7EEE;">94/100</div>
+          </div>
+          <div style="background:#0A0D17;border-radius:8px;padding:8px;">
+            <div style="font-size:8px;color:#64748b;text-transform:uppercase;margin-bottom:2px;">Air Time</div>
+            <div style="font-size:16px;font-weight:800;color:#fff;">7h 32m</div>
+          </div>
+          <div style="background:#0A0D17;border-radius:8px;padding:8px;">
+            <div style="font-size:8px;color:#64748b;text-transform:uppercase;margin-bottom:2px;">Distance</div>
+            <div style="font-size:16px;font-weight:800;color:#fff;">3,459 nm</div>
+          </div>
+        </div>
+        <div style="background:linear-gradient(90deg,rgba(61,126,238,0.15),rgba(139,92,246,0.15));border:1px solid rgba(139,92,246,0.3);border-radius:8px;padding:6px 10px;margin-bottom:12px;">
+          <div style="font-size:8px;color:#a78bfa;font-weight:700;letter-spacing:0.1em;">🎖 RANK UP · Senior First Officer</div>
+        </div>
+        <button style="width:100%;background:#3D7EEE;border:none;border-radius:8px;padding:8px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;">Continue</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Full-Screen Modal</h3>
+      <p>Overlay that dims the whole page. Can't be missed. Best for a high-impact "you did it" moment. Rank-up badge fits naturally.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Slide-in panel -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0A0D17; border-radius:8px; padding:16px; min-height:300px; display:flex; flex-direction:row; position:relative; overflow:hidden;">
+      <!-- Main ACARS page (blurred) -->
+      <div style="flex:1;opacity:0.35;">
+        <div style="background:#111827;border-radius:8px;height:40px;margin-bottom:8px;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:8px;">
+          <div style="background:#111827;border-radius:6px;height:50px;"></div>
+          <div style="background:#111827;border-radius:6px;height:50px;"></div>
+          <div style="background:#111827;border-radius:6px;height:50px;"></div>
+        </div>
+        <div style="background:#111827;border-radius:8px;height:120px;"></div>
+      </div>
+      <!-- Slide-in panel -->
+      <div style="width:140px;background:linear-gradient(180deg,#111827,#0f172a);border-left:2px solid rgba(61,126,238,0.4);padding:12px 10px;display:flex;flex-direction:column;gap:8px;margin:-16px -16px -16px 12px;">
+        <div style="text-align:center;">
+          <div style="font-size:7px;letter-spacing:0.15em;color:#3D7EEE;text-transform:uppercase;margin-bottom:2px;">✦ Complete</div>
+          <div style="font-size:13px;font-weight:900;color:#fff;">EGLL→KJFK</div>
+          <div style="font-size:8px;color:#64748b;">A380 · VAV064</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px;">
+          <div style="background:#0A0D17;border-radius:6px;padding:6px;">
+            <div style="font-size:7px;color:#64748b;">Landing VS</div>
+            <div style="font-size:13px;font-weight:800;color:#22c55e;">−182 fpm</div>
+          </div>
+          <div style="background:#0A0D17;border-radius:6px;padding:6px;">
+            <div style="font-size:7px;color:#64748b;">Score</div>
+            <div style="font-size:13px;font-weight:800;color:#3D7EEE;">94/100</div>
+          </div>
+          <div style="background:#0A0D17;border-radius:6px;padding:6px;">
+            <div style="font-size:7px;color:#64748b;">Air Time</div>
+            <div style="font-size:13px;font-weight:800;color:#fff;">7h 32m</div>
+          </div>
+        </div>
+        <div style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);border-radius:6px;padding:5px;text-align:center;">
+          <div style="font-size:7px;color:#a78bfa;font-weight:700;">🎖 RANK UP</div>
+          <div style="font-size:8px;color:#c4b5fd;">Sr. First Officer</div>
+        </div>
+        <button style="width:100%;background:#3D7EEE;border:none;border-radius:6px;padding:5px;color:#fff;font-size:9px;font-weight:700;cursor:pointer;">Dismiss</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Slide-in Side Panel</h3>
+      <p>Slides in from the right over the ACARS page. Less dramatic, pilot can still see the page. Good if they want a quick glance and move on.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Replaces banner (inline) -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0A0D17; border-radius:8px; padding:12px; min-height:300px; display:flex; flex-direction:column; gap:8px; overflow:hidden;">
+      <!-- Completion banner replacing connection bar -->
+      <div style="background:linear-gradient(90deg,rgba(61,126,238,0.1),rgba(34,197,94,0.1));border:1.5px solid rgba(34,197,94,0.35);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;">
+        <div style="width:32px;height:32px;border-radius:8px;background:rgba(34,197,94,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <span style="font-size:14px;">✓</span>
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:11px;font-weight:800;color:#22c55e;margin-bottom:1px;">Flight Complete — EGLL → KJFK</div>
+          <div style="font-size:9px;color:#64748b;">7h 32m air time · Score 94/100 · −182 fpm</div>
+        </div>
+        <button style="background:none;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:3px 8px;color:#64748b;font-size:9px;cursor:pointer;">✕</button>
+      </div>
+      <!-- Rank up strip -->
+      <div style="background:linear-gradient(90deg,rgba(139,92,246,0.1),rgba(61,126,238,0.1));border:1px solid rgba(139,92,246,0.3);border-radius:8px;padding:7px 12px;display:flex;align-items:center;gap:8px;">
+        <span style="font-size:14px;">🎖</span>
+        <div>
+          <div style="font-size:10px;font-weight:800;color:#a78bfa;">Rank Up!</div>
+          <div style="font-size:9px;color:#64748b;">You are now a Senior First Officer</div>
+        </div>
+      </div>
+      <!-- Normal ACARS content below -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;flex:1;">
+        <div style="background:#111827;border-radius:6px;opacity:0.5;"></div>
+        <div style="background:#111827;border-radius:6px;opacity:0.5;"></div>
+        <div style="background:#111827;border-radius:6px;opacity:0.5;"></div>
+      </div>
+      <div style="background:#111827;border-radius:6px;height:80px;opacity:0.5;"></div>
+    </div>
+    <div class="card-body">
+      <h3>C — Inline Banner</h3>
+      <p>Replaces the connection status bar at the top. Minimal, doesn't interrupt flow. Stays until dismissed. Most subtle of the three.</p>
+    </div>
+  </div>
+
+</div>

@@ -1,20 +1,33 @@
 @inject AlertService AlertService
+@inject ILandingRepository LandingRepo
+@inject IFlightRepository FlightRepo
+@using AviatesAirTracker.Core.Analytics
+@using AviatesAirTracker.Core.Data
+@using Serilog
 @implements IDisposable
 
-@if (_visible && _result != null)
+@if (_visible && _result != null && _report != null)
 {
     <div class="lrm-backdrop @(_animOut ? "lrm-bg-out" : "lrm-bg-in")" @onclick="Dismiss">
         <div class="lrm-card @(_animOut ? "lrm-card-out" : "lrm-card-in")" @onclick:stopPropagation="true">
 
             <!-- ── HEADER ── -->
-            <div class="lrm-header" style="border-top-color: @_result.LandingGradeColor">
+            <div class="lrm-header" style="border-top-color: @_report.GradeColor">
                 <div class="lrm-header-left">
                     <div class="lrm-report-chip">TOUCHDOWN REPORT</div>
                     <div class="lrm-airport-id">
-                        @_result.AirportICAO
+                        @_report.AirportIcao
                         <span class="lrm-dot">·</span>
-                        @_result.RunwayIdentifier
+                        @_report.Runway
                     </div>
+                    @if (!string.IsNullOrEmpty(_report.FlightNumber) || !string.IsNullOrEmpty(_report.Route))
+                    {
+                        <div class="lrm-sub">
+                            @_report.FlightNumber
+                            @if (!string.IsNullOrEmpty(_report.Route)) { <span class="lrm-dot">·</span> @_report.Route }
+                            @if (!string.IsNullOrEmpty(_report.AircraftType)) { <span class="lrm-dot">·</span> @_report.AircraftType }
+                        </div>
+                    }
                 </div>
                 <div class="lrm-header-right">
                     <span class="lrm-zulu">@_result.Timestamp.ToUniversalTime().ToString("HH:mm")Z</span>
@@ -37,7 +50,7 @@
                         <!-- Animated fill arc -->
                         <circle class="ring-fill"
                                 cx="100" cy="100" r="80"
-                                stroke="@_result.LandingGradeColor"
+                                stroke="@_report.GradeColor"
                                 style="stroke-dashoffset: @_ringOffset.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"/>
                         <!-- Major tick marks (every 36°) -->
                         @for (int i = 0; i < 10; i++)
@@ -64,34 +77,43 @@
                         }
                     </svg>
                     <div class="lrm-score-center">
-                        <span class="lrm-score-num">@_result.LandingScore</span>
+                        <span class="lrm-score-num">@_report.Score</span>
                         <span class="lrm-score-denom">/100</span>
                     </div>
                 </div>
 
-                <!-- Grade + quality flags -->
+                <!-- Grade + butter meter + quality flags -->
                 <div class="lrm-grade-col">
                     <div class="lrm-grade-badge"
-                         style="color: @_result.LandingGradeColor;
+                         style="color: @_report.GradeColor;
                                 background: @GradeBg;
-                                border-color: @_result.LandingGradeColor">
-                        @_result.LandingGrade
+                                border-color: @_report.GradeColor">
+                        @_report.Grade
+                    </div>
+
+                    <!-- Butter meter — the fun headline -->
+                    <div class="lrm-butter" style="border-color:@_report.ButterColor">
+                        <div class="lrm-butter-rating" style="color:@_report.ButterColor">@_report.ButterRating</div>
+                        <div class="lrm-butter-blurb">@_report.ButterBlurb</div>
+                        <div class="lrm-butter-vs">
+                            <span style="color:@_report.ButterColor">@_report.VerticalSpeedFpm.ToString("F0")</span> fpm touchdown
+                        </div>
                     </div>
 
                     <div class="lrm-flags">
-                        <div class="lrm-flag @(_result.ApproachWasStable ? "flag-ok" : "flag-fail")">
-                            <span class="flag-pip">@(_result.ApproachWasStable ? "✓" : "✗")</span>
+                        <div class="lrm-flag @(_report.StableApproach ? "flag-ok" : "flag-fail")">
+                            <span class="flag-pip">@(_report.StableApproach ? "✓" : "✗")</span>
                             Stable Approach
                         </div>
-                        <div class="lrm-flag @(_result.FlareDetected ? "flag-ok" : "flag-neutral")">
-                            <span class="flag-pip">@(_result.FlareDetected ? "✓" : "–")</span>
+                        <div class="lrm-flag @(_report.FlareDetected ? "flag-ok" : "flag-neutral")">
+                            <span class="flag-pip">@(_report.FlareDetected ? "✓" : "–")</span>
                             Flare Detected
                         </div>
-                        @if (_result.BounceCount > 0)
+                        @if (_report.BounceCount > 0)
                         {
                             <div class="lrm-flag flag-fail">
                                 <span class="flag-pip">!</span>
-                                @_result.BounceCount Bounce@(_result.BounceCount > 1 ? "s" : "")
+                                @_report.BounceCount Bounce@(_report.BounceCount > 1 ? "s" : "")
                             </div>
                         }
                         else
@@ -99,6 +121,17 @@
                             <div class="lrm-flag flag-ok">
                                 <span class="flag-pip">✓</span>
                                 No Bounce
+                            </div>
+                        }
+                        @if (_report.IsPersonalBest)
+                        {
+                            <div class="lrm-flag flag-best"><span class="flag-pip">★</span> Personal Best</div>
+                        }
+                        else if (_report.TotalLandings > 1)
+                        {
+                            <div class="lrm-flag flag-neutral">
+                                <span class="flag-pip">#</span>
+                                @_report.RankAmongLandings of @_report.TotalLandings · avg @_report.AverageScore
                             </div>
                         }
                     </div>
@@ -116,36 +149,36 @@
             <!-- ── TOUCHDOWN PARAMETERS ── -->
             <div class="lrm-params-grid">
                 @{
-                    bool vsWarn   = Math.Abs(_result.VerticalSpeedFPM) > 600;
-                    bool bankWarn = Math.Abs(_result.TouchdownBankDeg) > 3;
+                    bool vsWarn   = _report.VerticalSpeedFpm > 600;
+                    bool bankWarn = _report.BankDeg > 3;
                 }
                 <div class="lrm-param @(vsWarn ? "param-warn" : "")">
-                    <span class="p-value">@Math.Abs(_result.VerticalSpeedFPM).ToString("F0")</span>
+                    <span class="p-value">@_report.VerticalSpeedFpm.ToString("F0")</span>
                     <span class="p-unit">fpm</span>
                     <span class="p-label">VERT SPEED</span>
                 </div>
                 <div class="lrm-param">
-                    <span class="p-value">@_result.IASKts.ToString("F0")</span>
+                    <span class="p-value">@_report.IasKts.ToString("F0")</span>
                     <span class="p-unit">kt</span>
                     <span class="p-label">AIRSPEED</span>
                 </div>
                 <div class="lrm-param">
-                    <span class="p-value">@_result.TouchdownPitchDeg.ToString("F1")</span>
+                    <span class="p-value">@_report.PitchDeg.ToString("F1")</span>
                     <span class="p-unit">°</span>
                     <span class="p-label">PITCH</span>
                 </div>
                 <div class="lrm-param @(bankWarn ? "param-warn" : "")">
-                    <span class="p-value">@Math.Abs(_result.TouchdownBankDeg).ToString("F1")</span>
+                    <span class="p-value">@_report.BankDeg.ToString("F1")</span>
                     <span class="p-unit">°</span>
                     <span class="p-label">BANK</span>
                 </div>
                 <div class="lrm-param">
-                    <span class="p-value">@_result.HeadwindComponent.ToString("F0")</span>
+                    <span class="p-value">@_report.HeadwindKts.ToString("F0")</span>
                     <span class="p-unit">kt</span>
                     <span class="p-label">HEADWIND</span>
                 </div>
                 <div class="lrm-param">
-                    <span class="p-value">@Math.Abs(_result.CrosswindComponent).ToString("F0")</span>
+                    <span class="p-value">@_report.CrosswindKts.ToString("F0")</span>
                     <span class="p-unit">kt</span>
                     <span class="p-label">CROSSWIND</span>
                 </div>
@@ -154,22 +187,12 @@
             <!-- ── SCORE BREAKDOWN ── -->
             <div class="lrm-breakdown">
                 <div class="lrm-section-hd">SCORE BREAKDOWN</div>
-                @{
-                    var factors = new (string Label, double Score, double Max)[]
-                    {
-                        ("Vertical Speed",    _result.ScoreBreakdown.VerticalSpeedScore, 30),
-                        ("Pitch Attitude",    _result.ScoreBreakdown.PitchScore,         20),
-                        ("Bank Angle",        _result.ScoreBreakdown.BankScore,          15),
-                        ("Speed Management", _result.ScoreBreakdown.SpeedScore,          15),
-                        ("Crosswind",         _result.ScoreBreakdown.CrosswindScore,     10),
-                        ("Approach Stability",_result.ScoreBreakdown.StabilityScore,     10),
-                    };
-                }
-                @for (int fi = 0; fi < factors.Length; fi++)
+                @{ var factors = _report.Factors; }
+                @for (int fi = 0; fi < factors.Count; fi++)
                 {
                     var f     = factors[fi];
-                    var pct   = f.Max > 0 ? f.Score / f.Max * 100 : 0;
-                    var color = FactorColor(f.Score, f.Max);
+                    var pct   = f.Pct;
+                    var color = f.Color;
                     var delay = fi * 75 + 250; // stagger bars
                     <div class="lrm-factor" style="animation-delay: @(fi * 55)ms">
                         <span class="f-label">@f.Label</span>
@@ -189,22 +212,29 @@
 
             <!-- ── FOOTER STATS + CLOSE ── -->
             <div class="lrm-foot">
-                @if (_result.RolloutDistanceFt > 10)
+                @if (_report.RolloutFt > 10)
                 {
                     <div class="lrm-foot-stat">
-                        <div class="fs-val">@_result.RolloutDistanceFt.ToString("F0")</div>
+                        <div class="fs-val">@_report.RolloutFt.ToString("F0")</div>
                         <div class="fs-lbl">ft rollout</div>
                     </div>
                 }
-                @if (_result.ThresholdDistanceFt > 10)
+                @if (_report.ThresholdFt > 10)
                 {
                     <div class="lrm-foot-stat">
-                        <div class="fs-val">@_result.ThresholdDistanceFt.ToString("F0")</div>
+                        <div class="fs-val">@_report.ThresholdFt.ToString("F0")</div>
                         <div class="fs-lbl">ft past threshold</div>
                     </div>
                 }
+                @if (_report.WindSpeedKts > 0)
+                {
+                    <div class="lrm-foot-stat">
+                        <div class="fs-val">@_report.WindDirectionDeg.ToString("F0")°/@_report.WindSpeedKts.ToString("F0")</div>
+                        <div class="fs-lbl">surface wind</div>
+                    </div>
+                }
                 <div class="lrm-foot-stat">
-                    <div class="fs-val">@_result.FuelOnTouchdownLbs.ToString("F0")</div>
+                    <div class="fs-val">@_report.FuelLbs.ToString("F0")</div>
                     <div class="fs-lbl">lbs fuel</div>
                 </div>
                 <button class="lrm-dismiss-btn" @onclick="Dismiss">Close Report</button>
@@ -220,7 +250,28 @@
     private bool          _barsGo;          // triggers bar width transitions
     private double        _ringOffset = 502.65; // starts fully empty
     private LandingResult? _result;
+    private LandingReport? _report;
     private System.Timers.Timer? _autoClose;
+
+    /// <summary>
+    /// Builds the shared report, enriching it with the owning flight and the
+    /// full landing history (for the personal-best / ranking context).
+    /// Failures here must never block the popup, so everything is best-effort.
+    /// </summary>
+    private async Task<LandingReport> BuildReportAsync(LandingResult result)
+    {
+        FlightRecord? flight = null;
+        List<LandingResult>? history = null;
+        try
+        {
+            history = await LandingRepo.GetAllAsync();
+            if (Guid.TryParse(result.FlightId, out var fid))
+                flight = (await FlightRepo.GetAllAsync()).FirstOrDefault(f => f.Id == fid);
+        }
+        catch (Exception ex) { Log.Debug(ex, "[LandingModal] Report context lookup failed"); }
+
+        return LandingReportBuilder.Build(result, flight, history);
+    }
 
     private const double Circumference = 502.65; // 2π×80
 
@@ -233,6 +284,10 @@
     {
         _ = InvokeAsync(async () =>
         {
+            // Project through the SHARED report builder so this modal and the
+            // EFB "Landing" app always show identical figures and wording.
+            _report = await BuildReportAsync(result);
+
             // Reset animation state
             _result      = result;
             _animOut     = false;

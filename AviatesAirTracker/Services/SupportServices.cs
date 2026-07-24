@@ -392,6 +392,21 @@ public class AppSettings
     public bool HoppiesSendPostFlightSummary { get; set; } = true;
     public bool HoppiesSendWeatherAdvisories { get; set; } = true;
     public bool HoppiesSendHazardAdvisories { get; set; } = true;
+
+    // ── EFB companion (virtual tablet) ────────────────────────────────
+    // When enabled, the app hosts a local web server on the LAN so a tablet,
+    // phone or second monitor can open the AviatesAir EFB. See EfbServer.
+    public bool EfbEnabled { get; set; } = true;
+    // Auto-start the EFB server on app launch. If false, the pilot starts it
+    // manually from Settings.
+    public bool EfbAutoStart { get; set; } = true;
+    // Preferred port. 0 = pick a random free port each launch (recommended).
+    public int EfbPort { get; set; } = 0;
+    // Stable pairing secret used to derive the device token. Regenerated if empty.
+    public string EfbPairingSecret { get; set; } = "";
+    // Last EFB theme chosen on a paired device (mirrored here so the desktop
+    // can show it). "boeing" | "airbus" | "minimal" | "aviates".
+    public string EfbTheme { get; set; } = "aviates";
 }
 
 // ============================================================

@@ -1,0 +1,104 @@
+<h2>Which features should we add?</h2>
+<p class="subtitle">Select everything that appeals to you — we'll scope down later if needed. The core fixes (phase accuracy, SimBrief ID/username, FMC button removal, map embed, Submit Position Report) are already in regardless.</p>
+
+<div class="options" data-multiselect>
+
+  <div class="option" data-choice="zulu-clock" onclick="toggleSelect(this)">
+    <div class="letter">⏱</div>
+    <div class="content">
+      <h3>Live Zulu Clock</h3>
+      <p>Always-on UTC clock ticking in the status banner. Pilots always need the time and it gives the page an "alive" feel even on the ground.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="fuel-burn" onclick="toggleSelect(this)">
+    <div class="letter">⛽</div>
+    <div class="content">
+      <h3>Fuel Burn Rate &amp; Endurance</h3>
+      <p>Current fuel flow (lbs/hr), time remaining at current burn, and planned vs actual fuel comparison if OFP is loaded. Shows as extra rows in the instrument grid.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="flight-log" onclick="toggleSelect(this)">
+    <div class="letter">📋</div>
+    <div class="content">
+      <h3>ACARS Flight Event Log</h3>
+      <p>A timestamped log of key events: engines started, takeoff, TOC reached, TOD, approach, touchdown. Shows below the main panel so you can see the flight's history at a glance.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="phase-alerts" onclick="toggleSelect(this)">
+    <div class="letter">🔔</div>
+    <div class="content">
+      <h3>Phase Transition Alerts</h3>
+      <p>A subtle toast/banner when a major phase changes — e.g. "Cruise reached · FL350" or "Descending · TOD". Helps catch the tracker working correctly without staring at it.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="engine-expanded" onclick="toggleSelect(this)">
+    <div class="letter">🔧</div>
+    <div class="content">
+      <h3>Expanded Engine Data</h3>
+      <p>Add fuel flow per engine and OAT/SAT/TAT alongside N1. Particularly useful for long-haul step climbs and catching abnormal engine behaviour.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="squawk" onclick="toggleSelect(this)">
+    <div class="letter">📡</div>
+    <div class="content">
+      <h3>Squawk Code from OFP</h3>
+      <p>Parse the squawk code from the SimBrief OFP and display it in the flight plan card. Small but feels very professional — pilots always need to look this up.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="ofp-text" onclick="toggleSelect(this)">
+    <div class="letter">📄</div>
+    <div class="content">
+      <h3>Full OFP Text Viewer</h3>
+      <p>Collapsible section showing the raw SimBrief OFP text (the full operational flight plan document). Pilots who do proper pre-flight checks want this in one place.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="speed-check" onclick="toggleSelect(this)">
+    <div class="letter">✅</div>
+    <div class="content">
+      <h3>Cruise Speed / Altitude Check</h3>
+      <p>Highlight in amber/red if the aircraft's current Mach or altitude significantly deviates from the OFP planned cruise values. Simple compliance check for VA auditors.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="pirep-history" onclick="toggleSelect(this)">
+    <div class="letter">📬</div>
+    <div class="content">
+      <h3>Position Report History</h3>
+      <p>A log of all position reports submitted this flight with timestamps. Shows "sent" vs "pending" status so you can see what the backend received.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="auto-pirep" onclick="toggleSelect(this)">
+    <div class="letter">🤖</div>
+    <div class="content">
+      <h3>Automatic Position Reporting</h3>
+      <p>Auto-submit position reports to the Aviates backend at configurable intervals (e.g. every 10 mins) while airborne. The manual submit button stays too.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="wind-component" onclick="toggleSelect(this)">
+    <div class="letter">💨</div>
+    <div class="content">
+      <h3>Wind Component Display</h3>
+      <p>Calculate and show headwind/tailwind component and crosswind from SimConnect wind data. Useful during approach, and looks very professional in cruise.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="notam-ofp" onclick="toggleSelect(this)">
+    <div class="letter">⚠️</div>
+    <div class="content">
+      <h3>NOTAM Section from OFP</h3>
+      <p>Parse and display relevant NOTAMs included in the SimBrief OFP. Collapsible section below METAR. VA pilots are expected to review these pre-flight.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px;">Select as many as you like, then reply in the terminal. You can also type any feature ideas you have that aren't listed here.</p>

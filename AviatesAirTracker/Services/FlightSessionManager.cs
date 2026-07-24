@@ -314,8 +314,13 @@ public class FlightSessionManager
                 CurrentFlight.PrimaryLanding = landing;
         }
 
+        // Persist FIRST — the landing must survive even if the live popup is
+        // suppressed or missed; the EFB "Landing" app reads from this history.
         _ = _landingRepo.SaveAsync(landing);
-        _alertService.ShowLandingResult(landing);
+
+        // MINOR: AppSettings.ShowLandingResult was defined but never honoured.
+        if (_settings.Settings.ShowLandingResult)
+            _alertService.ShowLandingResult(landing);
 
         Log.Information("[FlightSession] LANDING: Score={Score} VS={VS:F0}fpm", 
             landing.LandingScore, landing.VerticalSpeedFPM);

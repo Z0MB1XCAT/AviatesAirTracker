@@ -1,0 +1,512 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- head is metadata only for the source file; the runtime discards it -->
+  </head>
+  <body>
+    <template>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          font-family: "Outfit", sans-serif;
+          container-type: size;
+        }
+
+        /* full-bleed ground clip — never painted directly on #root */
+        .ground {
+          position: absolute;
+          inset: 0;
+          background-color: #0a0d17;
+        }
+
+        .grid-layer {
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(241, 245, 249, 0.1) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(241, 245, 249, 0.1) 1px, transparent 1px);
+          background-size: 2cqw 2cqw;
+        }
+
+        .hairline {
+          position: absolute;
+          left: 4cqw;
+          right: 4cqw;
+          height: 0.12cqw;
+          background: #f1f5f9;
+          transform: scaleX(0);
+          transform-origin: left center;
+        }
+        .hairline-top {
+          top: 3cqw;
+        }
+        .hairline-bottom {
+          bottom: 3cqw;
+        }
+
+        .meta-tag {
+          position: absolute;
+          top: 4.4cqw;
+          left: 4cqw;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          letter-spacing: 0.06em;
+          color: rgba(241, 245, 249, 0.55);
+          opacity: 0;
+        }
+
+        .page-num {
+          position: absolute;
+          top: 4.4cqw;
+          right: 4cqw;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          letter-spacing: 0.06em;
+          color: rgba(241, 245, 249, 0.55);
+          opacity: 0;
+        }
+
+        /* pixel-glitch column, left edge — low presence, signature decoration */
+        .glitch-col {
+          position: absolute;
+          top: 3cqw;
+          bottom: 3cqw;
+          left: 4cqw;
+          width: 2.6cqw;
+          opacity: 0;
+          background-image: repeating-linear-gradient(90deg, #f1f5f9 0 2px, transparent 2px 8px);
+          -webkit-mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            #000 6%,
+            #000 22%,
+            transparent 26%,
+            transparent 68%,
+            #000 74%,
+            #000 92%,
+            transparent 96%
+          );
+          mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            #000 6%,
+            #000 22%,
+            transparent 26%,
+            transparent 68%,
+            #000 74%,
+            #000 92%,
+            transparent 96%
+          );
+        }
+
+        /* headline block — upper area, per-word reveal */
+        .headline-wrap {
+          position: absolute;
+          left: 50%;
+          top: 9cqh;
+          transform: translateX(-50%);
+          width: 90cqw;
+          text-align: center;
+          z-index: 5;
+        }
+
+        .headline {
+          display: block;
+          font-family: "Outfit", sans-serif;
+          font-weight: 400;
+          font-size: 3.6cqw;
+          line-height: 1.05;
+          letter-spacing: -0.008em;
+          color: #f1f5f9;
+        }
+
+        .word {
+          display: inline-block;
+          opacity: 0;
+          transform: translateY(0.5cqw);
+          margin-right: 0.4cqw;
+        }
+
+        /* stat card row — center-outward-expansion burst wrap */
+        .burst-wrap {
+          position: absolute;
+          left: 50%;
+          top: 38cqh;
+          width: 1px;
+          height: 1px;
+        }
+
+        .stat-card {
+          position: absolute;
+          top: 0;
+          left: 0;
+          transform: translate(-50%, -50%);
+          width: 22cqw;
+          height: 24cqh;
+          background: #161d2e;
+          border: 0.06cqw solid rgba(241, 245, 249, 0.18);
+          box-shadow: 0 0 0 0.12cqw #0a0d17, 0 2cqw 4cqw rgba(59, 130, 246, 0.08);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          gap: 0.8cqw;
+          will-change: transform;
+        }
+
+        .stat-value-row {
+          display: flex;
+          align-items: baseline;
+          gap: 0.4cqw;
+        }
+
+        .stat-value {
+          font-family: "JetBrains Mono", monospace;
+          font-weight: 500;
+          font-variant-numeric: tabular-nums;
+          font-size: 3.8cqw;
+          color: #f1f5f9;
+          letter-spacing: -0.01em;
+        }
+
+        .stat-suffix {
+          font-family: "JetBrains Mono", monospace;
+          font-weight: 400;
+          font-size: 1.1cqw;
+          color: #3b82f6;
+          letter-spacing: 0.04em;
+        }
+
+        .stat-label {
+          font-family: "Outfit", sans-serif;
+          font-weight: 600;
+          font-size: 13px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: rgba(241, 245, 249, 0.55);
+        }
+
+        .stat-tick {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 0.12cqw;
+          background: #3b82f6;
+          transform: scaleX(0);
+          transform-origin: left center;
+        }
+
+        /* rank badge — lower area, above keep-out cutoff (y < 896px = 83cqh) */
+        .rank-wrap {
+          position: absolute;
+          left: 50%;
+          top: 68cqh;
+          transform: translate(-50%, -50%);
+          display: flex;
+          align-items: center;
+          gap: 2cqw;
+          opacity: 0;
+          z-index: 5;
+        }
+
+        .rank-badge {
+          position: relative;
+          width: 9cqw;
+          height: 9cqw;
+          background: #161d2e;
+          border: 0.06cqw solid rgba(241, 245, 249, 0.18);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .rank-badge::before {
+          content: "";
+          position: absolute;
+          inset: 0.5cqw;
+          border: 0.06cqw solid rgba(59, 130, 246, 0.4);
+        }
+
+        .rank-glow {
+          position: absolute;
+          inset: -2cqw;
+          background: radial-gradient(circle, rgba(59, 130, 246, 0.35) 0%, transparent 70%);
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        .rank-tier-wrap {
+          position: relative;
+          min-width: 22cqw;
+          overflow: hidden;
+        }
+
+        .rank-tier {
+          font-family: "JetBrains Mono", monospace;
+          font-weight: 500;
+          font-size: 1.8cqw;
+          letter-spacing: 0.02em;
+          color: #f1f5f9;
+          white-space: nowrap;
+        }
+
+        .rank-tag {
+          position: absolute;
+          top: -1.8cqw;
+          left: 0;
+          font-family: "Outfit", sans-serif;
+          font-weight: 600;
+          font-size: 12px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: rgba(241, 245, 249, 0.55);
+        }
+
+        .cadet-to-captain {
+          font-family: "Outfit", sans-serif;
+          font-weight: 400;
+          font-size: 1.9cqw;
+          letter-spacing: -0.006em;
+          color: #f1f5f9;
+          opacity: 0;
+        }
+      </style>
+
+      <div id="root" data-composition-id="05-career-stats" data-width="1920" data-height="1080">
+        <div class="ground clip" data-start="0" data-duration="5" data-track-index="0"></div>
+
+        <div class="grid-layer clip" data-start="0" data-duration="5" data-track-index="1"></div>
+
+        <div
+          class="hairline hairline-top clip"
+          id="h5-hairline-top"
+          data-start="0"
+          data-duration="5"
+          data-track-index="2"
+        ></div>
+        <div
+          class="hairline hairline-bottom clip"
+          id="h5-hairline-bottom"
+          data-start="0"
+          data-duration="5"
+          data-track-index="3"
+        ></div>
+
+        <div class="meta-tag clip" id="h5-meta-tag" data-start="0" data-duration="5" data-track-index="4">
+          AVIATES · CAREER
+        </div>
+        <div class="page-num clip" id="h5-page-num" data-start="0" data-duration="5" data-track-index="5">
+          05
+        </div>
+
+        <div class="glitch-col clip" id="h5-glitch" data-start="0" data-duration="5" data-track-index="6"></div>
+
+        <div class="headline-wrap clip" data-start="0" data-duration="5" data-track-index="7">
+          <span class="headline" id="h5-headline"
+            ><span class="word">EVERY</span><span class="word">HOUR</span><span class="word"
+              >COUNTS.</span
+            ></span
+          >
+        </div>
+
+        <div class="burst-wrap clip" id="h5-burst-wrap" data-start="0" data-duration="5" data-track-index="8">
+          <div class="stat-card" id="h5-card-flights" data-target-x="-24cqw" data-target-y="0">
+            <div class="stat-tick" id="h5-tick-flights"></div>
+            <div class="stat-value-row">
+              <span class="stat-value" id="h5-val-flights">0</span>
+            </div>
+            <span class="stat-label">Flights</span>
+          </div>
+          <div class="stat-card" id="h5-card-hours" data-target-x="0" data-target-y="0">
+            <div class="stat-tick" id="h5-tick-hours"></div>
+            <div class="stat-value-row">
+              <span class="stat-value" id="h5-val-hours">0</span>
+              <span class="stat-suffix">HRS</span>
+            </div>
+            <span class="stat-label">Hours</span>
+          </div>
+          <div class="stat-card" id="h5-card-landings" data-target-x="24cqw" data-target-y="0">
+            <div class="stat-tick" id="h5-tick-landings"></div>
+            <div class="stat-value-row">
+              <span class="stat-value" id="h5-val-landings">0</span>
+            </div>
+            <span class="stat-label">Landings</span>
+          </div>
+        </div>
+
+        <div class="rank-wrap clip" id="h5-rank-wrap" data-start="0" data-duration="5" data-track-index="9">
+          <div class="rank-badge" id="h5-rank-badge">
+            <div class="rank-glow" id="h5-rank-glow"></div>
+            <svg width="42%" height="42%" viewBox="0 0 40 40" style="position: relative; z-index: 1;">
+              <path d="M20 4 L24 16 L36 16 L26 23 L30 35 L20 27 L10 35 L14 23 L4 16 L16 16 Z" fill="#3b82f6" />
+            </svg>
+          </div>
+          <div class="rank-tier-wrap">
+            <span class="rank-tag">Rank</span>
+            <span class="rank-tier" id="h5-rank-tier">CADET</span>
+          </div>
+          <span class="cadet-to-captain" id="h5-cadet-to-captain">CADET TO CAPTAIN.</span>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        (function () {
+          window.__timelines = window.__timelines || {};
+          var tl = gsap.timeline({ paused: true });
+
+          // ---- furniture: grid, hairlines, chrome, glitch (0.0-0.5s) ----
+          tl.fromTo("#h5-hairline-top", { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power3.out" }, 0);
+          tl.fromTo(
+            "#h5-hairline-bottom",
+            { scaleX: 0 },
+            { scaleX: 1, duration: 0.5, ease: "power3.out" },
+            0
+          );
+          tl.fromTo("#h5-meta-tag", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power3.out" }, 0.15);
+          tl.fromTo("#h5-page-num", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power3.out" }, 0.15);
+          tl.fromTo("#h5-glitch", { opacity: 0 }, { opacity: 0.5, duration: 0.5, ease: "power3.out" }, 0.2);
+
+          // ---- Scene 1 (0.0-1.2s): "EVERY HOUR COUNTS." per-word staggered reveal ----
+          tl.fromTo(
+            "#h5-headline .word",
+            { opacity: 0, y: "0.5cqw" },
+            { opacity: 1, y: 0, duration: 0.45, ease: "power3.out", stagger: 0.16 },
+            0.15
+          );
+
+          // ---- Scene 2 (1.2-3.0s): three stat cards center-outward-expansion into a row ----
+          var cards = document.querySelectorAll(".stat-card");
+          var EXPAND_DUR = 1.0;
+          var STAGGER = 0.06;
+          cards.forEach(function (el, i) {
+            var tx = el.getAttribute("data-target-x");
+            var ty = el.getAttribute("data-target-y");
+            tl.fromTo(
+              el,
+              { x: 0, y: 0, scale: 0.55, opacity: 0 },
+              {
+                x: tx,
+                y: ty,
+                scale: 1,
+                opacity: 1,
+                duration: EXPAND_DUR,
+                ease: "power3.out",
+              },
+              1.2 + i * STAGGER
+            );
+          });
+
+          // stat counters — staggered value-scaled counters, one after another
+          function countUp(id, target, startAt, dur, suffix) {
+            var state = { v: 0 };
+            tl.to(
+              state,
+              {
+                v: target,
+                duration: dur,
+                ease: "power3.out",
+                onUpdate: function () {
+                  document.getElementById(id).textContent = Math.round(state.v).toLocaleString();
+                },
+              },
+              startAt
+            );
+          }
+          countUp("h5-val-flights", 214, 1.5, 1.0);
+          countUp("h5-val-hours", 1842, 1.68, 1.0);
+          countUp("h5-val-landings", 189, 1.86, 1.0);
+
+          // baseline ticks under each card, chorded with the counters
+          tl.fromTo("#h5-tick-flights", { scaleX: 0 }, { scaleX: 1, duration: 0.7, ease: "power2.out" }, 1.5);
+          tl.fromTo("#h5-tick-hours", { scaleX: 0 }, { scaleX: 1, duration: 0.7, ease: "power2.out" }, 1.68);
+          tl.fromTo("#h5-tick-landings", { scaleX: 0 }, { scaleX: 1, duration: 0.7, ease: "power2.out" }, 1.86);
+
+          // ---- Scene 3 (3.0-4.2s): rank badge enters, steps through tiers, lands on CAPTAIN ----
+          tl.fromTo(
+            "#h5-rank-wrap",
+            { opacity: 0, y: 14 },
+            { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" },
+            3.0
+          );
+
+          // discrete-text-sequence: rank tier steps through in order
+          var TIERS = [
+            "CADET",
+            "JR. FIRST OFFICER",
+            "FIRST OFFICER",
+            "SR. FIRST OFFICER",
+            "JR. CAPTAIN",
+            "CAPTAIN",
+          ];
+          var tierEl = document.getElementById("h5-rank-tier");
+          var TIER_START = 3.05;
+          var TIER_STEP = 0.16;
+          var tierSequence = TIERS.map(function (text, i) {
+            return { t: TIER_START + i * TIER_STEP, text: text };
+          });
+          function tierAt(time) {
+            for (var i = tierSequence.length - 1; i >= 0; i--) {
+              if (time >= tierSequence[i].t) return tierSequence[i].text;
+            }
+            return tierSequence[0].text;
+          }
+          var tierDriver = { t: 0 };
+          var lastTier = "";
+          tl.to(
+            tierDriver,
+            {
+              t: 5.0,
+              duration: 5.0,
+              ease: "none",
+              onUpdate: function () {
+                var text = tierAt(tierDriver.t);
+                if (text !== lastTier) {
+                  tierEl.textContent = text;
+                  lastTier = text;
+                }
+              },
+            },
+            0
+          );
+
+          // badge glow blooms as CAPTAIN lands
+          var captainAt = TIER_START + (TIERS.length - 1) * TIER_STEP;
+          tl.fromTo(
+            "#h5-rank-glow",
+            { opacity: 0 },
+            { opacity: 1, duration: 0.5, ease: "power2.out" },
+            captainAt
+          );
+
+          // "CADET TO CAPTAIN." hard-cuts in beside the badge as it lands
+          tl.set("#h5-cadet-to-captain", { opacity: 1 }, captainAt);
+
+          // ---- Scene 4 (4.2-5.0s): hold on settled stat row + rank badge; subtle jitter only ----
+          var jitterPhase = { p: 0 };
+          tl.to(
+            jitterPhase,
+            {
+              p: Math.PI * 2 * 0.8,
+              duration: 0.8,
+              ease: "none",
+              onUpdate: function () {
+                var v = Math.sin(jitterPhase.p) * 0.4;
+                document.getElementById("h5-rank-glow").style.opacity = String(0.85 + v * 0.15);
+              },
+            },
+            4.2
+          );
+
+          window.__timelines["05-career-stats"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

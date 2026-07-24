@@ -1,0 +1,650 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- head is metadata only for the source file; the runtime discards it -->
+  </head>
+  <body>
+    <template>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          font-family: "Outfit", sans-serif;
+          container-type: size;
+        }
+
+        /* full-bleed ground clip — never painted directly on #root */
+        .ground {
+          position: absolute;
+          inset: 0;
+          background-color: #0a0d17;
+        }
+
+        .grid-layer {
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(241, 245, 249, 0.1) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(241, 245, 249, 0.1) 1px, transparent 1px);
+          background-size: 2cqw 2cqw;
+        }
+
+        .hairline {
+          position: absolute;
+          left: 4cqw;
+          right: 4cqw;
+          height: 0.12cqw;
+          background: #f1f5f9;
+          transform: scaleX(0);
+          transform-origin: left center;
+        }
+        .hairline-top {
+          top: 3cqw;
+        }
+        .hairline-bottom {
+          bottom: 3cqw;
+        }
+
+        .meta-tag {
+          position: absolute;
+          top: 4.4cqw;
+          left: 4cqw;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          letter-spacing: 0.06em;
+          color: rgba(241, 245, 249, 0.55);
+          opacity: 0;
+        }
+
+        .page-num {
+          position: absolute;
+          top: 4.4cqw;
+          right: 4cqw;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          letter-spacing: 0.06em;
+          color: rgba(241, 245, 249, 0.55);
+          opacity: 0;
+        }
+
+        /* camera stage — everything that pans/zooms lives inside this wrapper */
+        .stage {
+          position: absolute;
+          inset: 0;
+          transform-origin: 50% 50%;
+          will-change: transform;
+        }
+
+        /* headline block — upper-left, above the map panel, above keep-out */
+        .headline-wrap {
+          position: absolute;
+          left: 4cqw;
+          top: 12cqh;
+          max-width: 42cqw;
+          z-index: 5;
+        }
+
+        .line {
+          display: block;
+          font-family: "Outfit", sans-serif;
+          font-weight: 400;
+          font-size: 3.4cqw;
+          line-height: 1.05;
+          letter-spacing: -0.006em;
+          color: #f1f5f9;
+          opacity: 0;
+        }
+
+        .line-2 {
+          margin-top: 0.6cqw;
+        }
+
+        /* per-word span for staggered reveal */
+        .word {
+          display: inline-block;
+          opacity: 0;
+          margin-right: 0.35cqw;
+        }
+
+        /* the map panel — paper-2 surface, hero element, centered above the keep-out */
+        .panel-wrap {
+          position: absolute;
+          left: 50%;
+          top: 48%;
+          transform: translate(-50%, -50%) scale(0.92);
+          width: 54cqw;
+          height: 50cqh;
+          opacity: 0;
+        }
+
+        .panel {
+          position: relative;
+          width: 100%;
+          height: 100%;
+          background: #161d2e;
+          border: 0.06cqw solid rgba(241, 245, 249, 0.18);
+          box-shadow: 0 0 0 0.12cqw #0a0d17, 0 2cqw 4cqw rgba(59, 130, 246, 0.08);
+          overflow: hidden;
+        }
+
+        /* panel-internal basemap grid — denser than the frame grid, reads as a map */
+        .panel-grid {
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(241, 245, 249, 0.08) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(241, 245, 249, 0.08) 1px, transparent 1px);
+          background-size: 4cqw 4cqw;
+        }
+
+        .panel-topbar {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 3.6cqw;
+          border-bottom: 0.06cqw solid rgba(241, 245, 249, 0.18);
+          display: flex;
+          align-items: center;
+          padding: 0 1.6cqw;
+          justify-content: space-between;
+        }
+
+        .panel-topbar-label {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 12px;
+          letter-spacing: 0.08em;
+          color: rgba(241, 245, 249, 0.6);
+          text-transform: uppercase;
+        }
+
+        .panel-topbar-dot {
+          width: 0.6cqw;
+          height: 0.6cqw;
+          background: #3b82f6;
+          opacity: 0;
+        }
+
+        /* route path lives in an SVG scaled to the panel's inner map area */
+        .route-svg {
+          position: absolute;
+          inset: 3.6cqw 0 0 0;
+          width: 100%;
+          height: calc(100% - 3.6cqw);
+        }
+
+        .route-path {
+          fill: none;
+          stroke: #3b82f6;
+          stroke-width: 3;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
+        .route-path-glow {
+          fill: none;
+          stroke: #3b82f6;
+          stroke-width: 8;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          opacity: 0.25;
+          filter: blur(2px);
+        }
+
+        /* map-area wrapper — identical box to .route-svg so percentage math lines up */
+        .map-area {
+          position: absolute;
+          inset: 3.6cqw 0 0 0;
+          width: 100%;
+          height: calc(100% - 3.6cqw);
+        }
+
+        .aircraft-marker {
+          position: absolute;
+          width: 1.4cqw;
+          height: 1.4cqw;
+          opacity: 0;
+          will-change: transform;
+        }
+
+        .aircraft-marker svg {
+          width: 100%;
+          height: 100%;
+          overflow: visible;
+        }
+
+        .aircraft-marker path {
+          fill: #f1f5f9;
+        }
+
+        .aircraft-marker .ring {
+          fill: none;
+          stroke: #3b82f6;
+          stroke-width: 1.5;
+          opacity: 0.55;
+        }
+
+        /* telemetry readout stack — right side, asymmetric 70/30 */
+        .telemetry-stack {
+          position: absolute;
+          right: 6cqw;
+          top: 50%;
+          transform: translateY(-50%);
+          display: flex;
+          flex-direction: column;
+          gap: 1.6cqw;
+          z-index: 5;
+        }
+
+        .telem-row {
+          display: flex;
+          align-items: baseline;
+          gap: 0.9cqw;
+          opacity: 0;
+          border-bottom: 0.06cqw solid rgba(241, 245, 249, 0.18);
+          padding-bottom: 0.7cqw;
+          min-width: 13cqw;
+        }
+
+        .telem-label {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          letter-spacing: 0.1em;
+          color: #3b82f6;
+          text-transform: uppercase;
+          width: 3.2cqw;
+        }
+
+        .telem-value {
+          font-family: "JetBrains Mono", monospace;
+          font-weight: 500;
+          font-variant-numeric: tabular-nums;
+          font-size: 1.9cqw;
+          color: #f1f5f9;
+          letter-spacing: 0.01em;
+        }
+
+        .telem-unit {
+          font-family: "JetBrains Mono", monospace;
+          font-weight: 400;
+          font-size: 12px;
+          color: rgba(241, 245, 249, 0.5);
+          letter-spacing: 0.05em;
+        }
+
+        /* pixel-glitch column, left edge — low presence, signature decoration */
+        .glitch-col {
+          position: absolute;
+          top: 3cqw;
+          bottom: 3cqw;
+          left: 4cqw;
+          width: 2.6cqw;
+          opacity: 0;
+          background-image: repeating-linear-gradient(90deg, #f1f5f9 0 2px, transparent 2px 8px);
+          -webkit-mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            #000 6%,
+            #000 22%,
+            transparent 26%,
+            transparent 68%,
+            #000 74%,
+            #000 92%,
+            transparent 96%
+          );
+          mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            #000 6%,
+            #000 22%,
+            transparent 26%,
+            transparent 68%,
+            #000 74%,
+            #000 92%,
+            transparent 96%
+          );
+        }
+      </style>
+
+      <div id="root" data-composition-id="03-live-tracking" data-width="1920" data-height="1080">
+        <div class="ground clip" data-start="0" data-duration="6" data-track-index="0"></div>
+
+        <div class="grid-layer clip" data-start="0" data-duration="6" data-track-index="1"></div>
+
+        <div
+          class="hairline hairline-top clip"
+          id="h3-hairline-top"
+          data-start="0"
+          data-duration="6"
+          data-track-index="2"
+        ></div>
+        <div
+          class="hairline hairline-bottom clip"
+          id="h3-hairline-bottom"
+          data-start="0"
+          data-duration="6"
+          data-track-index="3"
+        ></div>
+
+        <div class="meta-tag clip" id="h3-meta-tag" data-start="0" data-duration="6" data-track-index="4">
+          AVIATES · LIVE TELEMETRY
+        </div>
+        <div class="page-num clip" id="h3-page-num" data-start="0" data-duration="6" data-track-index="5">
+          03
+        </div>
+
+        <div class="glitch-col clip" id="h3-glitch" data-start="0" data-duration="6" data-track-index="6"></div>
+
+        <!-- camera stage: panel + telemetry ride the viewport-change pan/focus-lock together -->
+        <div class="stage clip" id="h3-stage" data-start="0" data-duration="6" data-track-index="7">
+          <div class="panel-wrap" id="h3-panel-wrap">
+            <div class="panel">
+              <div class="panel-grid"></div>
+              <div class="panel-topbar">
+                <span class="panel-topbar-label">ROUTE · LIVE</span>
+                <span class="panel-topbar-dot" id="h3-panel-dot"></span>
+              </div>
+              <svg class="route-svg" viewBox="0 0 580 480" preserveAspectRatio="none">
+                <path
+                  id="h3-route-glow"
+                  class="route-path-glow"
+                  d="M 60 400 C 160 360, 190 260, 260 230 S 400 150, 460 100 S 500 60, 520 40"
+                />
+                <path
+                  id="h3-route-line"
+                  class="route-path"
+                  d="M 60 400 C 160 360, 190 260, 260 230 S 400 150, 460 100 S 500 60, 520 40"
+                />
+              </svg>
+              <div class="map-area">
+                <div class="aircraft-marker" id="h3-aircraft">
+                  <svg viewBox="0 0 40 40">
+                    <circle class="ring" cx="20" cy="20" r="14" />
+                    <path d="M 20 8 L 25 22 L 20 19 L 15 22 Z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="telemetry-stack" id="h3-telemetry-stack">
+            <div class="telem-row" id="h3-row-alt">
+              <span class="telem-label">ALT</span>
+              <span class="telem-value" id="h3-val-alt">0</span>
+              <span class="telem-unit">FT</span>
+            </div>
+            <div class="telem-row" id="h3-row-gs">
+              <span class="telem-label">GS</span>
+              <span class="telem-value" id="h3-val-gs">0</span>
+              <span class="telem-unit">KT</span>
+            </div>
+            <div class="telem-row" id="h3-row-vs">
+              <span class="telem-label">VS</span>
+              <span class="telem-value" id="h3-val-vs">0</span>
+              <span class="telem-unit">FPM</span>
+            </div>
+            <div class="telem-row" id="h3-row-hdg">
+              <span class="telem-label">HDG</span>
+              <span class="telem-value" id="h3-val-hdg">0</span>
+              <span class="telem-unit">°</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="headline-wrap clip" data-start="0" data-duration="6" data-track-index="8">
+          <span class="line line-1" id="h3-line-1"
+            ><span class="word">20Hz</span><span class="word">FROM</span><span class="word"
+              >SIMCONNECT.</span
+            ></span
+          >
+          <span class="line line-2" id="h3-line-2">LIVE ON THE MAP.</span>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        (function () {
+          window.__timelines = window.__timelines || {};
+          var tl = gsap.timeline({ paused: true });
+
+          var routeLine = document.getElementById("h3-route-line");
+          var routeGlow = document.getElementById("h3-route-glow");
+          var aircraft = document.getElementById("h3-aircraft");
+          var stage = document.getElementById("h3-stage");
+          var line2 = document.getElementById("h3-line-2");
+
+          // ---- furniture: grid, hairlines, chrome, glitch (0.0-0.5s) ----
+          tl.fromTo("#h3-hairline-top", { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power3.out" }, 0);
+          tl.fromTo(
+            "#h3-hairline-bottom",
+            { scaleX: 0 },
+            { scaleX: 1, duration: 0.5, ease: "power3.out" },
+            0
+          );
+          tl.fromTo("#h3-meta-tag", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power3.out" }, 0.15);
+          tl.fromTo("#h3-page-num", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power3.out" }, 0.15);
+          tl.fromTo("#h3-glitch", { opacity: 0 }, { opacity: 0.5, duration: 0.5, ease: "power3.out" }, 0.2);
+
+          // ---- Scene 1 (0.0-1.5s): panel fades/scales in as hero, empty of route ----
+          tl.fromTo(
+            "#h3-panel-wrap",
+            { opacity: 0, scale: 0.92 },
+            { opacity: 1, scale: 1, duration: 1.1, ease: "power3.out" },
+            0.25
+          );
+          tl.fromTo(
+            "#h3-panel-dot",
+            { opacity: 0 },
+            { opacity: 1, duration: 0.5, ease: "power3.out" },
+            0.9
+          );
+
+          // subtle continuous dot blink via sine (deterministic, not CSS animation)
+          var dotPhase = { p: 0 };
+          tl.to(
+            dotPhase,
+            {
+              p: Math.PI * 2 * 5,
+              duration: 5.0,
+              ease: "none",
+              onUpdate: function () {
+                var v = (Math.sin(dotPhase.p) + 1) / 2;
+                document.getElementById("h3-panel-dot").style.opacity = String(0.4 + v * 0.6);
+              },
+            },
+            1.0
+          );
+
+          // ---- Scene 2 (1.5-3.5s): route self-draws, aircraft advances, camera pan/focus-lock, headline word-reveal ----
+          var pathLen = routeLine.getTotalLength();
+          routeLine.style.strokeDasharray = String(pathLen);
+          routeLine.style.strokeDashoffset = String(pathLen);
+          routeGlow.style.strokeDasharray = String(pathLen);
+          routeGlow.style.strokeDashoffset = String(pathLen);
+
+          tl.to(
+            routeLine,
+            { strokeDashoffset: 0, duration: 2.0, ease: "power2.out" },
+            1.5
+          );
+          tl.to(
+            routeGlow,
+            { strokeDashoffset: 0, duration: 2.0, ease: "power2.out" },
+            1.5
+          );
+          tl.fromTo(
+            "#h3-aircraft",
+            { opacity: 0 },
+            { opacity: 1, duration: 0.3, ease: "power2.out" },
+            1.5
+          );
+
+          // aircraft marker advances along the same path as the draw progresses
+          var aircraftDriver = { t: 0 };
+          tl.to(
+            aircraftDriver,
+            {
+              t: 1,
+              duration: 2.0,
+              ease: "power2.out",
+              onUpdate: function () {
+                var pt = routeLine.getPointAtLength(aircraftDriver.t * pathLen);
+                // map SVG viewBox coords (580x480) to the .map-area's own percentage
+                // space — .map-area shares the exact inset box as .route-svg, so a
+                // plain percentage (no calc mixing) lines the marker up with the path.
+                var leftPct = (pt.x / 580) * 100;
+                var topPct = (pt.y / 480) * 100;
+                aircraft.style.left = leftPct + "%";
+                aircraft.style.top = topPct + "%";
+                aircraft.style.transform = "translate(-50%, -50%)";
+              },
+            },
+            1.5
+          );
+
+          // camera pan/focus-lock: gentle drift toward upper-right as the route climbs, no back-half push
+          var cam = { x: 0, y: 0, scale: 1 };
+          function applyCam() {
+            stage.style.transform =
+              "translate(" + cam.x.toFixed(2) + "px, " + cam.y.toFixed(2) + "px) scale(" + cam.scale.toFixed(4) + ")";
+          }
+          applyCam();
+          tl.to(
+            cam,
+            {
+              x: -18,
+              y: -14,
+              scale: 1.04,
+              duration: 2.0,
+              ease: "power2.inOut",
+              onUpdate: applyCam,
+            },
+            1.5
+          );
+
+          // "20Hz FROM SIMCONNECT." per-word staggered reveal, upper-left
+          tl.fromTo(
+            "#h3-line-1 .word",
+            { opacity: 0, y: 8 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.45,
+              ease: "power3.out",
+              stagger: 0.12,
+            },
+            1.6
+          );
+
+          // ---- Scene 3 (3.5-5.0s): telemetry readouts tick in one at a time, staggered counters ----
+          var altState = { v: 0 };
+          tl.to(
+            altState,
+            {
+              v: 8400,
+              duration: 0.9,
+              ease: "power3.out",
+              onUpdate: function () {
+                document.getElementById("h3-val-alt").textContent = Math.round(altState.v).toLocaleString();
+              },
+            },
+            3.5
+          );
+          tl.fromTo(
+            "#h3-row-alt",
+            { opacity: 0, y: 8 },
+            { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" },
+            3.5
+          );
+
+          var gsState = { v: 0 };
+          tl.to(
+            gsState,
+            {
+              v: 287,
+              duration: 0.9,
+              ease: "power3.out",
+              onUpdate: function () {
+                document.getElementById("h3-val-gs").textContent = Math.round(gsState.v).toString();
+              },
+            },
+            3.8
+          );
+          tl.fromTo(
+            "#h3-row-gs",
+            { opacity: 0, y: 8 },
+            { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" },
+            3.8
+          );
+
+          var vsState = { v: 0 };
+          tl.to(
+            vsState,
+            {
+              v: 1120,
+              duration: 0.9,
+              ease: "power3.out",
+              onUpdate: function () {
+                document.getElementById("h3-val-vs").textContent = Math.round(vsState.v).toLocaleString();
+              },
+            },
+            4.1
+          );
+          tl.fromTo(
+            "#h3-row-vs",
+            { opacity: 0, y: 8 },
+            { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" },
+            4.1
+          );
+
+          var hdgState = { v: 0 };
+          tl.to(
+            hdgState,
+            {
+              v: 274,
+              duration: 0.9,
+              ease: "power3.out",
+              onUpdate: function () {
+                document.getElementById("h3-val-hdg").textContent = Math.round(hdgState.v).toString();
+              },
+            },
+            4.4
+          );
+          tl.fromTo(
+            "#h3-row-hdg",
+            { opacity: 0, y: 8 },
+            { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" },
+            4.4
+          );
+
+          // ---- Scene 4 (5.0-6.0s): "LIVE ON THE MAP." hard-cuts in; settled hold with subtle jitter ----
+          tl.set(line2, { opacity: 1 }, 5.0);
+
+          // subtle jitter on the aircraft marker so the held frame doesn't feel dead —
+          // folded into the SAME transform string as the centering translate so the
+          // sine offset composes with it instead of clobbering it.
+          var jitterPhase = { p: 0 };
+          tl.to(
+            jitterPhase,
+            {
+              p: Math.PI * 2 * 1.2,
+              duration: 1.0,
+              ease: "none",
+              onUpdate: function () {
+                var jy = Math.sin(jitterPhase.p) * 1.2;
+                aircraft.style.transform = "translate(-50%, calc(-50% + " + jy.toFixed(2) + "px))";
+              },
+            },
+            5.0
+          );
+
+          window.__timelines["03-live-tracking"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

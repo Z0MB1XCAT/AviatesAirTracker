@@ -1,0 +1,64 @@
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap');
+
+.wrap { font-family:'Plus Jakarta Sans',sans-serif; background:#080b14; color:#e7edf7;
+        border-radius:12px; padding:14px; }
+.lr { display:flex; align-items:center; gap:12px; padding:10px 10px; border-bottom:1px solid rgba(255,255,255,.06); }
+.lr:last-child { border-bottom:none; }
+
+/* the flag-gradient thumbnail */
+.fg { width:60px; height:40px; border-radius:7px; overflow:hidden; flex-shrink:0; position:relative;
+      border:1px solid rgba(255,255,255,.14); box-shadow:0 2px 8px rgba(0,0,0,.4); }
+.fg .flag { position:absolute; top:0; height:100%; width:66%; background-size:cover; background-position:center; }
+.fg .dep  { left:0;  -webkit-mask-image:linear-gradient(90deg,#000 40%,transparent 100%);
+                     mask-image:linear-gradient(90deg,#000 40%,transparent 100%); }
+.fg .arr  { right:0; -webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 60%);
+                     mask-image:linear-gradient(90deg,transparent 0%,#000 60%); }
+
+/* simplified flags as gradients/SVG data-uris */
+.f-gb { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 30'%3E%3Crect width='60' height='30' fill='%23012169'/%3E%3Cpath d='M0,0 60,30 M60,0 0,30' stroke='%23fff' stroke-width='6'/%3E%3Cpath d='M0,0 60,30 M60,0 0,30' stroke='%23C8102E' stroke-width='3'/%3E%3Cpath d='M30,0 V30 M0,15 H60' stroke='%23fff' stroke-width='10'/%3E%3Cpath d='M30,0 V30 M0,15 H60' stroke='%23C8102E' stroke-width='6'/%3E%3C/svg%3E"); }
+.f-es { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 4'%3E%3Crect width='6' height='4' fill='%23AA151B'/%3E%3Crect width='6' height='2' y='1' fill='%23F1BF00'/%3E%3C/svg%3E"); }
+.f-us { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 39 20'%3E%3Crect width='39' height='20' fill='%23fff'/%3E%3Cg fill='%23B22234'%3E%3Crect width='39' height='1.54'/%3E%3Crect width='39' height='1.54' y='3.08'/%3E%3Crect width='39' height='1.54' y='6.15'/%3E%3Crect width='39' height='1.54' y='9.23'/%3E%3Crect width='39' height='1.54' y='12.3'/%3E%3Crect width='39' height='1.54' y='15.38'/%3E%3Crect width='39' height='1.54' y='18.46'/%3E%3C/g%3E%3Crect width='16' height='10.77' fill='%233C3B6E'/%3E%3C/svg%3E"); }
+.f-ae { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 3'%3E%3Crect width='6' height='3' fill='%23fff'/%3E%3Crect width='6' height='1' fill='%2300732f'/%3E%3Crect width='6' height='1' y='2' fill='%23000'/%3E%3Crect width='1.5' height='3' fill='%23ff0000'/%3E%3C/svg%3E"); }
+.f-nl { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 6'%3E%3Crect width='9' height='6' fill='%23fff'/%3E%3Crect width='9' height='2' fill='%23AE1C28'/%3E%3Crect width='9' height='2' y='4' fill='%2321468B'/%3E%3C/svg%3E"); }
+
+.lr-t { flex:1; }
+.lr-t b { display:block; font-family:'Syne',sans-serif; font-size:14px; font-weight:700; }
+.lr-t b em { font-style:normal; color:#6d7d9b; font-weight:500; margin:0 6px; }
+.lr-t span { font-size:11px; color:#6d7d9b; }
+.lr-s { font-family:'Syne',sans-serif; font-size:13px; font-weight:800; padding:4px 10px; border-radius:999px;
+        background:rgba(62,199,172,.12); color:#74dcc6; border:1px solid rgba(62,199,172,.25); }
+.cc { font-family:'JetBrains Mono',monospace; font-size:10px; color:#6d7d9b; }
+h2 small { display:block; font-family:'Plus Jakarta Sans'; font-weight:500; font-size:13px; color:#a6b3cb; margin-top:6px; }
+.note { font-size:12.5px; color:#a6b3cb; line-height:1.6; margin-top:16px;
+        border-left:2px solid rgba(77,155,236,.5); padding:4px 0 4px 12px; }
+</style>
+
+<h2>Logbook rows — flag gradient
+  <small>Departure country flag on the left, arrival country flag on the right, blended in the middle. Country is derived from the ICAO prefix — no lookup table of airports needed.</small>
+</h2>
+
+<div class="wrap">
+  <div class="lr">
+    <div class="fg"><div class="flag dep f-gb"></div><div class="flag arr f-es"></div></div>
+    <div class="lr-t"><b>EGLL <em>→</em> LEPA</b><span>A320neo · AVA1204 · 2h 14m</span></div>
+    <span class="lr-s">96</span>
+  </div>
+  <div class="lr">
+    <div class="fg"><div class="flag dep f-gb"></div><div class="flag arr f-us"></div></div>
+    <div class="lr-t"><b>EGKK <em>→</em> KJFK</b><span>A350-900 · AVA0021 · 7h 48m</span></div>
+    <span class="lr-s">91</span>
+  </div>
+  <div class="lr">
+    <div class="fg"><div class="flag dep f-gb"></div><div class="flag arr f-ae"></div></div>
+    <div class="lr-t"><b>EGSS <em>→</em> OMDB</b><span>747-8F · AVC7701 · 6h 32m</span></div>
+    <span class="lr-s">88</span>
+  </div>
+  <div class="lr">
+    <div class="fg"><div class="flag dep f-nl"></div><div class="flag arr f-es"></div></div>
+    <div class="lr-t"><b>EHAM <em>→</em> LEBL</b><span>ATR 72 · AVC3310 · 1h 58m</span></div>
+    <span class="lr-s">84</span>
+  </div>
+</div>
+
+<p class="note">The flags above are simplified placeholders drawn inline just for this preview. In the real app I'd bundle a small set of proper SVG flags locally (offline-safe — the app can't rely on the internet), keyed by the ~200 standard ICAO country prefixes (EG→🇬🇧, LE→🇪🇸, K→🇺🇸, OM→🇦🇪, EH→🇳🇱 …). Flag emoji are out — Windows renders them as letter pairs, not flags.</p>

@@ -1,0 +1,156 @@
+<h2>ACARS Page — Overall Layout Direction</h2>
+<p class="subtitle">The biggest structural decision. Everything else (features, SimBrief, phase fix) stays the same across all three — this is just about how the space is organized.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="A" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#0a0d17;border-radius:6px;font-family:monospace;font-size:10px;color:#8892a4;line-height:1.6;">
+      <div style="display:grid;grid-template-columns:1fr;gap:6px;">
+        <div style="background:#1a1f2e;border:1px solid #3d7eee44;border-radius:4px;padding:8px;color:#e2e8f0;font-weight:700;font-size:11px;">
+          ✈ ACARS / Tracking &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; [● MSFS CONNECTED]
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;">
+          <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;">ALT<br/><span style="color:#e2e8f0;font-weight:700;">32,500</span><br/><span style="color:#6b7a99;font-size:9px;">ft</span></div>
+          <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;">IAS<br/><span style="color:#e2e8f0;font-weight:700;">285</span><br/><span style="color:#6b7a99;font-size:9px;">kts</span></div>
+          <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;">VS<br/><span style="color:#22c55e;font-weight:700;">+1800</span><br/><span style="color:#6b7a99;font-size:9px;">fpm</span></div>
+          <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;">HDG<br/><span style="color:#e2e8f0;font-weight:700;">045</span><br/><span style="color:#6b7a99;font-size:9px;">°</span></div>
+          <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;">N1<br/><span style="color:#3d7eee;font-weight:700;">88.2</span><br/><span style="color:#6b7a99;font-size:9px;">%</span></div>
+          <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;">FUEL<br/><span style="color:#e2e8f0;font-weight:700;">42,100</span><br/><span style="color:#6b7a99;font-size:9px;">lbs</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 220px;gap:6px;height:140px;">
+          <div style="background:#0d1520;border:1px solid #2a3040;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#3d7eee;font-size:20px;position:relative;">
+            🗺
+            <span style="position:absolute;bottom:6px;right:8px;font-size:9px;color:#3d7eee;background:#1a1f2e;padding:2px 6px;border-radius:3px;border:1px solid #3d7eee44;">LIVE MAP</span>
+            <span style="position:absolute;top:6px;left:8px;font-size:9px;color:#8892a4;">EGLL → EGPH</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;font-size:9px;flex:1;">
+              <div style="color:#6b7a99;margin-bottom:3px;">FLIGHT PLAN</div>
+              <div style="color:#e2e8f0;font-weight:700;">EGLL → EGPH</div>
+              <div style="color:#6b7a99;margin-top:2px;">A320neo · 350nm</div>
+            </div>
+            <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;font-size:9px;flex:1;">
+              <div style="color:#6b7a99;margin-bottom:3px;">PHASE</div>
+              <div style="display:flex;gap:3px;flex-wrap:wrap;">
+                <span style="background:#22c55e22;color:#22c55e;padding:2px 4px;border-radius:2px;font-size:8px;">CLIMB ●</span>
+                <span style="color:#6b7a99;font-size:8px;">CRUISE · DESCENT · APCH</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;font-size:9px;">
+          <div style="color:#6b7a99;margin-bottom:3px;">METAR / ROUTE / PIREP</div>
+          <div style="color:#6b7a99;">EGLL 200520Z 26015KT 9999 FEW018 BKN035 15/08 Q1009</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Compact Map Inline</h3>
+      <p>Map embedded at medium height (~200px) in the main column, with the flight plan and phase panels stacked to the right. The /map page stays as the full-screen version. <strong>No JS singleton conflict</strong> — uses a second named Leaflet instance.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="B" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#0a0d17;border-radius:6px;font-family:monospace;font-size:10px;color:#8892a4;line-height:1.6;">
+      <div style="display:grid;grid-template-columns:1fr;gap:6px;">
+        <div style="background:#1a1f2e;border:1px solid #3d7eee44;border-radius:4px;padding:8px;color:#e2e8f0;font-weight:700;font-size:11px;">
+          ✈ ACARS / Tracking &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; [● MSFS CONNECTED]
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;">
+          <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;">ALT<br/><span style="color:#e2e8f0;font-weight:700;">32,500</span></div>
+          <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;">IAS<br/><span style="color:#e2e8f0;font-weight:700;">285</span></div>
+          <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;">VS<br/><span style="color:#22c55e;font-weight:700;">+1800</span></div>
+          <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;">HDG<br/><span style="color:#e2e8f0;font-weight:700;">045</span></div>
+          <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;">N1<br/><span style="color:#3d7eee;font-weight:700;">88.2</span></div>
+          <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;">FUEL<br/><span style="color:#e2e8f0;font-weight:700;">42,100</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">
+          <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;font-size:9px;">
+            <div style="color:#6b7a99;">Flight Plan</div>
+            <div style="color:#e2e8f0;font-weight:700;">EGLL → EGPH</div>
+            <div style="color:#6b7a99;">A320 · B738 · 350nm</div>
+          </div>
+          <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;font-size:9px;">
+            <div style="color:#6b7a99;">Phase</div>
+            <div style="background:#3d7eee22;color:#3d7eee;padding:2px 6px;border-radius:3px;display:inline-block;margin-top:2px;">CLIMB</div>
+          </div>
+          <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;font-size:9px;">
+            <div style="color:#6b7a99;">ACARS Key</div>
+            <div style="color:#6b7a99;font-size:8px;">••••••••a3f2</div>
+          </div>
+        </div>
+        <div style="background:#0d1520;border:1px solid #2a3040;border-radius:4px;height:120px;display:flex;align-items:center;justify-content:center;color:#3d7eee;font-size:28px;position:relative;">
+          🗺
+          <span style="position:absolute;bottom:6px;right:10px;font-size:9px;color:#3d7eee;background:#1a1f2e;padding:2px 8px;border-radius:3px;border:1px solid #3d7eee44;">↗ Open Full Map</span>
+        </div>
+        <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;font-size:9px;color:#6b7a99;">METAR / ROUTE STRIP / PIREP</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Stacked Single Column</h3>
+      <p>Everything in one full-width column: instruments → summary cards → map (shorter, ~150px preview) → details below. Simpler to read top-to-bottom. The right-side panel is dissolved into the main flow.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="C" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#0a0d17;border-radius:6px;font-family:monospace;font-size:10px;color:#8892a4;line-height:1.6;">
+      <div style="display:grid;grid-template-columns:1fr;gap:6px;">
+        <div style="background:#1a1f2e;border:1px solid #3d7eee44;border-radius:4px;padding:8px;color:#e2e8f0;font-weight:700;font-size:11px;display:flex;justify-content:space-between;align-items:center;">
+          <span>✈ ACARS / Tracking</span>
+          <div style="display:flex;gap:6px;">
+            <span style="background:#22c55e22;color:#22c55e;padding:2px 8px;border-radius:10px;font-size:9px;border:1px solid #22c55e44;">● LIVE</span>
+            <span style="background:#3d7eee22;color:#3d7eee;padding:2px 8px;border-radius:10px;font-size:9px;border:1px solid #3d7eee44;">EGLL → EGPH</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:6px;">
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">
+              <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;font-size:9px;">ALT<br/><span style="color:#e2e8f0;font-weight:700;font-size:11px;">32,500</span><br/><span style="color:#6b7a99;">ft</span></div>
+              <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;font-size:9px;">IAS<br/><span style="color:#e2e8f0;font-weight:700;font-size:11px;">285</span><br/><span style="color:#6b7a99;">kts</span></div>
+              <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;font-size:9px;">VS<br/><span style="color:#22c55e;font-weight:700;font-size:11px;">+1800</span><br/><span style="color:#6b7a99;">fpm</span></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">
+              <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;font-size:9px;">HDG<br/><span style="color:#e2e8f0;font-weight:700;font-size:11px;">045</span><br/><span style="color:#6b7a99;">°</span></div>
+              <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;font-size:9px;">GS<br/><span style="color:#e2e8f0;font-weight:700;font-size:11px;">492</span><br/><span style="color:#6b7a99;">kts</span></div>
+              <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;text-align:center;font-size:9px;">MACH<br/><span style="color:#e2e8f0;font-weight:700;font-size:11px;">.80</span><br/><span style="color:#6b7a99;"></span></div>
+            </div>
+            <div style="background:#0d1520;border:1px solid #2a3040;border-radius:4px;height:90px;display:flex;align-items:center;justify-content:center;font-size:20px;position:relative;">
+              🗺 <span style="position:absolute;bottom:5px;right:8px;font-size:9px;color:#3d7eee;background:#1a1f2e;padding:2px 6px;border-radius:3px;border:1px solid #3d7eee44;">↗ Full Map</span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:8px;font-size:9px;flex:1;">
+              <div style="color:#6b7a99;margin-bottom:4px;font-size:8px;text-transform:uppercase;letter-spacing:.08em;">Flight</div>
+              <div style="color:#e2e8f0;font-weight:700;">EGLL → EGPH</div>
+              <div style="color:#6b7a99;margin-top:2px;">VAV103 · A320neo</div>
+              <div style="margin-top:6px;height:4px;background:#2a3040;border-radius:2px;overflow:hidden;"><div style="height:100%;width:38%;background:linear-gradient(90deg,#3d7eee,#06b6d4);border-radius:2px;"></div></div>
+              <div style="display:flex;justify-content:space-between;margin-top:2px;font-size:8px;color:#6b7a99;"><span>350nm</span><span>ETA 14:22Z</span></div>
+            </div>
+            <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:8px;font-size:9px;flex:1;">
+              <div style="color:#6b7a99;margin-bottom:4px;font-size:8px;text-transform:uppercase;letter-spacing:.08em;">Phase</div>
+              <div style="display:flex;flex-direction:column;gap:3px;">
+                <div style="display:flex;align-items:center;gap:5px;"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;"></span><span style="color:#e2e8f0;font-weight:700;font-size:10px;">CLIMB</span></div>
+                <div style="display:flex;align-items:center;gap:5px;"><span style="width:6px;height:6px;border-radius:50%;background:#2a3040;display:inline-block;"></span><span style="color:#6b7a99;font-size:9px;">Cruise</span></div>
+                <div style="display:flex;align-items:center;gap:5px;"><span style="width:6px;height:6px;border-radius:50%;background:#2a3040;display:inline-block;"></span><span style="color:#6b7a99;font-size:9px;">Descent</span></div>
+                <div style="display:flex;align-items:center;gap:5px;"><span style="width:6px;height:6px;border-radius:50%;background:#2a3040;display:inline-block;"></span><span style="color:#6b7a99;font-size:9px;">Approach</span></div>
+              </div>
+            </div>
+            <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:8px;font-size:9px;">
+              <div style="color:#6b7a99;font-size:8px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">ACARS</div>
+              <div style="color:#6b7a99;font-size:8px;">••••••••a3f2</div>
+              <div style="color:#6b7a99;font-size:8px;margin-top:2px;">VAV-0042</div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#1a1f2e;border:1px solid #2a3040;border-radius:4px;padding:6px;font-size:9px;color:#6b7a99;">METAR / ROUTE / PIREP panels (below)</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Two-Column with Expanded Instruments (Recommended)</h3>
+      <p>Left column holds instruments (2×3 grid with GS + Mach added), a compact map preview, and the progress bar. Right panel is a sticky sidebar with flight details, phase tracker, and ACARS key. Phase now shows Descent as a distinct step. Full-width detail panels (METAR, route, PIREP) sit below both columns.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px;">All layouts include the same fixes: phase accuracy, SimBrief ID/username support, FMC button removal, and Submit Position Report wired up. This is purely about structure.</p>

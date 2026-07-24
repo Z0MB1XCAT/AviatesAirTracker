@@ -1,0 +1,536 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- head is metadata only for the source file; the runtime discards it -->
+  </head>
+  <body>
+    <template>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          font-family: "Outfit", sans-serif;
+          container-type: size;
+        }
+
+        /* full-bleed ground clip — never painted directly on #root */
+        .ground {
+          position: absolute;
+          inset: 0;
+          background-color: #0a0d17;
+        }
+
+        /* ---- graph-paper grid, clears off all four edges in Scene 1 ---- */
+        .grid-layer {
+          position: absolute;
+          inset: -4cqw;
+          background-image:
+            linear-gradient(rgba(241, 245, 249, 0.1) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(241, 245, 249, 0.1) 1px, transparent 1px);
+          background-size: 2cqw 2cqw;
+          opacity: 1;
+          -webkit-mask-image: linear-gradient(#000, #000);
+          mask-image: linear-gradient(#000, #000);
+          -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+        }
+
+        .hairline {
+          position: absolute;
+          left: 4cqw;
+          right: 4cqw;
+          height: 0.12cqw;
+          background: #f1f5f9;
+          transform-origin: center center;
+        }
+        .hairline-top {
+          top: 3cqw;
+        }
+        .hairline-bottom {
+          bottom: 3cqw;
+        }
+
+        .meta-tag {
+          position: absolute;
+          top: 4.4cqw;
+          left: 4cqw;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          letter-spacing: 0.06em;
+          color: rgba(241, 245, 249, 0.55);
+        }
+
+        .page-num {
+          position: absolute;
+          bottom: 4.4cqw;
+          right: 4cqw;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          letter-spacing: 0.06em;
+          color: rgba(241, 245, 249, 0.55);
+        }
+
+        /* corner brackets — the four edges the grid "clears" toward (reverse
+           center-outward-expansion target markers), decorative HUD chrome */
+        .corner-mark {
+          position: absolute;
+          width: 2.2cqw;
+          height: 2.2cqw;
+          border: 0.12cqw solid rgba(241, 245, 249, 0.4);
+          opacity: 0;
+        }
+        .corner-tl { top: 3cqw; left: 4cqw; border-right: none; border-bottom: none; }
+        .corner-tr { top: 3cqw; right: 4cqw; border-left: none; border-bottom: none; }
+        .corner-bl { bottom: 3cqw; left: 4cqw; border-right: none; border-top: none; }
+        .corner-br { bottom: 3cqw; right: 4cqw; border-left: none; border-top: none; }
+
+        /* ---- wordmark lockup — identical construction to 02-product-intro ---- */
+        .lockup-stage {
+          position: absolute;
+          left: 50%;
+          top: 42cqh;
+          transform: translate(-50%, -50%);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        /* ambient glow behind the wordmark — centered with margins, never a
+           CSS transform, so the GSAP scale/opacity tween never clobbers centering */
+        .lockup-glow {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 60cqw;
+          height: 60cqw;
+          margin-left: -30cqw;
+          margin-top: -30cqw;
+          scale: 0.85;
+          background: radial-gradient(
+            circle,
+            rgba(59, 130, 246, 0.55) 0%,
+            rgba(59, 130, 246, 0.18) 42%,
+            rgba(59, 130, 246, 0) 72%
+          );
+          opacity: 0;
+          pointer-events: none;
+          will-change: transform, opacity;
+          z-index: 0;
+        }
+
+        .mark-svg {
+          position: relative;
+          z-index: 1;
+          width: 5.6cqw;
+          height: 5.6cqw;
+          margin-bottom: 1.6cqw;
+          overflow: visible;
+        }
+        .mark-svg path {
+          fill: none;
+          stroke: #3b82f6;
+          stroke-width: 3;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+        .mark-svg circle {
+          fill: none;
+          stroke: #f1f5f9;
+          stroke-width: 2.5;
+        }
+
+        .wordmark-wrap {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .wordmark-row {
+          display: flex;
+          gap: 1.1cqw;
+        }
+
+        /* wm-word text is revealed after its per-word draw-rail strokes on,
+           echoing 02's self-draw signature move — here the WHOLE wordmark
+           draws itself on, not just the underline beneath it */
+        .wm-word {
+          font-family: "Outfit", sans-serif;
+          font-weight: 400;
+          font-size: 4.6cqw;
+          line-height: 0.95;
+          letter-spacing: -0.008em;
+          color: #f1f5f9;
+          opacity: 0;
+          will-change: opacity;
+        }
+
+        /* draw-stroke rail sits under each word while it draws on, then fades */
+        .draw-rail {
+          position: absolute;
+          left: 0;
+          bottom: -0.35cqw;
+          width: 100%;
+          height: 0.16cqw;
+          overflow: visible;
+        }
+        .draw-rail path {
+          fill: none;
+          stroke: #3b82f6;
+          stroke-width: 3;
+          stroke-linecap: round;
+        }
+        .wm-word-wrap {
+          position: relative;
+        }
+
+        /* underline stroke beneath the full lockup */
+        .underline-svg {
+          margin-top: 1.4cqw;
+          width: 40cqw;
+          height: 1cqw;
+          overflow: visible;
+        }
+        .underline-svg path {
+          fill: none;
+          stroke: #3b82f6;
+          stroke-width: 2.5;
+          stroke-linecap: round;
+        }
+
+        /* COMING SOON tagline */
+        .tagline-row {
+          margin-top: 2.4cqw;
+          display: flex;
+          gap: 0.8cqw;
+        }
+        .tag-word {
+          font-family: "JetBrains Mono", monospace;
+          font-weight: 500;
+          font-size: 1.4cqw;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: #3b82f6;
+          opacity: 0;
+          transform: translateY(10px);
+          will-change: transform, opacity;
+        }
+
+        /* pixel-glitch column mirrored on the LEFT (colophon convention) */
+        .glitch-col {
+          position: absolute;
+          top: 3cqw;
+          bottom: 3cqw;
+          left: 6cqw;
+          width: 3.5cqw;
+          opacity: 0;
+          background-image: repeating-linear-gradient(
+            90deg,
+            #f1f5f9 0 2px,
+            transparent 2px 8px
+          );
+          background-color: transparent;
+          -webkit-mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            #000 10%,
+            #000 26%,
+            transparent 32%,
+            transparent 60%,
+            #000 66%,
+            #000 82%,
+            transparent 88%
+          );
+          mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            #000 10%,
+            #000 26%,
+            transparent 32%,
+            transparent 60%,
+            #000 66%,
+            #000 82%,
+            transparent 88%
+          );
+        }
+      </style>
+
+      <div id="root" data-composition-id="08-brand-outro" data-width="1920" data-height="1080">
+        <div class="ground clip" data-start="0" data-duration="6.5" data-track-index="0"></div>
+
+        <div class="grid-layer clip" id="outro-grid" data-start="0" data-duration="6.5" data-track-index="1"></div>
+
+        <div class="hairline hairline-top clip" id="outro-hairline-top" data-start="0" data-duration="6.5" data-track-index="2"></div>
+        <div class="hairline hairline-bottom clip" id="outro-hairline-bottom" data-start="0" data-duration="6.5" data-track-index="3"></div>
+
+        <div class="meta-tag clip" id="outro-meta-tag" data-start="0" data-duration="6.5" data-track-index="4">
+          AVIATES · END OF LINE
+        </div>
+        <div class="page-num clip" id="outro-page-num" data-start="0" data-duration="6.5" data-track-index="5">
+          008
+        </div>
+
+        <div class="corner-mark corner-tl clip" id="outro-corner-tl" data-start="0" data-duration="6.5" data-track-index="6"></div>
+        <div class="corner-mark corner-tr clip" id="outro-corner-tr" data-start="0" data-duration="6.5" data-track-index="7"></div>
+        <div class="corner-mark corner-bl clip" id="outro-corner-bl" data-start="0" data-duration="6.5" data-track-index="8"></div>
+        <div class="corner-mark corner-br clip" id="outro-corner-br" data-start="0" data-duration="6.5" data-track-index="9"></div>
+
+        <div class="glitch-col clip" id="outro-glitch" data-start="0" data-duration="6.5" data-track-index="10"></div>
+
+        <!-- Scene 2 + 3: lockup (identical construction to 02-product-intro) -->
+        <div class="lockup-stage clip" data-start="0" data-duration="6.5" data-track-index="11">
+          <div class="lockup-glow" id="outro-lockup-glow"></div>
+
+          <svg class="mark-svg" id="outro-mark-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle id="outro-mark-ring" cx="50" cy="50" r="40" />
+            <path id="outro-mark-blade" d="M50 14 L62 50 L50 86 L38 50 Z" />
+          </svg>
+
+          <div class="wordmark-wrap" id="outro-wordmark-wrap">
+            <div class="wordmark-row">
+              <div class="wm-word-wrap">
+                <div class="wm-word" id="outro-wm-1">AVIATES</div>
+                <svg class="draw-rail" id="outro-rail-1" viewBox="0 0 100 4" preserveAspectRatio="none">
+                  <path d="M2 2 L98 2" />
+                </svg>
+              </div>
+              <div class="wm-word-wrap">
+                <div class="wm-word" id="outro-wm-2">AIR</div>
+                <svg class="draw-rail" id="outro-rail-2" viewBox="0 0 100 4" preserveAspectRatio="none">
+                  <path d="M2 2 L98 2" />
+                </svg>
+              </div>
+              <div class="wm-word-wrap">
+                <div class="wm-word" id="outro-wm-3">TRACKER</div>
+                <svg class="draw-rail" id="outro-rail-3" viewBox="0 0 100 4" preserveAspectRatio="none">
+                  <path d="M2 2 L98 2" />
+                </svg>
+              </div>
+            </div>
+            <svg class="underline-svg" viewBox="0 0 400 10" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+              <path id="outro-underline-path" d="M4 5 L396 5" />
+            </svg>
+            <div class="tagline-row" id="outro-tagline-row">
+              <span class="tag-word">Coming</span>
+              <span class="tag-word">Soon</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        (function () {
+          window.__timelines = window.__timelines || {};
+          var tl = gsap.timeline({ paused: true });
+
+          // ================= Scene 1 (0.0-1.5s): stage-clear =================
+          // Furniture is present at t=0 (grid full, hairlines full-width, corner
+          // marks + glitch present), then reverse center-outward-expansion:
+          // the grid recedes off all four edges via an animated mask sweeping
+          // inward-to-outward on a growing centered "hole" that eats the grid
+          // from the middle toward the edges — read together with the hairlines
+          // scaling down from center and the corner marks flashing then fading,
+          // it reads as the HUD furniture clearing the stage before the mark builds.
+          var gridMaskState = { p: 0 };
+          var gridEl = document.getElementById("outro-grid");
+          function paintGridMask(p) {
+            // p: 0 (full grid, no hole) -> 1 (grid fully cleared, huge hole)
+            // radial hole grows from center outward, eating the grid inward->outward
+            var pct = 140 * p; // percent of container diagonal-ish reach
+            gridEl.style.webkitMaskImage =
+              "radial-gradient(circle at 50% 50%, transparent 0%, transparent " +
+              pct +
+              "%, #000 " +
+              Math.min(pct + 6, 148) +
+              "%)";
+            gridEl.style.maskImage = gridEl.style.webkitMaskImage;
+          }
+          paintGridMask(0);
+          tl.to(
+            gridMaskState,
+            {
+              p: 1,
+              duration: 1.2,
+              ease: "power3.inOut",
+              onUpdate: function () {
+                paintGridMask(gridMaskState.p);
+              },
+            },
+            0.1
+          );
+
+          // hairlines contract toward center as they clear (mirrors the grid's
+          // inward-collapsing clear)
+          tl.to(
+            "#outro-hairline-top",
+            { scaleX: 0, duration: 1.0, ease: "power3.inOut", transformOrigin: "center center" },
+            0.15
+          );
+          tl.to(
+            "#outro-hairline-bottom",
+            { scaleX: 0, duration: 1.0, ease: "power3.inOut", transformOrigin: "center center" },
+            0.15
+          );
+          tl.to("#outro-meta-tag", { opacity: 0, duration: 0.5, ease: "power2.in" }, 0.1);
+          tl.to("#outro-page-num", { opacity: 0, duration: 0.5, ease: "power2.in" }, 0.1);
+
+          // corner marks flash on briefly (marking the edges the furniture clears
+          // toward) then fade with the rest of the stage-clear
+          var cornerIds = ["#outro-corner-tl", "#outro-corner-tr", "#outro-corner-bl", "#outro-corner-br"];
+          cornerIds.forEach(function (sel, i) {
+            tl.fromTo(
+              sel,
+              { opacity: 0 },
+              { opacity: 0.6, duration: 0.3, ease: "power2.out" },
+              0.05 + i * 0.04
+            );
+            tl.to(sel, { opacity: 0, duration: 0.6, ease: "power2.in" }, 0.7 + i * 0.04);
+          });
+
+          // glitch column: brief presence then clears with the rest of the furniture
+          tl.fromTo(
+            "#outro-glitch",
+            { opacity: 0 },
+            { opacity: 0.45, duration: 0.35, ease: "power2.out" },
+            0.05
+          );
+          tl.to("#outro-glitch", { opacity: 0, duration: 0.5, ease: "power2.in" }, 0.85);
+
+          // ================= Scene 2 (1.5-4.0s): wordmark draws itself on =================
+          // ring + blade self-draw (identical signature move to 02-product-intro)
+          var ring = document.getElementById("outro-mark-ring");
+          var blade = document.getElementById("outro-mark-blade");
+          var ringLen = ring.getTotalLength();
+          var bladeLen = blade.getTotalLength();
+          ring.style.strokeDasharray = String(ringLen);
+          ring.style.strokeDashoffset = String(ringLen);
+          blade.style.strokeDasharray = String(bladeLen);
+          blade.style.strokeDashoffset = String(bladeLen);
+
+          tl.to(ring, { strokeDashoffset: 0, duration: 0.7, ease: "power2.out" }, 1.6);
+          tl.to(blade, { strokeDashoffset: 0, duration: 0.45, ease: "power2.out" }, 2.05);
+
+          // each word's draw-rail strokes on left->right, then the word itself
+          // fades in synced to its rail completing — "drawing on stroke-by-stroke"
+          var railIds = ["#outro-rail-1", "#outro-rail-2", "#outro-rail-3"];
+          var wmIds = ["#outro-wm-1", "#outro-wm-2", "#outro-wm-3"];
+          var RAIL_DRAW_DUR = 0.42;
+          var RAIL_STAGGER = 0.3;
+          var RAIL_START = 2.3;
+
+          railIds.forEach(function (railSel, i) {
+            var railPath = document.querySelector(railSel + " path");
+            var len = railPath.getTotalLength();
+            railPath.style.strokeDasharray = String(len);
+            railPath.style.strokeDashoffset = String(len);
+            var start = RAIL_START + i * RAIL_STAGGER;
+
+            tl.to(
+              railPath,
+              { strokeDashoffset: 0, duration: RAIL_DRAW_DUR, ease: "power2.out" },
+              start
+            );
+            // word fades in as its rail finishes drawing
+            tl.fromTo(
+              wmIds[i],
+              { opacity: 0 },
+              { opacity: 1, duration: 0.3, ease: "power2.out" },
+              start + RAIL_DRAW_DUR * 0.6
+            );
+            // rail fades out once the word has landed, leaving clean type
+            tl.to(
+              railPath,
+              { opacity: 0, duration: 0.35, ease: "power1.in" },
+              start + RAIL_DRAW_DUR + 0.25
+            );
+          });
+
+          // underline stroke draws beneath the completed wordmark
+          var underline = document.getElementById("outro-underline-path");
+          var underlineLen = underline.getTotalLength();
+          underline.style.strokeDasharray = String(underlineLen);
+          underline.style.strokeDashoffset = String(underlineLen);
+          tl.to(underline, { strokeDashoffset: 0, duration: 0.5, ease: "power2.out" }, 3.55);
+
+          // ambient-glow-bloom lands as the wordmark completes (one beat)
+          var GLOW_PEAK_OPACITY = 0.32;
+          var BLOOM_START = 3.5;
+          var BLOOM_DUR = 0.85;
+          tl.fromTo(
+            "#outro-lockup-glow",
+            { opacity: 0, scale: 0.85 },
+            { opacity: GLOW_PEAK_OPACITY, scale: 1, duration: BLOOM_DUR, ease: "power2.out" },
+            BLOOM_START
+          );
+
+          // ================= Scene 3 (4.0-6.5s): COMING SOON reveal + final hold =================
+          var tagWords = gsap.utils.toArray("#outro-tagline-row .tag-word");
+          var TAG_STAGGER = 0.14;
+          tagWords.forEach(function (el, i) {
+            tl.fromTo(
+              el,
+              { opacity: 0, y: 10 },
+              { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" },
+              4.1 + i * TAG_STAGGER
+            );
+          });
+
+          // bounded idle breathe on the glow through the final hold (no loop)
+          var glow = document.getElementById("outro-lockup-glow");
+          var glowPhase = { p: 0 };
+          var BREATHE_START = BLOOM_START + BLOOM_DUR; // 4.35
+          var BREATHE_DUR = 6.5 - BREATHE_START; // ~2.15s remaining
+          var OPACITY_AMP = 0.03;
+          var SCALE_AMP = 0.015;
+          tl.to(
+            glowPhase,
+            {
+              p: Math.PI * 2 * 0.6,
+              duration: BREATHE_DUR,
+              ease: "none",
+              onUpdate: function () {
+                var s = Math.sin(glowPhase.p);
+                glow.style.opacity = String(GLOW_PEAK_OPACITY + s * OPACITY_AMP);
+                glow.style.scale = String(1 + s * SCALE_AMP);
+              },
+            },
+            BREATHE_START
+          );
+
+          // subtle jitter on the settled wordmark through the final hold —
+          // this is the film's true exit, so the jitter fades to zero over the
+          // last ~20% so the very last frame is dead-still
+          var wordmarkWrap = document.getElementById("outro-wordmark-wrap");
+          var jitterPhase = { p: 0 };
+          var JITTER_START = 4.5;
+          var JITTER_DUR = 6.5 - JITTER_START; // 2.0s
+          var JITTER_CYCLES = 0.7;
+          var FADE_FRAC = 0.25;
+          tl.to(
+            jitterPhase,
+            {
+              p: Math.PI * 2 * JITTER_CYCLES,
+              duration: JITTER_DUR,
+              ease: "none",
+              onUpdate: function () {
+                var t = jitterPhase.p / (Math.PI * 2 * JITTER_CYCLES);
+                var env = t < 1 - FADE_FRAC ? 1 : (1 - t) / FADE_FRAC;
+                var y = Math.sin(jitterPhase.p) * 1.4 * env;
+                wordmarkWrap.style.transform = "translateY(" + y.toFixed(2) + "px)";
+              },
+            },
+            JITTER_START
+          );
+
+          window.__timelines["08-brand-outro"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

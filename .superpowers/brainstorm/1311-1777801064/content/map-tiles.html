@@ -1,0 +1,269 @@
+<h2>Base Map Style</h2>
+<p class="subtitle">What should the map background look like? This sets the whole tone of the page.</p>
+
+<style>
+  .tile-card {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(61,126,238,0.2);
+    font-family: 'JetBrains Mono', monospace;
+    height: 200px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .plane-icon {
+    position: absolute;
+    font-size: 18px;
+    filter: drop-shadow(0 0 7px rgba(61,126,238,0.9));
+    z-index: 10;
+    transform: translate(-50%,-50%) rotate(-35deg);
+  }
+  canvas.trail { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
+
+  /* ── Style A: Dark Matter (near-black, minimal labels) ── */
+  .tile-a {
+    background: #1a1a2e;
+  }
+  .tile-a .land { fill: #16213e; }
+  .tile-a .water { fill: #0f3460; }
+  .tile-a .road { stroke: #1a1a2e; }
+  .tile-a-bg {
+    position: absolute; inset: 0;
+    background: #181825;
+  }
+  .tile-a-bg::after {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse at 30% 60%, rgba(15,52,96,0.6) 0%, transparent 55%),
+      radial-gradient(ellipse at 75% 30%, rgba(22,33,62,0.8) 0%, transparent 50%);
+  }
+  .mock-label-a {
+    position: absolute;
+    font-size: 7px;
+    letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.18);
+    font-weight: 600;
+  }
+  .mock-road-a {
+    position: absolute;
+    background: rgba(255,255,255,0.06);
+    border-radius: 1px;
+  }
+
+  /* ── Style B: Terrain / Topo (earthy, elevation shading) ── */
+  .tile-b-bg {
+    position: absolute; inset: 0;
+    background: #2d3821;
+  }
+  .tile-b-bg::after {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 70%, rgba(74,98,42,0.7) 0%, transparent 40%),
+      radial-gradient(ellipse at 60% 40%, rgba(52,72,31,0.8) 0%, transparent 45%),
+      radial-gradient(ellipse at 85% 65%, rgba(38,54,22,0.9) 0%, transparent 35%),
+      radial-gradient(ellipse at 40% 20%, rgba(90,115,55,0.5) 0%, transparent 30%);
+  }
+  .mock-water-b {
+    position: absolute;
+    background: rgba(30,80,130,0.55);
+    border-radius: 40% 60% 50% 70%;
+  }
+  .mock-label-b {
+    position: absolute;
+    font-size: 7px;
+    letter-spacing: 0.05em;
+    color: rgba(255,255,255,0.25);
+    font-weight: 600;
+  }
+  .mock-contour {
+    position: absolute;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 50%;
+  }
+
+  /* ── Style C: Aviation Chart (cyan grid, airways, VORs) ── */
+  .tile-c-bg {
+    position: absolute; inset: 0;
+    background: #09111f;
+  }
+  .tile-c-bg::after {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(0,180,255,0.05) 19px, rgba(0,180,255,0.05) 20px),
+      repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(0,180,255,0.05) 19px, rgba(0,180,255,0.05) 20px);
+  }
+  .mock-airway {
+    position: absolute;
+    height: 1px;
+    background: rgba(0,200,255,0.2);
+    transform-origin: left center;
+  }
+  .mock-vor {
+    position: absolute;
+    width: 14px; height: 14px;
+    border: 1px solid rgba(0,200,255,0.4);
+    transform: translate(-50%,-50%) rotate(45deg);
+    z-index: 4;
+  }
+  .mock-vor::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border: 1px solid rgba(0,200,255,0.25);
+  }
+  .mock-vor-label {
+    position: absolute;
+    font-size: 6.5px;
+    letter-spacing: 0.08em;
+    color: rgba(0,200,255,0.55);
+    transform: translate(-50%, 10px);
+    z-index: 4;
+    white-space: nowrap;
+  }
+  .mock-fir {
+    position: absolute;
+    border: 1px dashed rgba(255,200,0,0.15);
+    border-radius: 4px;
+  }
+  .mock-fir-label {
+    position: absolute;
+    font-size: 6px;
+    letter-spacing: 0.1em;
+    color: rgba(255,200,0,0.25);
+  }
+  .mock-land-c {
+    position: absolute;
+    background: rgba(255,255,255,0.03);
+    border-radius: 30% 50% 40% 60%;
+  }
+</style>
+
+<div class="cards">
+
+  <!-- Option A: Dark Matter -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="tile-card">
+        <div class="tile-a-bg"></div>
+        <!-- Simulated land masses -->
+        <div class="mock-road-a" style="left:0;top:38%;width:35%;height:1px;transform:rotate(-8deg);"></div>
+        <div class="mock-road-a" style="left:30%;top:55%;width:40%;height:1px;transform:rotate(12deg);"></div>
+        <div class="mock-road-a" style="left:55%;top:30%;width:45%;height:1px;transform:rotate(-5deg);"></div>
+        <div class="mock-label-a" style="left:12%;top:30%;">LONDON</div>
+        <div class="mock-label-a" style="left:60%;top:55%;">PARIS</div>
+        <div class="mock-label-a" style="left:75%;top:22%;">AMSTERDAM</div>
+        <canvas class="trail" id="trailA"></canvas>
+        <div class="plane-icon" style="left:55%;top:45%;">✈</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Dark Matter</h3>
+      <p>Near-black base with subtle geography. Clean and minimal — the aircraft and trail are the star. Best readability for the HUD cards.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Terrain -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="tile-card">
+        <div class="tile-b-bg"></div>
+        <div class="mock-water-b" style="left:5%;top:60%;width:25%;height:20%;"></div>
+        <div class="mock-water-b" style="left:65%;top:10%;width:30%;height:18%;"></div>
+        <div class="mock-contour" style="left:35%;top:25%;width:50px;height:35px;"></div>
+        <div class="mock-contour" style="left:40%;top:30%;width:35px;height:22px;"></div>
+        <div class="mock-label-b" style="left:10%;top:25%;">ENGLAND</div>
+        <div class="mock-label-b" style="left:55%;top:65%;">FRANCE</div>
+        <canvas class="trail" id="trailB"></canvas>
+        <div class="plane-icon" style="left:55%;top:45%;filter:drop-shadow(0 0 7px #fff);">✈</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Terrain / Topo</h3>
+      <p>Earthy greens and elevation shading. Gives a real sense of geography — mountain ranges, coastlines, sea. Feels more like a real nav system.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Aviation Chart -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="tile-card">
+        <div class="tile-c-bg"></div>
+        <!-- Airways -->
+        <div class="mock-airway" style="left:5%;top:72%;width:95%;transform:rotate(-30deg);"></div>
+        <div class="mock-airway" style="left:5%;top:55%;width:90%;transform:rotate(-20deg);"></div>
+        <div class="mock-airway" style="left:15%;top:80%;width:70%;transform:rotate(-42deg);"></div>
+        <!-- Land mass hint -->
+        <div class="mock-land-c" style="left:5%;top:30%;width:30%;height:50%;"></div>
+        <div class="mock-land-c" style="left:50%;top:40%;width:45%;height:45%;"></div>
+        <!-- VORs -->
+        <div class="mock-vor" style="left:25%;top:60%;"></div>
+        <div class="mock-vor-label" style="left:25%;top:60%;">LON</div>
+        <div class="mock-vor" style="left:70%;top:35%;"></div>
+        <div class="mock-vor-label" style="left:70%;top:35%;">BRU</div>
+        <div class="mock-vor" style="left:50%;top:72%;"></div>
+        <div class="mock-vor-label" style="left:50%;top:72%;">DVR</div>
+        <!-- FIR boundary -->
+        <div class="mock-fir" style="left:5%;top:15%;width:40%;height:55%;"></div>
+        <div class="mock-fir-label" style="left:7%;top:17%;">LONDON FIR</div>
+        <div class="mock-fir" style="left:46%;top:20%;width:50%;height:50%;"></div>
+        <div class="mock-fir-label" style="left:48%;top:22%;">BRUSSELS FIR</div>
+        <canvas class="trail" id="trailC"></canvas>
+        <div class="plane-icon" style="left:55%;top:45%;filter:drop-shadow(0 0 7px rgba(0,200,255,0.9));">✈</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Aviation Chart</h3>
+      <p>Dark blue with cyan airways, VOR diamonds, and FIR boundaries. Looks like an actual en-route chart. The most authentic aviation feel.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  function altColor(altFt) {
+    if (altFt <= 100) return 'rgba(180,180,180,0.85)';
+    var t = Math.min((altFt - 100) / (45000 - 100), 1.0);
+    var hue = 270 * (1 - t);
+    return 'hsl('+hue+',55%,42%)';
+  }
+
+  var pts = [
+    [0.10,0.82,0],[0.14,0.77,300],[0.19,0.71,2000],[0.24,0.65,7000],
+    [0.30,0.60,14000],[0.36,0.56,22000],[0.42,0.52,30000],
+    [0.48,0.49,34000],[0.54,0.46,35000],[0.55,0.45,35000]
+  ];
+
+  ['trailA','trailB','trailC'].forEach(function(id) {
+    var c = document.getElementById(id);
+    if (!c) return;
+    var r = c.parentElement.getBoundingClientRect();
+    c.width = r.width||400; c.height = r.height||200;
+    var W = c.width, H = c.height;
+    var ctx = c.getContext('2d');
+    ctx.lineWidth = 2.5; ctx.lineCap='round'; ctx.lineJoin='round';
+    for (var i=0;i<pts.length-1;i++) {
+      var p1=pts[i],p2=pts[i+1];
+      var g=ctx.createLinearGradient(p1[0]*W,p1[1]*H,p2[0]*W,p2[1]*H);
+      g.addColorStop(0,altColor(p1[2]));
+      g.addColorStop(1,altColor(p2[2]));
+      ctx.beginPath();
+      ctx.strokeStyle=g;
+      ctx.shadowColor=altColor((p1[2]+p2[2])/2);
+      ctx.shadowBlur=4;
+      ctx.moveTo(p1[0]*W,p1[1]*H);
+      ctx.lineTo(p2[0]*W,p2[1]*H);
+      ctx.stroke();
+    }
+    // Dashed planned ahead
+    ctx.setLineDash([5,4]); ctx.lineWidth=1.2; ctx.shadowBlur=0;
+    ctx.strokeStyle='rgba(61,126,238,0.3)';
+    ctx.beginPath();
+    ctx.moveTo(0.55*W,0.45*H); ctx.lineTo(0.88*W,0.16*H);
+    ctx.stroke(); ctx.setLineDash([]);
+  });
+})();
+</script>

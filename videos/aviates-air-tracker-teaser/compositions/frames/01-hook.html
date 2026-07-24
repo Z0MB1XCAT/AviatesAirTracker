@@ -1,0 +1,352 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- head is metadata only for the source file; the runtime discards it -->
+  </head>
+  <body>
+    <template>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          font-family: "Outfit", sans-serif;
+          container-type: size;
+        }
+
+        /* full-bleed ground clip — never painted directly on #root */
+        .ground {
+          position: absolute;
+          inset: 0;
+          background-color: #0a0d17;
+        }
+
+        .grid-layer {
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(rgba(241, 245, 249, 0.1) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(241, 245, 249, 0.1) 1px, transparent 1px);
+          background-size: 2cqw 2cqw;
+          opacity: 0;
+        }
+
+        .hairline {
+          position: absolute;
+          left: 4cqw;
+          right: 4cqw;
+          height: 0.12cqw;
+          background: #f1f5f9;
+          transform: scaleX(0);
+          transform-origin: left center;
+        }
+        .hairline-top {
+          top: 3cqw;
+        }
+        .hairline-bottom {
+          bottom: 3cqw;
+        }
+
+        /* mono meta chrome, top-left, appears with hairlines */
+        .meta-tag {
+          position: absolute;
+          top: 4.4cqw;
+          left: 4cqw;
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          letter-spacing: 0.06em;
+          color: rgba(241, 245, 249, 0.55);
+          opacity: 0;
+        }
+
+        /* the instrument tape — lower-center, stays put across the whole shot */
+        .tape-wrap {
+          position: absolute;
+          left: 50%;
+          bottom: 22cqh;
+          transform: translateX(-50%);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.8cqw;
+        }
+
+        .tape-label {
+          font-family: "JetBrains Mono", monospace;
+          font-size: 13px;
+          font-weight: 500;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: rgba(241, 245, 249, 0.5);
+          opacity: 0;
+        }
+
+        .tape-readout {
+          display: flex;
+          align-items: baseline;
+          justify-content: center;
+          gap: 0.6cqw;
+        }
+
+        /* wrapper carries the jitter transform; inner span carries the digit text */
+        .tape-value-wrap {
+          display: inline-block;
+        }
+
+        .tape-value {
+          display: inline-block;
+          font-family: "JetBrains Mono", monospace;
+          font-weight: 500;
+          font-variant-numeric: tabular-nums;
+          font-size: 3.2cqw;
+          color: #f1f5f9;
+          letter-spacing: 0.02em;
+          min-width: 9cqw;
+          text-align: right;
+          opacity: 0;
+        }
+
+        .tape-unit {
+          font-family: "JetBrains Mono", monospace;
+          font-weight: 400;
+          font-size: 1.3cqw;
+          color: #3b82f6;
+          letter-spacing: 0.05em;
+          opacity: 0;
+        }
+
+        .tape-baseline {
+          width: 22cqw;
+          height: 0.12cqw;
+          background: rgba(241, 245, 249, 0.18);
+          position: relative;
+        }
+
+        /* real element (not a pseudo) so GSAP can tween it directly */
+        .tape-fill {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+          height: 100%;
+          background: #3b82f6;
+          transform: scaleX(0);
+          transform-origin: left center;
+          display: block;
+        }
+
+        /* headline block — left-anchored, upper area, above keep-out */
+        .headline-wrap {
+          position: absolute;
+          left: 4cqw;
+          top: 28cqh;
+          max-width: 78cqw;
+        }
+
+        .line {
+          display: block;
+          font-family: "Outfit", sans-serif;
+          font-weight: 400;
+          font-size: 4.6cqw;
+          line-height: 0.95;
+          letter-spacing: -0.008em;
+          color: #f1f5f9;
+          opacity: 0;
+          white-space: nowrap;
+        }
+
+        .line-2 {
+          margin-top: 0.6cqw;
+        }
+
+        /* pixel-glitch column, right edge — signature decoration, low presence for the hook */
+        .glitch-col {
+          position: absolute;
+          top: 3cqw;
+          bottom: 3cqw;
+          right: 6cqw;
+          width: 4cqw;
+          opacity: 0;
+          background-image: repeating-linear-gradient(90deg, #f1f5f9 0 2px, transparent 2px 8px);
+          -webkit-mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            #000 8%,
+            #000 30%,
+            transparent 34%,
+            transparent 46%,
+            #000 52%,
+            #000 78%,
+            transparent 84%
+          );
+          mask-image: linear-gradient(
+            to bottom,
+            transparent 0%,
+            #000 8%,
+            #000 30%,
+            transparent 34%,
+            transparent 46%,
+            #000 52%,
+            #000 78%,
+            transparent 84%
+          );
+        }
+      </style>
+
+      <div id="root" data-composition-id="01-hook" data-width="1920" data-height="1080">
+        <div class="ground clip" data-start="0" data-duration="3.5" data-track-index="0"></div>
+
+        <div
+          class="grid-layer clip"
+          id="h1-grid"
+          data-start="0"
+          data-duration="3.5"
+          data-track-index="1"
+        ></div>
+
+        <div
+          class="hairline hairline-top clip"
+          id="h1-hairline-top"
+          data-start="0"
+          data-duration="3.5"
+          data-track-index="2"
+        ></div>
+        <div
+          class="hairline hairline-bottom clip"
+          id="h1-hairline-bottom"
+          data-start="0"
+          data-duration="3.5"
+          data-track-index="3"
+        ></div>
+
+        <div class="meta-tag clip" id="h1-meta-tag" data-start="0" data-duration="3.5" data-track-index="4">
+          AVIATES · TELEMETRY LINK
+        </div>
+
+        <div class="glitch-col clip" id="h1-glitch" data-start="0" data-duration="3.5" data-track-index="5"></div>
+
+        <div class="tape-wrap clip" data-start="0" data-duration="3.5" data-track-index="6">
+          <div class="tape-label" id="h1-tape-label">VS · FPM</div>
+          <div class="tape-readout">
+            <span class="tape-value-wrap" id="h1-tape-value-wrap">
+              <span class="tape-value" id="h1-tape-value">000</span>
+            </span>
+            <span class="tape-unit" id="h1-tape-unit">FPM</span>
+          </div>
+          <div class="tape-baseline">
+            <span class="tape-fill" id="h1-tape-fill"></span>
+          </div>
+        </div>
+
+        <div class="headline-wrap clip" data-start="0" data-duration="3.5" data-track-index="7">
+          <span class="line line-1" id="h1-line-1">EVERY FLIGHT</span>
+          <span class="line line-2" id="h1-line-2">BECOMES DATA.</span>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        (function () {
+          window.__timelines = window.__timelines || {};
+          var tl = gsap.timeline({ paused: true });
+
+          var tapeValue = document.getElementById("h1-tape-value");
+          var tapeValueWrap = document.getElementById("h1-tape-value-wrap");
+          var line1 = document.getElementById("h1-line-1");
+          var line2 = document.getElementById("h1-line-2");
+
+          // ---- Scene 1 (0.0-1.0s): ground settles, tape parks at 000, ~70% negative space ----
+          tl.fromTo("#h1-grid", { opacity: 0 }, { opacity: 1, duration: 0.7, ease: "power3.out" }, 0);
+          tl.fromTo(
+            "#h1-hairline-top",
+            { scaleX: 0 },
+            { scaleX: 1, duration: 0.6, ease: "power3.out" },
+            0.1
+          );
+          tl.fromTo(
+            "#h1-hairline-bottom",
+            { scaleX: 0 },
+            { scaleX: 1, duration: 0.6, ease: "power3.out" },
+            0.1
+          );
+          tl.fromTo("#h1-meta-tag", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power3.out" }, 0.3);
+          tl.fromTo(
+            "#h1-tape-label",
+            { opacity: 0, y: 6 },
+            { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" },
+            0.35
+          );
+          tl.fromTo(tapeValue, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power3.out" }, 0.4);
+          tl.fromTo("#h1-tape-unit", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power3.out" }, 0.4);
+
+          // ---- Scene 2 (1.0-2.2s): counting-dynamic-scale tape climb, hard-cut headline ----
+          var counter = { value: 0 };
+          tl.to(
+            counter,
+            {
+              value: 1840,
+              duration: 1.0,
+              ease: "power3.out",
+              onUpdate: function () {
+                tapeValue.textContent = String(Math.round(counter.value)).padStart(3, "0");
+              },
+            },
+            1.0
+          );
+          // baseline fill tracks the same climb — a real element, not a pseudo
+          tl.fromTo(
+            "#h1-tape-fill",
+            { scaleX: 0 },
+            { scaleX: 0.75, duration: 1.0, ease: "power3.out" },
+            1.0
+          );
+
+          // "EVERY FLIGHT" hard-cuts in as the tape passes a round figure — instant, no fade
+          tl.set(line1, { opacity: 1 }, 1.6);
+
+          // ---- Scene 3 (2.2-3.5s): "BECOMES DATA." hard-cuts in, tape freezes on final value ----
+          tl.to(
+            counter,
+            {
+              value: 2450,
+              duration: 0.5,
+              ease: "power2.out",
+              onUpdate: function () {
+                tapeValue.textContent = String(Math.round(counter.value)).padStart(3, "0");
+              },
+            },
+            2.2
+          );
+          tl.fromTo(
+            "#h1-tape-fill",
+            { scaleX: 0.75 },
+            { scaleX: 1, duration: 0.5, ease: "power2.out" },
+            2.2
+          );
+          tl.set(line2, { opacity: 1 }, 2.2);
+
+          // held read — subtle jitter only (sine-wave-loop, low amplitude) on the tape digits
+          var phase = { p: 0 };
+          tl.to(
+            phase,
+            {
+              p: Math.PI * 2 * 1.3,
+              duration: 1.2,
+              ease: "none",
+              onUpdate: function () {
+                var y = Math.sin(phase.p) * 1.5;
+                tapeValueWrap.style.transform = "translateY(" + y.toFixed(2) + "px)";
+              },
+            },
+            2.3
+          );
+
+          window.__timelines["01-hook"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

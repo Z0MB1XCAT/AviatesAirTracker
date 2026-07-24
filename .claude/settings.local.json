@@ -27,7 +27,9 @@
       "Read(//tmp/**)",
       "Bash(awk '{sum+=$1} END {print \"Total lines in Pages: \" sum}')",
       "Bash(awk '{sum+=$1} END {print \"Total lines in Services: \" sum}')",
-      "Bash(awk '{sum+=$1} END {print \"Total lines in Core: \" sum}')"
+      "Bash(awk '{sum+=$1} END {print \"Total lines in Core: \" sum}')",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   },
   "enabledMcpjsonServers": [

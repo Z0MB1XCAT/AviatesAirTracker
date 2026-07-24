@@ -4,6 +4,7 @@ using AviatesAirTracker.Core.Data;
 using AviatesAirTracker.Core.SimConnect;
 using AviatesAirTracker.Models;
 using AviatesAirTracker.Services;
+using AviatesAirTracker.Services.Efb;
 using AviatesAirTracker.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
@@ -95,6 +96,12 @@ public partial class App : Application
                 await Task.Delay(8000);
                 await updateSvc.CheckAsync();
             });
+
+            // EFB companion server — resolving it wires the telemetry bridge; auto-start
+            // hosts the LAN tablet server if enabled in settings. Failures are non-fatal.
+            var efbServer = _serviceProvider.GetRequiredService<EfbServer>();
+            if (settingsSvc.Settings.EfbEnabled && settingsSvc.Settings.EfbAutoStart)
+                _ = efbServer.StartAsync();
 
             _serviceProvider.GetRequiredService<MainWindow>().Show();
 
@@ -312,6 +319,12 @@ public partial class App : Application
         services.AddSingleton<BookingService>();
         services.AddSingleton<FleetService>();
         services.AddSingleton<UpdateService>();
+        // EFB companion (virtual tablet) — embedded LAN web server + telemetry bridge
+        services.AddSingleton<EfbStateService>();
+        services.AddSingleton<EfbChecklistService>();
+        services.AddSingleton<EfbManualsService>();
+        services.AddSingleton<EfbAtisService>();
+        services.AddSingleton<EfbServer>();
         // ViewModels
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<LiveFlightViewModel>();
@@ -330,6 +343,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _serviceProvider.GetService<EfbServer>()?.Dispose();
         _serviceProvider.GetService<SimConnectManager>()?.Disconnect();
         _serviceProvider.GetService<DiscordPresenceService>()?.Dispose();
         _serviceProvider.GetService<AcarsPositionService>()?.Dispose();

@@ -1,0 +1,11 @@
+{
+  "provider": "auto",
+  "speed": 1,
+  "lines": [],
+  "bgm": {
+    "mode": "retrieve",
+    "query": "driving, cinematic tech/aviation trailer energy — restrained and pulsing through the hook, building through the feature beats, peaking at the benefits climax, resolving triumphant on the brand close",
+    "blob": "Your flight, your data, your career — tracked in real time.",
+    "arc": "Feature-Benefit Cascade — hook → product intro → feature × 4 → benefits climax → brand outro / CTA"
+  }
+}

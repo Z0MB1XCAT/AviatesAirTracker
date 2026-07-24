@@ -1,0 +1,23 @@
+AVIATES AIR TRACKER
+Pre-release teaser / trailer — no narration, text + music only, 45s, 16:9.
+
+Product: Aviates Air Tracker — a Windows desktop app (WPF + Blazor Hybrid) for Microsoft
+Flight Simulator virtual airline pilots. Design system name: "High Altitude Command"
+(dark aviation-ops theme). Not a website — no URL exists to capture; this brief and the
+app's real design tokens (see tokens.json) are the source of truth.
+
+FEATURE MONTAGE TO COVER (broad overview teaser, not a deep dive on any one feature):
+- Live 20Hz telemetry tracking from MSFS via SimConnect
+- Interactive live map (Leaflet.js) — real-time aircraft position and route
+- Landing analysis — 6-point score: vertical speed, pitch, bank, speed, crosswind, stability
+- Career stats and pilot rank progression (Cadet -> Junior First Officer -> First Officer ->
+  Senior First Officer -> Junior Captain -> Captain -> Senior Captain)
+- ACARS — flight booking, SimBrief flight plan import, PIREP submission
+- Fleet management view
+- Dashboard with live pilot stats
+
+TONE: exciting, premium, aviation/cockpit-tech aesthetic. Build anticipation for a launch,
+don't explain every feature in depth. Feels like a AAA flight-sim trailer, not a tutorial.
+
+CALL TO ACTION: tease "coming soon" / launch anticipation — exact wording to be decided
+in the storyboard/script step.

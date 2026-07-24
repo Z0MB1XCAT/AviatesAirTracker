@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="aviates" data-mode="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#0A0D17" />
+<title>AviatesAir EFB</title>
+<link rel="stylesheet" href="efb.css" />
+<link rel="icon" href="favicon.svg" />
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+
+<!-- ══ PAIRING GATE ══ -->
+<div id="pairing" class="pairing hidden">
+  <div class="pairing-card">
+    <div class="brand-mark"><span class="tail">AV</span></div>
+    <h1>AviatesAir <span>EFB</span></h1>
+    <p class="pairing-sub">Enter the 6-digit pairing code shown in the desktop app.</p>
+    <div class="code-input" id="codeInput">
+      <input inputmode="numeric" maxlength="1" /><input inputmode="numeric" maxlength="1" />
+      <input inputmode="numeric" maxlength="1" /><input inputmode="numeric" maxlength="1" />
+      <input inputmode="numeric" maxlength="1" /><input inputmode="numeric" maxlength="1" />
+    </div>
+    <p class="pairing-err" id="pairErr"></p>
+    <button class="btn-primary" id="pairBtn">Connect Tablet</button>
+  </div>
+</div>
+
+<!-- ══ DEVICE ══ -->
+<div id="app" class="device hidden">
+
+  <!-- status bar -->
+  <header class="statusbar">
+    <span class="sb-time" id="sbTime">--:--</span>
+    <div class="sb-right">
+      <span class="conn-dot" id="connDot" title="Link"></span>
+      <span class="sb-sig">AVA</span>
+      <span class="sb-batt"><i></i></span>
+    </div>
+  </header>
+
+  <!-- HOME / springboard -->
+  <div class="home" id="home">
+    <div class="wallpaper" id="wallpaper"></div>
+    <div class="wall-scrim"></div>
+
+    <!-- live flight widget (not an app) -->
+    <button class="widget" id="flightWidget">
+      <div class="wg-glow" id="wgGlow"></div>
+      <div class="wg-head">
+        <div class="wg-cs" id="wgCs">AVIATESAIR</div>
+        <div class="wg-phase" id="wgPhase">STANDBY</div>
+      </div>
+      <div class="wg-route">
+        <span id="wgDep">----</span>
+        <div class="wg-line"><span class="wg-plane" id="wgPlane">✈</span></div>
+        <span id="wgArr">----</span>
+      </div>
+      <div class="wg-foot">
+        <span id="wgFl">On ground</span>
+        <span id="wgEta">—</span>
+      </div>
+    </button>
+
+    <div class="grid" id="appGrid"></div>
+    <div class="dock" id="dock"></div>
+  </div>
+
+  <!-- APP host (fullscreen) -->
+  <div class="app-host hidden" id="appHost">
+    <div class="app-chrome">
+      <button class="app-back" id="appBack">‹</button>
+      <div class="app-name" id="appName">App</div>
+      <div class="app-actions" id="appActions"></div>
+    </div>
+    <div class="app-body" id="appBody"></div>
+    <div class="home-indicator" id="homeInd"></div>
+  </div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

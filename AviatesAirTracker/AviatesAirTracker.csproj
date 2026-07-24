@@ -28,6 +28,13 @@
     <DefineConstants>$(DefineConstants);NO_SIMCONNECT</DefineConstants>
   </PropertyGroup>
 
+  <!-- EFB companion server — embedded ASP.NET Core (Kestrel) host.
+       FrameworkReference pulls in Kestrel, minimal APIs, WebSockets and static-file
+       middleware without adding NuGet packages. Works inside a WinExe/WPF process. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Dependency Injection -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
@@ -67,6 +74,15 @@
 
   <ItemGroup>
     <Resource Include="Resources\Assets\**\*" Condition="Exists('Resources\Assets')" />
+  </ItemGroup>
+
+  <!-- EFB tablet frontend — embedded into the assembly so it ships inside the
+       single-file exe (no loose files on disk). Served by EfbServer from the
+       manifest resource stream. Kept OUTSIDE wwwroot so the Blazor/Razor static
+       web-asset pipeline does not also process it. Files are flat (no subfolders)
+       so resource-name → request-path mapping is a trivial prefix strip. -->
+  <ItemGroup>
+    <EmbeddedResource Include="EfbWeb\**\*" />
   </ItemGroup>
 
   <ItemGroup>
