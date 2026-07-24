@@ -28,6 +28,7 @@
 /* ── CARD ──────────────────────────────────────────────────── */
 
 .lrm-card {
+    position: relative;
     background: #FFFFFF;
     border-radius: 18px;
     width: 100%;
@@ -42,6 +43,28 @@
         0 4px 16px rgba(11, 22, 40, 0.10),
         0 20px 48px rgba(11, 22, 40, 0.16),
         0 48px 80px rgba(11, 22, 40, 0.10);
+}
+
+/* Decorative aircraft photo backdrop — optional, sits behind all card content. */
+.lrm-photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    opacity: 0.15;
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* Lift the real content above the photo layer. Scoped to the card's direct
+   children (none of which are independently absolutely-positioned) rather
+   than a blanket `position: relative` on .lrm-card * to avoid disturbing any
+   nested absolutely-positioned descendants (e.g. inside .lrm-hero/.lrm-ring-wrap). */
+.lrm-card > *:not(.lrm-photo) {
+    position: relative;
+    z-index: 1;
 }
 
 .lrm-card-in  { animation: card-in  0.32s cubic-bezier(0.34, 1.45, 0.64, 1) forwards; }

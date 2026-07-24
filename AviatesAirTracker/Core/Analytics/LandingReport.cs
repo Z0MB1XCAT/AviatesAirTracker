@@ -32,6 +32,8 @@ public sealed class LandingReport
     public string FlightNumber { get; set; } = "";
     public string AircraftType { get; set; } = "";
     public string Route { get; set; } = "";
+    /// <summary>Optional decorative aircraft photo for the result surface; null → gradient only.</summary>
+    public string? AircraftImagePath { get; set; }
 
     // Headline
     public int Score { get; set; }
@@ -75,6 +77,19 @@ public sealed class LandingReport
 
 public static class LandingReportBuilder
 {
+    // Decorative aircraft photos — only these three exist under wwwroot/images.
+    // AircraftType may be an ICAO designator or a fleet code, so common variants
+    // are mapped to the same photo. Anything else → null (no photo, gradient only).
+    private static readonly Dictionary<string, string> _aircraftPhotos = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["A319"] = "images/fleet-a319.webp",
+        ["A320"] = "images/fleet-a320neo.webp", ["A20N"] = "images/fleet-a320neo.webp", ["A320neo"] = "images/fleet-a320neo.webp",
+        ["A380"] = "images/fleet-a380.webp", ["A388"] = "images/fleet-a380.webp", ["A380-800"] = "images/fleet-a380.webp",
+    };
+
+    private static string? PhotoFor(string? type)
+        => type is not null && _aircraftPhotos.TryGetValue(type, out var p) ? p : null;
+
     /// <summary>
     /// Projects a raw <see cref="LandingResult"/> into the shared report.
     /// <paramref name="history"/> is optional — supply it to populate the
@@ -95,6 +110,7 @@ public static class LandingReportBuilder
             Runway = string.IsNullOrWhiteSpace(r.RunwayIdentifier) ? "RWY --" : r.RunwayIdentifier,
             FlightNumber = flight?.FlightNumber ?? "",
             AircraftType = flight?.AircraftType ?? "",
+            AircraftImagePath = PhotoFor(flight?.AircraftType),
             Route = flight != null && !string.IsNullOrEmpty(flight.DepartureICAO)
                 ? $"{flight.DepartureICAO} → {flight.ArrivalICAO}" : "",
 

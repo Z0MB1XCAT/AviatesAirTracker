@@ -11,6 +11,11 @@
     <div class="lrm-backdrop @(_animOut ? "lrm-bg-out" : "lrm-bg-in")" @onclick="Dismiss">
         <div class="lrm-card @(_animOut ? "lrm-card-out" : "lrm-card-in")" @onclick:stopPropagation="true">
 
+            @if (!string.IsNullOrEmpty(_report.AircraftImagePath))
+            {
+                <img src="@_report.AircraftImagePath" alt="" class="lrm-photo" aria-hidden="true" />
+            }
+
             <!-- ── HEADER ── -->
             <div class="lrm-header" style="border-top-color: @_report.GradeColor">
                 <div class="lrm-header-left">
