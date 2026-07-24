@@ -166,6 +166,7 @@ input, textarea, select { font-family: inherit; }
   position: relative;
   z-index: 1;
 }
+.sidebar-logo { width: 150px; height: auto; display: block; margin: 2px 0; }
 .brand-mark {
   width: 36px; height: 36px;
   background: linear-gradient(135deg, var(--accent) 0%, #1D4ED8 100%);
@@ -3005,6 +3006,8 @@ input, textarea, select { font-family: inherit; }
   margin-bottom: 38px;
   animation: login-brand-enter 0.5s 0.15s ease both;
 }
+
+.login-logo { width: 200px; height: auto; margin: 0 auto var(--sp-4); display: block; }
 
 .login-brand-mark {
   width: 44px;
