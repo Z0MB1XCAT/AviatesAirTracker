@@ -1093,6 +1093,8 @@ input, textarea, select { font-family: inherit; }
 .news-card-banner.banner-violet { background: linear-gradient(135deg, #4C1D95 0%, #1E1B4B 100%); }
 .news-card-banner.banner-teal   { background: linear-gradient(135deg, #0F4C75 0%, #0B1628 100%); }
 .news-card-banner.banner-slate  { background: linear-gradient(135deg, #1E3A5F 0%, #111827 100%); }
+.news-card-banner--photo { padding: 0; overflow: hidden; }
+.news-card-banner-img { width: 100%; height: 100%; object-fit: cover; object-position: center top; }
 .news-banner-tag {
   position: absolute; top: 14px; left: 14px;
   background: rgba(255,255,255,0.12); backdrop-filter: blur(8px);
