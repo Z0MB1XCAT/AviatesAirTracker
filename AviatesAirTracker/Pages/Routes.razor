@@ -1,5 +1,6 @@
 @page "/routes"
 @using AviatesAirTracker.Models
+@using AviatesAirTracker.Core.Reference
 @inject RoutesService RoutesService
 @inject BookingService BookingService
 @inject SettingsService SettingsService
@@ -268,7 +269,15 @@ else
                     </div>
                     <span class="status-chip active"><span class="chip-dot"></span>Active</span>
                 </div>
-                <div class="feature-card-title">@route.OriginIata → @route.DestIata</div>
+                <div class="feature-card-title" style="display:flex;align-items:center;gap:9px;">
+                    @{ var rdep = IcaoCountry.IsoFromIcao(route.OriginIata);
+                       var rarr = IcaoCountry.IsoFromIcao(route.DestIata); }
+                    <span class="flag-route" title="@route.OriginIata → @route.DestIata">
+                        @if (rdep is not null) { <span class="flag-route-dep" style="background-image:url('images/flags/@(rdep).svg')"></span> }
+                        @if (rarr is not null) { <span class="flag-route-arr" style="background-image:url('images/flags/@(rarr).svg')"></span> }
+                    </span>
+                    <span>@route.OriginIata → @route.DestIata</span>
+                </div>
                 <div class="feature-card-sub">
                     @route.OriginName to @route.DestName@(string.IsNullOrEmpty(route.Notes) ? "" : " — " + route.Notes)
                 </div>
@@ -281,9 +290,9 @@ else
                     {
                         <span class="flight-chip chip-green">@route.Frequency</span>
                     }
-                    @if (!string.IsNullOrEmpty(route.Callsign))
+                    @if (!string.IsNullOrEmpty(route.FlightNumber))
                     {
-                        <span class="flight-chip" style="background:rgba(255,255,255,0.05);color:var(--text-muted);">@route.Callsign</span>
+                        <span class="flight-chip" style="background:rgba(255,255,255,0.05);color:var(--text-muted);">@route.FlightNumber</span>
                     }
                 </div>
                 <div class="feature-card-footer">
