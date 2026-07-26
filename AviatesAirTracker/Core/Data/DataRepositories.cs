@@ -155,13 +155,19 @@ public class InMemoryFlightRepository : IFlightRepository
     public void SetCurrentFlight(FlightRecord? flight) { lock (_lock) _currentFlight = flight; }
 
     public Task<List<FlightRecord>> GetInProgressAsync()
-        => Task.FromResult(_flights.Where(f => f.Status == FlightStatus.InProgress)
-                                   .OrderByDescending(f => f.CreatedAt).ToList());
+    {
+        lock (_lock)
+            return Task.FromResult(_flights.Where(f => f.Status == FlightStatus.InProgress)
+                                           .OrderByDescending(f => f.CreatedAt).ToList());
+    }
 
     public Task<int> PruneWithoutLandingAsync(Guid? exceptId)
     {
-        var removed = _flights.RemoveAll(f => f.PrimaryLanding == null && f.Id != exceptId);
-        return Task.FromResult(removed);
+        lock (_lock)
+        {
+            var removed = _flights.RemoveAll(f => f.PrimaryLanding == null && f.Id != exceptId);
+            return Task.FromResult(removed);
+        }
     }
 }
 
