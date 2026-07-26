@@ -44,6 +44,38 @@ public class RouteTracker
             _recordedPath.Count, TotalDistanceNm);
     }
 
+    /// <summary>Re-seed the recorded path from a restored flight, then continue recording.</summary>
+    public void Restore(List<PathPoint> recordedPath)
+    {
+        lock (_lock)
+        {
+            _recordedPath.Clear();
+            if (recordedPath != null) _recordedPath.AddRange(recordedPath);
+
+            // Recompute distance/continuity state from the seeded path so recording
+            // can resume smoothly from the last known point.
+            TotalDistanceNm = 0;
+            _previousPoint = null;
+            foreach (var point in _recordedPath)
+            {
+                if (_previousPoint != null)
+                {
+                    TotalDistanceNm += HaversineNm(
+                        _previousPoint.Latitude, _previousPoint.Longitude,
+                        point.Latitude, point.Longitude);
+                }
+                _previousPoint = point;
+            }
+
+            // continue recording without clearing the seeded path
+            // (StartRecording() clears _recordedPath, so it can't be reused here —
+            // set the recording flag directly instead)
+            _recording = true;
+            Log.Information("[RouteTracker] Restored {Count} points, {Dist:F1}nm; recording resumed",
+                _recordedPath.Count, TotalDistanceNm);
+        }
+    }
+
     public void AddPoint(PathPoint point)
     {
         if (!_recording) return;

@@ -253,6 +253,9 @@ public class FlightSessionManager
 
     private void OnEnginesStarted(TelemetrySnapshot snap)
     {
+        // Do not start a fresh record if a flight is already active (e.g. resumed from recovery).
+        if (CurrentFlight != null) return;
+
         Log.Information("[FlightSession] Engines started, creating flight record");
 
         CurrentFlight = new FlightRecord
@@ -490,6 +493,18 @@ public class FlightSessionManager
     // =====================================================
     // RESET
     // =====================================================
+
+    /// <summary>Re-attach live tracking to an interrupted in-progress flight from a previous session.</summary>
+    public void ResumeFlight(FlightRecord record)
+    {
+        if (record == null) return;
+        CurrentFlight = record;
+        _flightRepo.SetCurrentFlight(record);
+        _routeTracker.Restore(record.FlightPath);
+        _hasRecordedTakeoff = record.TakeoffTime != default;
+        Serilog.Log.Information("[FlightSession] Resumed interrupted flight {Id} {Dep}->{Arr}",
+            record.Id, record.DepartureICAO, record.ArrivalICAO);
+    }
 
     public void Reset()
     {
