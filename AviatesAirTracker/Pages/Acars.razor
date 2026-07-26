@@ -1,6 +1,7 @@
 @page "/acars"
 @using AviatesAirTracker.Core.SimConnect
 @using AviatesAirTracker.Core.Analytics
+@using AviatesAirTracker.Core.Reference
 @using AviatesAirTracker.Models
 @using AviatesAirTracker.Services
 @inject FlightSessionManager Session
@@ -65,7 +66,17 @@
 @if (BookingService.ActiveBooking is { } _bkg)
 {
     <div class="acars-booking-banner anim-up-d1">
+        @{ var bdep = IcaoCountry.IsoFromIcao(_bkg.OriginIata);
+           var barr = IcaoCountry.IsoFromIcao(_bkg.DestIata); }
+        <span class="flag-route" title="@_bkg.OriginIata → @_bkg.DestIata">
+            @if (bdep is not null) { <span class="flag-route-dep" style="background-image:url('images/flags/@(bdep).svg')"></span> }
+            @if (barr is not null) { <span class="flag-route-arr" style="background-image:url('images/flags/@(barr).svg')"></span> }
+        </span>
         <div class="abb-callsign">@_bkg.Callsign</div>
+        @if (!string.IsNullOrEmpty(_bkg.RouteFlightNumber))
+        {
+            <div class="abb-fltnum" style="font-size:12px;color:var(--text-muted);">Flight @_bkg.RouteFlightNumber</div>
+        }
         <div class="abb-route">
             <span class="abb-iata">@_bkg.OriginIata</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="13" height="13" style="opacity:0.4;flex-shrink:0;">

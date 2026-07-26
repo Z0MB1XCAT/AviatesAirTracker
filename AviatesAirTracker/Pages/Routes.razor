@@ -322,6 +322,12 @@ else
             <div class="booking-modal-header">
                 <div>
                     <div class="booking-modal-route">
+                        @{ var mdep = IcaoCountry.IsoFromIcao(_modalRoute.OriginIata);
+                           var marr = IcaoCountry.IsoFromIcao(_modalRoute.DestIata); }
+                        <span class="flag-route" title="@_modalRoute.OriginIata → @_modalRoute.DestIata" style="margin-right:8px;">
+                            @if (mdep is not null) { <span class="flag-route-dep" style="background-image:url('images/flags/@(mdep).svg')"></span> }
+                            @if (marr is not null) { <span class="flag-route-arr" style="background-image:url('images/flags/@(marr).svg')"></span> }
+                        </span>
                         <span class="booking-iata">@_modalRoute.OriginIata</span>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18" style="opacity:0.4;flex-shrink:0;">
                             <path d="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>
@@ -329,6 +335,10 @@ else
                         <span class="booking-iata">@_modalRoute.DestIata</span>
                     </div>
                     <div class="booking-modal-sub">@_modalRoute.OriginName → @_modalRoute.DestName</div>
+                    @if (!string.IsNullOrEmpty(_modalRoute.FlightNumber))
+                    {
+                        <div class="booking-modal-sub" style="color:var(--text-muted);">Flight @_modalRoute.FlightNumber</div>
+                    }
                 </div>
                 <button class="booking-close" @onclick="CloseModal">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
