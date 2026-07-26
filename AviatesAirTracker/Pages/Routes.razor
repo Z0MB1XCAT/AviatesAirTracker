@@ -668,7 +668,7 @@ else
         StateHasChanged();
 
         var registration = string.IsNullOrEmpty(_selectedRegistration) ? null : _selectedRegistration;
-        var (booking, error) = await BookingService.CreateBookingAsync(_modalRoute, _selectedAircraft, registration, depUtc);
+        var (booking, error) = await BookingService.CreateBookingAsync(_modalRoute, _selectedAircraft, registration, depUtc, _previewCallsign);
 
         _submitting = false;
 

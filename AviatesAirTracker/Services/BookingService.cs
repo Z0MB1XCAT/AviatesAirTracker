@@ -164,7 +164,8 @@ public class BookingService
     /// or null if the request fails or the pilot already has 5 active bookings.
     /// </summary>
     public async Task<(FlightBooking? Booking, string? Error)> CreateBookingAsync(
-        AviatesRoute route, string aircraftType, string? registration, DateTime scheduledDep)
+        AviatesRoute route, string aircraftType, string? registration, DateTime scheduledDep,
+        string? callsign = null)
     {
         var acarsKey = _settings.Settings.AcarsKey;
         if (string.IsNullOrEmpty(acarsKey))
@@ -176,7 +177,9 @@ public class BookingService
         if (active.Count >= MaxBookings)
             return (null, $"You already have {MaxBookings} active bookings. Cancel one to add another.");
 
-        var callsign = GenerateCallsign(aircraftType);
+        // Use the callsign the pilot saw/regenerated in the booking modal; only
+        // generate a fresh one as a safety net if the caller passed nothing.
+        callsign = string.IsNullOrWhiteSpace(callsign) ? GenerateCallsign(aircraftType) : callsign;
 
         var payload = new CreateBookingRequest
         {
