@@ -7,6 +7,7 @@
 @inject AviatesAirTracker.Core.SimConnect.SimConnectManager SimConnectMgr
 @inject DispatchRadioService DispatchRadio
 @inject IJSRuntime JS
+@inject AviatesAirTracker.Services.FlightRecoveryService Recovery
 @implements IAsyncDisposable
 
 @using AviatesAirTracker.Core.SimConnect
@@ -17,6 +18,7 @@
 
 <LandingResultModal />
 <TakeoffPerformanceModal />
+<FlightRecoveryModal />
 
 <div class="app-shell">
 
@@ -324,6 +326,11 @@
         // If an update was already detected before the layout rendered, show it immediately
         if (UpdateService.AvailableUpdate is { } existing)
             _update = existing;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Recovery.DetectAsync();
     }
 
     private void OnUpdateFound(object? sender, UpdateInfo info)
