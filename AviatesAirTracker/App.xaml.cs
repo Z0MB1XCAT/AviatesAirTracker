@@ -55,6 +55,9 @@ public partial class App : Application
 
             _serviceProvider = services.BuildServiceProvider();
 
+            // Flight plan is session-only: drop any plan persisted by a previous run.
+            _ = _serviceProvider.GetRequiredService<SettingsService>().ClearSimBriefPlanAsync();
+
             // Make the service provider available to BlazorWebView via dynamic resource
             Resources["services"] = _serviceProvider;
 

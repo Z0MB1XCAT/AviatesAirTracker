@@ -336,6 +336,21 @@ public class SettingsService
             return null;
         }
     }
+
+    /// <summary>Deletes the persisted SimBrief plan so a fresh app launch starts with no plan.</summary>
+    public Task ClearSimBriefPlanAsync()
+    {
+        try
+        {
+            if (File.Exists(SimBriefPlanPath))
+                File.Delete(SimBriefPlanPath);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "[Settings] Failed to clear persisted SimBrief plan");
+        }
+        return Task.CompletedTask;
+    }
 }
 
 public class AppSettings
