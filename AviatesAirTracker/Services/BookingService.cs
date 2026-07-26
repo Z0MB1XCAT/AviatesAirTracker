@@ -31,6 +31,11 @@ public class FlightBooking
     // Used to populate SimBrief fltnum with the proper route number rather than the random booking callsign.
     [JsonIgnore] public string RouteCallsign { get; set; } = "";
 
+    // The route's scheduled flight number in display form (e.g. "AV700") — enriched
+    // client-side, not persisted in the booking row. Used for the Flights column,
+    // booking UI, and (numeric part) the SimBrief fltnum.
+    [JsonIgnore] public string RouteFlightNumber { get; set; } = "";
+
     [JsonIgnore]
     public DateTime ScheduledDepUtc
     {
@@ -209,6 +214,7 @@ public class BookingService
                     created.OriginName    = route.OriginName;
                     created.DestName      = route.DestName;
                     created.RouteCallsign = route.Callsign;
+                    created.RouteFlightNumber = route.FlightNumber;
                 }
                 Log.Information("[BookingService] Booking created: {Callsign} {Orig}→{Dest}",
                     callsign, route.OriginIata, route.DestIata);

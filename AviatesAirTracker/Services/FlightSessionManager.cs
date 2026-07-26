@@ -269,7 +269,9 @@ public class FlightSessionManager
         // wired, so this is currently the sole source for FlightNumber and Callsign.
         if (_bookingService.ActiveBooking is { } booking)
         {
-            if (!string.IsNullOrEmpty(booking.RouteCallsign))
+            if (!string.IsNullOrEmpty(booking.RouteFlightNumber))
+                CurrentFlight.FlightNumber = booking.RouteFlightNumber;
+            else if (!string.IsNullOrEmpty(booking.RouteCallsign))
                 CurrentFlight.FlightNumber = booking.RouteCallsign;
             if (!string.IsNullOrEmpty(booking.Callsign))
                 CurrentFlight.Callsign = booking.Callsign;

@@ -451,7 +451,10 @@
         foreach (var b in _bookings)
         {
             if (routeById.TryGetValue(b.RouteId, out var route))
+            {
                 b.RouteCallsign = route.Callsign;
+                b.RouteFlightNumber = route.FlightNumber;
+            }
         }
 
         _activeBookingCount = _bookings.Count(b => !b.IsCancelled && !b.IsPast);
