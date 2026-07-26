@@ -322,6 +322,7 @@ public partial class App : Application
         services.AddSingleton<BookingService>();
         services.AddSingleton<FleetService>();
         services.AddSingleton<UpdateService>();
+        services.AddSingleton<FlightRecoveryService>();
         // EFB companion (virtual tablet) — embedded LAN web server + telemetry bridge
         services.AddSingleton<EfbStateService>();
         services.AddSingleton<EfbChecklistService>();
