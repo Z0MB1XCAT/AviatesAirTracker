@@ -3,6 +3,7 @@ using Newtonsoft.Json.Linq;
 using RestSharp;
 using Serilog;
 using System.IO;
+using System.Linq;
 using System.Xml.Linq;
 
 namespace AviatesAirTracker.Services;
@@ -423,10 +424,18 @@ public class SimBriefService
         // Flight number = the route's scheduled callsign number, e.g. "VAH103" → "103"
         // Falls back to stripping the prefix off the generated callsign if no route callsign is set.
         // Strips whichever ICAO prefix is present — VAV/VAC/VAH all vary by subsidiary now.
+        // Flight number for SimBrief = digits only (e.g. "AV700" → "700").
+        // Prefer the real route flight number; fall back to the legacy route-callsign
+        // strip, then to the generated callsign's numeric tail.
+        var routeFn = booking.RouteFlightNumber;
         var routeCs = booking.RouteCallsign;
-        var fltnum  = !string.IsNullOrEmpty(routeCs) && routeCs.Length > 3 && StartsWithIcaoPrefix(routeCs)
-            ? routeCs[3..]
-            : (callsign.Length > 3 && StartsWithIcaoPrefix(callsign) ? callsign[3..] : callsign);
+        string fltnum;
+        if (!string.IsNullOrEmpty(routeFn))
+            fltnum = new string(routeFn.Where(char.IsDigit).ToArray());
+        else if (!string.IsNullOrEmpty(routeCs) && routeCs.Length > 3 && StartsWithIcaoPrefix(routeCs))
+            fltnum = routeCs[3..];
+        else
+            fltnum = callsign.Length > 3 && StartsWithIcaoPrefix(callsign) ? callsign[3..] : callsign;
 
         static bool StartsWithIcaoPrefix(string s) =>
             s.StartsWith("VAV", StringComparison.OrdinalIgnoreCase) ||
