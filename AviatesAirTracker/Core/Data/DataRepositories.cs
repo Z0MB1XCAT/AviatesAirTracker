@@ -30,6 +30,8 @@ public interface IFlightRepository
     Task DeleteAsync(Guid id);
     FlightRecord? GetCurrentFlight();
     void SetCurrentFlight(FlightRecord? flight);
+    Task<List<FlightRecord>> GetInProgressAsync();
+    Task<int> PruneWithoutLandingAsync(Guid? exceptId);
 }
 
 // ---- Pilot Profile ----
@@ -151,6 +153,16 @@ public class InMemoryFlightRepository : IFlightRepository
     // CRIT-08: GetCurrentFlight/SetCurrentFlight had no lock — data race between SimConnect and UI threads.
     public FlightRecord? GetCurrentFlight() { lock (_lock) return _currentFlight; }
     public void SetCurrentFlight(FlightRecord? flight) { lock (_lock) _currentFlight = flight; }
+
+    public Task<List<FlightRecord>> GetInProgressAsync()
+        => Task.FromResult(_flights.Where(f => f.Status == FlightStatus.InProgress)
+                                   .OrderByDescending(f => f.CreatedAt).ToList());
+
+    public Task<int> PruneWithoutLandingAsync(Guid? exceptId)
+    {
+        var removed = _flights.RemoveAll(f => f.PrimaryLanding == null && f.Id != exceptId);
+        return Task.FromResult(removed);
+    }
 }
 
 // ============================================================
@@ -838,6 +850,26 @@ public class JsonFlightRepository : IFlightRepository
 
     public FlightRecord? GetCurrentFlight() { lock (_lock) return _currentFlight; }
     public void SetCurrentFlight(FlightRecord? flight) { lock (_lock) _currentFlight = flight; }
+
+    public Task<List<FlightRecord>> GetInProgressAsync()
+    {
+        lock (_lock)
+            return Task.FromResult(_flights.Where(f => f.Status == FlightStatus.InProgress)
+                                           .OrderByDescending(f => f.CreatedAt).ToList());
+    }
+
+    public Task<int> PruneWithoutLandingAsync(Guid? exceptId)
+    {
+        int removed;
+        List<FlightRecord> snapshot;
+        lock (_lock)
+        {
+            removed = _flights.RemoveAll(f => f.PrimaryLanding == null && f.Id != exceptId);
+            snapshot = _flights.ToList();
+        }
+        if (removed > 0) SaveSnapshot(snapshot);
+        return Task.FromResult(removed);
+    }
 }
 
 // ============================================================
