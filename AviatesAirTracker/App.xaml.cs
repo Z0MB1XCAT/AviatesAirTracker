@@ -20,8 +20,16 @@ public partial class App : Application
     private ServiceProvider _serviceProvider = null!;
     private BlazorHostServer? _blazorHost;
 
-    /// <summary>Root URL of the loopback Blazor Server host, once started. Task 7 consumes this.</summary>
+    /// <summary>Root URL of the loopback Blazor Server host, once started. MainWindow navigates to this.</summary>
     public static string? LegacyUiUrl { get; private set; }
+
+    /// <summary>
+    /// Tears down the loopback UI host. Called from <see cref="MainWindow"/>'s Closing handler so
+    /// teardown runs while the dispatcher is still pumping; <see cref="OnExit"/> repeats the call
+    /// as a safety net and <c>BlazorHostServer.DisposeAsync</c> makes the second one a no-op.
+    /// </summary>
+    internal static ValueTask ShutdownUiHostAsync() =>
+        (Current as App)?._blazorHost?.DisposeAsync() ?? ValueTask.CompletedTask;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -55,17 +63,12 @@ public partial class App : Application
             Log.Information("=== Aviates Air Flight Tracker v1.0 Starting ===");
 
             var services = new ServiceCollection();
-            // Register Blazor WebView services (required for BlazorWebView in WPF)
-            services.AddWpfBlazorWebView();
             ConfigureServices(services);
 
             _serviceProvider = services.BuildServiceProvider();
 
             // Flight plan is session-only: drop any plan persisted by a previous run.
             _ = _serviceProvider.GetRequiredService<SettingsService>().ClearSimBriefPlanAsync();
-
-            // Make the service provider available to BlazorWebView via dynamic resource
-            Resources["services"] = _serviceProvider;
 
             _serviceProvider.GetRequiredService<DiscordPresenceService>().Initialize();
 
@@ -112,20 +115,33 @@ public partial class App : Application
             if (settingsSvc.Settings.EfbEnabled && settingsSvc.Settings.EfbAutoStart)
                 _ = efbServer.StartAsync();
 
-            // Legacy Razor UI host — serves the not-yet-migrated pages to a WebView2 over
-            // loopback. Transitional; deleted when the last page becomes native XAML.
-            // NOT load-bearing yet: the UI still renders through BlazorWebView, so a failure
-            // here must not take the app down. Task 7 makes it load-bearing.
+            // Legacy Razor UI host — serves the not-yet-migrated pages to MainWindow's WebView2
+            // over loopback. Transitional; deleted when the last page becomes native XAML.
+            //
+            // LOAD-BEARING. The WebView2 renders nothing but this host's output, so a failure
+            // here is not survivable: continuing would leave the pilot staring at an empty
+            // window with the reason buried in a log file. Say so and stop instead.
             try
             {
                 var blazorHost = new BlazorHostServer(_serviceProvider);
                 LegacyUiUrl = blazorHost.StartAsync().GetAwaiter().GetResult();
-                Log.Information("[Startup] Legacy UI host ready at {Url}", LegacyUiUrl);
+                Log.Information("[Startup] UI host ready at {Url}", LegacyUiUrl);
                 _blazorHost = blazorHost;
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "[Startup] Legacy UI host failed to start (non-fatal — still on BlazorWebView)");
+                Log.Error(ex, "[Startup] UI host failed to start — cannot continue");
+                MessageBox.Show(
+                    "Aviates Air Tracker could not start the local host that renders its user " +
+                    "interface, so there is nothing to display.\n\n" +
+                    $"{ex.GetType().Name}: {ex.Message}\n\n" +
+                    $"Details were written to:\n{logDir}\n\nThe application will now close.",
+                    "Aviates Air Tracker — startup failed",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                // Shutdown is deferred onto the dispatcher, so returning here is what actually
+                // prevents MainWindow.Show(). OnExit still runs and flushes the log.
+                Shutdown(1);
+                return;
             }
 
             _serviceProvider.GetRequiredService<MainWindow>().Show();
@@ -376,6 +392,11 @@ public partial class App : Application
         _serviceProvider.GetService<DispatchRadioService>()?.Dispose();
         _serviceProvider.GetService<UpdateService>()?.Dispose();
         _serviceProvider.GetService<TakeoffPerformanceService>()?.Dispose();
+        // Safety net only. MainWindow.Closing normally tears the host down while the dispatcher
+        // is still pumping; by here it has stopped, so a circuit teardown marshalling through
+        // IUiDispatcher could not complete and would ride the 5 s timeout inside DisposeAsync.
+        // Reached when the window close path is bypassed (e.g. Application.Shutdown, or a
+        // startup failure before MainWindow appears). No-op if teardown already happened.
         _blazorHost?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         Log.CloseAndFlush();
         _serviceProvider.Dispose();
