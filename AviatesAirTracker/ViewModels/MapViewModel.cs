@@ -1,8 +1,8 @@
 using AviatesAirTracker.Core.SimConnect;
 using AviatesAirTracker.Models;
+using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
-using System.Windows;
 
 namespace AviatesAirTracker.ViewModels;
 
@@ -49,6 +49,7 @@ public partial class MapViewModel : ObservableObject
     private readonly RouteTracker       _routeTracker;
     private readonly SimBriefService    _simBriefSvc;
     private readonly SimConnectManager  _simConnect;
+    private readonly IUiDispatcher      _ui;
 
     // ── Page callback ─────────────────────────────────────────
     public event Action? MapRenderRequested;
@@ -56,11 +57,13 @@ public partial class MapViewModel : ObservableObject
     public MapViewModel(
         RouteTracker routeTracker,
         SimBriefService simBriefSvc,
-        SimConnectManager simConnect)
+        SimConnectManager simConnect,
+        IUiDispatcher ui)
     {
         _routeTracker = routeTracker;
         _simBriefSvc  = simBriefSvc;
         _simConnect   = simConnect;
+        _ui           = ui;
 
         _simBriefSvc.FlightPlanLoaded       += OnFlightPlanLoaded;
         _simConnect.ConnectionStatusChanged += OnConnectionStatusChanged;
@@ -141,7 +144,7 @@ public partial class MapViewModel : ObservableObject
 
     private void OnFlightPlanLoaded(object? sender, SimBriefFlightPlan plan)
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        _ui.Invoke(() =>
         {
             _latestPlan    = plan;
             _planNeedsSync = true;
@@ -152,7 +155,7 @@ public partial class MapViewModel : ObservableObject
 
     private void OnConnectionStatusChanged(object? sender, SimConnectionStatus status)
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        _ui.Invoke(() =>
         {
             NoFlightText = status == SimConnectionStatus.Connected
                 ? "No Active Flight"

@@ -1,3 +1,4 @@
+using AviatesAirTracker.Platform;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Serilog;
@@ -38,6 +39,7 @@ public class UpdateService : IDisposable
     private const string API_URL      = $"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest";
 
     private readonly HttpClient _http;
+    private readonly IUiDispatcher _ui;
     private bool _disposed;
 
     public UpdateInfo? AvailableUpdate  { get; private set; }
@@ -48,8 +50,9 @@ public class UpdateService : IDisposable
     public event EventHandler<UpdateInfo>? UpdateFound;
     public event EventHandler<int>?        DownloadProgressChanged;
 
-    public UpdateService()
+    public UpdateService(IUiDispatcher ui)
     {
+        _ui = ui;
         _http = new HttpClient();
         _http.DefaultRequestHeaders.Add("User-Agent", "AviatesAirTracker-UpdateChecker/1.0");
         _http.Timeout = TimeSpan.FromSeconds(15);
@@ -200,7 +203,7 @@ public class UpdateService : IDisposable
 
             // Shut down the app so the installer can overwrite the running EXE
             await Task.Delay(500);
-            Application.Current.Dispatcher.Invoke(() => Application.Current.Shutdown());
+            _ui.Invoke(() => Application.Current.Shutdown());
         }
         catch (Exception ex)
         {

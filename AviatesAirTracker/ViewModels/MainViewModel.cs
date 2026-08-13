@@ -1,13 +1,13 @@
 using AviatesAirTracker.Core.Data;
 using AviatesAirTracker.Core.SimConnect;
 using AviatesAirTracker.Models;
+using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using Serilog;
 using System.Collections.ObjectModel;
-using System.Windows;
 
 namespace AviatesAirTracker.ViewModels;
 
@@ -21,6 +21,7 @@ public partial class MainViewModel : ObservableObject
     private readonly TelemetryProcessor _telemetryProcessor;
     private readonly SimBriefService _simBriefSvc;
     private readonly ExportService _exportSvc;
+    private readonly IUiDispatcher _ui;
 
     public DashboardViewModel Dashboard { get; }
     public MapViewModel Map { get; }
@@ -63,12 +64,13 @@ public partial class MainViewModel : ObservableObject
         DashboardViewModel dashboard,
         MapViewModel map, LandingAnalysisViewModel landingAnalysis,
         SettingsViewModel settingsVm,
-        ReplayViewModel replay)
+        ReplayViewModel replay, IUiDispatcher ui)
     {
         _simConnect = simConnect; _session = session; _pttInput = pttInput;
         _alertService = alertService; _settings = settings;
         _telemetryProcessor = telemetryProcessor;
         _simBriefSvc = simBriefSvc; _exportSvc = exportSvc;
+        _ui = ui;
         Dashboard = dashboard; Map = map;
         LandingAnalysis = landingAnalysis;
         SettingsVm = settingsVm; Replay = replay;
@@ -166,7 +168,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     private void OnConnectionStatusChanged(object? _, SimConnectionStatus s) =>
-        Application.Current.Dispatcher.Invoke(() =>
+        _ui.Invoke(() =>
         {
             ConnectionStatus = s; IsConnected = s == SimConnectionStatus.Connected;
             (ConnectionStatusText, ConnectionStatusColor) = s switch
@@ -179,7 +181,7 @@ public partial class MainViewModel : ObservableObject
         });
 
     private void OnSessionStateChanged(object? _, FlightSessionState s) =>
-        Application.Current.Dispatcher.Invoke(() =>
+        _ui.Invoke(() =>
         {
             SessionState = s;
             HasActiveFlight = s is not (FlightSessionState.Idle or FlightSessionState.Complete);
@@ -203,7 +205,7 @@ public partial class MainViewModel : ObservableObject
         });
 
     private void OnTelemetryUpdated(object? _, Core.SimConnect.TelemetrySnapshot snap) =>
-        Application.Current.Dispatcher.Invoke(() =>
+        _ui.Invoke(() =>
         {
             HeaderAlt   = $"{snap.AltitudePressure:F0}";
             HeaderSpeed = $"{snap.IASKts:F0}";
@@ -212,7 +214,7 @@ public partial class MainViewModel : ObservableObject
         });
 
     private void OnFlightCompleted(object? _, FlightRecord __) =>
-        Application.Current.Dispatcher.Invoke(() =>
+        _ui.Invoke(() =>
         {
             _ = Dashboard.RefreshAsync();
             HeaderDep = HeaderArr = HeaderAlt = HeaderSpeed = "----";
@@ -220,19 +222,19 @@ public partial class MainViewModel : ObservableObject
         });
 
     private void OnAlertRaised(object? _, AlertNotification alert) =>
-        Application.Current.Dispatcher.Invoke(() =>
+        _ui.Invoke(() =>
         {
             ActiveAlerts.Insert(0, alert);
             if (alert.ExpiresAt.HasValue)
             {
                 var ms = (int)Math.Max(0, (alert.ExpiresAt.Value - DateTime.UtcNow).TotalMilliseconds);
                 Task.Delay(ms).ContinueWith(_ =>
-                    Application.Current.Dispatcher.BeginInvoke(() => ActiveAlerts.Remove(alert)));
+                    _ui.BeginInvoke(() => ActiveAlerts.Remove(alert)));
             }
         });
 
     private void OnLandingResultReady(object? _, LandingResult result) =>
-        Application.Current.Dispatcher.Invoke(() =>
+        _ui.Invoke(() =>
         {
             LandingAnalysis.AddLanding(result);
             NavigateToLanding();

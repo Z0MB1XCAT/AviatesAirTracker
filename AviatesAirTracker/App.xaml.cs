@@ -3,6 +3,7 @@ using AviatesAirTracker.Core.Backend;
 using AviatesAirTracker.Core.Data;
 using AviatesAirTracker.Core.SimConnect;
 using AviatesAirTracker.Models;
+using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
 using AviatesAirTracker.Services.Efb;
 using AviatesAirTracker.ViewModels;
@@ -288,6 +289,7 @@ public partial class App : Application
         services.AddSingleton<IMessageRepository, JsonMessageRepository>();
         services.AddSingleton<IFriendRepository, JsonFriendRepository>();
         // Infrastructure
+        services.AddSingleton<IUiDispatcher, WpfUiDispatcher>();
         services.AddSingleton<SettingsService>();
         services.AddSingleton<AlertService>();
         // SimConnect
