@@ -23,24 +23,18 @@ public partial class MainViewModel : ObservableObject
     private readonly ExportService _exportSvc;
 
     public DashboardViewModel Dashboard { get; }
-    public LiveFlightViewModel LiveFlight { get; }
     public MapViewModel Map { get; }
     public LandingAnalysisViewModel LandingAnalysis { get; }
-    public StatisticsViewModel Statistics { get; }
     public SettingsViewModel SettingsVm { get; }
     public ReplayViewModel Replay { get; }
-    public TelemetryViewModel Telemetry { get; }
 
     [ObservableProperty] private object? _currentPage;
     [ObservableProperty] private string _currentPageName = "Dashboard";
     [ObservableProperty] private bool _isDashboardActive = true;
-    [ObservableProperty] private bool _isLiveFlightActive;
     [ObservableProperty] private bool _isMapActive;
     [ObservableProperty] private bool _isLandingActive;
-    [ObservableProperty] private bool _isStatsActive;
     [ObservableProperty] private bool _isSettingsActive;
     [ObservableProperty] private bool _isReplayActive;
-    [ObservableProperty] private bool _isTelemetryActive;
     [ObservableProperty] private SimConnectionStatus _connectionStatus = SimConnectionStatus.Disconnected;
     [ObservableProperty] private string _connectionStatusText = "MSFS Not Running";
     [ObservableProperty] private string _connectionStatusColor = "#4A5568";
@@ -66,18 +60,18 @@ public partial class MainViewModel : ObservableObject
         AlertService alertService, SettingsService settings,
         TelemetryProcessor telemetryProcessor, SimBriefService simBriefSvc,
         ExportService exportSvc, PttInputService pttInput,
-        DashboardViewModel dashboard, LiveFlightViewModel liveFlight,
+        DashboardViewModel dashboard,
         MapViewModel map, LandingAnalysisViewModel landingAnalysis,
-        StatisticsViewModel statistics, SettingsViewModel settingsVm,
-        ReplayViewModel replay, TelemetryViewModel telemetry)
+        SettingsViewModel settingsVm,
+        ReplayViewModel replay)
     {
         _simConnect = simConnect; _session = session; _pttInput = pttInput;
         _alertService = alertService; _settings = settings;
         _telemetryProcessor = telemetryProcessor;
         _simBriefSvc = simBriefSvc; _exportSvc = exportSvc;
-        Dashboard = dashboard; LiveFlight = liveFlight; Map = map;
-        LandingAnalysis = landingAnalysis; Statistics = statistics;
-        SettingsVm = settingsVm; Replay = replay; Telemetry = telemetry;
+        Dashboard = dashboard; Map = map;
+        LandingAnalysis = landingAnalysis;
+        SettingsVm = settingsVm; Replay = replay;
 
         _simConnect.TelemetryReceived += (_, snap) => _telemetryProcessor.Process(snap);
         _telemetryProcessor.SnapshotReady += (_, snap) => _session.OnTelemetryReceived(snap);
@@ -93,13 +87,10 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand] public void NavigateToDashboard()  => Navigate(Dashboard,       "Dashboard",         ref _isDashboardActive);
-    [RelayCommand] public void NavigateToLiveFlight() => Navigate(LiveFlight,      "Live Flight",        ref _isLiveFlightActive);
     [RelayCommand] public void NavigateToMap()        => Navigate(Map,             "World Map",          ref _isMapActive);
     [RelayCommand] public void NavigateToLanding()    => Navigate(LandingAnalysis, "Landing Analysis",   ref _isLandingActive);
-    [RelayCommand] public void NavigateToStats()      => Navigate(Statistics,      "Pilot Statistics",   ref _isStatsActive);
     [RelayCommand] public void NavigateToSettings()   => Navigate(SettingsVm,      "Settings",           ref _isSettingsActive);
     [RelayCommand] public void NavigateToReplay()     => Navigate(Replay,          "Flight Replay",      ref _isReplayActive);
-    [RelayCommand] public void NavigateToTelemetry()  => Navigate(Telemetry,       "Telemetry Charts",   ref _isTelemetryActive);
 
     private void Navigate(object page, string name, ref bool flag)
     {
@@ -126,8 +117,8 @@ public partial class MainViewModel : ObservableObject
 
     private void ClearNav()
     {
-        IsDashboardActive = IsLiveFlightActive = IsMapActive = IsLandingActive =
-        IsStatsActive = IsSettingsActive = IsReplayActive = IsTelemetryActive = false;
+        IsDashboardActive = IsMapActive = IsLandingActive =
+        IsSettingsActive = IsReplayActive = false;
     }
 
     [RelayCommand]
@@ -217,15 +208,13 @@ public partial class MainViewModel : ObservableObject
             HeaderAlt   = $"{snap.AltitudePressure:F0}";
             HeaderSpeed = $"{snap.IASKts:F0}";
             HeaderPhase = snap.Phase.ToString().ToUpper();
-            LiveFlight.UpdateTelemetry(snap);
             Map.UpdateTelemetry(snap);
-            Telemetry.AddSample(snap);
         });
 
     private void OnFlightCompleted(object? _, FlightRecord __) =>
         Application.Current.Dispatcher.Invoke(() =>
         {
-            _ = Statistics.RefreshAsync(); _ = Dashboard.RefreshAsync();
+            _ = Dashboard.RefreshAsync();
             HeaderDep = HeaderArr = HeaderAlt = HeaderSpeed = "----";
             HeaderPhase = "PARKED";
         });

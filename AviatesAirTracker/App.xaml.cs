@@ -331,14 +331,11 @@ public partial class App : Application
         services.AddSingleton<EfbServer>();
         // ViewModels
         services.AddSingleton<DashboardViewModel>();
-        services.AddSingleton<LiveFlightViewModel>();
         services.AddSingleton<MapViewModel>();
         services.AddSingleton<LandingAnalysisViewModel>();
-        services.AddSingleton<StatisticsViewModel>();
         services.AddSingleton<PilotHubViewModel>();
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<ReplayViewModel>();
-        services.AddSingleton<TelemetryViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<FleetViewModel>();
         // Window

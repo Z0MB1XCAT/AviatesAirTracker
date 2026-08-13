@@ -45,10 +45,6 @@
     <!-- Blazor Hybrid WebView -->
     <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Wpf" Version="8.0.100" />
 
-    <!-- Charts — WPF version kept for legacy XAML views; Blazor version for new Razor pages -->
-    <PackageReference Include="OxyPlot.Wpf" Version="2.1.2" />
-    <PackageReference Include="OxyPlot.Blazor" Version="2.1.0" />
-
     <!-- Map — kept for legacy; Blazor map uses Leaflet.js via JS interop -->
     <PackageReference Include="Mapsui.Wpf" Version="4.1.7" />
     <PackageReference Include="Mapsui.Tiling" Version="4.1.7" />
