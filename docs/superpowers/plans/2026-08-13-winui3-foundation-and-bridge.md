@@ -1843,6 +1843,17 @@ In `AviatesAirTracker/App.xaml.cs`:
 
 - `OnExit(ExitEventArgs e)` has no WinUI equivalent. Rename it to a public **`Shutdown()`** method on `App`, keeping the body as-is for now; Task 12 finishes it and `ShellWindow.OnClosed` calls it (wired in Task 10). The name must be exactly `Shutdown` — Tasks 10 and 12 both depend on it.
 
+**`UpdateService` also calls into WPF.** `Services/UpdateService.cs:206` runs
+`_ui.Invoke(() => Application.Current.Shutdown())` to restart the app after downloading an
+update, and the file still carries `using System.Windows;` for it. Task 5 deliberately left
+this alone rather than forcing the using removal. `Application.Current.Shutdown()` does not
+exist in WinUI 3 — replace it with `Microsoft.UI.Xaml.Application.Current.Exit()` and swap
+the using to `Microsoft.UI.Xaml`.
+
+Verify the update-install path still works end to end after the change: this line is what
+relaunches the app after an update, so a silent failure here means users never get updates
+and nothing in the UI reports it.
+
 - [ ] **Step 4: Add the WinUI dispatcher and delete the WPF one**
 
 Create `AviatesAirTracker/Platform/DispatcherQueueUiDispatcher.cs`:
@@ -1911,6 +1922,32 @@ services.AddSingleton<IUiDispatcher>(_ =>
 ```
 
 This registration must be resolved on the UI thread. Because `OnLaunched` runs there and the container is built there, that holds.
+
+#### Three behaviour differences to handle deliberately, not by accident
+
+Surfaced by the Task 5 review, which moved these call sites onto the seam:
+
+1. **`BeginInvoke` after shutdown behaves differently.** WPF's `Dispatcher.BeginInvoke`
+   *throws* once the dispatcher is shut down; `DispatcherQueue.TryEnqueue` instead returns
+   `false` silently. The one `BeginInvoke` caller — `MainViewModel.cs:232`, the alert
+   auto-dismiss fired from a `Task.Delay(...).ContinueWith(...)` continuation — currently
+   relies on that exception being swallowed as an unobserved task exception. The
+   `DispatcherQueue` version is the better behaviour, but confirm alerts still auto-dismiss
+   after the swap rather than assuming it.
+
+2. **`ImmediateUiDispatcher`'s doc comment is currently aspirational.** It claims to be a
+   fallback "before the UI thread's `DispatcherQueue` exists (e.g. during startup)", but
+   this task registers `DispatcherQueueUiDispatcher` unconditionally and nothing uses the
+   immediate one outside tests. Either genuinely use it for the startup window, or amend
+   the comment so it stops describing a design that does not exist.
+
+3. **The 20Hz path blocks.** `MainViewModel.cs:208` (`OnTelemetryUpdated`) calls the
+   synchronous `Invoke` from the SimConnect thread twenty times a second. That is unchanged
+   pre-existing behaviour, not something this migration introduces — but
+   `DispatcherQueueUiDispatcher.Invoke` blocks on a `ManualResetEventSlim` when off the UI
+   thread, so the characteristic carries over. Do not "fix" it here; changing it is a
+   behaviour change on the hottest path in the app. Note it, and revisit only if the live
+   sim shows a problem.
 
 - [ ] **Step 5: Convert the remaining WPF timers**
 
