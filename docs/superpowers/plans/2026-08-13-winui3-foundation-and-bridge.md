@@ -241,6 +241,18 @@ git commit -m "test(platform): xunit project and the IUiDispatcher seam"
 
 This replaces `HwndSource.AddHook`, which does not exist in WinUI 3. It is the highest-risk single piece of the migration: if the native callback delegate is not rooted, the process dies on a SimConnect message, mid-flight, non-deterministically.
 
+> **Amended during implementation.** Code review found a second way this class could kill
+> the process: `OnSubclassProc` is a reverse P/Invoke, so an exception escaping the
+> callback unwinds across the native boundary and fail-fasts — `App.xaml.cs`'s handlers
+> cannot stop it. The constructor therefore takes a second argument,
+> `Action<Exception>? onError`, and the callback invocation is wrapped in try/catch.
+> `WindowSubclass` stays dependency-free (it is compiled into the test project, which has
+> no Serilog reference), so the consumer supplies the logging — see Task 10.
+>
+> Review also established that `_proc` is load-bearing for a **second** reason beyond GC
+> safety: `RemoveWindowSubclass` must receive the same delegate instance to match the
+> registered pointer, or the unhook silently does nothing.
+
 **Files:**
 - Create: `AviatesAirTracker/Platform/WindowSubclass.cs`
 - Test: `tests/AviatesAirTracker.Tests/Platform/WindowSubclassTests.cs`
@@ -2123,8 +2135,15 @@ public sealed partial class ShellWindow : Window
 
         _viewModel = viewModel;
         _filePicker = filePicker;
+
+        // The second argument is not optional in practice. OnSubclassProc is a reverse
+        // P/Invoke from comctl32: an exception escaping the callback unwinds across the
+        // native boundary and fail-fasts the process. WindowSubclass swallows it to keep
+        // the app alive, so if nothing is passed here the fault vanishes silently — and
+        // this callback carries 20Hz SimConnect telemetry.
         _subclass = new WindowSubclass(
-            (hwnd, msg, w, l) => _viewModel.OnWindowMessage(hwnd, msg, w, l));
+            (hwnd, msg, w, l) => _viewModel.OnWindowMessage(hwnd, msg, w, l),
+            ex => Log.Error(ex, "[Shell] SimConnect message callback threw"));
 
         Title = "Aviates Air Flight Tracker";
 
