@@ -13,7 +13,13 @@
          trailing Blazor.start() call is gone).
       2. The root component is rendered server-side via the component tag helper
          instead of being attached to an empty <div id="app"> by the WebView host.
-      3. The Content-Security-Policy <meta> is deliberately absent — Blazor Server's
+      3. The Blazor script moved from FIRST script in <body> to LAST, after leaflet,
+         interop.js, voice.js and the performance scripts. index.html could load it
+         first because it was inert until the explicit Blazor.start() at the end;
+         blazor.server.js self-starts, so loading it first would let the SignalR
+         handshake — and the component render that follows — begin before
+         window.aviatesMap and the other interop globals exist.
+      4. The Content-Security-Policy <meta> is deliberately absent — Blazor Server's
          SignalR client needs connect-src to this origin plus inline-script
          permissions the old policy did not grant. This page is served from
          127.0.0.1 to a WebView2 the app itself controls, so the policy was

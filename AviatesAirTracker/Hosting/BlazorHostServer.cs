@@ -122,7 +122,18 @@ public sealed class BlazorHostServer : IAsyncDisposable
         app.MapBlazorHub();
         app.MapFallbackToPage("/_Host");
 
-        await app.StartAsync();
+        // ConfigureAwait(false) for the same reason as in DisposeAsync: OnStartup blocks the UI
+        // thread on this via GetAwaiter().GetResult(), before the dispatcher begins pumping. If
+        // IHost.StartAsync ever yields instead of completing synchronously, a captured context
+        // would post the continuation back to that blocked thread and hang every launch. It
+        // completes synchronously today (loopback bind, no long-running hosted services), but
+        // that is an implementation detail rather than a contract.
+        //
+        // No Task.Run here, unlike DisposeAsync. That isolation exists so teardown can be
+        // ABANDONED after a timeout, which needs the work on a thread we can stop waiting on.
+        // Startup has no such semantics: there is nothing to walk away from, and a failure must
+        // surface to the caller's try/catch rather than being left running detached.
+        await app.StartAsync().ConfigureAwait(false);
         _app = app;
 
         var addresses = app.Services.GetRequiredService<IServer>()
@@ -220,16 +231,20 @@ public sealed class BlazorHostServer : IAsyncDisposable
     /// OnExit cannot be async, so it blocks the UI thread on this. Circuit teardown can marshal
     /// through the SHARED IUiDispatcher — the WPF dispatcher for that same blocked thread, which
     /// is not pumping while blocked — so any unbounded wait here can deadlock and hang the app on
-    /// exit. Two things prevent that, and BOTH are required:
+    /// exit. Two things prevent that:
     ///
-    ///   • The teardown runs on the thread pool and the wait is bounded by ShutdownTimeout.
-    ///     StopAsync alone is not enough to bound: DisposeAsync tears down the service provider,
+    ///   • The wait is bounded by ShutdownTimeout, covering stop AND dispose together. Bounding
+    ///     StopAsync alone is not enough: DisposeAsync tears down the service provider,
     ///     CircuitRegistry and hosted services with NO cancellation, so a blocked teardown would
-    ///     sail past a cancelled StopAsync and hang on the dispose instead. Bounding the whole
-    ///     block means no path can exceed the limit.
-    ///   • ConfigureAwait(false) on every await, so continuations resume on the thread pool
-    ///     rather than being posted to the blocked dispatcher — otherwise the awaits themselves
-    ///     deadlock and the timeout never gets a chance to fire.
+    ///     sail past a cancelled StopAsync and hang on the dispose instead.
+    ///   • ConfigureAwait(false) on the OUTER await of teardown.WaitAsync. That await is the
+    ///     load-bearing one — it is the only one that resumes on the caller's blocked UI thread,
+    ///     so without it the await itself deadlocks and the timeout never gets to fire.
+    ///
+    /// The Task.Run isolation and the inner ConfigureAwait(false) calls are belt-and-braces, and
+    /// redundant with each other: the thread pool already clears SynchronizationContext.Current
+    /// before invoking the delegate, so the inner awaits have no dispatcher context to post back
+    /// to either way. Both are kept so the code does not silently depend on that unstated detail.
     ///
     /// On timeout the host is abandoned rather than force-killed: the process is exiting anyway,
     /// so leaked sockets die with it. Unreachable today (nothing connects to this host yet) but
