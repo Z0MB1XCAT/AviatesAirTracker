@@ -26,6 +26,11 @@
       (or in Libs\) to enable live telemetry. See README.md for details.
     -->
     <DefineConstants>$(DefineConstants);NO_SIMCONNECT</DefineConstants>
+    <!-- Compile Hosting\_Host.cshtml as a Razor Page. Microsoft.NET.Sdk.Razor discovers
+         .cshtml files but will NOT compile them without this (RAZORSDK1004) — the build
+         otherwise succeeds while silently producing no page class. Transitional: needed
+         only while the loopback Blazor Server host serves the not-yet-migrated pages. -->
+    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
   </PropertyGroup>
 
   <!-- EFB companion server — embedded ASP.NET Core (Kestrel) host.
@@ -66,6 +71,18 @@
     <PackageReference Include="Serilog" Version="3.1.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="5.0.0" />
+  </ItemGroup>
+
+  <!-- The loopback Blazor Server host (Hosting\BlazorHostServer.cs) serves wwwroot from
+       DISK via a PhysicalFileProvider rooted at AppContext.BaseDirectory, so these files
+       must sit next to the exe. The Razor static-web-assets pipeline alone does not put
+       them there in a plain build. Transitional, like the rest of Hosting\.
+
+       NOTE: this is Update, not Include. The SDK already globs wwwroot\**\* into Content
+       by default, so Include duplicates every file and fails the build with NETSDK1022.
+       Update just adds the copy-to-output metadata to the items already there. -->
+  <ItemGroup>
+    <Content Update="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,96 @@
+@page "/"
+@namespace AviatesAirTracker.Hosting
+@using Microsoft.AspNetCore.Components.Web
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = null;
+}
+@*
+    Blazor Server host page — the loopback twin of wwwroot/index.html.
+
+    Differences from index.html, and only these:
+      1. blazor.server.js replaces blazor.webview.js (and self-starts, so the
+         trailing Blazor.start() call is gone).
+      2. The root component is rendered server-side via the component tag helper
+         instead of being attached to an empty <div id="app"> by the WebView host.
+      3. The Content-Security-Policy <meta> is deliberately absent — Blazor Server's
+         SignalR client needs connect-src to this origin plus inline-script
+         permissions the old policy did not grant. This page is served from
+         127.0.0.1 to a WebView2 the app itself controls, so the policy was
+         guarding a context that no longer exists. Restoring a correct CSP for
+         the Blazor Server origin is tracked as follow-up work.
+
+    Transitional: deleted along with the rest of Hosting/ once the last page is
+    native XAML.
+*@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AviatesAir — Virtual Airline Platform</title>
+    <base href="/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&family=VT323&display=swap" rel="stylesheet">
+    <!-- Apply saved theme before CSS renders to prevent flash of wrong theme -->
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('avt_theme') || 'dark';
+                var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+            } catch (e) {}
+        })();
+    </script>
+    <link rel="stylesheet" href="css/app.css" />
+    <!-- Blazor CSS-isolation bundle (*.razor.css files, e.g. LandingResultModal).
+         Without this link, scoped component styles silently never load. -->
+    <link rel="stylesheet" href="AviatesAirTracker.styles.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+    <div id="app">
+        <component type="typeof(AviatesAirTracker.BlazorApp)" render-mode="Server" />
+    </div>
+    <div class="boot-screen" id="bootScreen">
+        <div class="boot-logo">
+            <img src="images/AviatesairlogoWhite.webp" alt="AviatesAir" class="boot-wordmark" />
+        </div>
+        <div class="boot-progress"><div class="boot-progress-bar"></div></div>
+        <span class="boot-status">Initializing operations center…</span>
+    </div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="js/interop.js"></script>
+    <script src="js/voice.js"></script>
+    <!-- Takeoff performance calculation engine — load in dependency order -->
+    <script src="js/performance/aircraft-configs.js"></script>
+    <script src="js/performance/density.js"></script>
+    <script src="js/performance/airspeed.js"></script>
+    <script src="js/performance/flaps.js"></script>
+    <script src="js/performance/flex.js"></script>
+    <script src="js/performance/index.js"></script>
+    <script>
+      (function () {
+        var boot = document.getElementById('bootScreen');
+        if (!boot) return;
+        var MIN_MS = 1800, shown = Date.now();
+        function dismiss() {
+          var wait = Math.max(0, MIN_MS - (Date.now() - shown));
+          setTimeout(function () {
+            boot.classList.add('boot-screen--hide');
+            setTimeout(function () { if (boot && boot.parentNode) boot.remove(); }, 450);
+          }, wait);
+        }
+        var app = document.getElementById('app');
+        var done = false;
+        var obs = new MutationObserver(function () {
+          if (!done && app.childElementCount > 0) { done = true; obs.disconnect(); dismiss(); }
+        });
+        obs.observe(app, { childList: true });
+        setTimeout(function () { if (!done) { done = true; obs.disconnect(); dismiss(); } }, 8000);
+      })();
+    </script>
+    <script src="_framework/blazor.server.js"></script>
+</body>
+</html>

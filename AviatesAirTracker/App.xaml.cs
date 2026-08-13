@@ -2,6 +2,7 @@ using AviatesAirTracker.Core.Analytics;
 using AviatesAirTracker.Core.Backend;
 using AviatesAirTracker.Core.Data;
 using AviatesAirTracker.Core.SimConnect;
+using AviatesAirTracker.Hosting;
 using AviatesAirTracker.Models;
 using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
@@ -17,6 +18,10 @@ namespace AviatesAirTracker;
 public partial class App : Application
 {
     private ServiceProvider _serviceProvider = null!;
+    private BlazorHostServer? _blazorHost;
+
+    /// <summary>Root URL of the loopback Blazor Server host, once started. Task 7 consumes this.</summary>
+    public static string? LegacyUiUrl { get; private set; }
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -106,6 +111,22 @@ public partial class App : Application
             var efbServer = _serviceProvider.GetRequiredService<EfbServer>();
             if (settingsSvc.Settings.EfbEnabled && settingsSvc.Settings.EfbAutoStart)
                 _ = efbServer.StartAsync();
+
+            // Legacy Razor UI host — serves the not-yet-migrated pages to a WebView2 over
+            // loopback. Transitional; deleted when the last page becomes native XAML.
+            // NOT load-bearing yet: the UI still renders through BlazorWebView, so a failure
+            // here must not take the app down. Task 7 makes it load-bearing.
+            try
+            {
+                var blazorHost = new BlazorHostServer(_serviceProvider);
+                LegacyUiUrl = blazorHost.StartAsync().GetAwaiter().GetResult();
+                Log.Information("[Startup] Legacy UI host ready at {Url}", LegacyUiUrl);
+                _blazorHost = blazorHost;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "[Startup] Legacy UI host failed to start (non-fatal — still on BlazorWebView)");
+            }
 
             _serviceProvider.GetRequiredService<MainWindow>().Show();
 
@@ -355,6 +376,7 @@ public partial class App : Application
         _serviceProvider.GetService<DispatchRadioService>()?.Dispose();
         _serviceProvider.GetService<UpdateService>()?.Dispose();
         _serviceProvider.GetService<TakeoffPerformanceService>()?.Dispose();
+        _blazorHost?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         Log.CloseAndFlush();
         _serviceProvider.Dispose();
         base.OnExit(e);
