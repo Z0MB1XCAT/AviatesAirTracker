@@ -73,7 +73,7 @@ MSFS (SimConnect)
 
 ### MVVM + Blazor
 
-ViewModels use CommunityToolkit.Mvvm (`[ObservableProperty]`, `[RelayCommand]`). In Razor pages, inject the ViewModel and call `await InvokeAsync(() => { Property = value; StateHasChanged(); })` for cross-thread updates from the SimConnect pump. **Do not call `StateHasChanged()` on every 20Hz tick** — batch every 3–5 samples (see `LiveFlightViewModel` which updates every 5 samples).
+ViewModels use CommunityToolkit.Mvvm (`[ObservableProperty]`, `[RelayCommand]`). In Razor pages, inject the ViewModel and call `await InvokeAsync(() => { Property = value; StateHasChanged(); })` for cross-thread updates from the SimConnect pump. **Do not call `StateHasChanged()` on every 20Hz tick** — batch every 3–5 samples (see docs/superpowers/notes/20hz-batching-reference.md for the preserved every-5-samples pattern).
 
 ### Dependency Injection
 
@@ -162,7 +162,6 @@ A **new, self-contained module** that hosts a local web server on the LAN so a t
 - **.NET 8, `Microsoft.NET.Sdk.Razor`** (x64 Windows only), C# 12, nullable reference types enabled
 - **WPF** retained only as HWND shell hosting `BlazorWebView`
 - **CommunityToolkit.Mvvm** — `[ObservableProperty]`, `[RelayCommand]`
-- **OxyPlot.Blazor** — charts in Razor pages; `OxyPlot.Wpf` kept for legacy XAML views
 - **Leaflet.js** (CDN via `index.html`) — interactive map via JS interop
 - **Mapsui.Wpf** — kept for legacy WPF MapView
 - **RestSharp + Newtonsoft.Json** — SimBrief OFP import, backend HTTP

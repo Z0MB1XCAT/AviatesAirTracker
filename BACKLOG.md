@@ -32,8 +32,8 @@ with EF Core implementations. No backend required — local `.db` file in `%AppD
 Currently redirect instead of rendering their UI:
 - `/live-flight` → redirects to `/acars` (should show an in-cockpit instrument panel view)
 - `/replay` → redirects to `/flights` (flight playback engine exists in `ReplayViewModel.cs`; needs UI)
-- `/statistics` → redirects to `/pilot-hub` (OxyPlot is in the project; wire charts to `StatisticsViewModel`)
-- `/telemetry` → redirects to `/acars` (OxyPlot + 600-sample telemetry buffer ready; needs chart UI)
+- `/statistics` → redirects to `/pilot-hub` (`StatisticsViewModel` and OxyPlot were removed during the WinUI 3 migration; this is now a rebuild, not a wiring job — needs a new ViewModel and no charting library)
+- `/telemetry` → redirects to `/acars` (`TelemetryViewModel`, its 600-sample buffer, and OxyPlot were removed during the WinUI 3 migration; this is now a rebuild, not a wiring job — needs a new ViewModel and no charting library)
 - `/landing-analysis` → redirects to `/pilot-hub` (full landing scoring exists; needs standalone page)
 
 ### FEAT-D: PIREP Submission to Backend
