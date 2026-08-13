@@ -211,33 +211,72 @@ public sealed class BlazorHostServer : IAsyncDisposable
         Share<FleetViewModel>();
     }
 
+    private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Stops and disposes the host, never taking longer than <see cref="ShutdownTimeout"/>.
+    /// </summary>
+    /// <remarks>
+    /// OnExit cannot be async, so it blocks the UI thread on this. Circuit teardown can marshal
+    /// through the SHARED IUiDispatcher — the WPF dispatcher for that same blocked thread, which
+    /// is not pumping while blocked — so any unbounded wait here can deadlock and hang the app on
+    /// exit. Two things prevent that, and BOTH are required:
+    ///
+    ///   • The teardown runs on the thread pool and the wait is bounded by ShutdownTimeout.
+    ///     StopAsync alone is not enough to bound: DisposeAsync tears down the service provider,
+    ///     CircuitRegistry and hosted services with NO cancellation, so a blocked teardown would
+    ///     sail past a cancelled StopAsync and hang on the dispose instead. Bounding the whole
+    ///     block means no path can exceed the limit.
+    ///   • ConfigureAwait(false) on every await, so continuations resume on the thread pool
+    ///     rather than being posted to the blocked dispatcher — otherwise the awaits themselves
+    ///     deadlock and the timeout never gets a chance to fire.
+    ///
+    /// On timeout the host is abandoned rather than force-killed: the process is exiting anyway,
+    /// so leaked sockets die with it. Unreachable today (nothing connects to this host yet) but
+    /// live from Task 7 onward.
+    /// </remarks>
     public async ValueTask DisposeAsync()
     {
-        if (_app == null) return;
+        var app = _app;
+        if (app == null) return;
+
+        // Clear state up front — the host is going away regardless of how teardown ends.
+        _app = null;
+        BaseUrl = null;
+
+        using var cts = new CancellationTokenSource(ShutdownTimeout);
+
+        // Token gives teardown a chance to stop cooperatively; the bounded wait below is the
+        // hard guarantee if it does not.
+        var teardown = Task.Run(async () =>
+        {
+            await app.StopAsync(cts.Token).ConfigureAwait(false);
+            await app.DisposeAsync().ConfigureAwait(false);
+        });
 
         try
         {
-            // Bounded stop. OnExit blocks the UI thread on this (OnExit cannot be async), and
-            // circuit teardown can marshal through the SHARED IUiDispatcher — which is the WPF
-            // dispatcher for that same blocked thread. An unbounded wait could therefore deadlock
-            // and hang the app on exit. The timeout makes shutdown worst-case slow, never stuck.
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await _app.StopAsync(cts.Token);
-            await _app.DisposeAsync();
+            await teardown.WaitAsync(ShutdownTimeout).ConfigureAwait(false);
             Log.Information("[BlazorHost] Stopped");
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) when (IsCancellation(ex))
         {
-            Log.Warning("[BlazorHost] Shutdown timed out after 5s — abandoning host (non-critical)");
+            // Host.StopAsync aggregates and rethrows, so a fired token usually surfaces as
+            // AggregateException rather than a bare OperationCanceledException. Matching only
+            // the bare form would misreport timeouts as generic failures.
+            Log.Warning("[BlazorHost] Shutdown exceeded {Timeout:g} — abandoning host (non-critical)", ShutdownTimeout);
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "[BlazorHost] Shutdown failed (non-critical)");
         }
-        finally
-        {
-            _app = null;
-            BaseUrl = null;
-        }
     }
+
+    /// <summary>True if the exception is a timeout/cancellation, including aggregated forms.</summary>
+    private static bool IsCancellation(Exception ex) => ex switch
+    {
+        TimeoutException or OperationCanceledException => true,
+        AggregateException agg => agg.Flatten().InnerExceptions.Any(IsCancellation),
+        _ => false,
+    };
 }

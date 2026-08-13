@@ -26,10 +26,14 @@
       (or in Libs\) to enable live telemetry. See README.md for details.
     -->
     <DefineConstants>$(DefineConstants);NO_SIMCONNECT</DefineConstants>
-    <!-- Compile Hosting\_Host.cshtml as a Razor Page. Microsoft.NET.Sdk.Razor discovers
-         .cshtml files but will NOT compile them without this (RAZORSDK1004) — the build
-         otherwise succeeds while silently producing no page class. Transitional: needed
-         only while the loopback Blazor Server host serves the not-yet-migrated pages. -->
+    <!--
+      Silences RAZORSDK1004 for Hosting\_Host.cshtml. On SDK 10.0.111 the Razor source
+      generator compiles the page with or without this property — generated output is
+      byte-identical either way — so it is retained only because CI pins .NET SDK 8.0.x,
+      where the legacy pre-source-generator path may still apply and cannot be tested here.
+
+      TRANSITIONAL: remove together with Hosting\ at the end of the WinUI 3 migration.
+    -->
     <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
   </PropertyGroup>
 
