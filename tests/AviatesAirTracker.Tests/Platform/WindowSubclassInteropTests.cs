@@ -105,6 +105,41 @@ public class WindowSubclassInteropTests
         }
     }
 
+    /// <summary>
+    /// <c>OnSubclassProc</c> is a reverse P/Invoke from comctl32. If the callback throws
+    /// and that exception is allowed to unwind across the native boundary, the process
+    /// fail-fasts — no managed handler, including <c>AppDomain.UnhandledException</c>, can
+    /// stop it. This test proves the guard holds on the real native path: a throwing
+    /// callback driven through an actual <c>SendMessage</c> must not take the test host
+    /// down with it, and the supplied error handler must observe the exception.
+    /// </summary>
+    [WindowsFact]
+    public void ThrowingCallback_ThroughRealNativeCallback_DoesNotCrashProcess()
+    {
+        var thrown = new InvalidOperationException("boom from native callback");
+        Exception? observed = null;
+        MessageOnlyWindow? window = null;
+
+        try
+        {
+            window = MessageOnlyWindow.Create();
+            var subclass = new WindowSubclass(
+                (_, _, _, _) => throw thrown,
+                onError: ex => observed = ex);
+            subclass.Attach(window.Handle);
+
+            // If the exception guard were missing, this call would crash the test host
+            // process instead of returning.
+            SendMessageW(window.Handle, WM_USER_SIMCONNECT, 0, 0);
+
+            Assert.Same(thrown, observed);
+        }
+        finally
+        {
+            window?.Dispose();
+        }
+    }
+
     // ---------------------------------------------------------------------
     // Minimal message-only window host
     // ---------------------------------------------------------------------

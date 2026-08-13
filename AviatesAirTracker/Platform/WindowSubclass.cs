@@ -25,6 +25,17 @@ namespace AviatesAirTracker.Platform;
 /// then sends message 0x0402 through it — that test has been confirmed to crash the test
 /// host when the field is removed.
 /// </para>
+/// <para>
+/// A single delegate instance is also required so that <c>RemoveWindowSubclass</c> can
+/// match the pointer that was registered by <c>SetWindowSubclass</c>. A fresh delegate per
+/// call produces a different native thunk, so the "unhook" call would silently do nothing
+/// — no exception, no error code, just a subclass that is never actually removed.
+/// </para>
+/// <para>
+/// <b>Thread affinity:</b> <see cref="Attach"/> and <see cref="Detach"/> must be called on
+/// the thread that owns the window. comctl32's subclass chain is per-HWND state tied to
+/// that window's owning thread, the same way <c>HwndSource.AddHook</c> was.
+/// </para>
 /// </remarks>
 public sealed class WindowSubclass : IDisposable
 {
@@ -47,13 +58,23 @@ public sealed class WindowSubclass : IDisposable
     /// <summary>Rooted for the object's lifetime. See the remarks on the type.</summary>
     private readonly SUBCLASSPROC _proc;
     private readonly Action<nint, int, nint, nint> _onMessage;
+    private readonly Action<Exception>? _onError;
     private nint _hwnd;
     private bool _attached;
     private bool _detached;
 
-    public WindowSubclass(Action<nint, int, nint, nint> onMessage)
+    /// <param name="onMessage">Receives every window message sent to the attached HWND.</param>
+    /// <param name="onError">
+    /// Invoked if <paramref name="onMessage"/> throws. Optional, but a caller that passes
+    /// nothing is choosing to discard the exception silently — see the remarks on why it
+    /// cannot be allowed to propagate.
+    /// </param>
+    public WindowSubclass(
+        Action<nint, int, nint, nint> onMessage,
+        Action<Exception>? onError = null)
     {
         _onMessage = onMessage;
+        _onError = onError;
         _proc = OnSubclassProc;
     }
 
@@ -80,7 +101,20 @@ public sealed class WindowSubclass : IDisposable
     private nint OnSubclassProc(
         nint hWnd, uint uMsg, nint wParam, nint lParam, nuint uIdSubclass, nint dwRefData)
     {
-        _onMessage(hWnd, (int)uMsg, wParam, lParam);
+        // This method is invoked by comctl32 as a reverse P/Invoke. An exception escaping
+        // here unwinds across the native boundary, which .NET does not support — the
+        // process fail-fasts, and the handlers in App.xaml.cs cannot stop it. Swallowing
+        // a telemetry-callback fault is strictly better than killing the app mid-flight.
+        try
+        {
+            _onMessage(hWnd, (int)uMsg, wParam, lParam);
+        }
+        catch (Exception ex)
+        {
+            try { _onError?.Invoke(ex); } catch { /* the error reporter must never throw */ }
+        }
+
+        // Always falls through: the window must keep processing messages regardless.
         return DefSubclassProc(hWnd, uMsg, wParam, lParam);
     }
 
@@ -91,7 +125,15 @@ public sealed class WindowSubclass : IDisposable
     internal void InvokeForTest(nint hwnd, int msg, nint wParam, nint lParam)
     {
         if (_detached) return;
-        _onMessage(hwnd, msg, wParam, lParam);
+
+        try
+        {
+            _onMessage(hwnd, msg, wParam, lParam);
+        }
+        catch (Exception ex)
+        {
+            try { _onError?.Invoke(ex); } catch { /* the error reporter must never throw */ }
+        }
     }
 
     public void Dispose() => Detach();

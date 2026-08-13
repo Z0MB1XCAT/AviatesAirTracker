@@ -39,4 +39,26 @@ public class WindowSubclassTests
         subclass.Detach();
         subclass.Detach();   // must not throw
     }
+
+    [Fact]
+    public void ThrowingCallback_DoesNotPropagate_AndInvokesOnError()
+    {
+        var thrown = new InvalidOperationException("boom");
+        Exception? observed = null;
+        var subclass = new WindowSubclass(
+            (_, _, _, _) => throw thrown,
+            onError: ex => observed = ex);
+
+        subclass.InvokeForTest(1, 0x0402, 0, 0);
+
+        Assert.Same(thrown, observed);
+    }
+
+    [Fact]
+    public void ThrowingCallback_WithNoErrorHandler_DoesNotPropagate()
+    {
+        var subclass = new WindowSubclass((_, _, _, _) => throw new InvalidOperationException("boom"));
+
+        subclass.InvokeForTest(1, 0x0402, 0, 0);   // must not throw
+    }
 }
