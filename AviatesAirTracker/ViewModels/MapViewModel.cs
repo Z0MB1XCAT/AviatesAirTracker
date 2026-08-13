@@ -120,15 +120,6 @@ public partial class MapViewModel : ObservableObject
         MapRenderRequested?.Invoke();
     }
 
-    // ── Legacy WPF Mapsui view compatibility ──────────────────
-    // ViewCodeBehinds.cs uses these until the WPF map view is replaced by Blazor/Leaflet.
-    public double AircraftLat => Lat;
-    public double AircraftLon => Lon;
-    public bool ShowActualPath  => true;
-    public bool ShowPlannedRoute => true;
-    public List<Models.PathPoint> GetFlightPath()   => _routeTracker.GetRecordedPathSnapshot();
-    public List<Models.Waypoint>  GetPlannedRoute() => _routeTracker.GetPlannedRoute();
-
     public IReadOnlyList<object>? GetPathIfChanged()
     {
         var totalCount = _routeTracker.RecordedPathCount;

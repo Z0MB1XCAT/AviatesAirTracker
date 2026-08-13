@@ -152,7 +152,6 @@ A **new, self-contained module** that hosts a local web server on the LAN so a t
 | `Services/DiscordPresenceService.cs` | Discord Rich Presence, 10s update |
 | `Services/RunwayDetector.cs` | Built-in runway database, touchdown identification |
 | `Models/FlightModels.cs` | `FlightRecord`, `LandingResult`, and other domain models |
-| `Controls/AviationControls.cs` | WPF vector instrument controls (CompassRose, etc.) |
 | `Services/Efb/EfbServer.cs` | Embedded Kestrel LAN server for the EFB companion (REST + WebSocket + pairing) |
 | `Services/Efb/EfbStateService.cs` | Telemetry→`EfbSnapshot` bridge feeding the EFB |
 | `Core/Efb/EfbPerformanceCalculator.cs` | EFB takeoff/landing performance (training-grade) |

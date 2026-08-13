@@ -159,24 +159,6 @@ AviatesAirTracker/
 ├── ViewModels/
 │   ├── MainViewModel.cs               ← Navigation + top-level state
 │   └── ChildViewModels.cs             ← Per-page VMs
-├── Views/
-│   ├── DashboardView.xaml
-│   ├── LiveFlightView.xaml
-│   ├── MapView.xaml
-│   ├── LandingAnalysisView.xaml
-│   ├── StatisticsView.xaml
-│   ├── ReplayView.xaml
-│   ├── TelemetryView.xaml
-│   ├── SettingsView.xaml
-│   └── ViewCodeBehinds.cs
-├── Resources/Styles/
-│   ├── AviatesTheme.xaml              ← Colors (#0A0D17 bg, #3D7EEE accent)
-│   ├── Controls.xaml                  ← Buttons, inputs, grids
-│   ├── Typography.xaml                ← Text styles + badges
-│   └── Animations.xaml                ← Fade, slide, pulse
-├── Converters/
-│   ├── ValueConverters.cs
-│   └── ExtraConverters.cs
 ├── MainWindow.xaml                    ← Navigation shell
 └── App.xaml.cs                        ← DI container + startup
 ```

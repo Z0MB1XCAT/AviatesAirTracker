@@ -10,7 +10,7 @@ namespace AviatesAirTracker.Core.Analytics;
 //   - StabilityChecker (Vref/Vapp bands for approach)
 //   - LandingAnalyzer (expected pitch at touchdown)
 //   - FuelAnalyzer (expected burn rates)
-//   - LiveFlightView (flap detents labels)
+//   - (no current consumer; flap detent labels were used by the deleted WPF LiveFlightView)
 // ============================================================
 
 public class AircraftPerformanceDatabase
