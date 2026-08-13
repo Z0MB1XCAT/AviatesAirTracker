@@ -21,6 +21,7 @@
   <ItemGroup>
     <Compile Include="../../AviatesAirTracker/Platform/IUiDispatcher.cs" Link="Platform/IUiDispatcher.cs" />
     <Compile Include="../../AviatesAirTracker/Platform/ImmediateUiDispatcher.cs" Link="Platform/ImmediateUiDispatcher.cs" />
+    <Compile Include="../../AviatesAirTracker/Platform/WindowSubclass.cs" Link="Platform/WindowSubclass.cs" />
   </ItemGroup>
 
 </Project>
