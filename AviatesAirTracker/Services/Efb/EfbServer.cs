@@ -199,9 +199,34 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
     /// during a WPF shutdown) can tear the server down without throwing on an
     /// async-only disposable. Blocks briefly on graceful stop.
     /// </summary>
+    /// <remarks>
+    /// The stop MUST run through <see cref="Task.Run(Func{Task})"/>, not be awaited inline.
+    /// This is called from <c>App.OnExit</c> on the WPF dispatcher thread, where
+    /// <c>SynchronizationContext.Current</c> is the <c>DispatcherSynchronizationContext</c>.
+    /// Awaiting <see cref="StopAsync"/> directly captures that context, so its continuations
+    /// are posted back to the dispatcher thread — the very thread this call has just blocked.
+    /// The continuation never runs and the process hangs in <c>OnExit</c> forever.
+    ///
+    /// That hang looked like a clean stop from the outside: Kestrel unbinds the listen socket
+    /// on a thread-pool thread before the first continuation is due, so the EFB port is
+    /// released and only the deadlocked dispatcher thread is left behind.
+    ///
+    /// Task.Run hands the whole state machine to a thread-pool thread with no captured
+    /// context, so nothing needs the blocked thread to make progress. The timeout is a
+    /// backstop for a socket close that refuses to finish; abandoning the stop is safe
+    /// because the process is on its way out.
+    /// </remarks>
     public void Dispose()
     {
-        try { StopAsync().GetAwaiter().GetResult(); } catch { /* best effort */ }
+        try
+        {
+            if (!Task.Run(StopAsync).Wait(TimeSpan.FromSeconds(5)))
+                Log.Warning("[EFB] Server stop did not finish within 5s — abandoning it");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[EFB] Server stop failed during Dispose (non-critical)");
+        }
         _http.Dispose();
     }
 

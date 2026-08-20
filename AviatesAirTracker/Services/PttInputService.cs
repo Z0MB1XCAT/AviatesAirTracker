@@ -63,6 +63,14 @@ public class PttInputService : IDisposable
     private readonly DirectInput _directInput = new();
     private Joystick? _joystick;
     private readonly CancellationTokenSource _joystickCts = new();
+
+    // App.OnExit disposes this service explicitly (Step("PttInput", ...)) and then
+    // disposes the whole DI ServiceProvider, which disposes every registered singleton
+    // again — including this one. Without the guard, the second call hits
+    // _joystickCts.Cancel() on an already-disposed CancellationTokenSource and throws
+    // ObjectDisposedException, logged to crash.log on every shutdown despite the process
+    // exiting cleanly.
+    private bool _disposed;
     private readonly Task _joystickPollTask;
     private bool _joystickButtonIsDown;
     private IntPtr _windowHandle;
@@ -298,6 +306,9 @@ public class PttInputService : IDisposable
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+
         if (_hookHandle != IntPtr.Zero) UnhookWindowsHookEx(_hookHandle);
 
         _eventChannel.Writer.TryComplete();

@@ -1,4 +1,4 @@
-using AviatesAirTracker.Core.Analytics;
+﻿using AviatesAirTracker.Core.Analytics;
 using AviatesAirTracker.Core.Backend;
 using AviatesAirTracker.Core.Data;
 using AviatesAirTracker.Core.SimConnect;
@@ -381,23 +381,95 @@ public partial class App : Application
         services.AddSingleton<MainWindow>();
     }
 
+    /// <summary>
+    /// Hard ceiling on how long the process may take to disappear once <see cref="OnExit"/>
+    /// starts. Comfortably above the sum of the individual disposal timeouts below (EFB 5 s,
+    /// PTT 2 s, Blazor host 5 s), which in practice all complete in milliseconds.
+    /// </summary>
+    private static readonly TimeSpan ShutdownBudget = TimeSpan.FromSeconds(4);
+
+    /// <summary>
+    /// Runs one disposal step, logging its name first so that if it hangs, the last
+    /// <c>[Shutdown] step</c> line in the log names the culprit. Nothing here may throw:
+    /// one service failing to dispose must not skip the rest.
+    /// </summary>
+    private void Step(string name, Action action)
+    {
+        Log.Debug("[Shutdown] step: {Step}", name);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try { action(); }
+        catch (Exception ex) { Log.Warning(ex, "[Shutdown] {Step} threw while disposing", name); }
+        if (sw.ElapsedMilliseconds > 250)
+            Log.Warning("[Shutdown] {Step} took {Ms} ms", name, sw.ElapsedMilliseconds);
+    }
+
+    /// <summary>
+    /// Arms a watchdog that terminates the process if it is still alive once
+    /// <see cref="ShutdownBudget"/> has elapsed.
+    /// </summary>
+    /// <remarks>
+    /// A disposal that blocks the dispatcher thread — a sync-over-async wait whose
+    /// continuation is posted back to that same blocked thread, a native/IPC handle that
+    /// never releases — leaves the window gone but the process resident in Task Manager
+    /// forever, with no way for the user to recover but to kill it by hand. A try/catch
+    /// does not help: a hang is not an exception.
+    ///
+    /// So the budget is enforced from outside <see cref="OnExit"/>, on a thread that cannot
+    /// itself be blocked by it. Serilog is flushed before the kill, and the last
+    /// <c>[Shutdown] step</c> line written names the call that hung — the whole point of
+    /// this being a bounded exit rather than a silent one is that it stays diagnosable.
+    ///
+    /// The watchdog is never disarmed. It is a background thread, so a healthy shutdown
+    /// simply outruns it and it dies with the process; if it ever does fire, the process
+    /// has by definition already failed to exit.
+    /// </remarks>
+    private static void ArmShutdownWatchdog()
+    {
+        var watchdog = new Thread(() =>
+        {
+            Thread.Sleep(ShutdownBudget);
+            try
+            {
+                Log.Fatal("[Shutdown] Still alive {Sec}s after OnExit began — a disposal is " +
+                          "blocked (see the last '[Shutdown] step' line above). Forcing exit.",
+                          ShutdownBudget.TotalSeconds);
+                Log.CloseAndFlush();
+            }
+            catch { /* the log is the last thing we have; don't let it stop the kill */ }
+            // TerminateProcess. Environment.Exit would run finalizers and ProcessExit
+            // handlers on the way out — more code that could block, which is the one
+            // thing this thread exists to rule out.
+            System.Diagnostics.Process.GetCurrentProcess().Kill();
+        })
+        {
+            IsBackground = true,
+            Name = "ShutdownWatchdog",
+        };
+        watchdog.Start();
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
-        _serviceProvider.GetService<EfbServer>()?.Dispose();
-        _serviceProvider.GetService<SimConnectManager>()?.Disconnect();
-        _serviceProvider.GetService<DiscordPresenceService>()?.Dispose();
-        _serviceProvider.GetService<AcarsPositionService>()?.Dispose();
-        _serviceProvider.GetService<HoppiesAcarsOrchestrator>()?.Dispose();
-        _serviceProvider.GetService<PttInputService>()?.Dispose();
-        _serviceProvider.GetService<DispatchRadioService>()?.Dispose();
-        _serviceProvider.GetService<UpdateService>()?.Dispose();
-        _serviceProvider.GetService<TakeoffPerformanceService>()?.Dispose();
+        ArmShutdownWatchdog();
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        Step("EfbServer", () => _serviceProvider.GetService<EfbServer>()?.Dispose());
+        Step("SimConnectManager", () => _serviceProvider.GetService<SimConnectManager>()?.Disconnect());
+        Step("Discord", () => _serviceProvider.GetService<DiscordPresenceService>()?.Dispose());
+        Step("AcarsPosition", () => _serviceProvider.GetService<AcarsPositionService>()?.Dispose());
+        Step("Hoppies", () => _serviceProvider.GetService<HoppiesAcarsOrchestrator>()?.Dispose());
+        Step("PttInput", () => _serviceProvider.GetService<PttInputService>()?.Dispose());
+        Step("DispatchRadio", () => _serviceProvider.GetService<DispatchRadioService>()?.Dispose());
+        Step("UpdateService", () => _serviceProvider.GetService<UpdateService>()?.Dispose());
+        Step("TakeoffPerf", () => _serviceProvider.GetService<TakeoffPerformanceService>()?.Dispose());
         // Safety net only. MainWindow.Closing normally tears the host down while the dispatcher
         // is still pumping; by here it has stopped, so a circuit teardown marshalling through
         // IUiDispatcher could not complete and would ride the 5 s timeout inside DisposeAsync.
         // Reached when the window close path is bypassed (e.g. Application.Shutdown, or a
         // startup failure before MainWindow appears). No-op if teardown already happened.
-        _blazorHost?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        Step("BlazorHost", () => _blazorHost?.DisposeAsync().AsTask().GetAwaiter().GetResult());
+
+        Log.Information("[Shutdown] All services disposed in {Ms} ms — exiting", sw.ElapsedMilliseconds);
         Log.CloseAndFlush();
         _serviceProvider.Dispose();
         base.OnExit(e);
