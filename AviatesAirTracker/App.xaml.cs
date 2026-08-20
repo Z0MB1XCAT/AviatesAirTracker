@@ -18,7 +18,7 @@ namespace AviatesAirTracker;
 public partial class App : Application
 {
     private ServiceProvider _serviceProvider = null!;
-    private BlazorHostServer? _blazorHost;
+    private ILegacyUiHost? _blazorHost;
 
     /// <summary>Root URL of the loopback Blazor Server host, once started. MainWindow navigates to this.</summary>
     public static string? LegacyUiUrl { get; private set; }
@@ -123,8 +123,8 @@ public partial class App : Application
             // window with the reason buried in a log file. Say so and stop instead.
             try
             {
-                var blazorHost = new BlazorHostServer(_serviceProvider);
-                LegacyUiUrl = blazorHost.StartAsync().GetAwaiter().GetResult();
+                var blazorHost = LegacyUiHostLoader.Load();
+                LegacyUiUrl = blazorHost.StartAsync(_serviceProvider).GetAwaiter().GetResult();
                 Log.Information("[Startup] UI host ready at {Url}", LegacyUiUrl);
                 _blazorHost = blazorHost;
             }

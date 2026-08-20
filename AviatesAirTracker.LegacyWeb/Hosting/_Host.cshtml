@@ -1,5 +1,6 @@
 @page "/"
-@namespace AviatesAirTracker.Hosting
+@namespace AviatesAirTracker.LegacyWeb.Hosting
+@using AviatesAirTracker.LegacyWeb
 @using Microsoft.AspNetCore.Components.Web
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @{
@@ -50,14 +51,16 @@
         })();
     </script>
     <link rel="stylesheet" href="css/app.css" />
-    <!-- Blazor CSS-isolation bundle (*.razor.css files, e.g. LandingResultModal).
+    <!-- Blazor CSS-isolation bundle (*.razor.css files, e.g. LandingResultModal). Now
+         bundled under the AviatesAirTracker.LegacyWeb library's name (Task 8 moved the
+         Razor UI there), and copied to wwwroot by the library's CopyToAppOutput target.
          Without this link, scoped component styles silently never load. -->
-    <link rel="stylesheet" href="AviatesAirTracker.styles.css" />
+    <link rel="stylesheet" href="AviatesAirTracker.LegacyWeb.bundle.scp.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
     <div id="app">
-        <component type="typeof(AviatesAirTracker.BlazorApp)" render-mode="Server" />
+        <component type="typeof(AviatesAirTracker.LegacyWeb.BlazorApp)" render-mode="Server" />
     </div>
     <div class="boot-screen" id="bootScreen">
         <div class="boot-logo">

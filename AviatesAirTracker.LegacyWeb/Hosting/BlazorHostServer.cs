@@ -18,7 +18,7 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using System.IO;
 
-namespace AviatesAirTracker.Hosting;
+namespace AviatesAirTracker.LegacyWeb.Hosting;
 
 // ════════════════════════════════════════════════════════════════════
 // BLAZOR HOST SERVER  —  TRANSITIONAL SCAFFOLD
@@ -58,22 +58,27 @@ namespace AviatesAirTracker.Hosting;
 /// In-process Kestrel host that serves the legacy Razor UI as Blazor Server over
 /// loopback. Transitional — see the header comment.
 /// </summary>
-public sealed class BlazorHostServer : IAsyncDisposable
+public sealed class BlazorHostServer : AviatesAirTracker.Hosting.ILegacyUiHost
 {
-    private readonly IServiceProvider _appServices;
+    private IServiceProvider _appServices = null!;
     private WebApplication? _app;
 
     /// <summary>Root URL the host bound to, e.g. <c>http://127.0.0.1:51734</c>. Null until started.</summary>
     public string? BaseUrl { get; private set; }
 
-    public BlazorHostServer(IServiceProvider appServices) => _appServices = appServices;
-
     /// <summary>
     /// Starts the loopback host and returns the resolved root URL. Binds port 0 so the
     /// OS picks a free port, then reads the actual port back off the server feature.
     /// </summary>
-    public async Task<string> StartAsync()
+    /// <remarks>
+    /// The provider is a <c>StartAsync</c> parameter rather than a constructor argument
+    /// because <see cref="LegacyUiHostLoader"/> activates this type with
+    /// <c>Activator.CreateInstance</c> and no arguments — the app cannot reference this
+    /// class at compile time to pass it into a constructor.
+    /// </remarks>
+    public async Task<string> StartAsync(IServiceProvider appServices)
     {
+        _appServices = appServices;
         if (_app != null && BaseUrl != null) return BaseUrl;
 
         var builder = WebApplication.CreateBuilder();
@@ -93,16 +98,30 @@ public sealed class BlazorHostServer : IAsyncDisposable
             Log.Warning("[BlazorHost] wwwroot not found at {Path} — the UI will render unstyled", webRoot);
 
         // Also load the static-web-assets manifest. wwwroot alone is NOT enough: the Blazor
-        // CSS-isolation bundle (AviatesAirTracker.styles.css, which _Host.cshtml links and
-        // which carries the scoped styles for LandingResultModal/FlightRecoveryModal) is
-        // generated into obj/ and only ever reachable through this manifest.
+        // CSS-isolation bundle (AviatesAirTracker.LegacyWeb.bundle.scp.css, which _Host.cshtml
+        // links and which carries the scoped styles for LandingResultModal/FlightRecoveryModal)
+        // is generated into obj/ and only ever reachable through this manifest.
         builder.WebHost.UseStaticWebAssets();
 
         var services = builder.Services;
 
         // _Host.cshtml lives in Hosting/, not the conventional Pages/ root, so Razor Pages
         // discovery has to be pointed at it or the page is compiled but never routed.
-        services.AddRazorPages().AddRazorPagesOptions(o => o.RootDirectory = "/Hosting");
+        //
+        // AddApplicationPart is REQUIRED since Task 8 moved this file (and _Host.cshtml) into
+        // AviatesAirTracker.LegacyWeb. ASP.NET Core's default Razor Pages discovery walks
+        // Assembly.GetEntryAssembly()'s (AviatesAirTracker.exe's) compile-time reference
+        // closure — and the app deliberately does NOT reference this library (see
+        // ILegacyUiHost's remarks: that would be the compile-time cycle this whole seam
+        // exists to avoid). Without this line, MapFallbackToPage("/_Host") below throws
+        // InvalidOperationException: "Cannot find the fallback endpoint specified by route
+        // values: { page: /_Host, area: }." — the page compiles fine, ASP.NET Core just never
+        // learns this assembly exists. Explicitly registering THIS assembly (the one
+        // BlazorHostServer itself — and _Host.cshtml — are compiled into) as an application
+        // part sidesteps entry-assembly discovery entirely.
+        services.AddRazorPages()
+            .AddApplicationPart(typeof(BlazorHostServer).Assembly)
+            .AddRazorPagesOptions(o => o.RootDirectory = "/Hosting");
         services.AddServerSideBlazor();
 
         ShareAppSingletons(services);

@@ -26,15 +26,6 @@
       (or in Libs\) to enable live telemetry. See README.md for details.
     -->
     <DefineConstants>$(DefineConstants);NO_SIMCONNECT</DefineConstants>
-    <!--
-      Silences RAZORSDK1004 for Hosting\_Host.cshtml. On SDK 10.0.111 the Razor source
-      generator compiles the page with or without this property — generated output is
-      byte-identical either way — so it is retained only because CI pins .NET SDK 8.0.x,
-      where the legacy pre-source-generator path may still apply and cannot be tested here.
-
-      TRANSITIONAL: remove together with Hosting\ at the end of the WinUI 3 migration.
-    -->
-    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
   </PropertyGroup>
 
   <!-- EFB companion server — embedded ASP.NET Core (Kestrel) host.
@@ -77,10 +68,11 @@
     <PackageReference Include="Serilog.Sinks.Console" Version="5.0.0" />
   </ItemGroup>
 
-  <!-- The loopback Blazor Server host (Hosting\BlazorHostServer.cs) serves wwwroot from
-       DISK via a PhysicalFileProvider rooted at AppContext.BaseDirectory, so these files
-       must sit next to the exe. The Razor static-web-assets pipeline alone does not put
-       them there in a plain build. Transitional, like the rest of Hosting\.
+  <!-- The loopback Blazor Server host (AviatesAirTracker.LegacyWeb\Hosting\BlazorHostServer.cs,
+       moved there in Task 8 of the WinUI 3 migration) serves wwwroot from DISK via a
+       PhysicalFileProvider rooted at AppContext.BaseDirectory, so these files must sit next
+       to the exe. The Razor static-web-assets pipeline alone does not put them there in a
+       plain build. Transitional, like the rest of the legacy UI host.
 
        NOTE: this is Update, not Include. The SDK already globs wwwroot\**\* into Content
        by default, so Include duplicates every file and fails the build with NETSDK1022.
