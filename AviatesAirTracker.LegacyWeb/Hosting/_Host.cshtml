@@ -83,6 +83,20 @@
       (function () {
         var boot = document.getElementById('bootScreen');
         if (!boot) return;
+
+        // Under the native shell, every rail click is a full top-level CoreWebView2
+        // .Navigate() to a new URL (ShellWindow.Navigate — not client-side Blazor
+        // routing), so this document reloads from scratch on every click. Without this
+        // guard the splash below — meant to cover the app's one-time startup — would
+        // reappear on every single navigation. sessionStorage persists across those
+        // reloads within one running WebView2 session but resets on a genuine app
+        // restart, which is exactly the boundary that matters here.
+        var isNativeShell = window.location.search.indexOf('shell=native') !== -1;
+        if (isNativeShell) {
+          if (sessionStorage.getItem('avt_boot_shown') === '1') { boot.remove(); return; }
+          sessionStorage.setItem('avt_boot_shown', '1');
+        }
+
         var MIN_MS = 1800, shown = Date.now();
         function dismiss() {
           var wait = Math.max(0, MIN_MS - (Date.now() - shown));
