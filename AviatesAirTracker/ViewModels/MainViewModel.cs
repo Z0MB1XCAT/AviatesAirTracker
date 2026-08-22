@@ -5,7 +5,6 @@ using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Win32;
 using Serilog;
 using System.Collections.ObjectModel;
 
@@ -22,6 +21,7 @@ public partial class MainViewModel : ObservableObject
     private readonly SimBriefService _simBriefSvc;
     private readonly ExportService _exportSvc;
     private readonly IUiDispatcher _ui;
+    private readonly FilePickerService _filePicker;
 
     public DashboardViewModel Dashboard { get; }
     public MapViewModel Map { get; }
@@ -64,13 +64,14 @@ public partial class MainViewModel : ObservableObject
         DashboardViewModel dashboard,
         MapViewModel map, LandingAnalysisViewModel landingAnalysis,
         SettingsViewModel settingsVm,
-        ReplayViewModel replay, IUiDispatcher ui)
+        ReplayViewModel replay, IUiDispatcher ui, FilePickerService filePicker)
     {
         _simConnect = simConnect; _session = session; _pttInput = pttInput;
         _alertService = alertService; _settings = settings;
         _telemetryProcessor = telemetryProcessor;
         _simBriefSvc = simBriefSvc; _exportSvc = exportSvc;
         _ui = ui;
+        _filePicker = filePicker;
         Dashboard = dashboard; Map = map;
         LandingAnalysis = landingAnalysis;
         SettingsVm = settingsVm; Replay = replay;
@@ -146,15 +147,15 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void ImportSimBriefFile()
+    public async Task ImportSimBriefFileAsync()
     {
-        var dlg = new OpenFileDialog { Filter = "SimBrief OFP|*.xml;*.json" };
-        if (dlg.ShowDialog() != true) return;
+        var filePath = await _filePicker.PickSingleFileAsync(".xml", ".json");
+        if (filePath == null) return;
         try
         {
-            var plan = dlg.FileName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)
-                ? SimBriefService.ParseXmlOFP(dlg.FileName)
-                : SimBriefService.ParseJsonOFPFile(dlg.FileName);
+            var plan = filePath.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)
+                ? SimBriefService.ParseXmlOFP(filePath)
+                : SimBriefService.ParseJsonOFPFile(filePath);
             if (plan != null)
             {
                 _session.AssignSimBriefPlan(plan);
@@ -244,6 +245,7 @@ public partial class MainViewModel : ObservableObject
     {
         _simConnect.SetWindowHandle(hwnd);
         _pttInput.SetWindowHandle(hwnd);
+        _filePicker.SetWindowHandle(hwnd);
     }
     public void OnWindowMessage(IntPtr hwnd, int msg, IntPtr w, IntPtr l)
     {

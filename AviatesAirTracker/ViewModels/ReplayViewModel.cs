@@ -3,7 +3,7 @@ using AviatesAirTracker.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
-using System.Windows.Threading;
+using Microsoft.UI.Dispatching;
 
 namespace AviatesAirTracker.ViewModels;
 
@@ -18,8 +18,8 @@ public partial class ReplayViewModel : ObservableObject
     private List<Models.PathPoint> _replayPath = [];
     private int _replayIndex = 0;
     // CRIT-01: Was System.Timers.Timer which fires on ThreadPool — setting [ObservableProperty] values
-    // from it caused InvalidOperationException. DispatcherTimer fires on the UI thread.
-    private DispatcherTimer? _replayTimer;
+    // from it caused InvalidOperationException. DispatcherQueueTimer fires on the UI thread.
+    private DispatcherQueueTimer? _replayTimer;
 
     [ObservableProperty] private double _replayLat;
     [ObservableProperty] private double _replayLon;
@@ -53,11 +53,11 @@ public partial class ReplayViewModel : ObservableObject
         if (!IsReplaying)
         {
             IsReplaying = true;
-            // CRIT-01: DispatcherTimer fires on the UI thread — safe for ObservableProperty writes.
-            _replayTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(500.0 / Math.Max(1, ReplaySpeed))
-            };
+            // CRIT-01: DispatcherQueueTimer fires on the UI thread — safe for
+            // ObservableProperty writes. Was System.Timers.Timer (ThreadPool), which
+            // caused cross-thread crashes.
+            _replayTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+            _replayTimer.Interval = TimeSpan.FromMilliseconds(500.0 / Math.Max(1, ReplaySpeed));
             _replayTimer.Tick += (_, _) => AdvanceReplay();
             _replayTimer.Start();
         }

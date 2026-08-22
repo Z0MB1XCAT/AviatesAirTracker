@@ -9,13 +9,7 @@
     types, so the app reaches this assembly at runtime via ILegacyUiHost instead.
   -->
   <PropertyGroup>
-    <!--
-      Task 8 runs before Task 9 (the WinUI conversion) — the app's TFM is still
-      net8.0-windows, and a net8.0 library cannot reference a net8.0-windows10.0.19041.0
-      project. Bump this to net8.0-windows10.0.19041.0 together with the app's TFM when
-      Task 9 lands.
-    -->
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>

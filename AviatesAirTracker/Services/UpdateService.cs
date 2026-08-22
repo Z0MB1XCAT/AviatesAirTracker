@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Reflection;
-using System.Windows;
+using Microsoft.UI.Xaml;
 
 namespace AviatesAirTracker.Services;
 
@@ -203,7 +203,7 @@ public class UpdateService : IDisposable
 
             // Shut down the app so the installer can overwrite the running EXE
             await Task.Delay(500);
-            _ui.Invoke(() => Application.Current.Shutdown());
+            _ui.Invoke(() => Microsoft.UI.Xaml.Application.Current.Exit());
         }
         catch (Exception ex)
         {

@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Windows.Threading;
+using Microsoft.UI.Dispatching;
 
 namespace AviatesAirTracker.Core.SimConnect;
 
@@ -70,8 +70,8 @@ public class SimConnectManager : IDisposable
     private bool      _disposed;
     private IntPtr    _hwnd = IntPtr.Zero;
 
-    private DispatcherTimer? _pollTimer;
-    private DispatcherTimer? _reconnectTimer;
+    private DispatcherQueueTimer? _pollTimer;
+    private DispatcherQueueTimer? _reconnectTimer;
 
     private const int    WM_USER_SIMCONNECT = 0x0402;
     private const string APP_NAME           = "AviatesAirTracker";
@@ -109,7 +109,7 @@ public class SimConnectManager : IDisposable
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern IntPtr LoadLibraryW(string lpFileName);
 
-    private readonly Dispatcher _dispatcher;
+    private readonly DispatcherQueue _dispatcher;
 
     // =====================================================
     // DUAL-SIM SDK SUPPORT
@@ -131,7 +131,7 @@ public class SimConnectManager : IDisposable
 
     public SimConnectManager()
     {
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = DispatcherQueue.GetForCurrentThread();
         ScanAvailableSdks();
     }
 
@@ -650,7 +650,8 @@ public class SimConnectManager : IDisposable
                 "Microsoft.FlightSimulator.SimConnect.SIMCONNECT_DATATYPE")!;
         }
 
-        _pollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+        _pollTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+        _pollTimer.Interval = TimeSpan.FromMilliseconds(50);
         _pollTimer.Tick += (_, _) => PollTelemetry();
         _pollTimer.Start();
     }
@@ -783,8 +784,8 @@ public class SimConnectManager : IDisposable
 
     private void InitReconnectTimer()
     {
-        _reconnectTimer = new DispatcherTimer
-            { Interval = TimeSpan.FromSeconds(5) };
+        _reconnectTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+        _reconnectTimer.Interval = TimeSpan.FromSeconds(5);
         _reconnectTimer.Tick += (_, _) =>
         {
             if (!_connected && HasAnySdk && _hwnd != IntPtr.Zero)

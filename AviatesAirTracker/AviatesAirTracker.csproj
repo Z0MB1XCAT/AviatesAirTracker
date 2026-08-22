@@ -1,11 +1,15 @@
-<Project Sdk="Microsoft.NET.Sdk.Razor">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>AviatesAirTracker</RootNamespace>
     <AssemblyName>AviatesAirTracker</AssemblyName>
-    <UseWPF>true</UseWPF>
+    <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <Version>1.7.1</Version>
     <AssemblyVersion>1.7.1.0</AssemblyVersion>
     <FileVersion>1.7.1.0</FileVersion>
@@ -14,9 +18,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Platforms>x64</Platforms>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!--
@@ -42,11 +44,13 @@
     <!-- MVVM Toolkit -->
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
 
-    <!-- Blazor Hybrid WebView -->
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Wpf" Version="8.0.100" />
+    <!-- WinUI 3 / Windows App SDK.
+         Versions are pinned deliberately — 1.6/1.7 cannot build without Visual Studio
+         (MSB4062 in MrtCore.PriGen.targets). -->
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.250907003" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4654" />
 
     <!-- Map — kept for legacy; Blazor map uses Leaflet.js via JS interop -->
-    <PackageReference Include="Mapsui.Wpf" Version="4.1.7" />
     <PackageReference Include="Mapsui.Tiling" Version="4.1.7" />
     <PackageReference Include="Mapsui.Nts" Version="4.1.7" />
 
