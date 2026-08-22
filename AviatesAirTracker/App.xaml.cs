@@ -404,6 +404,7 @@ public partial class App : Application
         services.AddSingleton<ReplayViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<FleetViewModel>();
+        services.AddSingleton<ShellWindow>();
     }
 
     /// <summary>

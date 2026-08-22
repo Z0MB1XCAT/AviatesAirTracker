@@ -22,6 +22,8 @@
 
 <div class="app-shell">
 
+@if (!_nativeShell)
+{
     <!-- ── SIDEBAR ── -->
     <aside class="sidebar">
 
@@ -215,10 +217,13 @@
             </button>
         </div>
     </aside>
+}
 
     <!-- ── MAIN ── -->
     <div class="main-wrapper">
 
+@if (!_nativeShell)
+{
         <!-- Header -->
         <header class="top-header">
             <div class="search-wrap">
@@ -262,6 +267,7 @@
                 </div>
             </div>
         </header>
+}
 
         <!-- Page -->
         <main class="page-content">
@@ -275,6 +281,7 @@
 
 @code {
     private bool   _notAuthenticated;
+    private bool   _nativeShell;
     private int    _unreadCount;
     private string _headerName     = "Pilot";
     private string _headerInitials = "?";
@@ -303,6 +310,8 @@
 
     protected override void OnInitialized()
     {
+        _nativeShell = Nav.Uri.Contains("shell=native", StringComparison.Ordinal);
+
         if (string.IsNullOrWhiteSpace(SettingsService.Settings.AcarsKey))
         {
             _notAuthenticated = true;
