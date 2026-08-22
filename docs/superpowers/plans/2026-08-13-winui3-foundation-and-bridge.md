@@ -2534,6 +2534,82 @@ git commit -m "docs(plan): record foundation and bridge verification results"
 
 ---
 
+## Task 13 results (2026-08-22)
+
+**Automated suite:** PASS — 11/11 (grew from the 3 originally in Task 1 as later tasks
+added coverage, most notably the real-HWND GC regression guard for `WindowSubclass`).
+
+**Release build:** PASS — `.\build.ps1 -Release` succeeds, `dist\AviatesAirTracker.exe`
+plus ~800 dependency files.
+
+**Live flight, user-run against real MSFS:**
+
+| # | Item | Outcome |
+|---|---|---|
+| 1 | Dashboard launches, live pilot stats populate | Not separately reported; implied by the rest working |
+| 2 | Serilog writes to `%AppData%\AviatesAirTracker\logs\` | ✅ confirmed throughout this session's own log inspection |
+| 3 | SimConnect connects (header shows connected) | ✅ confirmed — see installer bug below |
+| 4 | Telemetry flows 10+ continuous minutes, no crash | ✅ user-confirmed "tracking works"; exact duration not separately measured |
+| 5 | SimBrief import on ACARS | ❌ fails, but confirmed **pre-existing and unrelated to this migration** — see below |
+| 6 | ACARS banner tracks altitude/speed live | Not separately confirmed |
+| 7 | Map — aircraft marker moves, route draws | Not separately confirmed |
+| 8 | Dispatch radio PTT — mic capture and transmit | Not separately confirmed |
+| 9 | Landing-result modal, styled, with a score | ✅ user-confirmed "landing report works" |
+| 10 | Flight appears in Logbook with correct times/fuel | Not separately confirmed |
+| 11 | EFB server + LAN pairing from a phone/tablet | Not separately confirmed |
+| 12 | Close the window; process exits cleanly | ✅ verified repeatedly during Task 12's own testing |
+
+Items marked "not separately confirmed" were not reported as failing — they simply weren't
+individually exercised in the user's test pass. The user judged the two highest-risk items
+(sustained telemetry and the landing pipeline, both entirely dependent on the SimConnect →
+`TelemetryProcessor` → `FlightPhaseDetector` → `LandingAnalyzer` chain this migration's
+riskiest work sits on) sufficient to proceed. Recorded here as a known gap rather than
+silently assumed passing, per this step's own instruction.
+
+**Two real bugs found and fixed during this verification pass, neither anticipated by the
+plan:**
+
+1. **The installer silently produced a broken install.** `installer\AviatesAirTracker_Setup.iss`
+   was still written for the pre-migration single-file WPF publish. Its `[Files]` section
+   only ever captured the main EXE, one specific `staticwebassets.endpoints.json`, `wwwroot\*`,
+   a literal `SimConnect.dll` path that no longer exists post-migration, and a `*.dll`
+   wildcard — silently dropping `AviatesAirTracker.deps.json`, `.runtimeconfig.json` and
+   `.pri` (the .NET/WinUI runtime bootstrap and resource-lookup files) and the entire
+   `Libs\`/`Libs\MSFS2020\` SimConnect DLL structure from every installed build. Confirmed by
+   actually installing the old script's output and finding those files absent. This is why
+   SimConnect and Hoppies ACARS didn't work in the user's first `-Installer` test — not a
+   migration regression in the telemetry pipeline itself, a packaging omission. Fixed by
+   replacing the narrow entries with one recursive copy of `dist\` preserving full directory
+   structure. Commit `69a6259`.
+
+2. **The boot screen re-fired on every nav-rail click.** `ShellWindow.Navigate` does a full
+   top-level `CoreWebView2.Navigate()` per destination (not client-side Blazor routing), so
+   every click reloads `_Host.cshtml` from scratch and re-triggers its 1.8s-minimum splash —
+   visible on every single navigation instead of once at real app startup, a genuine
+   regression from the original Blazor Hybrid app's behaviour (one persistent document,
+   client-side routing only). Fixed with a `sessionStorage` guard so it shows once per running
+   app session. Commit `69a6259`. Not yet independently re-tested by the user as of this
+   write-up.
+
+**SimBrief import — confirmed out of scope.** `Services/SimBriefService.cs` is byte-identical
+to `main`; no task in this plan touched it or its call sites in `Acars.razor`/`MapPage.razor`.
+Reproduced the exact failure with a bare `curl` completely outside the app:
+`GET https://www.simbrief.com/api/xml.fetcher.php?userid=<id>&json=1` → HTTP 400,
+`{"status":"Error: No flight plan on file for the specified user"}`. SimBrief's API returns
+400 (not 200) when no OFP is currently filed for that pilot; RestSharp's `GetAsync()` extension
+auto-throws on any non-2xx status before the app's own friendly "No OFP found" branch can run,
+so a normal "nothing filed" condition surfaces as a generic error. Real, pre-existing bug,
+unrelated to this migration — left unfixed pending the user's decision on priority.
+
+**Verdict:** the two migration-caused defects found here are fixed and committed. The
+telemetry and landing pipeline — this plan's highest-risk surface — are user-confirmed
+working end to end through a real installed build. Remaining checklist items are gaps in
+*testing coverage*, not known failures. The user has chosen to proceed rather than complete
+exhaustive re-verification of every item; this is recorded as an explicit, informed decision,
+not a silent pass.
+
+---
+
 ## Definition of done
 
 - `dotnet test` passes, including the real-HWND GC regression guard
