@@ -407,7 +407,7 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Hard ceiling on how long the process may take to disappear once <see cref="OnExit"/>
+    /// Hard ceiling on how long the process may take to disappear once <see cref="Shutdown"/>
     /// starts. Comfortably above the sum of the individual disposal timeouts below (EFB 5 s,
     /// PTT 2 s, Blazor host 5 s), which in practice all complete in milliseconds.
     /// </summary>
@@ -439,7 +439,7 @@ public partial class App : Application
     /// forever, with no way for the user to recover but to kill it by hand. A try/catch
     /// does not help: a hang is not an exception.
     ///
-    /// So the budget is enforced from outside <see cref="OnExit"/>, on a thread that cannot
+    /// So the budget is enforced from outside <see cref="Shutdown"/>, on a thread that cannot
     /// itself be blocked by it. Serilog is flushed before the kill, and the last
     /// <c>[Shutdown] step</c> line written names the call that hung — the whole point of
     /// this being a bounded exit rather than a silent one is that it stays diagnosable.
@@ -455,7 +455,7 @@ public partial class App : Application
             Thread.Sleep(ShutdownBudget);
             try
             {
-                Log.Fatal("[Shutdown] Still alive {Sec}s after OnExit began — a disposal is " +
+                Log.Fatal("[Shutdown] Still alive {Sec}s after Shutdown began — a disposal is " +
                           "blocked (see the last '[Shutdown] step' line above). Forcing exit.",
                           ShutdownBudget.TotalSeconds);
                 Log.CloseAndFlush();
