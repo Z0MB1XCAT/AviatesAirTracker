@@ -106,6 +106,11 @@ public sealed partial class ShellWindow : Window
 
             if (IsLoggedIn())
             {
+                // The rail defaults to hidden in XAML (see the comment there) so a
+                // signed-out pilot never sees it during this async gap — reveal it here now
+                // that a stored ACARS key has actually been confirmed.
+                Nav.IsPaneVisible = true;
+                Nav.IsBackButtonVisible = NavigationViewBackButtonVisible.Visible;
                 Navigate(_pendingDestination);
             }
             else
@@ -125,7 +130,7 @@ public sealed partial class ShellWindow : Window
     }
 
     /// <summary>
-    /// Mirrors the guard in MainLayout.razor:306. A stored ACARS key is what "signed in"
+    /// Mirrors the guard in MainLayout.razor:315. A stored ACARS key is what "signed in"
     /// means in this app; Login.razor validates it against the backend before storing it.
     /// </summary>
     private bool IsLoggedIn() =>

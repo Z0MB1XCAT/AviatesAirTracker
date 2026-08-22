@@ -21,11 +21,16 @@
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         </Border>
 
+        <!-- Hidden by default: the login gate in ShellWindow.xaml.cs only reveals these once
+             OnFirstActivated's async IsLoggedIn() check confirms a signed-in pilot. Defaulting
+             to visible would show the full rail and back button for the ~100ms+ WebView2 init
+             gap before that check can run, even for a signed-out pilot. -->
         <controls:NavigationView
             x:Name="Nav"
             Grid.Row="1"
             PaneDisplayMode="Left"
-            IsBackButtonVisible="Visible"
+            IsPaneVisible="False"
+            IsBackButtonVisible="Collapsed"
             IsSettingsVisible="False"
             SelectionChanged="OnNavSelectionChanged"
             BackRequested="OnBackRequested">
