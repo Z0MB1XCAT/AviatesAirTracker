@@ -201,9 +201,16 @@ public class UpdateService : IDisposable
                 UseShellExecute = true,
             });
 
-            // Shut down the app so the installer can overwrite the running EXE
+            // Shut down the app so the installer can overwrite the running EXE. Mirrors
+            // App.xaml.cs's fatal-startup-failure path: Shutdown() must run before Exit()
+            // or the EFB/SimConnect/Discord teardown and the log flush never happen, right
+            // when the installer is about to need the process gone.
             await Task.Delay(500);
-            _ui.Invoke(() => Microsoft.UI.Xaml.Application.Current.Exit());
+            _ui.Invoke(() =>
+            {
+                (Microsoft.UI.Xaml.Application.Current as App)?.Shutdown();
+                Microsoft.UI.Xaml.Application.Current.Exit();
+            });
         }
         catch (Exception ex)
         {

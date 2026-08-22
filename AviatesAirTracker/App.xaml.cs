@@ -21,6 +21,7 @@ public partial class App : Application
 {
     private ServiceProvider _serviceProvider = null!;
     private ILegacyUiHost? _blazorHost;
+    private bool _shutdownRan;
 
     public App()
     {
@@ -474,8 +475,20 @@ public partial class App : Application
         watchdog.Start();
     }
 
+    /// <summary>
+    /// Ordered teardown. Guarded because this can now genuinely be reached twice in one run:
+    /// <see cref="ShellWindow"/>'s <c>Closed</c> handler calls it, and so does
+    /// <see cref="UpdateService"/>'s restart-after-update path (mirroring the fatal-startup-failure
+    /// pattern above of calling <see cref="Shutdown"/> before <c>Exit()</c>) — and it is not
+    /// certain whether <c>Application.Exit()</c> itself also triggers <c>ShellWindow.OnClosed</c>.
+    /// Without this guard a second call would re-run every <see cref="Step"/> against already-
+    /// disposed singletons and dispose <see cref="_serviceProvider"/> a second time.
+    /// </summary>
     public void Shutdown()
     {
+        if (_shutdownRan) return;
+        _shutdownRan = true;
+
         ArmShutdownWatchdog();
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
