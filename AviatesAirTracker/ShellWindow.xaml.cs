@@ -50,6 +50,14 @@ public sealed partial class ShellWindow : Window
 
     private bool _initialised;
 
+    // The rail is interactive (BuildNavItems runs in the constructor) before
+    // EnsureCoreWebView2Async completes in OnFirstActivated below, so a click in that gap
+    // would otherwise be silently dropped by Navigate's not-ready guard, and then overridden
+    // once the host WAS ready — the rail would show what the user clicked while the content
+    // area showed Dashboard regardless. Recording the latest request here and navigating to
+    // it (not always All[0]) once the WebView2 is ready closes that gap.
+    private NavDestination _pendingDestination = NavDestinations.All[0];
+
     private async void OnFirstActivated(object sender, WindowActivatedEventArgs args)
     {
         if (_initialised) return;
@@ -78,7 +86,7 @@ public sealed partial class ShellWindow : Window
                     e.State = Microsoft.Web.WebView2.Core.CoreWebView2PermissionState.Allow;
             };
 
-            Navigate(NavDestinations.All[0]);
+            Navigate(_pendingDestination);
         }
         catch (Exception ex)
         {
@@ -129,7 +137,13 @@ public sealed partial class ShellWindow : Window
         if (args.SelectedItem is not NavigationViewItem { Tag: string tag }) return;
 
         var destination = NavDestinations.All.FirstOrDefault(d => d.Tag == tag);
-        if (destination != null) Navigate(destination);
+        if (destination == null) return;
+
+        // Recorded even if Navigate below no-ops (WebView2 not ready yet) — see the field's
+        // doc comment. Once the host becomes ready, OnFirstActivated navigates to whatever
+        // this was last set to, not always the first destination.
+        _pendingDestination = destination;
+        Navigate(destination);
     }
 
     /// <summary>
