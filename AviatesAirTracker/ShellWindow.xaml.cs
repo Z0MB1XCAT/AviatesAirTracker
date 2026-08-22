@@ -1,5 +1,6 @@
 using AviatesAirTracker.Navigation;
 using AviatesAirTracker.Platform;
+using AviatesAirTracker.Services;
 using AviatesAirTracker.ViewModels;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
@@ -21,13 +22,15 @@ public sealed partial class ShellWindow : Window
     private readonly MainViewModel _viewModel;
     private readonly FilePickerService _filePicker;
     private readonly WindowSubclass _subclass;
+    private readonly SettingsService _settings;
 
-    public ShellWindow(MainViewModel viewModel, FilePickerService filePicker)
+    public ShellWindow(MainViewModel viewModel, FilePickerService filePicker, SettingsService settings)
     {
         InitializeComponent();
 
         _viewModel = viewModel;
         _filePicker = filePicker;
+        _settings = settings;
 
         // The second argument is not optional in practice. OnSubclassProc is a reverse
         // P/Invoke from comctl32: an exception escaping the callback unwinds across the
@@ -86,13 +89,47 @@ public sealed partial class ShellWindow : Window
                     e.State = Microsoft.Web.WebView2.Core.CoreWebView2PermissionState.Allow;
             };
 
-            Navigate(_pendingDestination);
+            // Reveals the rail once the WebView2 navigates away from /login (e.g. after a
+            // successful sign-in) and hides it again if it ever navigates back to /login.
+            // Attached before the first Navigate/CoreWebView2.Navigate call below so it
+            // catches every completion, including the very first one.
+            UiHost.CoreWebView2.NavigationCompleted += (_, _) =>
+            {
+                var url = UiHost.CoreWebView2.Source ?? string.Empty;
+                var onLogin = url.Contains("/login", StringComparison.OrdinalIgnoreCase);
+
+                Nav.IsPaneVisible = !onLogin;
+                Nav.IsBackButtonVisible = onLogin
+                    ? NavigationViewBackButtonVisible.Collapsed
+                    : NavigationViewBackButtonVisible.Visible;
+            };
+
+            if (IsLoggedIn())
+            {
+                Navigate(_pendingDestination);
+            }
+            else
+            {
+                // Login owns the whole window: no rail, no back button, until it completes.
+                // Deliberately ignores _pendingDestination — a click during the startup gap
+                // must never let a signed-out pilot skip the login gate.
+                Nav.IsPaneVisible = false;
+                Nav.IsBackButtonVisible = NavigationViewBackButtonVisible.Collapsed;
+                UiHost.CoreWebView2.Navigate($"{App.LegacyUiUrl}/login?shell=native");
+            }
         }
         catch (Exception ex)
         {
             Log.Error(ex, "[Shell] Failed to initialise the legacy UI host");
         }
     }
+
+    /// <summary>
+    /// Mirrors the guard in MainLayout.razor:306. A stored ACARS key is what "signed in"
+    /// means in this app; Login.razor validates it against the backend before storing it.
+    /// </summary>
+    private bool IsLoggedIn() =>
+        !string.IsNullOrWhiteSpace(_settings.Settings.AcarsKey);
 
     private void ConfigureTitleBar()
     {
