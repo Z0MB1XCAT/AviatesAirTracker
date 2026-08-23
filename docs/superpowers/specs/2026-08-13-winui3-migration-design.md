@@ -479,12 +479,18 @@ is roughly a third of the UI work and benefits most from a settled style system.
 
 ## Approved visual changes
 
-Exactly three. Anything else that changes appearance is a bug.
+Exactly two. Anything else that changes appearance is a bug.
 
-1. **The sidebar becomes translucent navy over Mica** instead of a flat `#0B1628` fill.
-   Same colour identity; the window reads as depth rather than a painted rectangle.
-2. **Native scrollbars** replace the CSS-styled ones — auto-hiding, WinUI-standard.
-3. **Native focus rings** on the accent colour replace browser focus outlines.
+1. **Native scrollbars** replace the CSS-styled ones — auto-hiding, WinUI-standard.
+2. **Native focus rings** on the accent colour replace browser focus outlines.
+
+> **Superseded 2026-08-23.** This list originally included a third item — the sidebar
+> becoming translucent navy over Mica instead of a flat `#0B1628` fill. That approval was
+> withdrawn during Phase 2 planning: the sidebar is a byte-exact, fully opaque match to
+> `--sb-bg`, held to the same bar as everything else. See
+> `2026-08-23-winui3-phase2-shell-visual-design.md` for the decision and the (different)
+> place Mica ended up instead — the title bar strip, which is otherwise the only surface in
+> the window it could ever be visible on.
 
 ## Accepted regressions
 
