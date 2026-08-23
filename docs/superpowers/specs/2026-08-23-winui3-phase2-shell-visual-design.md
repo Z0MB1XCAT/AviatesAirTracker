@@ -110,12 +110,23 @@ an unreachable light palette now would be speculative.
 
 ### `Theme/Typography.xaml` + bundled fonts
 
-Syne, Plus Jakarta Sans, JetBrains Mono, VT323 shipped as `Assets/Fonts/*.ttf`, referenced
-via `FontFamily="/Assets/Fonts/....ttf#Syne"`-style URIs, not the Google Fonts CDN link
-`_Host.cshtml` still uses for the Blazor-rendered pages. Native XAML text cannot reference
-a remote stylesheet the way HTML can. This also happens to fix a real latent issue no task
-in Phases 0–1 touched: today, even the Blazor-rendered pages' typography silently depends on
-a live connection to `fonts.gstatic.com` at first paint.
+**Correction made during plan-writing, after the spec above was approved:** only **Syne**
+and **Plus Jakarta Sans** are bundled in this phase, not all four fonts. Checked directly
+against `app.css`: `JetBrains Mono` appears only on `.login-input` and other data-entry/
+readout elements, `VT323` only on `.fmc-display` (the ACARS FMC's terminal-green readout) —
+neither is used anywhere in `.sidebar`, `.top-header`, `.nav-item` or `.nav-section-label`.
+Bundling them now would be the same mistake the scope boundary above already rules out for
+`Cards.xaml`/`Elevation` — infrastructure with no current consumer. They get bundled by
+whichever later phase actually converts the FMC display or the login page.
+
+Shipped as `Assets/Fonts/*.ttf`, referenced via `FontFamily="/Assets/Fonts/....ttf#Syne"`-
+style URIs, not the Google Fonts CDN link `_Host.cshtml` still uses for the Blazor-rendered
+pages — native XAML text cannot reference a remote stylesheet the way HTML can. Source URLs
+verified live and confirmed to serve genuine `.ttf` files (not WOFF2) via
+`fonts.googleapis.com/css2?...&display=swap` with a browser `User-Agent` header; see the
+implementation plan for the exact, tested URLs. This also happens to fix a real latent issue
+no task in Phases 0–1 touched: today, even the Blazor-rendered pages' typography silently
+depends on a live connection to `fonts.gstatic.com` at first paint.
 
 ### `ShellWindow.xaml` changes
 
@@ -143,6 +154,8 @@ a live connection to `fonts.gstatic.com` at first paint.
 
 - No `Cards.xaml`, no `Elevation` attached property, no shadow system — nothing in
   `ShellWindow` consumes them yet
+- No `JetBrains Mono` or `VT323` bundled — neither is used anywhere in the sidebar or title
+  bar; they belong to whichever later phase converts the FMC display or the login page
 - No light theme — no reachable toggle exists yet
 - No News data model — the badge stays static, faithfully
 - No changes to any `.razor` file, `_Host.cshtml`, or the Blazor Server bridge
