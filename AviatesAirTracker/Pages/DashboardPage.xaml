@@ -19,8 +19,9 @@
       while building this file. Use a single hyphen, a semicolon, or a real em dash
       character instead of two hyphens together inside any XAML comment.
 
-      Rank-progress ring and monthly-activity chart are placeholders here (Task 6 replaces
-      both with custom-drawn versions); see the "PLACEHOLDER" comments below.
+      Rank-progress ring and monthly-activity chart are custom-drawn: a Path arc for the ring
+      and per-row precomputed bar heights/colors for the chart, both built in code-behind for
+      the same Style/converter-avoidance reasons documented on FlightDisplayRow below.
     -->
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
@@ -336,17 +337,23 @@
                         <TextBlock Text="Pilot Statistics" FontFamily="{StaticResource DisplayFontBold}"
                                    FontSize="15" Foreground="#F1F5F9" />
 
-                        <!-- PLACEHOLDER: Task 6 replaces this with a custom-drawn rank-progress
-                             ring (Path plus ArcSegment). For now, the raw percentage as plain
-                             text, set in code-behind (RankProgress is a double; classic
-                             {Binding} has no StringFormat in WinUI, and a converter would need
-                             a Page.Resources entry, which risks the same XamlCompiler crash
-                             documented at the top of this file). -->
+                        <!-- Rank-progress ring: reproduces app.css's .pilot-ring SVG (100x100,
+                             r=45, stroke-width 8): a static muted-track Ellipse plus a Path
+                             (RankRingArc) whose Data is an arc sweeping clockwise from 12
+                             o'clock, recomputed once in code-behind right after RefreshAsync
+                             completes (no @keyframes/transition equivalent needed, since this
+                             page has no live mid-session updates). -->
                         <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,0,0,20">
-                            <StackPanel Spacing="4">
-                                <TextBlock x:Name="RankProgressText"
-                                           FontFamily="{StaticResource DisplayFontBold}" FontSize="20"
-                                           Foreground="#F1F5F9" HorizontalAlignment="Center" />
+                            <StackPanel Spacing="4" HorizontalAlignment="Center">
+                                <Grid Width="100" Height="100" Margin="0,0,0,4">
+                                    <Ellipse Width="90" Height="90" StrokeThickness="8" Stroke="#121A2A" />
+                                    <Path x:Name="RankRingArc" Stroke="#4D9BEC" StrokeThickness="8"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    <TextBlock x:Name="RankProgressText"
+                                               FontFamily="{StaticResource DisplayFontBold}" FontSize="20"
+                                               FontWeight="ExtraBold" Foreground="#F1F5F9"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Grid>
                                 <TextBlock Text="{Binding WelcomeText, Mode=OneWay}"
                                            FontFamily="{StaticResource DisplayFontBold}" FontSize="15"
                                            Foreground="#F1F5F9" HorizontalAlignment="Center" />
@@ -358,13 +365,36 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- PLACEHOLDER: Task 6 replaces this with the real monthly-activity
-                             bar chart (ItemsControl bound to MonthlyActivity). -->
+                        <!-- Monthly activity bar chart: reproduces app.css's .chart-bars (7
+                             bars, min-height 4px sliver for zero-flight months). Each item's
+                             bar sits in a fixed-height 48px Grid cell, VerticalAlignment=Bottom,
+                             so shorter bars anchor to a shared baseline instead of the whole
+                             StackPanel item shrinking. BarHeight/BarColor are precomputed per
+                             row in code-behind (RebuildMonthlyActivityRows), same
+                             converter-avoidance reasoning as FlightDisplayRow. -->
                         <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,0,0,20">
                             <StackPanel Spacing="10">
                                 <TextBlock Text="FLIGHT ACTIVITY" FontSize="9" FontWeight="Bold" Foreground="#64748B" />
-                                <TextBlock Text="Chart coming soon" FontSize="11.5" Foreground="#64748B"
-                                           FontStyle="Italic" />
+                                <ItemsControl x:Name="ActivityChart">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="5" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Width="28" Spacing="4">
+                                                <Grid Height="48" VerticalAlignment="Bottom">
+                                                    <Border Height="{Binding BarHeight}" CornerRadius="4,4,0,0"
+                                                            Background="{Binding BarColor}"
+                                                            VerticalAlignment="Bottom" />
+                                                </Grid>
+                                                <TextBlock Text="{Binding Label}" FontSize="9" Foreground="#64748B"
+                                                           HorizontalAlignment="Center" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
                         </Border>
 
