@@ -484,4 +484,11 @@ public class PilotStatsService
 
         return stats;
     }
+
+    public async Task<IReadOnlyList<PilotStatsLogic.MonthlyActivityPoint>> GetMonthlyActivityAsync(int months = 7)
+    {
+        var flights = await _flightRepo.GetAllAsync();
+        var completed = flights.Where(f => f.Status == FlightStatus.Completed);
+        return PilotStatsLogic.ComputeMonthlyActivity(completed, DateTime.UtcNow, months);
+    }
 }
