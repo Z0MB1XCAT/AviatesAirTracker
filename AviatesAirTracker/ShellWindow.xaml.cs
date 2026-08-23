@@ -333,15 +333,32 @@ public sealed partial class ShellWindow : Window
     /// </para>
     /// <para>
     /// NavigationView's actual control template (Microsoft.UI's Themes/generic.xaml) hosts a
-    /// named `RootSplitView` part whose Pane color comes from a fixed
+    /// named `RootSplitView` part whose base Pane color comes from
     /// `PaneBackground="{ThemeResource NavigationViewDefaultPaneBackground}"` — not a
-    /// TemplateBinding to anything NavigationView itself exposes. Overriding that same
-    /// ThemeResource key is therefore the correct, surgical equivalent of what the plan
-    /// wanted, and — like the selection-state keys below — is set here in code rather than as
-    /// a Window.Resources declaration, since any resource-dictionary declaration in this
-    /// project's XAML hits the same compiler crash a &lt;Style&gt; element does. ThemeResource
-    /// lookups climb the visual tree's resource dictionaries at runtime, so setting the key on
-    /// Nav.Resources here is equivalent to declaring it in Window.Resources.
+    /// TemplateBinding to anything NavigationView itself exposes. Overriding that key alone
+    /// is NOT sufficient, though (found post-hoc, by a visual regression once this was
+    /// actually screenshotted): the template's "PaneDisplayMode states" VisualStateGroup has
+    /// a `PaneNotOverlaying` state — the one active for our exact configuration,
+    /// `PaneDisplayMode="Left"` with the window wide enough not to need overlay mode — whose
+    /// `VisualState.Setters` include `RootSplitView.PaneBackground =
+    /// {ThemeResource NavigationViewExpandedPaneBackground}`, a *different* key that
+    /// unconditionally wins once that state is active. In the dark theme dictionary this
+    /// second key resolves to `SolidBackgroundFillColorTransparent` — fully transparent, by
+    /// design, so Mica shows through the expanded pane. That is why the pane rendered as a
+    /// translucent Mica-tinted strip (picking up desktop wallpaper color) despite the
+    /// `NavigationViewDefaultPaneBackground` override below: that key was never the one
+    /// actually driving the visible background in this layout. Both keys must be overridden
+    /// for the pane to render as the intended flat opaque navy in every pane-display mode this
+    /// app might reach.
+    /// </para>
+    /// <para>
+    /// Overriding that same ThemeResource key is therefore the correct, surgical equivalent of
+    /// what the plan wanted, and — like the selection-state keys below — is set here in code
+    /// rather than as a Window.Resources declaration, since any resource-dictionary
+    /// declaration in this project's XAML hits the same compiler crash a &lt;Style&gt; element
+    /// does. ThemeResource lookups climb the visual tree's resource dictionaries at runtime,
+    /// so setting the key on Nav.Resources here is equivalent to declaring it in
+    /// Window.Resources.
     /// </para>
     /// <para>
     /// The NavigationViewItemBackground*/Foreground* keys below are the same named
@@ -354,6 +371,7 @@ public sealed partial class ShellWindow : Window
         var resources = Application.Current.Resources;
 
         Nav.Resources["NavigationViewDefaultPaneBackground"] = (Brush)resources["SidebarBackgroundBrush"];
+        Nav.Resources["NavigationViewExpandedPaneBackground"] = (Brush)resources["SidebarBackgroundBrush"];
 
         Nav.Resources["NavigationViewItemBackgroundPointerOver"] = (Brush)resources["SidebarHoverBrush"];
         Nav.Resources["NavigationViewItemBackgroundSelected"] = (Brush)resources["SidebarActiveBrush"];
