@@ -1,14 +1,20 @@
+using AviatesAirTracker.Core.Data;
+using AviatesAirTracker.Models;
 using AviatesAirTracker.Navigation;
 using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
+using AviatesAirTracker.Shell;
 using AviatesAirTracker.ViewModels;
 using Microsoft.UI;
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Shapes;
 using Microsoft.UI.Windowing;
 using Serilog;
 using Windows.Graphics;
+using Windows.UI;
 using WinRT.Interop;
 
 namespace AviatesAirTracker;
@@ -23,14 +29,56 @@ public sealed partial class ShellWindow : Window
     private readonly FilePickerService _filePicker;
     private readonly WindowSubclass _subclass;
     private readonly SettingsService _settings;
+    private readonly FlightSessionManager _sessionManager;
+    private readonly MessagingService _messagingService;
+    private readonly IFlightRepository _flightRepository;
 
-    public ShellWindow(MainViewModel viewModel, FilePickerService filePicker, SettingsService settings)
+    // Named references into Nav.MenuItems for the four items that carry a live badge.
+    // BuildNavItems assigns these by matching NavDestination.Tag; every handler below
+    // null-checks before use since a tag-matching bug would otherwise null-ref the moment
+    // an event fires (SessionStateChanged/UnreadCountChanged/FlightCompleted can all fire
+    // before or independently of BuildNavItems in theory, though today it always runs first
+    // in the constructor).
+    private NavigationViewItem? _flightsItem;
+    private NavigationViewItem? _acarsItem;
+    private NavigationViewItem? _mapItem;
+    private NavigationViewItem? _messagesItem;
+
+    // ACARS/Map "Live" pill. NavigationViewItem.InfoBadge.Value is numeric-only (WinUI's
+    // InfoBadge has no built-in text-content mode), and building a custom InfoBadge
+    // ControlTemplate requires either a XAML <Style>/<ControlTemplate> element (which
+    // silently crashes XamlCompiler.exe on this SDK — see docs/superpowers/plans/
+    // 2026-08-23-winui3-phase2-shell-visual.md's Task 5 note) or XamlReader.Load'ing a
+    // template string at runtime, which is more machinery than this task warrants. Instead
+    // each item's Content is a label + a plain Border/TextBlock pill built in code-behind,
+    // toggled by Visibility.
+    private Border? _acarsLivePill;
+    private Border? _mapLivePill;
+
+    // Flights dot. Populated by BuildNavItems: if the framework ships
+    // "AttentionDotInfoBadgeStyle" (it does, as of Windows App SDK 1.8 — verified at
+    // runtime below rather than assumed), it's applied to a real InfoBadge on
+    // _flightsItem.InfoBadge. If that resource is ever missing, _flightsDot is the
+    // code-behind Ellipse fallback built into the item's Content instead.
+    private Style? _dotBadgeStyle;
+    private Ellipse? _flightsDot;
+
+    public ShellWindow(
+        MainViewModel viewModel,
+        FilePickerService filePicker,
+        SettingsService settings,
+        FlightSessionManager sessionManager,
+        MessagingService messagingService,
+        IFlightRepository flightRepository)
     {
         InitializeComponent();
 
         _viewModel = viewModel;
         _filePicker = filePicker;
         _settings = settings;
+        _sessionManager = sessionManager;
+        _messagingService = messagingService;
+        _flightRepository = flightRepository;
 
         // The second argument is not optional in practice. OnSubclassProc is a reverse
         // P/Invoke from comctl32: an exception escaping the callback unwinds across the
@@ -47,6 +95,16 @@ public sealed partial class ShellWindow : Window
         ConfigureBackdrop();
         BuildNavItems();
         ConfigureNavAppearance();
+
+        _sessionManager.SessionStateChanged += OnSessionStateChanged;
+        _messagingService.UnreadCountChanged += OnUnreadCountChanged;
+        // FlightCompleted is the closest available signal to "PIREP sync state changed":
+        // AviatesBackendClient exposes no completion event for the fire-and-forget PIREP
+        // submit in FlightSessionManager.SubmitPirepSafeAsync, so the dot is refreshed the
+        // moment a flight completes (when it is, by definition, newly unsynced) rather than
+        // when the background submit actually finishes.
+        _sessionManager.FlightCompleted += OnFlightCompleted;
+        _ = RefreshFlightsBadgeAsync();
 
         Activated += OnFirstActivated;
         Closed += OnClosed;
@@ -154,6 +212,17 @@ public sealed partial class ShellWindow : Window
     {
         string? currentGroup = null;
 
+        // WinUI 3 (Windows App SDK 1.8.250906003) does ship "AttentionDotInfoBadgeStyle" in
+        // XamlControlsResources — confirmed here at runtime rather than assumed, per the
+        // spec's flagged "unverified assumption". _dotBadgeStyle stays null (falling back to
+        // a custom Ellipse dot below) only if a future SDK ever drops the resource.
+        _dotBadgeStyle = Application.Current.Resources.TryGetValue("AttentionDotInfoBadgeStyle", out var dotStyleObj)
+            ? dotStyleObj as Style
+            : null;
+        Log.Debug(
+            "[Shell] Flights nav badge: {Approach}",
+            _dotBadgeStyle != null ? "AttentionDotInfoBadgeStyle" : "custom Ellipse fallback (AttentionDotInfoBadgeStyle not found)");
+
         foreach (var destination in NavDestinations.All)
         {
             // Emit a section heading whenever the group changes, mirroring the
@@ -167,11 +236,38 @@ public sealed partial class ShellWindow : Window
                 currentGroup = destination.Group;
             }
 
-            Nav.MenuItems.Add(StyleNavItem(new NavigationViewItem
+            var item = new NavigationViewItem { Tag = destination.Tag };
+
+            if (destination.Tag is "acars" or "map")
             {
-                Content = destination.Label,
-                Tag = destination.Tag,
-            }));
+                var (content, pill) = BuildLabelWithLivePill(destination.Label);
+                item.Content = content;
+                if (destination.Tag == "acars") _acarsLivePill = pill; else _mapLivePill = pill;
+            }
+            else if (destination.Tag == "flights" && _dotBadgeStyle == null)
+            {
+                var (content, dot) = BuildLabelWithDot(destination.Label);
+                item.Content = content;
+                _flightsDot = dot;
+            }
+            else
+            {
+                item.Content = destination.Label;
+            }
+
+            // StyleNavItem only touches item-level properties (font/size/color/margin/radius),
+            // never Content, so it applies uniformly regardless of which branch above built
+            // this item's Content — plain label, live-pill panel, or dot panel.
+            StyleNavItem(item);
+            Nav.MenuItems.Add(item);
+
+            switch (destination.Tag)
+            {
+                case "flights": _flightsItem = item; break;
+                case "acars": _acarsItem = item; break;
+                case "map": _mapItem = item; break;
+                case "messages": _messagesItem = item; break;
+            }
         }
 
         // Index 0 is the "Overview" header, so the first selectable item is index 1.
@@ -268,6 +364,108 @@ public sealed partial class ShellWindow : Window
         Nav.Resources["NavigationViewItemForegroundSelectedPressed"] = (Brush)resources["SidebarTextActiveBrush"];
     }
 
+    /// <summary>
+    /// Label + a hidden-by-default "Live" pill, standing in for ACARS/Map's live badge —
+    /// see the InfoBadge text-content note on the field declarations above.
+    /// </summary>
+    private static (StackPanel Content, Border LivePill) BuildLabelWithLivePill(string label)
+    {
+        var pill = new Border
+        {
+            Background = (Brush)Application.Current.Resources["AccentBrush"],
+            CornerRadius = new CornerRadius(999),
+            Padding = new Thickness(7, 1, 7, 1),
+            Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Visibility = Visibility.Collapsed,
+            Child = new TextBlock
+            {
+                Text = "Live",
+                FontSize = 10,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Colors.White),
+            },
+        };
+
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        panel.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        panel.Children.Add(pill);
+
+        return (panel, pill);
+    }
+
+    /// <summary>
+    /// Label + a hidden-by-default small dot — the AttentionDotInfoBadgeStyle fallback for
+    /// the Flights item, only used if that framework resource is missing.
+    /// </summary>
+    private static (StackPanel Content, Ellipse Dot) BuildLabelWithDot(string label)
+    {
+        var dot = new Ellipse
+        {
+            Width = 7,
+            Height = 7,
+            // app.css's --green (.nav-badge-dot background: #3EC7AC), inline rather than a
+            // Theme/Tokens.xaml resource — adding any new resource entry to that file reliably
+            // crashes XamlCompiler.exe on this SDK (verified empirically: a single extra
+            // <Color>/<SolidColorBrush> pair, otherwise identical to the ones already there,
+            // reproduces the same silent exit-code-1 failure documented for <Style> elements).
+            Fill = new SolidColorBrush(Color.FromArgb(0xFF, 0x3E, 0xC7, 0xAC)),
+            Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Visibility = Visibility.Collapsed,
+        };
+
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        panel.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        panel.Children.Add(dot);
+
+        return (panel, dot);
+    }
+
+    private void OnSessionStateChanged(object? sender, FlightSessionState state)
+    {
+        var isLive = ShellBadgeLogic.IsFlightLive(state);
+        var visibility = isLive ? Visibility.Visible : Visibility.Collapsed;
+
+        if (_acarsLivePill != null) _acarsLivePill.Visibility = visibility;
+        if (_mapLivePill != null) _mapLivePill.Visibility = visibility;
+    }
+
+    private void OnUnreadCountChanged(object? sender, int count)
+    {
+        if (_messagesItem == null) return;
+
+        _messagesItem.InfoBadge = count > 0
+            ? new InfoBadge { Value = Math.Min(count, 99) }
+            : null;
+    }
+
+    private void OnFlightCompleted(object? sender, FlightRecord flight) => _ = RefreshFlightsBadgeAsync();
+
+    private async Task RefreshFlightsBadgeAsync()
+    {
+        if (_flightsItem == null) return;
+
+        try
+        {
+            var flights = await _flightRepository.GetAllAsync();
+            var show = ShellBadgeLogic.HasUnsyncedPireps(flights);
+
+            if (_dotBadgeStyle != null)
+            {
+                _flightsItem.InfoBadge = show ? new InfoBadge { Style = _dotBadgeStyle } : null;
+            }
+            else if (_flightsDot != null)
+            {
+                _flightsDot.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Shell] Failed to refresh the Flights nav badge");
+        }
+    }
+
     private void OnNavSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         if (args.SelectedItem is not NavigationViewItem { Tag: string tag }) return;
@@ -308,6 +506,10 @@ public sealed partial class ShellWindow : Window
 
     private void OnClosed(object sender, WindowEventArgs args)
     {
+        _sessionManager.SessionStateChanged -= OnSessionStateChanged;
+        _messagingService.UnreadCountChanged -= OnUnreadCountChanged;
+        _sessionManager.FlightCompleted -= OnFlightCompleted;
+
         _subclass.Detach();
         (Application.Current as App)?.Shutdown();
     }

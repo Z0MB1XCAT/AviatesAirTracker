@@ -521,14 +521,3 @@ public class FlightSessionManager
         _flightRepo.SetCurrentFlight(null);
     }
 }
-
-public enum FlightSessionState
-{
-    Idle,
-    PreFlight,
-    Taxiing,
-    Airborne,
-    OnApproach,
-    Landed,
-    Complete
-}

@@ -22,6 +22,10 @@
     <Compile Include="../../AviatesAirTracker/Platform/IUiDispatcher.cs" Link="Platform/IUiDispatcher.cs" />
     <Compile Include="../../AviatesAirTracker/Platform/ImmediateUiDispatcher.cs" Link="Platform/ImmediateUiDispatcher.cs" />
     <Compile Include="../../AviatesAirTracker/Platform/WindowSubclass.cs" Link="Platform/WindowSubclass.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/SimConnect/SimConnectDefinitions.cs" Link="Core/SimConnect/SimConnectDefinitions.cs" />
+    <Compile Include="../../AviatesAirTracker/Models/FlightModels.cs" Link="Models/FlightModels.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/FlightSessionState.cs" Link="Services/FlightSessionState.cs" />
+    <Compile Include="../../AviatesAirTracker/Shell/ShellBadgeLogic.cs" Link="Shell/ShellBadgeLogic.cs" />
   </ItemGroup>
 
 </Project>
