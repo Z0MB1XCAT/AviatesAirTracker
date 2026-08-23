@@ -64,7 +64,7 @@ public partial class PilotHubViewModel : ObservableObject
                                : $"{stats.TotalDistanceNm:F0} nm";
 
             PilotRank = stats.Rank;
-            (NextRank, RankProgressPct) = ComputeRankProgress(stats.TotalHoursBlock, stats.Rank);
+            (NextRank, RankProgressPct) = PilotStatsLogic.ComputeRankProgress(stats.TotalHoursBlock, stats.Rank);
 
             HasLandings = landings.Count > 0;
 
@@ -138,14 +138,5 @@ public partial class PilotHubViewModel : ObservableObject
         >= 75 => "var(--accent)",
         >= 60 => "var(--yellow)",
         _     => "var(--red)"
-    };
-
-    private static (string nextRank, double pct) ComputeRankProgress(double hours, string rank) => rank switch
-    {
-        "Student Pilot"        => ("First Officer",         Math.Min(hours / 25.0, 1.0) * 100),
-        "First Officer"        => ("Senior First Officer",  Math.Min((hours - 25) / 75.0, 1.0) * 100),
-        "Senior First Officer" => ("Captain",               Math.Min((hours - 100) / 400.0, 1.0) * 100),
-        "Captain"              => ("Senior Captain",        Math.Min((hours - 500) / 500.0, 1.0) * 100),
-        _                      => ("Top Rank",              100.0)
     };
 }
