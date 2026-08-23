@@ -659,3 +659,142 @@ git commit -m "docs(plan): record Dashboard native-page verification results"
   the native shell
 - The deferred backend-rank-integration and other follow-up items from the design spec are
   **not** attempted in this plan — check the plan didn't scope-creep into them
+
+---
+
+## Task 7 results (2026-08-23)
+
+Verified against `420329397750aecea80d925289e2f8a21b264e73` (Task 6's tip — "feat(dashboard):
+custom rank-progress ring and monthly-activity chart"), fast-forwarded onto cleanly from a stale
+worktree branch (its prior tip, `d908203`, was unrelated PIREP/Discord work with no ancestry
+relationship to this plan; `merge-base` confirmed `d908203` sits earlier in this same line of
+history, so the fast-forward was safe and lossless).
+
+**Step 1 — automated suite: PASS.** `dotnet test tests/AviatesAirTracker.Tests/AviatesAirTracker.Tests.csproj`
+→ 35/35 passing, 0 failed, 0 skipped (137ms). This is the pre-Phase-3 baseline plus Tasks 1–2's
+`PilotStatsLogicTests` (rank-progress + monthly-activity), exactly as expected.
+
+**Step 2 — build: PASS.** `dotnet build AviatesAirTracker.sln -c Debug` → 0 errors. MSBuild's raw
+summary line reads 15 warnings (each project pass re-emits the same diagnostics), but counting
+*unique* warning messages gives exactly 10, matching the established baseline with nothing new:
+- 5 unused/unread-field warnings (CS0169/CS0414) in `LandingAnalyzer`, `FlightPhaseDetector` (x2),
+  `FlightSessionManager` — all pre-existing, none touched by this plan.
+- 5 `MVVMTK0034` warnings in `MainViewModel` (`_isDashboardActive`, `_isMapActive`,
+  `_isSettingsActive`, `_isReplayActive`, `_isLandingActive`) — pre-existing, unrelated to
+  `DashboardViewModel`.
+
+**Step 3 — functional check: PARTIALLY VERIFIED, rest genuinely deferred.**
+Confirmed `tasklist` showed no MSFS process before launching. Launched the Debug build
+(`AviatesAirTracker.exe`), let it run 8s, then closed it via `CloseMainWindow()` (graceful — the
+Serilog log shows the full ordered-disposal shutdown sequence, ending
+`[Shutdown] All services disposed in 15 ms — exiting`, not a forced kill). Confirmed via
+`tasklist` afterward that no process was left running.
+
+Log evidence for this run (`%AppData%\AviatesAirTracker\logs\aviates_20260823.log`, entries at
+22:36:02–22:37:10):
+- Clean startup banner (`=== Aviates Air Flight Tracker v1.0 Starting ===`), PIREP retry, legacy
+  UI host bound (`http://127.0.0.1:63928`), `[Shell] Flights nav badge: AttentionDotInfoBadgeStyle`
+  computed without error.
+- No `[Shell]` error-level log lines, no `Log.Fatal`/`[Crash/...]` entries, no unhandled-exception
+  stack traces anywhere in the window this run covers. The only exception noise in the log at all
+  is a pre-existing, unrelated `SharpDX.DirectInput` joystick-poll error (`PttInputService`,
+  device-not-registered — fires continuously whenever no joystick is attached; present in this log
+  well before this session and unrelated to `ShellWindow.Navigate()` or the native Dashboard page).
+- Clean, ordered shutdown on close, no `[Shutdown] Still alive ...` fatal-timeout line.
+
+**What this does NOT verify, and remains genuinely open:** the codebase has no log
+instrumentation for `NativeHost.Navigate()`/`Frame` state, so the log cannot confirm *which* page
+rendered — native Dashboard vs. WebView2 — on startup or on any nav-rail click, only that the
+process didn't crash or log an error while presumably doing so. Per this task's own instructions,
+no screenshot/computer-use verification was attempted. So: **unverified** — does clicking Dashboard
+show the native page with no WebView2 flash, and does every other nav-rail item still show its
+Blazor page exactly as before. This is the one thing `ShellWindow.Navigate()`'s Task-4 rewrite
+could have silently broken across all 13 destinations, and it has not been exercised by anything
+in this task beyond "the app starts and stops without error." Left for the orchestrating session
+or the user to check visually, same as this project's established pattern.
+
+**Step 4 — visual comparison: explicitly deferred**, per the plan's own instruction and this
+project's practice throughout Phases 0–2. No computer-use/screenshot tooling was used. Native
+Dashboard vs. Blazor Dashboard layout/color/font parity, and specifically whether Assignments/
+Operations Team/On-Time % read identically to today, needs a human (or a future session with
+screen access) to confirm.
+
+### Findings preserved from Tasks 1–6 (pulled from each task's actual commit)
+
+- **Task 1 (`4594340`) — rank-progress bug, real and pre-existing.**
+  `PilotHubViewModel.ComputeRankProgress` switched on rank-name strings that didn't match what
+  `PilotStatsService.ComputeAsync()` actually produces — 4 of 7 real ranks fell through to the
+  default arm and silently showed "Top Rank" at 100%, including a brand-new 0-hour Cadet. Fixed
+  and extracted to `PilotStatsLogic.ComputeRankProgress`, with thresholds verified against
+  `PilotStatsService`'s real switch (`<25`/`<75`/`<200`/`<450`/`<800`/`<1500`) so each rank's
+  progress denominator matches its own hour range (Cadet 0–25h ÷25, Junior First Officer 25–75h
+  ÷50, First Officer 75–200h ÷125, Senior First Officer 200–450h ÷250, Junior Captain 450–800h
+  ÷350, Captain 800–1500h ÷700). Test suite covers all 7 real rank transitions plus the
+  brand-new-Cadet regression case explicitly. The pre-existing Block-vs-Air hours-metric mismatch
+  (rank threshold computed from `TotalHoursAir`, progress-within-rank fed `TotalHoursBlock`) was
+  deliberately preserved, not fixed — out of scope per the plan.
+
+- **Task 2 (`f022284`) — monthly activity aggregation.** Landed as planned; no deviations noted
+  in the commit.
+
+- **Task 3 (`7fe498e`) — `DashboardViewModel` wiring.** The `MAJOR-07` stats-vs-recent-flights
+  split was preserved exactly: `GetAllAsync()` still feeds all career-stat totals
+  (`TotalFlightsText`/`TotalHoursText`/etc.), and a *separate* `GetRecentAsync(5)` call
+  (filtered+sorted) feeds `RecentFlights` only — the code comment was tightened to explicitly say
+  "Do not collapse these back into one call." The `NextRankText` shape question was resolved by
+  changing the property from a pre-formatted sentence default (`"25hrs to Captain"`) to a raw
+  next-rank name (`"Captain"`), matching `PilotHubViewModel.NextRank`'s existing convention so the
+  two ViewModels don't diverge in what they consider "next rank" data — any "Xhrs to Y" sentence
+  construction is left as a future binding-site concern, not baked into the ViewModel.
+
+- **Task 4+5 (`537cd18`) — combined into one commit, and why.** `NavDestinations.cs`'s Dashboard
+  entry needs `Pages.DashboardPage` to exist to compile, and `DashboardPage.xaml.cs` needs
+  `App.GetService<T>()` (added in Task 4) to resolve its ViewModel — neither task compiles in
+  isolation, so they were done and committed together, with the ring/chart left as placeholders
+  (deferred to Task 6) to keep this commit's diff focused on the plumbing + static layout. Two new
+  findings surfaced while building this:
+  - **CS8852 init-only-record-binding gotcha.** A type bound to an `ItemsControl.ItemsSource`
+    gets its properties assigned via plain setters by the generated `XamlTypeInfo.g.cs`, which an
+    `init`-only accessor (including a positional `record`/`record struct`) does not satisfy. Hit
+    building `FlightDisplayRow` (the Recent Flights row type) — solved with a plain mutable class
+    + explicit constructor instead of a record.
+  - **A third confirmed silent `XamlCompiler.exe` crash cause**, on top of Phase 2's already-known
+    `<Style>` elements and new `Theme/Tokens.xaml` entries: a literal double-hyphen (`--`) inside
+    any XAML comment is invalid XML and crashes the compiler the same way, with no diagnostic —
+    confirmed empirically while building `DashboardPage.xaml` (this codebase's C# comments often
+    use `--` as an em-dash substitute, which had to be avoided in this file's XAML comments
+    specifically). Documented directly in the file's header comment as a guard for future edits.
+
+- **Task 6 (`4203293`) — ring + chart, two more findings.**
+  - **Ring-arc 100%-degenerate-case bug**, found in the plan's own snippet before it shipped: at
+    exactly 100% progress, the arc's start and end points both land at 12 o'clock and coincide,
+    which degenerates a single `ArcSegment` into nothing being drawn — a max-rank pilot would see
+    an empty ring. Fixed by clamping the sweep angle just under 360°. Sweep direction/angle math
+    was hand-verified at 25/50/75% (3/6/9 o'clock respectively, with `IsLargeArc` correctly
+    flipping past 180°) before this fix.
+  - **Zero-flights-month visible-sliver handling.** Monthly-activity bars scale linearly against
+    the max `FlightCount` in the current 7-month window, with a 4px floor so a month with zero
+    flights still renders a minimal visible sliver instead of vanishing to 0px and breaking the
+    chart's legibility as an axis.
+  - Reused the same CS8852 workaround from Task 4+5: the bar-chart row type
+    (`MonthlyActivityBarRow`) is a plain mutable class, not the `readonly record struct
+    MonthlyActivityPoint` itself, specifically to avoid re-triggering the same
+    `XamlTypeInfo.g.cs` failure `FlightDisplayRow` was already written to avoid.
+  - No `<Style>` elements, no new `Theme/Tokens.xaml` entries, and no literal `--` in any XAML
+    comment in this commit either — all three known crash causes avoided.
+
+### Overall verdict
+
+**Done, with one explicitly-flagged follow-up, not a blocker.** Automated suite and build both
+pass clean with no regressions or new warnings. The rank-progress bug is fixed from one shared,
+tested source consumed by both `PilotHubViewModel` and `DashboardViewModel`. The app starts and
+stops cleanly on this exact commit with no `[Shell]` errors or crashes in the log. No `.razor`
+file was touched; `Dashboard.razor` is left in place, just unreferenced by the native shell.
+
+The one item this task could not close out itself — same limitation called out explicitly by the
+plan's own Step 3/4 instructions — is the actual click-through visual verification: does Dashboard
+render natively with no WebView2 flash, and do all 12 other nav-rail destinations still show their
+Blazor pages unchanged. Log evidence rules out a crash or logged error during that path, but
+cannot prove the *rendering* is correct on either side. This needs a human visual check (or a
+future session with screen access) before this can be called fully done end-to-end — flagged here
+plainly, not skipped silently, consistent with this project's practice in every prior phase.
