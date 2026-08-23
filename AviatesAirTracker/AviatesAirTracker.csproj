@@ -89,6 +89,14 @@
     <Resource Include="Resources\Assets\**\*" Condition="Exists('Resources\Assets')" />
   </ItemGroup>
 
+  <!-- WinUI shell chrome assets — bundled fonts (Syne, Plus Jakarta Sans) and a raster
+       copy of the app icon for the WinUI Image control. See Phase 2 shell-visual plan,
+       Task 1. -->
+  <ItemGroup>
+    <Content Include="Assets\Fonts\*.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\AppIconSmall.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- EFB tablet frontend — embedded into the assembly so it ships inside the
        single-file exe (no loose files on disk). Served by EfbServer from the
        manifest resource stream. Kept OUTSIDE wwwroot so the Blazor/Razor static
