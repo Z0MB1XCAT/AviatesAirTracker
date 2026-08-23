@@ -1,0 +1,16 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+      Only Syne and Plus Jakarta Sans — JetBrains Mono and VT323 have no consumer in the
+      native shell (see the Phase 2 spec's scope boundary). Weight is baked into which .ttf
+      file is referenced, not set separately, because each file IS that one weight — there
+      is no variable-font axis here.
+    -->
+
+    <FontFamily x:Key="DisplayFontBold">/Assets/Fonts/Syne-Bold.ttf#Syne</FontFamily>
+    <FontFamily x:Key="BodyFontMedium">/Assets/Fonts/PlusJakartaSans-Medium.ttf#Plus Jakarta Sans</FontFamily>
+    <FontFamily x:Key="BodyFontBold">/Assets/Fonts/PlusJakartaSans-Bold.ttf#Plus Jakarta Sans</FontFamily>
+
+</ResourceDictionary>
