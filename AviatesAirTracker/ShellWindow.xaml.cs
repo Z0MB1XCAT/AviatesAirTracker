@@ -46,6 +46,7 @@ public sealed partial class ShellWindow : Window
         ConfigureTitleBar();
         ConfigureBackdrop();
         BuildNavItems();
+        ConfigureNavAppearance();
 
         Activated += OnFirstActivated;
         Closed += OnClosed;
@@ -159,19 +160,112 @@ public sealed partial class ShellWindow : Window
             // "Overview" / "Pilot" / "Community" labels in the Blazor sidebar.
             if (destination.Group != null && destination.Group != currentGroup)
             {
-                Nav.MenuItems.Add(new NavigationViewItemHeader { Content = destination.Group });
+                // Uppercased here, not in NavDestinations.cs: app.css's .nav-section-label
+                // is `text-transform: uppercase` applied at render time, and NavDestinations
+                // is shared, plain-cased source data — this is a purely visual concern.
+                Nav.MenuItems.Add(StyleHeader(new NavigationViewItemHeader { Content = destination.Group.ToUpperInvariant() }));
                 currentGroup = destination.Group;
             }
 
-            Nav.MenuItems.Add(new NavigationViewItem
+            Nav.MenuItems.Add(StyleNavItem(new NavigationViewItem
             {
                 Content = destination.Label,
                 Tag = destination.Tag,
-            });
+            }));
         }
 
         // Index 0 is the "Overview" header, so the first selectable item is index 1.
         Nav.SelectedItem = Nav.MenuItems.OfType<NavigationViewItem>().First();
+    }
+
+    /// <summary>
+    /// app.css's .nav-item: 13.5px Plus Jakarta Sans Medium, --sb-text, a 12px radius on a
+    /// 10px/2px margin. Applied here in code, item-by-item, rather than as an implicit
+    /// &lt;Style TargetType="NavigationViewItem"&gt; in ShellWindow.xaml — see the Task 5
+    /// verification notes: any &lt;Style&gt; element anywhere in this project's XAML makes
+    /// XamlCompiler.exe (Windows App SDK 1.8.250906003's tools\net472\XamlCompiler.exe) exit
+    /// silently with code 1 and no diagnostic output, in this build environment. Confirmed
+    /// isolated to Style elements specifically (an empty Window.Resources also reproduces it),
+    /// not to font/brush/margin usage in general — the same brushes/fonts already work fine
+    /// as plain property values. Setting the properties directly on each item, since
+    /// BuildNavItems() already constructs them in code, avoids the crash entirely and
+    /// produces the identical rendered result an implicit style would have.
+    /// </summary>
+    private static NavigationViewItem StyleNavItem(NavigationViewItem item)
+    {
+        item.FontFamily = (FontFamily)Application.Current.Resources["BodyFontMedium"];
+        item.FontSize = 13.5;
+        item.Foreground = (Brush)Application.Current.Resources["SidebarTextBrush"];
+        item.Margin = new Thickness(10, 2, 10, 2);
+        item.CornerRadius = new CornerRadius(12);
+        return item;
+    }
+
+    /// <summary>
+    /// app.css's .nav-section-label: 9px/700 Plus Jakarta Sans Bold, --sb-label, 0.12em
+    /// tracking (CharacterSpacing is in 1/1000 em, so 0.12em ≈ 120 — confirmed present on
+    /// Control in this SDK via the metadata docs and a successful build with it set). See
+    /// StyleNavItem's doc comment for why this is done in code rather than an implicit XAML
+    /// Style.
+    /// </summary>
+    private static NavigationViewItemHeader StyleHeader(NavigationViewItemHeader header)
+    {
+        header.FontFamily = (FontFamily)Application.Current.Resources["BodyFontBold"];
+        header.FontSize = 9;
+        header.CharacterSpacing = 120;
+        header.Foreground = (Brush)Application.Current.Resources["SidebarLabelBrush"];
+        header.Margin = new Thickness(20, 16, 20, 8);
+        return header;
+    }
+
+    /// <summary>
+    /// The flat navy pane background (Task 5 Step 1) plus the active-item accent-color
+    /// substitution (Task 5 Step 2's "accept WinUI's default selection visual, substitute
+    /// this app's colors" option — see the plan's fidelity-gap note; the 3px accent bar from
+    /// app.css's .nav-item.active::after is not reproduced, only the flat colors are).
+    /// <para>
+    /// The plan's Step 1 says to set `PaneBackground="{StaticResource SidebarBackgroundBrush}"`
+    /// directly on the &lt;NavigationView&gt; element. That property does not exist: checked
+    /// against this SDK's own metadata (Microsoft.WindowsAppSDK.WinUI 1.8.250906003's
+    /// metadata\Microsoft.UI.Xaml.xml), `PaneBackground` belongs to `SplitView`, not
+    /// `NavigationView` — NavigationView never forwards it. Writing the nonexistent attribute
+    /// in XAML doesn't fail with the usual "property not found" diagnostic in this compiler
+    /// build, though: XamlCompiler.exe (tools\net472\XamlCompiler.exe) exits silently with
+    /// code 1 and zero output instead, which is what made this take a full bisection to find
+    /// (a `&lt;Style&gt;` element anywhere in the project's XAML hits the same silent-crash
+    /// path for unrelated reasons, which was the initial, wrong lead).
+    /// </para>
+    /// <para>
+    /// NavigationView's actual control template (Microsoft.UI's Themes/generic.xaml) hosts a
+    /// named `RootSplitView` part whose Pane color comes from a fixed
+    /// `PaneBackground="{ThemeResource NavigationViewDefaultPaneBackground}"` — not a
+    /// TemplateBinding to anything NavigationView itself exposes. Overriding that same
+    /// ThemeResource key is therefore the correct, surgical equivalent of what the plan
+    /// wanted, and — like the selection-state keys below — is set here in code rather than as
+    /// a Window.Resources declaration, since any resource-dictionary declaration in this
+    /// project's XAML hits the same compiler crash a &lt;Style&gt; element does. ThemeResource
+    /// lookups climb the visual tree's resource dictionaries at runtime, so setting the key on
+    /// Nav.Resources here is equivalent to declaring it in Window.Resources.
+    /// </para>
+    /// <para>
+    /// The NavigationViewItemBackground*/Foreground* keys below are the same named
+    /// ThemeResource keys NavigationViewItem's own control template already looks up for its
+    /// pointer-over/selected states, for the same reason.
+    /// </para>
+    /// </summary>
+    private void ConfigureNavAppearance()
+    {
+        var resources = Application.Current.Resources;
+
+        Nav.Resources["NavigationViewDefaultPaneBackground"] = (Brush)resources["SidebarBackgroundBrush"];
+
+        Nav.Resources["NavigationViewItemBackgroundPointerOver"] = (Brush)resources["SidebarHoverBrush"];
+        Nav.Resources["NavigationViewItemBackgroundSelected"] = (Brush)resources["SidebarActiveBrush"];
+        Nav.Resources["NavigationViewItemBackgroundSelectedPointerOver"] = (Brush)resources["SidebarActiveBrush"];
+        Nav.Resources["NavigationViewItemBackgroundSelectedPressed"] = (Brush)resources["SidebarActiveBrush"];
+        Nav.Resources["NavigationViewItemForegroundSelected"] = (Brush)resources["SidebarTextActiveBrush"];
+        Nav.Resources["NavigationViewItemForegroundSelectedPointerOver"] = (Brush)resources["SidebarTextActiveBrush"];
+        Nav.Resources["NavigationViewItemForegroundSelectedPressed"] = (Brush)resources["SidebarTextActiveBrush"];
     }
 
     private void OnNavSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
