@@ -13,12 +13,15 @@
         <!-- Drag region for the extended title bar. Caption buttons are drawn by the
              system; this Border only supplies the draggable area and the app name. -->
         <Border x:Name="AppTitleBar" Grid.Row="0" Background="Transparent">
-            <TextBlock
-                Text="Aviates Air Flight Tracker"
-                VerticalAlignment="Center"
-                Margin="16,0,0,0"
-                FontSize="12"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0" Spacing="9">
+                <Image Source="/Assets/AppIconSmall.png" Width="18" Height="18" />
+                <TextBlock
+                    Text="Aviates Air Flight Tracker"
+                    VerticalAlignment="Center"
+                    FontFamily="{StaticResource DisplayFontBold}"
+                    FontSize="12.5"
+                    Foreground="#B8FFFFFF" />
+            </StackPanel>
         </Border>
 
         <!-- Hidden by default: the login gate in ShellWindow.xaml.cs only reveals these once
