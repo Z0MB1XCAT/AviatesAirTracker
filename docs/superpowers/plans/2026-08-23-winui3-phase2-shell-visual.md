@@ -312,7 +312,20 @@ git commit -m "feat(shell): add Theme/Typography.xaml for the two bundled fonts"
 **Files:**
 - Modify: `AviatesAirTracker/ShellWindow.xaml`
 
-- [ ] **Step 1: Read the current title bar markup**
+**Verified 2026-08-23, committed `805f310`.** Build was clean and the log showed no runtime
+exceptions, but the implementing subagent's `request_access` for computer-use was denied, and
+my own follow-up attempt hit an unrelated environment snag: the running window (confirmed via
+raw Win32 calls — genuine `WinUIDesktopWin32WindowClass`, correct title, not minimized, not
+DWM-cloaked, valid on-screen coordinates) never appeared in any screenshot I took, including a
+native GDI `CopyFromScreen` called directly from the same PowerShell session. That pointed to
+my tool execution landing on a different session/desktop than the one physically displayed —
+not a code defect. The user then supplied their own screenshot of the actual running app,
+which settled it: the icon + "Aviates Air Flight Tracker" render in the Syne display face at
+the title bar's left edge, and the strip carries a visible maroon/red tint bled through from
+the desktop wallpaper behind the window — the Mica backdrop working exactly as specified. Task
+4 is confirmed correct.
+
+- [x] **Step 1: Read the current title bar markup**
 
 Current `ShellWindow.xaml`'s title bar section (confirm this matches before editing — it may have shifted since planning):
 
@@ -327,7 +340,7 @@ Current `ShellWindow.xaml`'s title bar section (confirm this matches before edit
 </Border>
 ```
 
-- [ ] **Step 2: Replace the content with icon + styled text**
+- [x] **Step 2: Replace the content with icon + styled text**
 
 The `Background="Transparent"` stays exactly as it is — that's the deliberate decision from the spec, not something to "fix". Only the content inside changes:
 
@@ -347,7 +360,7 @@ The `Background="Transparent"` stays exactly as it is — that's the deliberate 
 
 `Foreground="#B8FFFFFF"` is `rgba(255,255,255,0.72)` expressed as WinUI's `#AARRGGBB` hex (`0.72 × 255 ≈ 184 = 0xB8`) — matching the spec's `rgba(255,255,255,0.72)` value exactly rather than approximating with a named brush.
 
-- [ ] **Step 3: Build and run — this is where the font resource actually gets exercised for the first time**
+- [x] **Step 3: Build and run — this is where the font resource actually gets exercised for the first time**
 
 ```bash
 dotnet build AviatesAirTracker.sln -c Debug
@@ -363,7 +376,7 @@ Look at the title bar specifically. Expected: the app icon tile at the left, the
 
 If you cannot get a visual screenshot in this environment, say so plainly and describe what you verified instead (build success, no runtime exceptions in the log, `Assets/AppIconSmall.png` and the font files present in the output directory).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add AviatesAirTracker/ShellWindow.xaml
