@@ -863,3 +863,51 @@ worktree happens to already be sitting on") -- and the orchestrating session sho
 ancestry (`git merge-base --is-ancestor <prev> <next>`) before trusting a subagent's own "clean
 fast-forward, no conflicts" claim, rather than after a downstream task's verification silently
 inherits the gap.
+
+---
+
+## Two real regressions found and fixed by the user's own screenshot (2026-08-23, post-Task-7)
+
+The user ran the app after the corrected merge above and sent a screenshot. It surfaced two real
+bugs neither the plan nor any prior verification pass had caught, since both required actually
+seeing rendered pixels -- exactly the gap flagged as "genuinely open" in the section above.
+
+**1. The legacy Blazor content area was rendering completely unstyled** -- default browser serif
+font, plain underlined links, broken images, no dark theme at all. Root cause: **not a Phase 2
+bug**. `AviatesAirTracker/AviatesAirTracker.csproj` had `<Content Update="wwwroot\**\*"
+CopyToOutputDirectory="PreserveNewest" />`, with a comment claiming the SDK auto-globs `wwwroot`
+as `Content` items by default so `Update` (not `Include`) is required to avoid a duplicate-item
+error. That claim was only true under `Microsoft.NET.Sdk.Razor`/`.Web` -- this project's `Sdk`
+attribute is plain `Microsoft.NET.Sdk` (required for `UseWinUI=true`), which globs non-code files
+as `None`, not `Content`. `Content Update` was therefore matching zero pre-existing items and
+silently no-op'ing on every build since whichever earlier WinUI3-migration task made that SDK
+switch -- confirmed empirically: even an explicit `dotnet clean` + rebuild produced an output
+`wwwroot` containing only the Razor-generated scoped-CSS bundle, none of the real assets. Fixed by
+switching `Update` to `Include` (commit `2a815ca`); verified `css/app.css`, `images/*.webp`,
+`js/*.js` and `audio/*.wav` all land in `bin/Debug/net8.0-windows10.0.19041.0/win-x64/wwwroot/`
+after the fix.
+
+**2. The sidebar still rendered as a translucent, wallpaper-tinted strip**, not the flat opaque
+navy Task 5 intended. Root cause: Task 5 overrode `NavigationViewDefaultPaneBackground`, but that
+is not the key actually driving the pane's background in this app's configuration
+(`PaneDisplayMode="Left"`, non-overlay). Confirmed by reading the real `generic.xaml` shipped in
+the `microsoft.windowsappsdk.winui` NuGet package (1.8.250906003): the control template's
+`PaneDisplayMode` `VisualStateGroup` has a `PaneNotOverlaying` state -- the one active here --
+whose `Setters` reassign `RootSplitView.PaneBackground` to a *different* key,
+`NavigationViewExpandedPaneBackground`, which resolves to a fully transparent brush in the dark
+theme by design. Fixed by also overriding that second key (commit `f47a5c4`).
+
+Both fixes were verified via full solution build (0 errors, same 10 pre-existing warnings) and the
+full test suite (22/22 passing) after each change. **Neither fix has a fresh user screenshot
+confirming the corrected visual result yet** -- the same gap Task 7 already flagged still stands,
+now against this corrected code rather than the pre-fix code the original screenshot showed.
+
+**Takeaway for future phases:** this is the second and third time in this same plan that a
+runtime/rendering assumption made from reading the control template's top-level property (or from
+a clean build/log check alone) turned out to be wrong once actually rendered and looked at. Static
+verification (build, tests, log inspection) caught zero of the three real bugs found in this plan
+(the two `<Style>`/resource `XamlCompiler.exe` crashes were caught by bisection when a *build*
+failed, which is static-verification-friendly; both of these were not -- they built and ran
+cleanly and were only found because a human looked at a screenshot). A real screenshot of the
+running app remains the only verification step in this plan that has caught genuine defects, and
+it has not yet been run against the current, twice-fixed code.
