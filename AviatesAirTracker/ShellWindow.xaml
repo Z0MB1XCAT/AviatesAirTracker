@@ -37,7 +37,10 @@
             IsSettingsVisible="False"
             SelectionChanged="OnNavSelectionChanged"
             BackRequested="OnBackRequested">
-            <controls:WebView2 x:Name="UiHost" />
+            <Grid>
+                <controls:WebView2 x:Name="UiHost" />
+                <Frame x:Name="NativeHost" Visibility="Collapsed" />
+            </Grid>
         </controls:NavigationView>
     </Grid>
 </Window>

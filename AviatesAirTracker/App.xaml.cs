@@ -32,6 +32,17 @@ public partial class App : Application
     public static string? LegacyUiUrl { get; private set; }
 
     /// <summary>
+    /// The one and only place a native page reaches into DI from outside constructor
+    /// injection. <c>Frame.Navigate(Type)</c> constructs the target page via its parameterless
+    /// constructor -- it has no way to run this app's constructor-injection DI the way
+    /// <c>ShellWindow</c> itself gets built -- so a native page's parameterless constructor
+    /// calls this instead. Don't scatter <c>Application.Current</c> casts elsewhere; route
+    /// everything through here.
+    /// </summary>
+    public static T GetService<T>() where T : class =>
+        ((App)Application.Current)._serviceProvider.GetRequiredService<T>();
+
+    /// <summary>
     /// Tears down the loopback UI host. Called from <c>ShellWindow</c>'s Closing handler so
     /// teardown runs while the dispatcher is still pumping; <see cref="Shutdown"/> repeats the call
     /// as a safety net and <c>BlazorHostServer.DisposeAsync</c> makes the second one a no-op.

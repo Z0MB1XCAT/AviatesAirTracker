@@ -499,12 +499,23 @@ public sealed partial class ShellWindow : Window
     }
 
     /// <summary>
-    /// Sends the rail's selection to whichever host owns that destination. Today every
-    /// destination lives on the legacy Blazor host; as pages migrate this grows a branch
-    /// that shows a native Page instead.
+    /// Sends the rail's selection to whichever host owns that destination: a native Page via
+    /// <see cref="NativeHost"/> if the destination has migrated, otherwise the legacy Blazor
+    /// host via <see cref="UiHost"/> as before. Only one of the two is ever visible at a time.
     /// </summary>
     private void Navigate(NavDestination destination)
     {
+        if (destination.NativePageType != null)
+        {
+            NativeHost.Navigate(destination.NativePageType);
+            NativeHost.Visibility = Visibility.Visible;
+            UiHost.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        NativeHost.Visibility = Visibility.Collapsed;
+        UiHost.Visibility = Visibility.Visible;
+
         if (UiHost.CoreWebView2 == null) return;
 
         var baseUrl = App.LegacyUiUrl;
@@ -519,6 +530,7 @@ public sealed partial class ShellWindow : Window
 
     private void OnBackRequested(NavigationView sender, NavigationViewBackRequestedEventArgs args)
     {
+        if (NativeHost.Visibility == Visibility.Visible && NativeHost.CanGoBack) { NativeHost.GoBack(); return; }
         if (UiHost.CoreWebView2?.CanGoBack == true) UiHost.CoreWebView2.GoBack();
     }
 

@@ -5,7 +5,12 @@ namespace AviatesAirTracker.Navigation;
 /// <param name="Label">Sidebar text, matching the current Blazor sidebar exactly.</param>
 /// <param name="Route">Route on the legacy Blazor host.</param>
 /// <param name="Group">Sidebar section heading this entry sits under, or null for none.</param>
-public sealed record NavDestination(string Tag, string Label, string Route, string? Group);
+/// <param name="NativePageType">
+/// When set, this destination is hosted by <c>ShellWindow</c>'s native <c>Frame</c> instead of
+/// the WebView2/Blazor bridge. Null (the default) for every destination that has not yet
+/// migrated to a native WinUI page.
+/// </param>
+public sealed record NavDestination(string Tag, string Label, string Route, string? Group, Type? NativePageType = null);
 
 /// <summary>
 /// Single source of truth for shell navigation. Order, wording and grouping are copied
@@ -17,7 +22,7 @@ public static class NavDestinations
 {
     public static readonly IReadOnlyList<NavDestination> All =
     [
-        new("dashboard", "Dashboard", "/",          "Overview"),
+        new("dashboard", "Dashboard", "/",          "Overview", NativePageType: typeof(Pages.DashboardPage)),
         new("flights",   "Flights",   "/flights",   "Overview"),
         new("routes",    "Routes",    "/routes",    "Overview"),
         new("fleet",     "Fleet",     "/fleet",     "Overview"),
