@@ -32,13 +32,22 @@ this spec found the page's actual state is more fragmented than it looks:
 | Hero card | Static/decorative, no data | Ported as-is (static) |
 | Stat strip (Flights / Air Hours / Avg Landing) | Real, via `PilotHubViewModel` | Real, via `DashboardViewModel` (see below) |
 | Recent Flights | 3 hardcoded fake flights | Real, via `IFlightRepository.GetRecentAsync(5)` |
-| "Your Assignments" table | 3 hardcoded fantasy NPCs | **New feature** — see §3 |
-| Pilot rank ring + greeting | Ring hardcoded to 32%; greeting name is real | Ring made real (see §2); greeting already real |
+| "Your Assignments" table | 3 hardcoded fantasy NPCs | **Ported as-is** (revised — see below) |
+| Pilot rank ring + greeting | Ring hardcoded to 32%; greeting name is real | Ring made real, local calc for now, real backend deferred — see §2 |
 | Monthly "Flight Activity" chart | 7 hardcoded bar heights | **New aggregation** — see §2 |
-| "Operations Team" list | Same 3 fantasy NPCs, reused | **New feature** — see §3 |
+| "Operations Team" list | Same 3 fantasy NPCs, reused | **Ported as-is** (revised — see below) |
 | Quick Stats: Total Hours / Flights | Hardcoded, duplicates real stat-strip values | Real (same source as stat strip) |
-| Quick Stats: "On-Time %" | Hardcoded `92%`, no backing concept | **New feature** — see §3 |
+| Quick Stats: "On-Time %" | Hardcoded `92%`, no backing concept | **Ported as-is** (revised — see below) |
 | Quick Stats: "Landing Avg" | Hardcoded `82`, duplicates `AvgLandingScore` | Real, same value as the stat-strip card (intentional duplication — that's what today's design already does, just with a fake number) |
+
+**Revised after the first review pass**: Assignments, Operations Team, and On-Time % are ported
+faithfully as static placeholder content, exactly as they render today — not built as new empty
+real-data features. Building real backing repositories for these with no way to populate them was
+the "build all three as real features" choice initially made, but on reflection that trades a
+mildly dishonest UI (fake people) for a visually sparse one (nothing at all) with no upside until
+a real backend exists for them specifically — worse for now, not better. Revisit this once
+there's an actual reason to (e.g. the Aviates Air backend gains a real staff-roster or
+scheduled-time concept).
 
 ### 2. `DashboardViewModel` becomes the real source of truth
 
@@ -54,7 +63,8 @@ is revived as the native Dashboard page's ViewModel, in preference to continuing
 - `PilotRank`, `RankProgress`, `NextRankText` — currently field-initializer defaults
   (`"First Officer"` / `0.15` / `"25hrs to Captain"`) that `RefreshAsync()` never touches — get
   computed for real, reusing `PilotStatsService` (see the bug fix below) instead of duplicating
-  `PilotHubViewModel`'s copy of the same math a second time.
+  `PilotHubViewModel`'s copy of the same math a second time. **This is a local/offline
+  calculation, not the real backend one** — see the callout below.
 - New `MonthlyActivity` collection (7 months, current month last) backing the bar chart. This
   aggregation does not exist anywhere in the codebase today (confirmed: no `GroupBy` on date
   anywhere in `PilotStatsService`, any repository, or `PilotHubViewModel`) — add
@@ -62,7 +72,30 @@ is revived as the native Dashboard page's ViewModel, in preference to continuing
   `MonthlyActivityPoint(string Label, int FlightCount)` list, grouping completed flights by
   `CreatedAt.Year`/`.Month`. Lives in `PilotStatsService` alongside `ComputeAsync()` since it's
   the same kind of flight-aggregation concern, not Dashboard-specific.
-- New `OnTimePercentage` (nullable — see §3) and `Assignments`/`OperationsTeam` collections.
+- `Assignments`/`OperationsTeam`/`OnTimeText` stay as the same static placeholder content
+  Dashboard.razor already has today — plain fields on the ViewModel, not backed by any
+  repository, per the revised decision above.
+
+### Deferred: a real backend rank/level feature already exists, unused
+
+`BACKEND-API/worker.js` already has a complete, deployed `computeRank(totalHours)` function
+(same seven rank tiers as `PilotStatsService`) that also returns `rank_pct` — the exact
+rank-progress percentage this spec is about to calculate locally — served from
+`/api/portal/profile` and folded into PIREP/Discord-rank-sync flows. Client-side,
+`AviatesBackendClient.FetchStatsAsync(pilotId, acarsKey)` already exists and already deserializes
+the response into `RemotePilotStats.Rank`/`RemotePilotStats.RankProgress` — but **it is called
+from nowhere in the app** (confirmed via grep: defined once, zero call sites). This is the same
+"built but never wired up" situation `DashboardViewModel` itself was in before this spec.
+
+**Explicitly deferred, per the user's direction**: this spec does not wire `FetchStatsAsync` into
+either ViewModel. `DashboardViewModel`/`PilotHubViewModel` keep computing rank/progress locally via
+`PilotStatsService` (bug fix below still applies — it's a real, independent improvement regardless
+of which source eventually wins). The correct long-term direction is for
+`AviatesBackendClient.FetchStatsAsync` to become the actual source of truth for rank/progress
+everywhere it's shown (Dashboard, PilotHub, anywhere else), since the backend is the one place
+Discord-rank-sync and any other server-side consumer already agree on — but that swap, plus
+whatever offline/fallback behavior is needed when the backend is unreachable, is real follow-up
+work, noted here rather than done now.
 
 **Bug found and fixed as part of this work, not a new task**: `PilotHubViewModel.ComputeRankProgress`
 switches on rank-name strings (`"Student Pilot"`, `"First Officer"`, `"Senior First Officer"`,
@@ -78,47 +111,6 @@ corrected case labels, and has both `PilotHubViewModel` and `DashboardViewModel`
 shared method. This is a pre-existing bug unrelated to Phase 3, but fixing it in place while
 extracting the logic anyway is cheaper than fixing it separately later, and leaving a known-wrong
 calculation in the code this spec is actively touching would be an odd thing to do deliberately.
-
-### 3. Three real features, not fantasy data and not silently deferred
-
-The user's explicit choice: build all three as real features rather than leaving them static or
-repurposing Operations Team onto the existing friends system. Since none of the three has a live
-Aviates Air backend endpoint to source data from yet, "real feature" here means: the same pattern
-`Core/Data/DataRepositories.cs` already uses everywhere else in this app — a real domain model, a
-real repository interface, and an in-memory implementation that's honestly empty until a backend
-exists to populate it (exactly how `IApiService`/`NullApiService` already works for the backend
-integration generally, per `CLAUDE.md`). This is not the same thing as today's fantasy NPCs: today
-the UI lies about there being 3 real dispatchers; after this change the UI is honest that there
-are currently zero, with a proper empty state, ready to display real ones the moment a backend
-provides them.
-
-**Flagging plainly, since it changes what the page looks like**: with no backend, Assignments and
-Operations Team will render as genuine empty states (not populated with placeholder people) once
-this ships — the dashboard will look sparser than today's screenshot in those two panels. This is
-the honest consequence of "build it as a real feature" when there is nothing behind it yet, not a
-missed requirement. If that's not the intended tradeoff, this is the moment to say so before
-implementation starts.
-
-- **`IAssignmentRepository`** (new) — `Assignment { Guid Id, string DispatcherName, string Role,
-  string Description, DateTime AssignedAt, bool IsComplete }`. `InMemoryAssignmentRepository`
-  starts empty. Dashboard shows up to 5 open assignments, or an empty-state message ("No open
-  assignments") if none. DI-registered singleton, same lifetime pattern as every other
-  `InMemory*Repository`.
-- **`IOperationsTeamRepository`** (new) — `OperationsTeamMember { Guid Id, string Name, string
-  Role, bool IsOnline }`. `InMemoryOperationsTeamRepository` starts empty. Dashboard shows up to
-  3 members with a "See All Team" placeholder link (disabled — no destination page exists yet),
-  or an empty state.
-- **On-Time %** — add `FlightRecord.ScheduledDepartureUtc` (nullable `DateTime?`, new field,
-  additive/backward-compatible with existing saved JSON flight records). Populated at flight-save
-  time from `SimBriefService.CurrentPlan?.ScheduledDepartureUtc` when a SimBrief plan was loaded
-  for that flight (mirrors how other SimBrief-derived fields already get stamped onto
-  `FlightRecord` at completion — check `FlightSessionManager`'s existing save path for the exact
-  spot). `PilotStatsService.ComputeAsync()` adds `OnTimePercentage` (nullable `double?`): among
-  completed flights that have a recorded `ScheduledDepartureUtc`, the percentage where
-  `BlockOutTime` is within 15 minutes of it (a standard VA on-time-performance tolerance). If zero
-  flights have a recorded scheduled time yet (true for every flight logged before this ships,
-  and for any flight without a SimBrief plan), `OnTimePercentage` is `null` and the Dashboard
-  shows "—" rather than a fabricated number or a misleading 0%.
 
 ## Shell plumbing: native page hosting
 
@@ -151,7 +143,8 @@ scope"), 3 stat cards, Recent Flights (`ItemsControl` bound to `RecentFlights`, 
 none), Your Assignments (`ItemsControl` bound to `Assignments`, empty state), right panel:
 pilot-stats card (custom rank-progress ring — see below — greeting text, monthly-activity bar row
 bound to `MonthlyActivity`), Operations Team card (`ItemsControl` bound to `OperationsTeam`, empty
-state), Quick Stats card (4 tiles, `OnTimePercentage` rendering "—" when null).
+state), Quick Stats card (4 tiles — Total Hours/Flights real, On-Time % the same static text
+Dashboard.razor has today).
 
 **Rank-progress ring**: no native WinUI control matches `.pilot-ring`'s thin accent-colored arc
 with a centered percentage label. Built as a small reusable `Path` with an `ArcSegment` computed
@@ -161,31 +154,21 @@ consistent if the Blazor version is ever compared side by side.
 
 ### `AviatesAirTracker/ViewModels/DashboardViewModel.cs` (modified)
 
-Per §2/§3 above: real `RecentFlights` via `GetRecentAsync`, real rank progress via the fixed
-shared `PilotStatsService` method, new `MonthlyActivity`, `Assignments`, `OperationsTeam`,
-`OnTimePercentage` properties, all populated in `RefreshAsync()`.
+Per §2 above: real `RecentFlights` via `GetRecentAsync`, real rank progress via the fixed shared
+`PilotStatsService` method (local calculation — the real backend one is deferred, see §2's
+callout), new `MonthlyActivity` property populated in `RefreshAsync()`. `Assignments`,
+`OperationsTeam`, `OnTimeText` stay as static content, not new observable data.
 
 ### `AviatesAirTracker/Services/SupportServices.cs` (modified, `PilotStatsService`)
 
 `ComputeRankProgress` moved here from `PilotHubViewModel`, with corrected rank-name case labels;
-`GetMonthlyActivityAsync`; `OnTimePercentage` added to `PilotStatistics`.
+`GetMonthlyActivityAsync` added.
 
 ### `AviatesAirTracker/ViewModels/PilotHubViewModel.cs` (modified)
 
 Switches to calling the now-shared, now-correct `PilotStatsService.ComputeRankProgress` instead
 of its own private copy. This is the bug fix landing for the page that's had it wrong all along,
 not just for the new Dashboard consumer.
-
-### `AviatesAirTracker/Core/Data/DataRepositories.cs` (modified)
-
-New `IAssignmentRepository`/`InMemoryAssignmentRepository`,
-`IOperationsTeamRepository`/`InMemoryOperationsTeamRepository`, following the exact shape of the
-existing repositories in this file. Registered as singletons in `App.xaml.cs`.
-
-### `AviatesAirTracker/Models/FlightModels.cs` (modified)
-
-`FlightRecord.ScheduledDepartureUtc` (nullable, additive). New `Assignment`,
-`OperationsTeamMember` model classes.
 
 ### `ShellWindow.xaml` / `ShellWindow.xaml.cs` / `Navigation/NavDestinations.cs` (modified)
 
@@ -207,9 +190,11 @@ WebView2-routed.
 - Does not build an actual "See All Team" destination page, or make the Follow button on
   Operations Team members functional — both stay inert placeholders, same as today, since neither
   has anywhere real to navigate to yet.
-- Does not implement a real Aviates Air backend endpoint for assignments or operations-team data
-  — the repositories are real and ready, but genuinely empty, exactly as `NullApiService` is
-  today for the backend generally.
+- Does not wire `AviatesBackendClient.FetchStatsAsync` into any ViewModel, despite the backend
+  already having a working `rank`/`rank_pct` feature behind it — explicitly deferred per §2's
+  callout, noted as real follow-up work rather than done here.
+- Does not build any new repository/model for Assignments, Operations Team, or On-Time tracking
+  — all three stay exactly as static as they are in `Dashboard.razor` today.
 - Does not change `PilotHub.razor` itself (still Blazor-rendered) — only its ViewModel's
   rank-progress bug gets fixed, since that ViewModel is shared with the new native consumer.
 
@@ -220,10 +205,19 @@ WebView2-routed.
   this project's established TDD pattern (pure logic tested before UI wiring).
 - Build clean, no new warnings.
 - Visual: native Dashboard compared against a screenshot of the current Blazor Dashboard for
-  layout/color fidelity on the sections that keep the same data (hero, stat strip). Assignments
-  and Operations Team panels checked for a correct, non-broken empty state rather than compared
-  against the old fantasy content, since that content is intentionally gone.
+  layout/color fidelity across every section, including Assignments/Operations Team/On-Time %
+  since they're meant to look identical to today, not just "close."
 - Functional: confirm clicking "Dashboard" in the nav rail shows the native page (no WebView2
   flash), and confirm every other nav item still shows the Blazor-rendered page exactly as before
   — this is the regression risk of the shell plumbing change, worth checking explicitly since it
   touches `Navigate()`, which every single destination goes through.
+
+## Follow-up work noted, not scoped into this spec
+
+- Wire `AviatesBackendClient.FetchStatsAsync` as the real source of truth for pilot rank/progress
+  (Dashboard, PilotHub, anywhere else it's shown), replacing the local `PilotStatsService`
+  calculation this spec adds as an interim. Needs an offline/unreachable-backend fallback design.
+- A real Assignments/Operations Team backend concept, if the Aviates Air backend ever grows one —
+  today `BACKEND-API/worker.js` has nothing resembling either.
+- On-Time % tracking, if it's ever wanted for real — would need a scheduled-vs-actual time
+  comparison, which doesn't exist client- or server-side today.
