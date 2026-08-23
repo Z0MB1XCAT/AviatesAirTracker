@@ -803,3 +803,63 @@ that the plan flagged as "unverified assumptions" are now confirmed via log evid
 follow-up screenshot pass (or the next time the user is at their machine and can eyeball it
 directly) to close out the Task 5/6 visual comparison before calling this fully closed -- not a
 blocker to merging, but the one piece of the plan's Definition of Done that remains genuinely open.
+
+---
+
+## Correction to the above (orchestrating session, 2026-08-23, post-Task-7)
+
+**The "clean fast-forward" environment note above is wrong, and the verification it precedes was
+run against incomplete code.** Each of Tasks 5, 6 and 7 was executed by an independent subagent in
+its own isolated git worktree, per this project's subagent-driven-development process. Task 6's
+worktree branched from Task 4's tip (`e02233b`) -- **not** from Task 5's commit (`e9d2c7f`) as its
+own report claimed. `git merge-base worktree-agent-afa1bc0ee719eea9e e9d2c7f` confirms the actual
+common ancestor was `e02233b`, and `git merge-base --is-ancestor e9d2c7f 1bbd88c` returns false.
+Task 5 (`e9d2c7f`) and Task 6 (`1bbd88c`) were **sibling commits**, not sequential -- Task 6's
+`ShellWindow.xaml.cs` never contained `ConfigureNavAppearance`/`StyleNavItem`/`StyleHeader` at all
+(confirmed: `git show 1bbd88c:AviatesAirTracker/ShellWindow.xaml.cs | grep ConfigureNavAppearance`
+returned nothing). Task 7 then built on top of Task 6's tip believing it already included Task 5,
+so **every verification claim in the "Task 7 results" section above** (the clean build, the 22/22
+tests, the clean-startup log, the `AttentionDotInfoBadgeStyle` confirmation) was checked against
+code that was missing Task 5's sidebar styling entirely -- `PaneBackground`/`NavigationView` colors,
+per-item fonts, `CharacterSpacing`, the selection-state `ThemeResource` overrides, all absent.
+
+**Fixed by hand in the orchestrating session, not delegated to another subagent** (the fix required
+git surgery -- fast-forward + cherry-pick with manual conflict resolution -- better done directly
+than re-explained to a fresh subagent):
+
+1. Fast-forwarded `claude/blazor-winui3-migration-a10c79` from `e02233b` onto `e9d2c7f` (Task 5) --
+   a genuine fast-forward, no conflict, since Task 5 really was built sequentially on Task 4.
+2. `git cherry-pick -n 1bbd88c` on top -- produced exactly one conflict, in `ShellWindow.xaml.cs`,
+   isolated to two hunks: the `BuildNavItems()` foreach body (Task 5's plain `StyleNavItem(new
+   NavigationViewItem{...})` vs. Task 6's content-branching + named-reference-tracking logic) and
+   the block of methods immediately after it (Task 5's `StyleNavItem`/`StyleHeader`/
+   `ConfigureNavAppearance` vs. Task 6's `BuildLabelWithLivePill`/`BuildLabelWithDot`/event
+   handlers/`RefreshFlightsBadgeAsync`). Both conflicts were non-contradictory -- one needed the two
+   code paths interleaved (build content per Task 6's branching, then apply `StyleNavItem`'s
+   font/color/margin/radius uniformly regardless of which branch ran, since it never touches
+   `Content`), the other just needed both method groups kept back-to-back with `ConfigureNavAppearance`'s
+   closing brace restored. Resolved directly, no logic invented or dropped from either side.
+3. Rebuilt (`dotnet build AviatesAirTracker.sln -c Debug`) -- 0 errors, same 10 pre-existing unique
+   warnings as every prior pass. Re-ran the full suite (`dotnet test`) -- 22/22 passing, for real
+   this time, against code that actually contains both Task 5's and Task 6's changes together.
+   Committed as `00f3fb0`.
+4. Cherry-picked Task 7's results write-up (`992ff94`) on top unchanged, as `c21b548`, since its
+   Task 4/5/6 technical findings (the `XamlCompiler.exe` crash root causes, the `InfoBadge`
+   text-content limitation, the `AttentionDotInfoBadgeStyle`/`CharacterSpacing` confirmations, the
+   `FlightCompleted`-as-proxy limitation) are all still accurate descriptions of what each
+   individual commit contains -- only the "this was already integrated and verified together"
+   framing was wrong, which this section corrects.
+
+**Net effect on the verdict:** unchanged in substance, but now actually true rather than assumed.
+The build-clean and 22/22-tests-passing claims now hold against the real, fully integrated Phase 2
+diff (`e02233b..00f3fb0`), not against Task 6 in isolation. The one open item stands exactly as
+Task 7 identified it: a real screenshot-based visual comparison of the sidebar/badges against the
+Blazor reference, deferred to whenever the user is next at their machine.
+
+**Process note for future phases:** when multiple tasks in the same plan modify the same file and
+run as isolated-worktree subagents in sequence, each subagent's "fast-forward onto the prior task's
+branch" step needs to name the *actual* prior task's commit/branch explicitly (not "whatever this
+worktree happens to already be sitting on") -- and the orchestrating session should confirm that
+ancestry (`git merge-base --is-ancestor <prev> <next>`) before trusting a subagent's own "clean
+fast-forward, no conflicts" claim, rather than after a downstream task's verification silently
+inherits the gap.
