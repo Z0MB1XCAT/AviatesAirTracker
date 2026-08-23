@@ -681,3 +681,125 @@ git commit -m "docs(plan): record Phase 2 shell visual verification results"
 - Flights, ACARS, Map and Messages badges reflect real state; News stays static
 - No `.razor` file, navigation logic, login gate, or shutdown code was touched
 - The tree is committed and the app is usable after every single task
+
+---
+
+## Task 7 results (2026-08-23)
+
+**Environment note:** this verification pass started from a stale worktree checkout sitting on
+unrelated pre-Phase-2 commits (a PIREP-sync-fix branch). Fast-forwarded onto
+`claude/blazor-winui3-migration-a10c79` (Task 4's tip, `e02233b`), then discovered Tasks 5–6
+had landed in a *different* worktree branch and never made it onto `claude/blazor-winui3-migration-a10c79` --
+fast-forwarded a second time onto `1bbd88c` (Task 6's tip) to pick those up. Both merges were
+plain fast-forwards, no conflicts, no rebasing.
+
+- **Step 1 (automated suite): PASS.** `dotnet test tests/AviatesAirTracker.Tests/AviatesAirTracker.Tests.csproj`
+  → 22 passed, 0 failed, 0 skipped (11 pre-existing + 11 `ShellBadgeLogicTests`).
+- **Step 2 (clean build): PASS.** `dotnet build AviatesAirTracker.sln -c Debug` → 0 errors.
+  10 *distinct* warning messages (`CS0169`×1, `CS0414`×4, `MVVMTK0034`×5) -- exactly the plan's
+  original baseline, byte-for-byte the same fields as before this plan started (`LandingAnalyzer`,
+  `FlightPhaseDetector`, `FlightSessionManager._hasRecordedLanding`, `MainViewModel`'s five
+  `[ObservableProperty]` backing fields). MSBuild's summary line reports "15 Warning(s)" because
+  several of these are logged twice across the build's two passes; the *unique* message count,
+  confirmed by sorting and deduplicating the full warning list, is 10. None of the 10 originate
+  in any file this plan touched (`ShellWindow.xaml`, `ShellWindow.xaml.cs`, `Theme/*.xaml`,
+  `Shell/ShellBadgeLogic.cs`, `App.xaml`) -- all pre-existing and unrelated to Tasks 1-6.
+- **Step 3 (visual comparison): PARTIALLY DEFERRED.** Per this task's own operating constraints,
+  computer-use/screenshot access was not attempted this pass, to avoid touching the user's live
+  desktop session while its state was unknown. Substituted verification: confirmed MSFS was not
+  running (`tasklist`), then launched the built exe directly (`Start-Process`), let it run ~15s,
+  and inspected `%AppData%\AviatesAirTracker\logs\aviates_20260823.log`:
+  - Clean startup sequence (`=== Aviates Air Flight Tracker v1.0 Starting ===` through service
+    initialization) with no `[Shell]`-tagged errors and no unhandled exceptions.
+  - `[Shell] Flights nav badge: AttentionDotInfoBadgeStyle` logged at startup -- confirms Task 6's
+    `AttentionDotInfoBadgeStyle` path is the one actually taken at runtime in this environment,
+    not the `Ellipse` fallback.
+  - One unrelated `[WRN] [BackendClient] PIREP submission failed: "BadRequest"` from a pre-existing
+    unsynced PIREP retried at startup (missing `departure_icao`/`arrival_icao` on an old record) --
+    not a Phase 2 regression, not a `[Shell]` message.
+  - Process was killed immediately after (`Stop-Process -Force`); no flight session was started
+    (`FlightSessionManager` never activated since SimConnect has no MSFS to attach to), so no
+    unwanted flight record was created.
+  - Genuinely unverified: the actual rendered pixels -- whether Syne/Plus Jakarta Sans visually
+    resolve instead of silently falling back to a default font (a build-clean condition per Task
+    3's own warning), the exact navy shade, hover/active state appearance, and the Mica tint. Task
+    4's title bar was separately confirmed via a user-supplied screenshot (recorded above,
+    `805f310`); Task 5/6's sidebar and badges have **not** had an equivalent screenshot check yet.
+- **Step 4 (functional badge check): DEFERRED, as expected.** `tasklist` confirmed MSFS/FlightSimulator
+  is not running. Per the plan's own instruction, this is noted explicitly rather than skipped
+  silently -- it remains to be confirmed live the next time MSFS is running and it's safe to fly
+  without creating an unwanted flight record.
+
+### Deviations and fidelity gaps carried forward from Tasks 4-6
+
+- **Task 4** (title bar): confirmed correct via a user-supplied screenshot, not this session's
+  own tooling -- `request_access` for computer-use was denied and a follow-up native-GDI capture
+  attempt landed on a different session/desktop than the one displayed. Icon + Syne-set "Aviates
+  Air Flight Tracker" render correctly at the title bar's left edge; Mica backdrop confirmed
+  working (visible wallpaper tint bled through).
+- **Task 5** (sidebar styling): **entirely done in `ShellWindow.xaml.cs` code-behind, zero XAML
+  changes.** Root cause: `NavigationView.PaneBackground` doesn't exist on this SDK (it's a
+  `SplitView`-only property that `NavigationView` never forwards), and separately, *any* XAML
+  `<Style>` element anywhere in the project silently crashes `XamlCompiler.exe` (Windows App SDK
+  1.8.250906003) with no diagnostic output. Worked around by overriding the same
+  `NavigationViewDefaultPaneBackground`/`NavigationViewItemBackground*`/`NavigationViewItemForeground*`
+  `ThemeResource` keys the control's own template already reads, set via `Nav.Resources[...] =`
+  in code. `CharacterSpacing` **was** available on this SDK and **was** used (`120`, matching
+  `app.css`'s `0.12em`) -- so the plan's letter-spacing fidelity-gap contingency did not actually
+  materialize. The active-item accent bar used the "accept WinUI's default selection visual,
+  substitute this app's colors" option, not a custom `ControlTemplate` -- the 3px `::after` glow
+  bar from `app.css` is not reproduced; this fidelity gap is real and acknowledged per the plan.
+- **Task 6** (live badges): the "Live" pill (ACARS/Map) uses a plain `Border`+`TextBlock` built in
+  code, not a templated `InfoBadge` -- `InfoBadge.Value` is numeric-only in this SDK, confirmed
+  rather than assumed. The Flights dot **does** use the framework's `AttentionDotInfoBadgeStyle`
+  (verified present at runtime and confirmed again by this task's own log check above), not the
+  `Ellipse` fallback that would only trigger if that resource were missing. No event exists for
+  "PIREP sync completed" specifically (`AviatesBackendClient` has no such signal for the
+  fire-and-forget submit) -- `FlightSessionManager.FlightCompleted` is used instead as the closest
+  available proxy, refreshing the dot the moment a flight completes rather than when the
+  background sync actually finishes; documented as a known limitation, not a bug.
+  `FlightSessionState` was extracted from `FlightSessionManager.cs` into its own file
+  (`Services/FlightSessionState.cs`, pure mechanical move, no logic change) so it could link
+  standalone into the plain-`net8.0` test project without dragging in SimConnect/backend
+  dependencies -- a minor addition to the plan's stated file list, but within scope (same
+  namespace, same enum, no behavior change) and not navigation/login-gate/shutdown code.
+- **Broadened crash discovery** (first hit in Task 6, generalizing Task 5's finding): it is not
+  only `<Style>` elements that crash `XamlCompiler.exe` on this SDK -- adding *any* new resource
+  entry to `Theme/Tokens.xaml` (even a single extra `<Color>`/`<SolidColorBrush>` pair, otherwise
+  identical in shape to the ones already there) reproduces the same silent exit-code-1 failure.
+  This is why the Flights-dot fallback's green color (`#3EC7AC`) is set inline in code rather than
+  added as a new token resource.
+
+### Definition-of-done checklist
+
+- `dotnet test` passes, including the 11 new badge-logic tests -- **yes** (22/22).
+- Shell visually matches the Blazor sidebar modulo the two acknowledged fidelity gaps -- **partially
+  verified**: Task 4 (title bar) confirmed via user screenshot; Task 5/6 (sidebar, badges) verified
+  by code inspection + clean-startup logs only, not by screenshot, in this pass. Of the plan's two
+  named fidelity gaps, only one actually materialized: the active-item accent bar's shape (real
+  gap, WinUI default selection visual used instead). Letter-spacing did **not** end up as a gap --
+  `CharacterSpacing` was available and used.
+- Flights, ACARS, Map, Messages badges reflect real state; News stays static -- **yes**, per code
+  inspection of `1bbd88c` and the startup log's `AttentionDotInfoBadgeStyle` confirmation; live
+  MSFS functional check still deferred (Step 4).
+- No `.razor` file, navigation logic, login gate, or shutdown code touched -- **confirmed** via
+  `git diff --stat` across Tasks 1-6 (`7a89687..1bbd88c`): 16 files changed, all within
+  `AviatesAirTracker/{App.xaml,Assets/**,AviatesAirTracker.csproj,Services/FlightSessionManager.cs,
+  Services/FlightSessionState.cs,Shell/ShellBadgeLogic.cs,ShellWindow.xaml,ShellWindow.xaml.cs,
+  Theme/**}`, this plan doc, and the test project. `ShellWindow.xaml.cs`'s `OnClosed` gained two
+  new event-unsubscribe lines (cleanup for this plan's own new subscriptions) but its shutdown
+  call itself is untouched.
+- Tree committed, app usable after every task -- **yes**, each task's own commit builds and the
+  app started cleanly in this pass's own launch-and-log-check.
+
+### Overall verdict
+
+**Phase 2 is functionally done, with one real follow-up item:** an actual screenshot-based visual
+comparison of the sidebar/badges (Tasks 5-6) against the Blazor reference has not yet been done by
+any automated tooling -- only Task 4's title bar has a user-confirmed screenshot. Everything else
+checks out: tests pass, build is clean at the exact pre-existing baseline, no scope violations, no
+runtime errors on launch, and the `AttentionDotInfoBadgeStyle`/`CharacterSpacing` runtime behaviors
+that the plan flagged as "unverified assumptions" are now confirmed via log evidence. Recommend a
+follow-up screenshot pass (or the next time the user is at their machine and can eyeball it
+directly) to close out the Task 5/6 visual comparison before calling this fully closed -- not a
+blocker to merging, but the one piece of the plan's Definition of Done that remains genuinely open.
