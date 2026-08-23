@@ -78,11 +78,21 @@
        to the exe. The Razor static-web-assets pipeline alone does not put them there in a
        plain build. Transitional, like the rest of the legacy UI host.
 
-       NOTE: this is Update, not Include. The SDK already globs wwwroot\**\* into Content
-       by default, so Include duplicates every file and fails the build with NETSDK1022.
-       Update just adds the copy-to-output metadata to the items already there. -->
+       This project's Sdk is plain "Microsoft.NET.Sdk" (see the top of this file), not
+       "Microsoft.NET.Sdk.Razor" or "Microsoft.NET.Sdk.Web"; that switch happened earlier in
+       the WinUI 3 migration (UseWinUI=true requires it) but this ItemGroup was never updated
+       to match. The comment this replaces claimed "the SDK already globs wwwroot\**\* into
+       Content by default" and used Update instead of Include to avoid a supposed NETSDK1022
+       duplicate-item error; that auto-globbing-as-Content behavior is specific to the
+       Razor/Web SDKs, which this project no longer uses. Under plain Microsoft.NET.Sdk,
+       non-code files glob as None items, not Content, so Content Update here was matching
+       zero items and silently no-op'ing: wwwroot never actually reached the output directory
+       (confirmed empirically: a clean rebuild still produced an output wwwroot containing
+       only the Razor-generated scoped-CSS bundle, none of the real assets). Include is the
+       correct verb now; there is no pre-existing Content item of the same type for it to
+       duplicate. -->
   <ItemGroup>
-    <Content Update="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
