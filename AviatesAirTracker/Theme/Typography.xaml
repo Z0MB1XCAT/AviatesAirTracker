@@ -7,10 +7,23 @@
       native shell (see the Phase 2 spec's scope boundary). Weight is baked into which .ttf
       file is referenced, not set separately, because each file IS that one weight — there
       is no variable-font axis here.
+
+      The #-suffix on each FontFamily URI must match the font's own OpenType "name" table
+      exactly, and PlusJakartaSans-Medium.ttf is a case where guessing gets it wrong: its
+      nameID 1 (legacy/RIBBI family) is "Plus Jakarta Sans Medium", not "Plus Jakarta Sans"
+      — "Plus Jakarta Sans" only exists as nameID 16 (the typographic/preferred family),
+      standard practice for Google Fonts weights outside the 4-style RIBBI model. The OS
+      font cache generally groups nameID 16/17 correctly for installed fonts, but this font
+      is loaded as a loose, bundled file rather than installed system-wide, and DirectWrite's
+      custom-font-collection path for that case is not confirmed to honour nameID 16 the
+      same way — so this references the font by its nameID 1 name, which is unambiguous
+      and guaranteed correct, rather than gambling on nameID 16 resolving for an embedded
+      font. Confirmed via fontTools: nameID 1 = "Plus Jakarta Sans Medium" for this file,
+      versus plain "Plus Jakarta Sans" (nameID 1) for the Bold file, which has no such split.
     -->
 
     <FontFamily x:Key="DisplayFontBold">/Assets/Fonts/Syne-Bold.ttf#Syne</FontFamily>
-    <FontFamily x:Key="BodyFontMedium">/Assets/Fonts/PlusJakartaSans-Medium.ttf#Plus Jakarta Sans</FontFamily>
+    <FontFamily x:Key="BodyFontMedium">/Assets/Fonts/PlusJakartaSans-Medium.ttf#Plus Jakarta Sans Medium</FontFamily>
     <FontFamily x:Key="BodyFontBold">/Assets/Fonts/PlusJakartaSans-Bold.ttf#Plus Jakarta Sans</FontFamily>
 
 </ResourceDictionary>

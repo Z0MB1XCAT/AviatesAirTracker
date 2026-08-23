@@ -272,7 +272,9 @@ Create `AviatesAirTracker/Theme/Typography.xaml`:
     -->
 
     <FontFamily x:Key="DisplayFontBold">/Assets/Fonts/Syne-Bold.ttf#Syne</FontFamily>
-    <FontFamily x:Key="BodyFontMedium">/Assets/Fonts/PlusJakartaSans-Medium.ttf#Plus Jakarta Sans</FontFamily>
+    <FontFamily x:Key="BodyFontMedium">/Assets/Fonts/PlusJakartaSans-Medium.ttf#Plus Jakarta Sans Medium</FontFamily>
+    <!-- Corrected during Task 3: this file's nameID 1 is "Plus Jakarta Sans Medium", not
+         "Plus Jakarta Sans" (that's only its nameID 16) -- confirmed with fontTools. -->
     <FontFamily x:Key="BodyFontBold">/Assets/Fonts/PlusJakartaSans-Bold.ttf#Plus Jakarta Sans</FontFamily>
 
 </ResourceDictionary>
