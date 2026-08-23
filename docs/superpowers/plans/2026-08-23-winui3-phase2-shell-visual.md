@@ -898,9 +898,14 @@ whose `Setters` reassign `RootSplitView.PaneBackground` to a *different* key,
 theme by design. Fixed by also overriding that second key (commit `f47a5c4`).
 
 Both fixes were verified via full solution build (0 errors, same 10 pre-existing warnings) and the
-full test suite (22/22 passing) after each change. **Neither fix has a fresh user screenshot
-confirming the corrected visual result yet** -- the same gap Task 7 already flagged still stands,
-now against this corrected code rather than the pre-fix code the original screenshot showed.
+full test suite (22/22 passing) after each change.
+
+**Confirmed via a second user screenshot, same day**: solid opaque navy sidebar, correct
+selected-item highlight on Dashboard, section headers uppercase/tracked/muted, title bar icon +
+Syne-set text, and the legacy Blazor dashboard rendering fully styled -- hero image, gradient
+flight cards, Pilot Statistics panel, all matching the pre-Phase-2 Blazor look. The Flights nav
+item shows its unsynced-PIREP dot, matching the one flight actually sitting unsynced in local
+storage. This closes the one item Task 7 had left open.
 
 **Takeaway for future phases:** this is the second and third time in this same plan that a
 runtime/rendering assumption made from reading the control template's top-level property (or from
@@ -909,5 +914,10 @@ verification (build, tests, log inspection) caught zero of the three real bugs f
 (the two `<Style>`/resource `XamlCompiler.exe` crashes were caught by bisection when a *build*
 failed, which is static-verification-friendly; both of these were not -- they built and ran
 cleanly and were only found because a human looked at a screenshot). A real screenshot of the
-running app remains the only verification step in this plan that has caught genuine defects, and
-it has not yet been run against the current, twice-fixed code.
+running app was the only verification step in this plan that caught genuine defects -- worth
+budgeting for explicitly in any future phase's plan, not treated as optional polish.
+
+## Phase 2: done (2026-08-23)
+
+All 7 tasks complete, both post-Task-7 regressions fixed and visually confirmed. Final commit
+history: `3b2a841`..`f47a5c4` for the code, plus this doc's own results/correction commits.
