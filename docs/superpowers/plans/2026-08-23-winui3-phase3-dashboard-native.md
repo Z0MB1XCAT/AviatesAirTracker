@@ -798,3 +798,50 @@ Blazor pages unchanged. Log evidence rules out a crash or logged error during th
 cannot prove the *rendering* is correct on either side. This needs a human visual check (or a
 future session with screen access) before this can be called fully done end-to-end — flagged here
 plainly, not skipped silently, consistent with this project's practice in every prior phase.
+
+## Visual polish, found by the user directly (2026-08-23, post-Task-7)
+
+The user confirmed nav routing works (Dashboard native, every other item still Blazor-rendered —
+closing the one item left open above) and then sent two screenshots that surfaced four real
+defects none of Tasks 1-7's build/test/log verification could have caught, since all four are
+purely visual:
+
+1. **Stat-icon swatches were empty colored squares** — Task 5 built the 44px rounded-color
+   backdrop but never added the icon glyph itself. Fixed by reproducing `Dashboard.razor`'s exact
+   Lucide SVG paths (a plane, a clock, an activity zigzag) as WinUI `Path`/`Polyline` elements —
+   WinUI's geometry mini-language accepts the same `M`/`L`/`z` path-data commands as SVG, so the
+   path strings ported over unchanged.
+2. **The hero card's photo never rendered** — only the flat diagonal gradient showed, leaving the
+   right two-thirds of the card looking empty compared to the original. Task 5 had considered the
+   photo out of scope alongside the CSS *animations*, but the static photo itself was part of the
+   spec's own "static art" allowance and got dropped along with the animations by mistake. Fixed:
+   `hero.webp` layered as an `ImageBrush` (gradient → photo at 90% opacity, top-aligned crop →
+   left-to-right scrim → text), matching `app.css`'s `.hero-card` stacking exactly. Loaded from a
+   file path off `AppContext.BaseDirectory` in code-behind, since `wwwroot` ships as loose content
+   next to the exe, not a packaged `ms-appx://` asset.
+3. **A sparse flight record rendered as a near-blank card** — one locally-stored flight was logged
+   through `SimConnectStub`'s fallback mode while MSFS wasn't running, so it has no real
+   ICAO/aircraft/pilot data; the card rendered as a bare "→" with blank lines under it. Not a
+   defect in the new page — it's accurately rendering genuinely sparse data — but it read as
+   broken rather than honestly empty. Fixed with graceful fallback text ("—", "Aircraft unknown",
+   "Unknown pilot") instead of blank fields.
+4. **The "View Flights" button looked like a "sharp oval"** — it was a plain unstyled `<Button>`,
+   and this SDK has no `<Style>` available to retemplate its default corner/padding behavior, so
+   its rendered shape didn't match the intended pill. Swapped for a `Border` (the same technique
+   already used correctly for the eyebrow badge two elements above it on the same page). While
+   fixing this, also top-aligned the hero text block instead of `app.css`'s `flex; align-items:
+   center` default — technically faithful to the CSS, but once the card actually had photo content
+   worth showing at real height, centering made the text look like it was floating in empty space;
+   the user's direct visual judgment on the rendered result won out over matching the CSS
+   property-for-property.
+
+Two new `XamlCompiler.exe`-crash near-misses hit and caught during this pass, both already-known
+causes (not new discoveries): a literal `--` inside a new XAML comment (twice), and `System.IO.Path`
+colliding with the already-`using`-imported `Microsoft.UI.Xaml.Shapes.Path` (a real `CS0104`
+compile error, not a silent crash — fixed by fully-qualifying the call). Commit `bbb4750`, verified
+via full solution build (0 errors, same warning baseline) and the full test suite (35/35) — no
+automated check could have caught any of the four visual defects themselves, only a human looking
+at the actual rendered page could, which is exactly what happened here.
+
+**Phase 3's first native page is now done, fully verified, both by automated checks and by direct
+user visual review.**
