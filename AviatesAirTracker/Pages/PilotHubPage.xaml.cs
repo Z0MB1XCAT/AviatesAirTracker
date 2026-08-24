@@ -2,10 +2,34 @@ using AviatesAirTracker.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using Windows.UI;
 
 namespace AviatesAirTracker.Pages;
+
+/// <summary>
+/// Pre-formatted display row for the Landing History table. Same reasoning as
+/// DashboardPage.xaml.cs's FlightDisplayRow: a plain mutable class with a parameterless
+/// constructor and { get; set; } properties, not an init-only record, since XamlTypeInfo.g.cs
+/// assigns each property via a plain setter for anything bound through an ItemsControl's
+/// ItemsSource (an init accessor fails that with CS8852).
+/// </summary>
+public sealed class LandingDisplayRow
+{
+    public string AirportLine { get; set; } = "";
+    public string DateText { get; set; } = "";
+    public string RunwayText { get; set; } = "";
+    public string VsText { get; set; } = "";
+    public Brush VsColor { get; set; } = PilotHubPage.GradeRed;
+    public string PitchText { get; set; } = "";
+    public string CrosswindText { get; set; } = "";
+    public string ScoreText { get; set; } = "";
+    public Brush ScoreColor { get; set; } = PilotHubPage.GradeRed;
+    public string GradeLetter { get; set; } = "";
+    public Brush GradeChipColor { get; set; } = PilotHubPage.GradeRed;
+    public Brush GradeChipBackground { get; set; } = PilotHubPage.GradeRedBg;
+}
 
 public sealed partial class PilotHubPage : Page
 {
@@ -22,12 +46,26 @@ public sealed partial class PilotHubPage : Page
     private const double LandingRingCenter = 80.0;
     private const double LandingRingRadius = 65.0;
 
-    private static readonly Brush GradeGreen = new SolidColorBrush(Color.FromArgb(0xFF, 0x3E, 0xC7, 0xAC));
-    private static readonly Brush GradeBlue = new SolidColorBrush(Color.FromArgb(0xFF, 0x4D, 0x9B, 0xEC));
-    private static readonly Brush GradeAmber = new SolidColorBrush(Color.FromArgb(0xFF, 0xF5, 0x9E, 0x0B));
-    private static readonly Brush GradeRed = new SolidColorBrush(Color.FromArgb(0xFF, 0xEF, 0x44, 0x44));
+    // internal (not private): LandingDisplayRow's default property values reference these
+    // below, and the Landing History table (Task 4) reuses the exact same four brushes for its
+    // score-text and grade-chip colors so every widget on this page agrees on one grade→color
+    // mapping (see GradeColorFor's comment for why the table deliberately does not preserve
+    // PilotHubViewModel.GradeChipClass's separate D-orange/F-red split).
+    internal static readonly Brush GradeGreen = new SolidColorBrush(Color.FromArgb(0xFF, 0x3E, 0xC7, 0xAC));
+    internal static readonly Brush GradeBlue = new SolidColorBrush(Color.FromArgb(0xFF, 0x4D, 0x9B, 0xEC));
+    internal static readonly Brush GradeAmber = new SolidColorBrush(Color.FromArgb(0xFF, 0xF5, 0x9E, 0x0B));
+    internal static readonly Brush GradeRed = new SolidColorBrush(Color.FromArgb(0xFF, 0xEF, 0x44, 0x44));
+
+    // Translucent tints for the Landing History grade chip's Border.Background, same ~12% alpha
+    // convention this page already uses for its stat-icon swatches (e.g. "#1F4D9BEC" above).
+    internal static readonly Brush GradeGreenBg = new SolidColorBrush(Color.FromArgb(0x1F, 0x3E, 0xC7, 0xAC));
+    internal static readonly Brush GradeBlueBg = new SolidColorBrush(Color.FromArgb(0x1F, 0x4D, 0x9B, 0xEC));
+    internal static readonly Brush GradeAmberBg = new SolidColorBrush(Color.FromArgb(0x1F, 0xF5, 0x9E, 0x0B));
+    internal static readonly Brush GradeRedBg = new SolidColorBrush(Color.FromArgb(0x1F, 0xEF, 0x44, 0x44));
 
     private readonly PilotHubViewModel _viewModel;
+
+    public ObservableCollection<LandingDisplayRow> LandingRows { get; } = [];
 
     public PilotHubPage()
     {
@@ -35,6 +73,7 @@ public sealed partial class PilotHubPage : Page
 
         _viewModel = App.GetService<PilotHubViewModel>();
         DataContext = _viewModel;
+        LandingHistoryList.ItemsSource = LandingRows;
 
         Loaded += async (_, _) =>
         {
@@ -44,6 +83,7 @@ public sealed partial class PilotHubPage : Page
             RankProgressFill.Width = RankProgressTrackWidth * (_viewModel.RankProgressPct / 100.0);
 
             RebuildLastLandingCard();
+            RebuildLandingRows();
         };
     }
 
@@ -78,6 +118,68 @@ public sealed partial class PilotHubPage : Page
 
         LandingRunwayText.Text = $"{landing.AirportICAO} {landing.RunwayIdentifier}";
     }
+
+    // Mirrors DashboardPage.xaml.cs's RebuildRecentFlightRows()/RebuildMonthlyActivityRows()
+    // naming and shape: precompute one display row per landing, then toggle empty-state vs
+    // content visibility, same pattern as RebuildLastLandingCard() above.
+    private void RebuildLandingRows()
+    {
+        LandingRows.Clear();
+
+        foreach (var l in _viewModel.RecentLandings)
+        {
+            LandingRows.Add(new LandingDisplayRow
+            {
+                AirportLine = l.AirportICAO,
+                DateText = l.Timestamp.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture),
+                RunwayText = $"{l.AirportICAO} {l.RunwayIdentifier}",
+                VsText = $"{l.VerticalSpeedFPM.ToString("F0", CultureInfo.InvariantCulture)} fpm",
+                VsColor = VsColor(l.VerticalSpeedFPM),
+                PitchText = $"{l.TouchdownPitchDeg.ToString("F1", CultureInfo.InvariantCulture)}°",
+                CrosswindText = $"{Math.Abs(l.CrosswindComponent).ToString("F0", CultureInfo.InvariantCulture)} kts",
+                ScoreText = l.LandingScore.ToString(CultureInfo.InvariantCulture),
+                ScoreColor = ScoreColor(l.LandingScore),
+                GradeLetter = PilotHubViewModel.GradeLetter(l.LandingScore),
+                GradeChipColor = ScoreColor(l.LandingScore),
+                GradeChipBackground = ScoreColorBg(l.LandingScore),
+            });
+        }
+
+        var isEmpty = LandingRows.Count == 0;
+        LandingHistoryEmptyText.Visibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
+        LandingHistoryContent.Visibility = isEmpty ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    // Written directly per the plan rather than calling PilotHubViewModel.ScoreColor()/
+    // GradeChipClass(): both emit a "var(--yellow)"/"chip-yellow" for the 60-74 (grade C) band
+    // that app.css never defines, so a grade-C landing's score text and chip both render with a
+    // broken/unset color in the live Blazor app today -- even though the LAST-LANDING RING
+    // (Task 3, GradeColor() above) already correctly uses amber for grade C. This is the bug fix:
+    // amber for >= 60 instead of the undefined yellow.
+    //
+    // Deliberately reuses the exact same 4-tier green/blue/amber/red mapping as GradeColor()
+    // above (Task 3's ring) for BOTH the score text and the grade chip, rather than preserving
+    // GradeChipClass's separate chip-orange(D)/chip-red(F) split -- GradeChipClass has no bug of
+    // its own to fix, but collapsing D into red here keeps the ring, the score text, and the
+    // chip all agreeing on one color for a given grade (e.g. a Grade D landing is red
+    // everywhere), which is the "should agree" goal the amber fix is meant to achieve.
+    private static Brush ScoreColor(int score) => score switch
+    {
+        >= 90 => GradeGreen,
+        >= 75 => GradeBlue,
+        >= 60 => GradeAmber, // bug fix: PilotHubViewModel.ScoreColor() emits undefined var(--yellow) here
+        _ => GradeRed,
+    };
+
+    // Translucent-background counterpart to ScoreColor(), used for the grade chip's Border
+    // background so the tint always matches the chip's own foreground color.
+    private static Brush ScoreColorBg(int score) => score switch
+    {
+        >= 90 => GradeGreenBg,
+        >= 75 => GradeBlueBg,
+        >= 60 => GradeAmberBg,
+        _ => GradeRedBg,
+    };
 
     // Written directly per the plan rather than calling PilotHubViewModel.GradeClass and
     // string-matching a CSS class name: GradeClass() gives us the grade string, this switches

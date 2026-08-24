@@ -334,6 +334,130 @@
 
             </Grid>
 
+            <!-- ── Landing History table ──
+                 PilotHub.razor's .data-table-wrap/.data-table, reproduced as a Grid-per-row
+                 ItemsControl since WinUI has no <table> equivalent. Header Grid and each row's
+                 Grid use identical star-weighted ColumnDefinitions so the two line up; both are
+                 direct children of the same MaxWidth=1440 StackPanel so their available widths
+                 match. Empty-state vs content visibility toggled in code-behind after
+                 RefreshAsync(), same pattern as EmptyFlightsText/FlightsList and
+                 LastLandingEmptyText/LastLandingContent above. -->
+            <StackPanel Spacing="14">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Landing History"
+                               FontFamily="{StaticResource DisplayFontBold}" FontSize="17" FontWeight="Bold"
+                               Foreground="#F1F5F9" VerticalAlignment="Center" />
+                    <!-- Inert "View logbook" link; no /landings native page exists yet, same
+                         inert-CTA treatment as Task 3's "View all". -->
+                    <TextBlock Grid.Column="1" Text="View logbook" FontSize="13" FontWeight="SemiBold"
+                               Foreground="#4D9BEC" VerticalAlignment="Center" />
+                </Grid>
+
+                <!-- Empty state: shown when !VM.HasLandings. Exact copy from PilotHub.razor. -->
+                <TextBlock x:Name="LandingHistoryEmptyText"
+                           Text="No landings recorded yet. Complete a flight to see your history here."
+                           FontSize="13" Foreground="#64748B" TextWrapping="Wrap"
+                           HorizontalAlignment="Center" TextAlignment="Center"
+                           Padding="0,48" />
+
+                <Border x:Name="LandingHistoryContent" Background="#0C111D" BorderBrush="#14FFFFFF"
+                        BorderThickness="1" CornerRadius="20" Visibility="Collapsed">
+                    <StackPanel>
+                        <!-- Header row -->
+                        <Grid Padding="16,12" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.3*" />
+                                <ColumnDefinition Width="1.1*" />
+                                <ColumnDefinition Width="0.9*" />
+                                <ColumnDefinition Width="0.7*" />
+                                <ColumnDefinition Width="1*" />
+                                <ColumnDefinition Width="0.7*" />
+                                <ColumnDefinition Width="0.9*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.ColumnSpan="7" BorderBrush="#14FFFFFF" BorderThickness="0,0,0,1"
+                                    VerticalAlignment="Bottom" />
+                            <TextBlock Grid.Column="0" Text="DATE" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="1" Text="AIRPORT" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="2" Text="V/S" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="3" Text="PITCH" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="4" Text="CROSSWIND" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="5" Text="SCORE" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="6" Text="GRADE" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                        </Grid>
+
+                        <ItemsControl x:Name="LandingHistoryList">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="16,13" ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.3*" />
+                                            <ColumnDefinition Width="1.1*" />
+                                            <ColumnDefinition Width="0.9*" />
+                                            <ColumnDefinition Width="0.7*" />
+                                            <ColumnDefinition Width="1*" />
+                                            <ColumnDefinition Width="0.7*" />
+                                            <ColumnDefinition Width="0.9*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.ColumnSpan="7" BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1"
+                                                VerticalAlignment="Bottom" />
+
+                                        <StackPanel Grid.Column="0" Spacing="2">
+                                            <TextBlock Text="{Binding AirportLine}" FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="#F1F5F9" />
+                                            <TextBlock Text="{Binding DateText}" FontSize="11" Foreground="#64748B" />
+                                        </StackPanel>
+
+                                        <TextBlock Grid.Column="1" Text="{Binding RunwayText}"
+                                                   FontFamily="{StaticResource DisplayFontBold}" FontSize="13"
+                                                   FontWeight="SemiBold" Foreground="#CBD5E1" VerticalAlignment="Center" />
+
+                                        <TextBlock Grid.Column="2" Text="{Binding VsText}"
+                                                   FontFamily="{StaticResource DisplayFontBold}" FontSize="12"
+                                                   Foreground="{Binding VsColor}" VerticalAlignment="Center" />
+
+                                        <TextBlock Grid.Column="3" Text="{Binding PitchText}"
+                                                   FontFamily="{StaticResource DisplayFontBold}" FontSize="12"
+                                                   Foreground="#CBD5E1" VerticalAlignment="Center" />
+
+                                        <TextBlock Grid.Column="4" Text="{Binding CrosswindText}"
+                                                   FontFamily="{StaticResource DisplayFontBold}" FontSize="12"
+                                                   Foreground="#CBD5E1" VerticalAlignment="Center" />
+
+                                        <TextBlock Grid.Column="5" Text="{Binding ScoreText}"
+                                                   FontFamily="{StaticResource DisplayFontBold}" FontSize="15"
+                                                   FontWeight="Bold" Foreground="{Binding ScoreColor}"
+                                                   VerticalAlignment="Center" />
+
+                                        <Border Grid.Column="6" Background="{Binding GradeChipBackground}"
+                                                CornerRadius="6" Padding="8,3" HorizontalAlignment="Left"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding GradeLetter}" FontSize="10" FontWeight="Bold"
+                                                       CharacterSpacing="80" Foreground="{Binding GradeChipColor}" />
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
         </StackPanel>
     </ScrollViewer>
 </Page>
