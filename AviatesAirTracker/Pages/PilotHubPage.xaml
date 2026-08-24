@@ -228,7 +228,109 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Column 1 (Last Landing Analysis) is added by Task 3. -->
+                <!-- Last Landing Analysis card. app.css's .panel-card: surface bg, hairline
+                     border, r-xl radius. The score ring reuses DashboardPage.xaml.cs's
+                     BuildRingArc (made internal for this) but with THIS panel's own numbers;
+                     app.css's ".score-ring" svg is 160x160, r=65, stroke-width=14, which is a
+                     different circle from Dashboard's own rank ring (r=45, stroke-width=8). The
+                     ring Stroke color is grade-dependent (computed per-landing in code-behind),
+                     unlike Dashboard's single static accent-blue ring. Empty-state vs content
+                     visibility is toggled in code-behind after RefreshAsync(), same pattern as
+                     DashboardPage.xaml.cs's EmptyFlightsText/FlightsList pair. -->
+                <Border Grid.Column="1" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                        CornerRadius="20" Padding="20">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Last Landing Analysis"
+                                       FontFamily="{StaticResource DisplayFontBold}" FontSize="15" FontWeight="Bold"
+                                       Foreground="#F1F5F9" VerticalAlignment="Center" />
+                            <!-- Inert "View all" link; no /landings native page exists yet,
+                                 same inert-CTA treatment Dashboard used for "View Flights". -->
+                            <TextBlock Grid.Column="1" Text="View all" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="#4D9BEC" VerticalAlignment="Center" />
+                        </Grid>
+
+                        <!-- Empty state: shown when !VM.HasLandings. -->
+                        <TextBlock x:Name="LastLandingEmptyText"
+                                   Text="Complete your first flight to see landing stats here."
+                                   FontSize="13" Foreground="#64748B" TextWrapping="Wrap"
+                                   HorizontalAlignment="Center" TextAlignment="Center"
+                                   Padding="0,48" />
+
+                        <StackPanel x:Name="LastLandingContent" Visibility="Collapsed">
+
+                            <!-- Score ring: static muted-track Ellipse + a Path (LandingRingArc)
+                                 whose Data/Stroke are computed once in code-behind. Grid is
+                                 160x160 (matching app.css's svg viewBox exactly) so BuildRingArc's
+                                 centerX/centerY of 80,80 line up with its own cx/cy=80 without
+                                 any offset math. -->
+                            <Grid Width="160" Height="160" Margin="0,0,0,20" HorizontalAlignment="Center">
+                                <Ellipse Width="130" Height="130" StrokeThickness="14" Stroke="#121A2A" />
+                                <Path x:Name="LandingRingArc" StrokeThickness="14"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock x:Name="LandingScoreText"
+                                               FontFamily="{StaticResource DisplayFontBold}" FontSize="36"
+                                               FontWeight="ExtraBold" Foreground="#F1F5F9"
+                                               HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="LandingGradeText" FontSize="13" FontWeight="Bold"
+                                               Foreground="#64748B" HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- 2x2 readout grid: V/S, Pitch, Crosswind, Runway. -->
+                            <Grid ColumnSpacing="12" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0" Grid.Column="0" Background="#121A2A" CornerRadius="12" Padding="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="V/S" FontSize="10" FontWeight="Bold" Foreground="#64748B" />
+                                        <TextBlock x:Name="LandingVsText"
+                                                   FontFamily="{StaticResource DisplayFontBold}" FontSize="15" FontWeight="Bold" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Grid.Row="0" Grid.Column="1" Background="#121A2A" CornerRadius="12" Padding="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="Pitch" FontSize="10" FontWeight="Bold" Foreground="#64748B" />
+                                        <TextBlock x:Name="LandingPitchText"
+                                                   FontFamily="{StaticResource DisplayFontBold}" FontSize="15" FontWeight="Bold"
+                                                   Foreground="#4D9BEC" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Grid.Row="1" Grid.Column="0" Background="#121A2A" CornerRadius="12" Padding="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="Crosswind" FontSize="10" FontWeight="Bold" Foreground="#64748B" />
+                                        <TextBlock x:Name="LandingCrosswindText"
+                                                   FontFamily="{StaticResource DisplayFontBold}" FontSize="15" FontWeight="Bold"
+                                                   Foreground="#F1F5F9" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Grid.Row="1" Grid.Column="1" Background="#121A2A" CornerRadius="12" Padding="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="Runway" FontSize="10" FontWeight="Bold" Foreground="#64748B" />
+                                        <TextBlock x:Name="LandingRunwayText"
+                                                   FontFamily="{StaticResource DisplayFontBold}" FontSize="15" FontWeight="Bold"
+                                                   Foreground="#F1F5F9" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
 
             </Grid>
 

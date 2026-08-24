@@ -177,8 +177,12 @@ public sealed partial class DashboardPage : Page
     /// land on 12 o'clock and coincide, which makes a single ArcSegment degenerate to an
     /// invisible zero-length arc instead of a visually-complete ring; the sub-degree gap this
     /// leaves is not visible at this stroke width.
+    ///
+    /// internal (not private) because PilotHubPage.xaml.cs's Last Landing Analysis score ring
+    /// (Phase 3 Task 3) reuses this exact method with its own radius/stroke-width rather than
+    /// duplicating the arc math -- same assembly, same Pages namespace, no other blocker.
     /// </summary>
-    private static PathGeometry? BuildRingArc(double centerX, double centerY, double radius, double percent)
+    internal static PathGeometry? BuildRingArc(double centerX, double centerY, double radius, double percent)
     {
         var clampedPercent = Math.Clamp(percent, 0.0, 99.9);
         if (clampedPercent <= 0.0) return null;
