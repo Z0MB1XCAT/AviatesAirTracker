@@ -1,4 +1,6 @@
+using AviatesAirTracker.Core.Analytics;
 using AviatesAirTracker.Core.Data;
+using AviatesAirTracker.Dialogs;
 using AviatesAirTracker.Models;
 using AviatesAirTracker.Navigation;
 using AviatesAirTracker.Platform;
@@ -32,6 +34,8 @@ public sealed partial class ShellWindow : Window
     private readonly FlightSessionManager _sessionManager;
     private readonly MessagingService _messagingService;
     private readonly IFlightRepository _flightRepository;
+    private readonly ILandingRepository _landingRepository;
+    private readonly AlertService _alertService;
 
     // Named references into Nav.MenuItems for the four items that carry a live badge.
     // BuildNavItems assigns these by matching NavDestination.Tag; every handler below
@@ -69,7 +73,9 @@ public sealed partial class ShellWindow : Window
         SettingsService settings,
         FlightSessionManager sessionManager,
         MessagingService messagingService,
-        IFlightRepository flightRepository)
+        IFlightRepository flightRepository,
+        ILandingRepository landingRepository,
+        AlertService alertService)
     {
         InitializeComponent();
 
@@ -79,6 +85,8 @@ public sealed partial class ShellWindow : Window
         _sessionManager = sessionManager;
         _messagingService = messagingService;
         _flightRepository = flightRepository;
+        _landingRepository = landingRepository;
+        _alertService = alertService;
 
         // The second argument is not optional in practice. OnSubclassProc is a reverse
         // P/Invoke from comctl32: an exception escaping the callback unwinds across the
@@ -104,6 +112,7 @@ public sealed partial class ShellWindow : Window
         // moment a flight completes (when it is, by definition, newly unsynced) rather than
         // when the background submit actually finishes.
         _sessionManager.FlightCompleted += OnFlightCompleted;
+        _alertService.LandingResultReady += OnLandingResultReady;
         _ = RefreshFlightsBadgeAsync();
 
         Activated += OnFirstActivated;
@@ -484,6 +493,50 @@ public sealed partial class ShellWindow : Window
         }
     }
 
+    /// <summary>
+    /// Native replacement for LandingResultModal.razor's global popup: fires after every
+    /// landing, on the desktop shell rather than a page, so it has to live here. Context
+    /// lookups (flight record, landing history for personal-best/ranking) are best-effort —
+    /// per the original modal's own comment, a failure here must never block the popup, so
+    /// on any exception we log and fall through with flight: null / history: null rather
+    /// than letting the pilot miss their landing report entirely.
+    /// </summary>
+    private async void OnLandingResultReady(object? sender, LandingResult result)
+    {
+        FlightRecord? flight = null;
+        List<LandingResult>? history = null;
+        try
+        {
+            history = await _landingRepository.GetAllAsync();
+            if (Guid.TryParse(result.FlightId, out var fid))
+                flight = (await _flightRepository.GetAllAsync()).FirstOrDefault(f => f.Id == fid);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Shell] Landing report context lookup failed");
+        }
+
+        var report = LandingReportBuilder.Build(result, flight, history);
+        var dialog = LandingResultDialog.Build(RootGrid.XamlRoot, report);
+
+        // Auto-dismiss after 60s, matching the original modal. The timer callback runs on a
+        // thread-pool thread, so Hide() -- a UI-tree operation -- must be marshaled back onto
+        // the window's dispatcher via TryEnqueue; calling it directly from the timer thread
+        // would throw (WinUI UI objects are single-threaded-apartment-affine). Hide() is safe
+        // to call while ShowAsync() is still awaiting -- it forces that await to complete with
+        // ContentDialogResult.None, same as the user clicking the close button. If the dialog
+        // is already closed by the time the timer fires (the pilot dismissed it manually), the
+        // `using` below has already disposed the timer, so this path only runs when the dialog
+        // is still open.
+        using var autoClose = new System.Threading.Timer(
+            _ => DispatcherQueue.TryEnqueue(() => dialog.Hide()),
+            null,
+            TimeSpan.FromSeconds(60),
+            System.Threading.Timeout.InfiniteTimeSpan);
+
+        await dialog.ShowAsync();
+    }
+
     private void OnNavSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         if (args.SelectedItem is not NavigationViewItem { Tag: string tag }) return;
@@ -539,6 +592,7 @@ public sealed partial class ShellWindow : Window
         _sessionManager.SessionStateChanged -= OnSessionStateChanged;
         _messagingService.UnreadCountChanged -= OnUnreadCountChanged;
         _sessionManager.FlightCompleted -= OnFlightCompleted;
+        _alertService.LandingResultReady -= OnLandingResultReady;
 
         _subclass.Detach();
         (Application.Current as App)?.Shutdown();

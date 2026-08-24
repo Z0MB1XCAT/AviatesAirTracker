@@ -286,3 +286,80 @@ git commit -m "feat(landing-dialog): wire the native dialog to AlertService.Land
   skipped silently
 - `LandingResultModal.razor`, `MainLayout.razor`, and `LandingAnalysisViewModel` all untouched
 - No `/landings` page built; Pilot Hub's two dead links remain dead, explicitly out of scope
+
+---
+
+## Task 3 results (2026-08-24)
+
+Implemented against `fdf0b5fa37b054855fddfd1b85636d734bd04d89` ("fix(landing-dialog): correct
+ring size and header sub-line color"), confirmed via `git rev-parse HEAD` before any edits. Only
+`AviatesAirTracker/ShellWindow.xaml.cs` was modified — `LandingResultModal.razor`,
+`MainLayout.razor`, and `LandingAnalysisViewModel` are untouched (`git status --short` confirms a
+single changed file).
+
+- [x] **Step 1: New constructor dependencies** — `ILandingRepository landingRepository` and
+  `AlertService alertService` added to `ShellWindow`'s constructor, stored as
+  `_landingRepository`/`_alertService`, same pattern as every other injected field. Both types
+  were already `AddSingleton<>` in `App.xaml.cs` (lines 359/370), so no DI registration changes
+  were needed.
+- [x] **Step 2: Subscribe and handle** — `_alertService.LandingResultReady += OnLandingResultReady;`
+  added alongside the existing subscriptions in the constructor, and unsubscribed in `OnClosed`
+  (the plan's snippet didn't show this but every other event in the constructor is unsubscribed
+  there, so `OnLandingResultReady` follows the same pattern for consistency). `OnLandingResultReady`
+  matches the plan's snippet closely, with types verified directly against source rather than
+  trusted: `LandingResult` is `AviatesAirTracker.Models.LandingResult` (`FlightId` is `string`);
+  `FlightRecord.Id` is `Guid`; `ILandingRepository.GetAllAsync()` returns `Task<List<LandingResult>>`;
+  `LandingReportBuilder.Build(LandingResult r, FlightRecord? flight = null,
+  IReadOnlyList<LandingResult>? history = null)` — parameter order matches the plan's
+  `Build(result, flight, history)` call exactly. The try/catch around both repository calls logs
+  a warning and falls through with `flight: null`/`history: null` on failure, matching the
+  original modal's "never block the popup" behavior.
+- [x] **Step 3: 60-second auto-dismiss** — implemented per the plan's sketch, using
+  `System.Threading.Timer` (fully qualified, matching the existing convention in
+  `MessagingService.cs`/`OtherPilotsService.cs`) with the callback marshaling `dialog.Hide()`
+  through `DispatcherQueue.TryEnqueue`. **Verified rather than assumed correct**: WinUI's
+  `ContentDialog.Hide()` is documented to be safe to call while `ShowAsync()` is still pending —
+  it forces that await to complete with `ContentDialogResult.None`, the same path a user clicking
+  the close button takes. The timer callback runs on a thread-pool thread, so `Hide()` (a UI-tree
+  operation) cannot be called directly from it — `DispatcherQueue.TryEnqueue` is required and is
+  available because `ShellWindow` is a `Window`. The `using var autoClose` disposes the timer the
+  moment `ShowAsync()` returns for any reason (user closed it manually, or the timer already fired),
+  so there's no risk of a stray `Hide()` firing against an already-dismissed dialog racing with a
+  new one. No doubts remain about this implementation's correctness — it compiled cleanly and the
+  pattern is the standard documented one for WinUI/UWP auto-dismissing `ContentDialog`s.
+- [x] **Step 4: Build and startup check**
+  - `dotnet build AviatesAirTracker.sln -c Debug`: **Build succeeded, 0 errors.** 15 warnings, all
+    pre-existing (unused fields in `LandingAnalyzer`/`FlightSessionManager`/`FlightPhaseDetector`,
+    `MVVMTK0034` in `MainViewModel`) — none introduced by this change.
+  - `dotnet test tests/AviatesAirTracker.Tests/AviatesAirTracker.Tests.csproj`: **39/39 passed**,
+    0 failed, 0 skipped. No new tests added, per the plan.
+  - Startup check: confirmed no MSFS process via `tasklist` first. Launched the built
+    `AviatesAirTracker.exe` directly (not via `build.ps1 -Run`), waited 8s, and inspected the
+    Serilog output at `%AppData%\AviatesAirTracker\logs\aviates_20260824_001.log`. Found exactly
+    one `[Shell]`-tagged line (`[Shell] Flights nav badge: AttentionDotInfoBadgeStyle`), which only
+    logs from inside `ShellWindow`'s constructor after all fields — including the two new ones —
+    are assigned, so its presence is direct evidence the DI container resolved
+    `ILandingRepository`/`AlertService` and constructed `ShellWindow` successfully. No unhandled
+    exceptions and no other `[Shell]` errors. The only exceptions in the log window are repeated
+    `SharpDX.DirectInput` `DIERR_DEVICENOTREG` errors from `PttInputService`'s joystick poll loop —
+    pre-existing, unrelated to this change (this sandbox has no joystick hardware), and not
+    `[Shell]`-tagged. Closed the app via `CloseMainWindow()`; the log shows a full graceful
+    shutdown sequence ("All services disposed in 20 ms — exiting") and the process was confirmed
+    gone from `tasklist` afterward. No `request_access`/screenshot/computer-use verification was
+    attempted, per the instructions.
+  - **Explicitly deferred, not skipped**: actually triggering `LandingResultReady` via a real
+    landing (needs MSFS running plus a live flight to touchdown) was not attempted. The app also
+    ships a `--debug-landing` dev flag (`App.xaml.cs`, DEBUG-only) that fires a synthetic
+    `LandingResult` 12s after startup specifically for testing this dialog without MSFS — noted
+    here for whoever picks up the deferred check next, but not used in this task since verifying
+    the dialog's actual on-screen appearance still requires screenshot/computer-use, which this
+    task's instructions explicitly excluded. **Deferred — needs a live MSFS session (or a
+    `--debug-landing` run with screenshot verification enabled), next time either is available.**
+- [x] **Step 5: Record results and commit** — this section, plus the commit below.
+
+**Definition-of-done check**: build clean and full suite passing (yes); `ShellWindow` starts
+cleanly with both new constructor dependencies resolved (yes, evidenced by the startup log); the
+dialog is code-complete (yes, Tasks 1-2 plus this task's wiring); real-landing functional
+confirmation explicitly deferred, not skipped (yes, see above); `LandingResultModal.razor`,
+`MainLayout.razor`, `LandingAnalysisViewModel` untouched (yes, confirmed via `git status`); no
+`/landings` page built (yes, out of scope, not touched).
