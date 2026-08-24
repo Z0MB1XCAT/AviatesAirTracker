@@ -34,39 +34,76 @@
             <StackPanel Grid.Column="0" Spacing="20">
 
                 <!-- ── Hero card ── -->
-                <Border CornerRadius="24" Padding="40,36">
-                    <Border.Background>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                            <GradientStop Color="#1B3F8B" Offset="0.0" />
-                            <GradientStop Color="#0F172A" Offset="0.48" />
-                            <GradientStop Color="#1A1040" Offset="1.0" />
-                        </LinearGradientBrush>
-                    </Border.Background>
-
-                    <StackPanel MaxWidth="520" Spacing="12">
-                        <Border Background="#1AFFFFFF" BorderBrush="#24FFFFFF" BorderThickness="1"
-                                CornerRadius="999" Padding="12,4" HorizontalAlignment="Left">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Ellipse Width="5" Height="5" Fill="#06B6D4" VerticalAlignment="Center" />
-                                <TextBlock Text="Virtual Airline Operations" FontSize="10"
-                                           FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" />
-                            </StackPanel>
+                <!-- Layered like app.css's .hero-card: base diagonal gradient, then hero.webp at
+                     90% opacity (ImageBrush, not Image, so AlignmentY="Top" can reproduce
+                     object-position: center top), then a left-to-right scrim so the text stays
+                     legible over the photo, then content on top. The outer Border clips every
+                     layer to its CornerRadius; only the content StackPanel keeps the original
+                     40,36 padding, so the photo/scrim reach edge to edge. hero.webp's ImageSource
+                     is set in code-behind (DashboardPage.xaml.cs's constructor) since it comes
+                     from a file path built from AppContext.BaseDirectory, not a packaged asset. -->
+                <Border CornerRadius="24" MinHeight="196">
+                    <Grid>
+                        <Border>
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#1B3F8B" Offset="0.0" />
+                                    <GradientStop Color="#0F172A" Offset="0.48" />
+                                    <GradientStop Color="#1A1040" Offset="1.0" />
+                                </LinearGradientBrush>
+                            </Border.Background>
                         </Border>
 
-                        <TextBlock Text="Fly with Precision.&#x0a;Build Your Career."
-                                   FontFamily="{StaticResource DisplayFontBold}"
-                                   FontSize="32" Foreground="#FFFFFF" TextWrapping="Wrap"
-                                   LineHeight="37" />
+                        <Border Opacity="0.9">
+                            <Border.Background>
+                                <ImageBrush x:Name="HeroPhotoBrush" Stretch="UniformToFill" AlignmentY="Top" />
+                            </Border.Background>
+                        </Border>
 
-                        <TextBlock
-                            Text="AviatesAir connects pilots, routes, and fleet across mainline, cargo, and regional operations. Your next flight is waiting."
-                            FontSize="14" Foreground="#94FFFFFF" TextWrapping="Wrap" MaxWidth="400" LineHeight="22" />
+                        <Border>
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#0B1628" Offset="0.0" />
+                                    <GradientStop Color="#0B1628" Offset="0.30" />
+                                    <GradientStop Color="#B80B1628" Offset="0.55" />
+                                    <GradientStop Color="#400B1628" Offset="1.0" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
 
-                        <Button Background="#FFFFFF" Foreground="#0F172A" CornerRadius="999"
-                                Padding="22,11" HorizontalAlignment="Left" Margin="0,10,0,0">
-                            <TextBlock Text="View Flights" FontSize="13.5" FontWeight="Bold" />
-                        </Button>
-                    </StackPanel>
+                        <StackPanel MaxWidth="520" Spacing="12" Padding="40,36"
+                                    VerticalAlignment="Top" HorizontalAlignment="Left">
+                            <Border Background="#1AFFFFFF" BorderBrush="#24FFFFFF" BorderThickness="1"
+                                    CornerRadius="999" Padding="12,4" HorizontalAlignment="Left">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Ellipse Width="5" Height="5" Fill="#06B6D4" VerticalAlignment="Center" />
+                                    <TextBlock Text="Virtual Airline Operations" FontSize="10"
+                                               FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="Fly with Precision.&#x0a;Build Your Career."
+                                       FontFamily="{StaticResource DisplayFontBold}"
+                                       FontSize="32" Foreground="#FFFFFF" TextWrapping="Wrap"
+                                       LineHeight="37" />
+
+                            <TextBlock
+                                Text="AviatesAir connects pilots, routes, and fleet across mainline, cargo, and regional operations. Your next flight is waiting."
+                                FontSize="14" Foreground="#94FFFFFF" TextWrapping="Wrap" MaxWidth="400" LineHeight="22" />
+
+                            <!-- Plain Border, not a Button: this project avoids unstyled WinUI
+                                 control chrome wherever a Border achieves the same look with
+                                 certainty (no <Style> means no way to reliably retemplate
+                                 Button's own default corner/padding behavior); same reasoning
+                                 as the eyebrow badge two elements up, which already renders
+                                 correctly with this exact technique. Inert, matching the current
+                                 Blazor page: no destination to navigate to yet. -->
+                            <Border Background="#FFFFFF" CornerRadius="999" Padding="22,11"
+                                    HorizontalAlignment="Left" Margin="0,10,0,0">
+                                <TextBlock Text="View Flights" FontSize="13.5" FontWeight="Bold" Foreground="#0F172A" />
+                            </Border>
+                        </StackPanel>
+                    </Grid>
                 </Border>
 
                 <!-- ── Stat strip ── -->
@@ -80,7 +117,16 @@
                     <Border Grid.Column="0" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
                             CornerRadius="20" Padding="20">
                         <StackPanel Orientation="Horizontal" Spacing="16">
-                            <Border Width="44" Height="44" CornerRadius="12" Background="#1F4D9BEC" />
+                            <Border Width="44" Height="44" CornerRadius="12" Background="#1F4D9BEC">
+                                <!-- Dashboard.razor's "blue" stat-icon: the same Lucide send-glyph path,
+                                     reproduced verbatim since WinUI's Path.Data mini-language accepts the
+                                     same M/L/z commands as SVG path data. -->
+                                <Viewbox Width="20" Height="20">
+                                    <Path Data="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"
+                                          Stroke="#4D9BEC" StrokeThickness="2"
+                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                </Viewbox>
+                            </Border>
                             <StackPanel>
                                 <TextBlock Text="FLIGHTS COMPLETED" FontSize="11" FontWeight="SemiBold"
                                            Foreground="#64748B" />
@@ -95,7 +141,18 @@
                     <Border Grid.Column="1" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
                             CornerRadius="20" Padding="20">
                         <StackPanel Orientation="Horizontal" Spacing="16">
-                            <Border Width="44" Height="44" CornerRadius="12" Background="#1A06B6D4" />
+                            <Border Width="44" Height="44" CornerRadius="12" Background="#1A06B6D4">
+                                <!-- Dashboard.razor's "cyan" stat-icon: a clock (circle + hands), same
+                                     coordinates as its SVG circle/polyline. -->
+                                <Viewbox Width="20" Height="20">
+                                    <Grid Width="24" Height="24">
+                                        <Ellipse Width="20" Height="20" Stroke="#06B6D4" StrokeThickness="2"
+                                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Polyline Points="12,6 12,12 16,14" Stroke="#06B6D4" StrokeThickness="2"
+                                                  StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    </Grid>
+                                </Viewbox>
+                            </Border>
                             <StackPanel>
                                 <TextBlock Text="AIR HOURS" FontSize="11" FontWeight="SemiBold"
                                            Foreground="#64748B" />
@@ -110,7 +167,13 @@
                     <Border Grid.Column="2" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
                             CornerRadius="20" Padding="20">
                         <StackPanel Orientation="Horizontal" Spacing="16">
-                            <Border Width="44" Height="44" CornerRadius="12" Background="#1F3EC7AC" />
+                            <Border Width="44" Height="44" CornerRadius="12" Background="#1F3EC7AC">
+                                <!-- Dashboard.razor's "green" stat-icon: the same activity-zigzag polyline. -->
+                                <Viewbox Width="20" Height="20">
+                                    <Polyline Points="22,12 18,12 15,21 9,3 6,12 2,12" Stroke="#3EC7AC" StrokeThickness="2"
+                                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                </Viewbox>
+                            </Border>
                             <StackPanel>
                                 <TextBlock Text="AVG LANDING" FontSize="11" FontWeight="SemiBold"
                                            Foreground="#64748B" />

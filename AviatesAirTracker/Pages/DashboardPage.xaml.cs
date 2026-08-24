@@ -3,6 +3,7 @@ using AviatesAirTracker.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Shapes;
 using System;
 using System.Collections.ObjectModel;
@@ -94,6 +95,15 @@ public sealed partial class DashboardPage : Page
         FlightsList.ItemsSource = RecentFlightRows;
         ActivityChart.ItemsSource = MonthlyActivityRows;
 
+        // wwwroot ships as loose Content next to the exe (BlazorHostServer.cs resolves it the
+        // same way), not as a packaged ms-appx:// asset, so the hero photo is loaded from an
+        // absolute file path rather than a XAML-resolvable URI.
+        var heroPhotoPath = System.IO.Path.Combine(AppContext.BaseDirectory, "wwwroot", "images", "hero.webp");
+        if (System.IO.File.Exists(heroPhotoPath))
+        {
+            HeroPhotoBrush.ImageSource = new BitmapImage(new Uri(heroPhotoPath));
+        }
+
         Loaded += async (_, _) =>
         {
             await _viewModel.RefreshAsync();
@@ -109,10 +119,19 @@ public sealed partial class DashboardPage : Page
         RecentFlightRows.Clear();
         foreach (var f in _viewModel.RecentFlights)
         {
+            // A flight recorded while MSFS wasn't running (SimConnectStub's fallback mode) has
+            // no real ICAO/aircraft/pilot data to report -- rendering "→" with nothing around it
+            // reads as a broken card, not an honestly-sparse one, so blank fields get named
+            // explicitly instead.
+            var departure = string.IsNullOrWhiteSpace(f.DepartureICAO) ? "—" : f.DepartureICAO;
+            var arrival = string.IsNullOrWhiteSpace(f.ArrivalICAO) ? "—" : f.ArrivalICAO;
+            var aircraft = string.IsNullOrWhiteSpace(f.AircraftType) ? "Aircraft unknown" : f.AircraftType;
+            var pilot = string.IsNullOrWhiteSpace(f.PilotName) ? "Unknown pilot" : f.PilotName;
+
             RecentFlightRows.Add(new FlightDisplayRow(
-                $"{f.DepartureICAO} → {f.ArrivalICAO}",
-                f.AircraftType,
-                f.PilotName,
+                $"{departure} → {arrival}",
+                aircraft,
+                pilot,
                 f.CreatedAt.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)));
         }
 
