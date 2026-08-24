@@ -155,7 +155,197 @@
                 </Border>
             </Grid>
 
-            <!-- Task 3 adds the flight table (and pending-review table) below this point. -->
+            <!-- ── Flight Logbook table ──
+                 Flights.razor's .data-table-wrap/.data-table, reproduced as a Grid-per-row
+                 ItemsControl since WinUI has no table equivalent; same technique
+                 PilotHubPage.xaml's Landing History table already established (header Grid and
+                 each row's Grid share identical star-weighted ColumnDefinitions so the two line
+                 up). Filter/Export buttons and the per-row view-details/delete/force-remove
+                 icons are visual-only in this task (Task 4 wires their Tapped handlers); Task 3
+                 only makes them exist and show/hide correctly per row. -->
+            <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
+                <StackPanel>
+                    <!-- Header strip: title + inert Filter/Export -->
+                    <Grid Padding="20,16" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.ColumnSpan="2" BorderBrush="#14FFFFFF" BorderThickness="0,0,0,1"
+                                VerticalAlignment="Bottom" />
+                        <TextBlock Grid.Column="0" Text="Flight Logbook" FontFamily="{StaticResource DisplayFontBold}"
+                                   FontSize="14" FontWeight="Bold" Foreground="#F1F5F9" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <Border Background="#121A2A" BorderBrush="#1FFFFFFF" BorderThickness="1"
+                                    CornerRadius="8" Padding="12,7">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Viewbox Width="13" Height="13">
+                                        <Path Data="M3 6h18M6 12h12M9 18h6" Stroke="#CBD5E1" StrokeThickness="2"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    </Viewbox>
+                                    <TextBlock Text="Filter" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                                </StackPanel>
+                            </Border>
+                            <Border Background="#4D9BEC" CornerRadius="8" Padding="12,7">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Viewbox Width="13" Height="13">
+                                        <Path Data="M12 5v14M5 12l7 7 7-7" Stroke="#FFFFFF" StrokeThickness="2"
+                                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    </Viewbox>
+                                    <TextBlock Text="Export" FontSize="12" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Empty state: shown when the active tab's filtered flight list is empty.
+                         Exact copy from Flights.razor's "No flights yet" panel. -->
+                    <StackPanel x:Name="EmptyStateText" Visibility="Collapsed" Padding="24,64" Spacing="16">
+                        <Viewbox Width="40" Height="40" Opacity="0.4">
+                            <Path Data="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z" Stroke="#64748B"
+                                  StrokeThickness="1.5" StrokeLineJoin="Round" StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" />
+                        </Viewbox>
+                        <StackPanel Spacing="6" HorizontalAlignment="Center">
+                            <TextBlock Text="No flights yet" FontSize="14" FontWeight="SemiBold"
+                                       Foreground="#CBD5E1" HorizontalAlignment="Center" />
+                            <TextBlock Text="Connect MSFS and start your engines to begin recording."
+                                       FontSize="12.5" Foreground="#64748B" HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel x:Name="FlightsTableContent">
+                        <!-- Header row -->
+                        <Grid Padding="20,12" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.3*" />
+                                <ColumnDefinition Width="1.5*" />
+                                <ColumnDefinition Width="1*" />
+                                <ColumnDefinition Width="0.8*" />
+                                <ColumnDefinition Width="0.9*" />
+                                <ColumnDefinition Width="1*" />
+                                <ColumnDefinition Width="0.8*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.ColumnSpan="7" BorderBrush="#14FFFFFF" BorderThickness="0,0,0,1"
+                                    VerticalAlignment="Bottom" />
+                            <TextBlock Grid.Column="0" Text="FLIGHT" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="1" Text="ROUTE" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="2" Text="AIRCRAFT" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="3" Text="DURATION" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="4" Text="LANDING" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="5" Text="STATUS" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="6" Text="ACTION" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                        </Grid>
+
+                        <ItemsControl x:Name="FlightsList">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="20,13" ColumnSpacing="12" Opacity="{Binding RowOpacity}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.3*" />
+                                            <ColumnDefinition Width="1.5*" />
+                                            <ColumnDefinition Width="1*" />
+                                            <ColumnDefinition Width="0.8*" />
+                                            <ColumnDefinition Width="0.9*" />
+                                            <ColumnDefinition Width="1*" />
+                                            <ColumnDefinition Width="0.8*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.ColumnSpan="7" BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1"
+                                                VerticalAlignment="Bottom" />
+
+                                        <!-- Flight -->
+                                        <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding FlightNumber}" FontFamily="{StaticResource DisplayFontBold}"
+                                                       FontSize="13" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                            <TextBlock Text="{Binding DateText}" FontSize="11" Foreground="#64748B" />
+                                        </StackPanel>
+
+                                        <!-- Route: two small flag icons + mono route label -->
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                                                    VerticalAlignment="Center" ToolTipService.ToolTip="{Binding RouteTooltip}">
+                                            <Image Source="{Binding DepartureFlagSource}" Width="18" Height="13" Stretch="UniformToFill" />
+                                            <Image Source="{Binding ArrivalFlagSource}" Width="18" Height="13" Stretch="UniformToFill" />
+                                            <TextBlock Text="{Binding RouteLabel}" FontFamily="{StaticResource DisplayFontBold}"
+                                                       FontSize="12" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                        </StackPanel>
+
+                                        <TextBlock Grid.Column="2" Text="{Binding AircraftType}" FontSize="13"
+                                                   Foreground="#CBD5E1" VerticalAlignment="Center" />
+
+                                        <TextBlock Grid.Column="3" Text="{Binding DurationText}"
+                                                   FontFamily="{StaticResource DisplayFontBold}" FontSize="12"
+                                                   Foreground="#CBD5E1" VerticalAlignment="Center" />
+
+                                        <!-- Landing: grade chip, or plain muted "—" when no landing (see
+                                             FlightLogRow.GradeChipText's doc comment) -->
+                                        <Border Grid.Column="4" Background="{Binding GradeChipBackground}"
+                                                CornerRadius="6" Padding="8,3" HorizontalAlignment="Left"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding GradeChipText}" FontSize="11" FontWeight="Bold"
+                                                       Foreground="{Binding GradeChipColor}" />
+                                        </Border>
+
+                                        <!-- Status chip -->
+                                        <Border Grid.Column="5" Background="{Binding StatusChipBackground}"
+                                                CornerRadius="999" Padding="9,4" HorizontalAlignment="Left"
+                                                VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Ellipse Width="6" Height="6" Fill="{Binding StatusChipColor}" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding StatusLabel}" FontSize="11" FontWeight="SemiBold"
+                                                           Foreground="{Binding StatusChipColor}" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Action: view-details chevron (always shown, inert), delete
+                                             (Status != InProgress and no open deletion request), and
+                                             force-remove (Status == InProgress); all icons visual-only
+                                             here, Task 4 wires their Tapped handlers. -->
+                                        <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                            <Border Width="26" Height="26" CornerRadius="999" Background="#121A2A"
+                                                    BorderBrush="#1FFFFFFF" BorderThickness="1">
+                                                <Viewbox Width="11" Height="11">
+                                                    <Path Data="M9 18l6-6-6-6" Stroke="#CBD5E1" StrokeThickness="2.5"
+                                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                </Viewbox>
+                                            </Border>
+                                            <Border Width="26" Height="26" CornerRadius="999" Background="#121A2A"
+                                                    BorderBrush="#4DEF4444" BorderThickness="1"
+                                                    Visibility="{Binding ShowDeleteAction}">
+                                                <Viewbox Width="11" Height="11">
+                                                    <Path Data="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"
+                                                          Stroke="#EF4444" StrokeThickness="2.5"
+                                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                </Viewbox>
+                                            </Border>
+                                            <Border Width="26" Height="26" CornerRadius="999" Background="#121A2A"
+                                                    BorderBrush="#4DEF4444" BorderThickness="1"
+                                                    Visibility="{Binding ShowForceRemoveAction}">
+                                                <Viewbox Width="11" Height="11">
+                                                    <Path Data="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"
+                                                          Stroke="#EF4444" StrokeThickness="2.5"
+                                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                </Viewbox>
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
 
         </StackPanel>
     </ScrollViewer>
