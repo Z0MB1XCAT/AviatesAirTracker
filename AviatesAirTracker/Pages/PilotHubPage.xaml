@@ -126,6 +126,112 @@
                 </Border>
             </Grid>
 
+            <!-- ── Career detail row: Rank Progression / Last Landing Analysis ──
+                 Mirrors PilotHub.razor's grid-template-columns:1fr 1fr wrapper around both
+                 cards. This task (Task 2) only builds the Rank Progression card in Column 0;
+                 Column 1 (Last Landing Analysis) is added by Task 3 into this same Grid. -->
+            <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Rank Progression card. app.css's .rank-card diagonal gradient background;
+                     the ::after radial-glow pseudo-element is skipped as decorative, same call
+                     Dashboard made for its own hero/rank-ring card glows. The progress
+                     indicator here is a plain width-animated BAR (two nested Borders), not the
+                     SVG-arc ring Dashboard's own rank indicator uses; PilotHub.razor really
+                     does use a different widget for this. RankProgressFill's Width is computed
+                     once in code-behind after RefreshAsync() completes; RankProgressTrackWidth
+                     there must be kept equal to this Border's own fixed Width below. -->
+                <Border Grid.Column="0" CornerRadius="20" Padding="20">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#0F172A" Offset="0.0" />
+                            <GradientStop Color="#1E3A8A" Offset="1.0" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <StackPanel>
+                        <Border Background="#1AFFFFFF" BorderBrush="#26FFFFFF" BorderThickness="1"
+                                CornerRadius="999" Padding="12,5" HorizontalAlignment="Left" Margin="0,0,0,16">
+                            <TextBlock Text="🪖 RANK STATUS" FontSize="11" FontWeight="Bold" Foreground="#D9FFFFFF" />
+                        </Border>
+
+                        <TextBlock Text="{Binding PilotRank, Mode=OneWay}"
+                                   FontFamily="{StaticResource DisplayFontBold}" FontSize="22" FontWeight="ExtraBold"
+                                   Foreground="#FFFFFF" Margin="0,0,0,4" />
+
+                        <!-- "{pct}% progress toward {next}"; set once in code-behind after
+                             RefreshAsync() since it combines two ViewModel values into one
+                             formatted sentence (same reasoning as RankProgressFill.Width below). -->
+                        <TextBlock x:Name="RankSubText" FontSize="13" Foreground="#8CFFFFFF"
+                                   TextWrapping="Wrap" Margin="0,0,0,20" />
+
+                        <Border x:Name="RankProgressTrack" Width="600" Height="8" CornerRadius="999"
+                                Background="#1FFFFFFF" Margin="0,0,0,8">
+                            <Border x:Name="RankProgressFill" Width="0" CornerRadius="999" HorizontalAlignment="Left">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                        <GradientStop Color="#4D9BEC" Offset="0.0" />
+                                        <GradientStop Color="#A78BFA" Offset="1.0" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
+                        </Border>
+
+                        <Grid Width="600" HorizontalAlignment="Left" Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding PilotRank, Mode=OneWay}"
+                                       FontSize="11" Foreground="#73FFFFFF" HorizontalAlignment="Left" />
+                            <TextBlock Grid.Column="1" Text="{Binding NextRank, Mode=OneWay}"
+                                       FontSize="11" Foreground="#73FFFFFF" HorizontalAlignment="Right" />
+                        </Grid>
+
+                        <!-- Mini-stat row: duplicates TotalFlights/BlockHours/AvgLandingScore
+                             from the stat strip above, same as the current Blazor page. -->
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                                <TextBlock Text="{Binding TotalFlights, Mode=OneWay}"
+                                           FontFamily="{StaticResource DisplayFontBold}" FontSize="18"
+                                           FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" />
+                                <TextBlock Text="FLIGHTS" FontSize="10" FontWeight="SemiBold"
+                                           Foreground="#73FFFFFF" HorizontalAlignment="Center" />
+                            </StackPanel>
+
+                            <Border Grid.Column="1" BorderBrush="#1AFFFFFF" BorderThickness="1,0,1,0">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="{Binding BlockHours, Mode=OneWay}"
+                                               FontFamily="{StaticResource DisplayFontBold}" FontSize="18"
+                                               FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" />
+                                    <TextBlock Text="HOURS" FontSize="10" FontWeight="SemiBold"
+                                               Foreground="#73FFFFFF" HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+
+                            <StackPanel Grid.Column="2" HorizontalAlignment="Center">
+                                <TextBlock Text="{Binding AvgLandingScore, Mode=OneWay}"
+                                           FontFamily="{StaticResource DisplayFontBold}" FontSize="18"
+                                           FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" />
+                                <TextBlock Text="AVG SCORE" FontSize="10" FontWeight="SemiBold"
+                                           Foreground="#73FFFFFF" HorizontalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Column 1 (Last Landing Analysis) is added by Task 3. -->
+
+            </Grid>
+
         </StackPanel>
     </ScrollViewer>
 </Page>
