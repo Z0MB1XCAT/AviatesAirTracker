@@ -26,7 +26,7 @@ public static class NavDestinations
         new("flights",   "Flights",   "/flights",   "Overview"),
         new("routes",    "Routes",    "/routes",    "Overview"),
         new("fleet",     "Fleet",     "/fleet",     "Overview"),
-        new("pilot-hub", "Pilot Hub", "/pilot-hub", "Pilot"),
+        new("pilot-hub", "Pilot Hub", "/pilot-hub", "Pilot", NativePageType: typeof(Pages.PilotHubPage)),
         new("acars",     "ACARS",     "/acars",     "Pilot"),
         new("map",       "Map",       "/map",       "Pilot"),
         new("messages",  "Messages",  "/messages",  "Pilot"),

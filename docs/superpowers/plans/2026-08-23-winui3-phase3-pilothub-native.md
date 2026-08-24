@@ -344,3 +344,89 @@ the docs update — implementer's call, this project has done it both ways.)
 - No `.razor` file touched; `PilotHub.razor` left in place, unreferenced
 - My Bookings tab is explicitly out of scope — not built, not stubbed, no tab bar at all in this
   pass (a single-tab Career-only page)
+
+---
+
+## Task 5 results (2026-08-24)
+
+**Step 1 — nav wiring: PASS.** `AviatesAirTracker/Navigation/NavDestinations.cs`'s `"pilot-hub"`
+entry now reads:
+```csharp
+new("pilot-hub", "Pilot Hub", "/pilot-hub", "Pilot", NativePageType: typeof(Pages.PilotHubPage)),
+```
+One-line change, identical pattern to the Dashboard entry above it. No other file needed changes —
+`ShellWindow.Navigate()`'s native-vs-WebView2 branch and `App.GetService<T>()` already existed.
+
+**Step 2 — build and test: PASS.**
+- `dotnet build AviatesAirTracker.sln -c Debug`: **0 errors**. 15 raw warnings reported, but only
+  **10 unique messages** (each printed twice across duplicate diagnostic passes, per this repo's
+  known double-counting): 5×`CS0169`/`CS0414` unused-field warnings in
+  `LandingAnalyzer.cs`/`FlightPhaseDetector.cs`/`FlightSessionManager.cs`, and 5×`MVVMTK0034`
+  direct-field-reference warnings in `MainViewModel.cs`. All 10 are pre-existing, in files this
+  task never touched (not `PilotHubPage.*` or `NavDestinations.cs`) — no new warnings introduced.
+- `dotnet test tests/AviatesAirTracker.Tests/AviatesAirTracker.Tests.csproj`: **35/35 passing**,
+  0 failed, 0 skipped — same count as before this task, as expected (this plan added no new pure
+  logic to test).
+
+**Step 3 — startup check: PARTIAL — build/startup verified via logs, click-through NOT verified
+(deferred by design).**
+- Confirmed via `tasklist` that MSFS was not running before launch.
+- Launched `AviatesAirTracker/bin/Debug/net8.0-windows10.0.19041.0/win-x64/AviatesAirTracker.exe`
+  directly (no computer-use/screenshot tooling used, per the plan's instruction). The process came
+  up with main window title "Aviates Air Flight Tracker", stayed responsive, ran for ~2 minutes,
+  and was closed via a graceful `CloseMainWindow()` (confirmed process exit, no force-kill needed).
+- The Serilog log for this run (`%AppData%\AviatesAirTracker\logs\aviates_20260824_001.log`,
+  timestamps 14:03:54–14:06:03) shows a clean startup — settings/repos/runway-DB/backend-client/
+  SimConnect-SDK-detection/Discord/AcarsPosition/HazardZones/Hoppies/DispatchRadio/EFB-server/
+  Blazor-legacy-host all initialized in order, `[Shell] Flights nav badge: AttentionDotInfoBadgeStyle`
+  logged at startup with no errors around it, and a clean shutdown (`[Shutdown] All services
+  disposed in 18 ms — exiting`). No `[Shell]` errors, no `ERR`-level lines, no unhandled exceptions
+  or `FATAL` lines anywhere in the run. The only `WRN` line
+  (`[BackendClient] PIREP submission failed: "BadRequest" ... departure_icao and arrival_icao
+  required`) is pre-existing PIREP-retry-on-startup behavior, unrelated to Pilot Hub or nav
+  wiring. Repeated `DBG`-level `[PttInput] Joystick poll error` spam is a pre-existing, unrelated
+  busy-loop (no joystick device attached in this environment) — not touched by this task.
+- **What this does NOT confirm**: the app was never clicked. I did not verify that clicking
+  "Pilot Hub" in the nav rail actually shows the native page with no WebView2 flash, and I did not
+  verify every other nav item (Dashboard included) still works when clicked. The log only proves
+  the shell started cleanly with the new `NativePageType` wired in and that nothing threw during
+  DI/service construction — it cannot prove the visual/navigation behavior. Per the plan's explicit
+  instruction, this is deliberately deferred to a human or the orchestrating session's visual
+  check, the same practice followed at the end of every prior page in this migration.
+- Note: `%AppData%\AviatesAirTracker\logs\` is a single shared location across concurrently-running
+  worktree instances of this app (observed entries from a different worktree's earlier run mixed
+  into the same rolling log file); this run's own lines were isolated by matching the
+  `agent-aaa6119546f0174d0` path fragment and the 14:03:54–14:06:03 timestamp window.
+
+**Bug fixes carried forward from Tasks 3 and 4 (confirmed in code, `AviatesAirTracker/Pages/PilotHubPage.xaml.cs`):**
+
+1. **Grade-F ring color (Task 3, commit `bf56c24`)** — `app.css` has no `.score-ring-fill.grade-f`
+   rule, so a real F-grade landing renders with an **invisible** ring stroke in the live Blazor app
+   today (only the gray track shows). `GradeColor(string gradeClass)` (lines 190–198) now maps
+   `"grade-f"` to `#EF4444` (red), the same color as grade D, instead of reproducing the gap. Full
+   mapping: A `#3EC7AC` (green), B `#4D9BEC` (blue), C `#F59E0B` (amber), D `#EF4444` (red), F
+   `#EF4444` (red — the fix).
+
+2. **Grade-C table/text color (Task 4, commit `c659934`)** — `PilotHubViewModel.ScoreColor()` /
+   `GradeChipClass()` emit an undefined `var(--yellow)` / `chip-yellow` for the 60–74 (grade C)
+   band, so a grade-C landing's score text and chip both render with a broken/unset color in the
+   live Blazor app today. `ScoreColor(int score)` (lines 166–172) now maps `>= 60` to `#F59E0B`
+   (amber) — the same amber the ring already used correctly — instead of the undefined yellow.
+
+3. **D-vs-F color-scheme decision (Task 4)** — the fix deliberately uses one 4-tier green/blue/
+   amber/red mapping for the ring, the score text, AND the grade chip, rather than preserving
+   `GradeChipClass`'s separate 5-tier `chip-orange` (D) / `chip-red` (F) split from the current
+   Blazor CSS. `GradeChipClass` has no bug of its own — this is a deliberate simplification, not a
+   second fix. Rationale (from the code comment at lines 160–165): collapsing D into red keeps the
+   ring, the score text, and the chip all agreeing on one color for a given grade (a Grade D
+   landing reads red everywhere), which is the same internal-consistency goal the amber fix is
+   meant to achieve — prioritizing agreement across the three widgets over exactly replicating the
+   old chip's finer-grained 5-tier split.
+
+**Overall verdict:** Task 5, and the plan as a whole, is **functionally done** — nav wiring is in
+place, build is clean (0 errors, no new warnings), the full test suite passes unchanged, and the
+app starts and shuts down cleanly with the new native page wired in. What remains outside this
+task's scope, per the plan's own instruction, is a **human/orchestrating-session visual check**:
+clicking "Pilot Hub" in the running app to confirm the native page renders correctly with no
+WebView2 flash, and clicking through every other nav item (Dashboard included) to confirm nothing
+regressed. That check was intentionally not attempted here.
