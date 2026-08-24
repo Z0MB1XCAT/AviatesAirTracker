@@ -430,3 +430,9 @@ task's scope, per the plan's own instruction, is a **human/orchestrating-session
 clicking "Pilot Hub" in the running app to confirm the native page renders correctly with no
 WebView2 flash, and clicking through every other nav item (Dashboard included) to confirm nothing
 regressed. That check was intentionally not attempted here.
+
+## Confirmed by the user (2026-08-23)
+
+The user ran the app and confirmed the native Pilot Hub page and every other nav item look
+correct — no regressions, no visual defects reported (unlike Dashboard, which needed a follow-up
+polish round after the first look). **Phase 3's second native page is done.**
