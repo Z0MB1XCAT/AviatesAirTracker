@@ -604,3 +604,15 @@ untested assumption — but per this migration's consistent practice, actual vis
 click-through behavior (dialog display, `XamlRoot` resolution, native-to-native navigation firing
 correctly, tab/table/Pending-Review rendering) remains unverified by this task and is left to a
 human pass, same as Dashboard's and Pilot Hub's own final tasks.
+
+## Confirmed by the user (2026-08-23)
+
+The user ran the app and confirmed every previously-unverified item works: Dashboard's "View
+Flights" button navigates to the native page correctly (the first native-to-native navigation in
+this migration, working as expected on the first try), the delete dialog displays and behaves
+(`XamlRoot` resolves fine from a `NativeHost`-hosted page), and the table/tabs render correctly.
+One polish note from the screenshot: the Flight Logbook and Pending Review table rows had their
+text sitting right against the divider lines below them (header/row vertical padding was
+12px/13px) — bumped to 17px/19px on both tables for real breathing room, commit `e4c7cef`.
+
+**Phase 3's third native page is done.**
