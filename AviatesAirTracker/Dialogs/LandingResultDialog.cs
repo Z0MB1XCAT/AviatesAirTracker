@@ -1,9 +1,11 @@
 using AviatesAirTracker.Core.Analytics;
+using AviatesAirTracker.Pages;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Microsoft.UI.Xaml.Shapes;
 using System;
 using System.Globalization;
 using System.IO;
@@ -45,14 +47,63 @@ public static class LandingResultDialog
     private static readonly SolidColorBrush ParamWarnBrush = new(Color.FromArgb(0x0F, 0xF9, 0x73, 0x16));
     private static readonly SolidColorBrush ParamWarnValueBrush = new(Color.FromArgb(0xFF, 0xEA, 0x58, 0x0C)); // #EA580C
 
+    // ── Task 2 colors. `.lrm-flag` (scoped CSS) sets its own base text color #475569 -- a
+    //    DIFFERENT color from TextSubBrush's #64748B above (that one is only actually confirmed
+    //    for .lrm-close-x; .lrm-sub has no scoped-CSS rule of its own -- see app.css instead,
+    //    which turns out to define it as var(--text-muted), i.e. TextMutedBrush, not TextSubBrush;
+    //    Task 1's header sub-line color is therefore slightly off, left alone here since fixing
+    //    Task 1's own commit is out of this task's scope -- flagged in the Task 2 report instead). ─
+    private static readonly SolidColorBrush FlagTextBrush = new(Color.FromArgb(0xFF, 0x47, 0x55, 0x69)); // #475569
+
+    // flag-ok / flag-fail / flag-neutral pip colors, scoped CSS: rgba(...,.12)/.15 backgrounds
+    // behind a solid pip glyph color.
+    private static readonly SolidColorBrush FlagOkPipBg = new(Color.FromArgb(0x1F, 0x22, 0xC5, 0x5E));   // rgba(34,197,94,.12)
+    private static readonly SolidColorBrush FlagOkPipText = new(Color.FromArgb(0xFF, 0x16, 0xA3, 0x4A)); // #16A34A
+    private static readonly SolidColorBrush FlagFailPipBg = new(Color.FromArgb(0x1F, 0xEF, 0x44, 0x44));  // rgba(239,68,68,.12)
+    private static readonly SolidColorBrush FlagFailPipText = new(Color.FromArgb(0xFF, 0xDC, 0x26, 0x26)); // #DC2626
+    private static readonly SolidColorBrush FlagNeutralPipBg = new(Color.FromArgb(0x26, 0x94, 0xA3, 0xB8)); // rgba(148,163,184,.15)
+
+    // flag-best is NOT in the scoped CSS at all -- it lives in the global app.css
+    // (".lrm-flag.flag-best") and, unlike ok/fail/neutral, tints the WHOLE chip (border +
+    // background), not just the pip; that rule also sets no border-radius, so this stays a
+    // square-cornered chip rather than a pill, matching the source exactly.
+    private static readonly SolidColorBrush FlagBestText = new(Color.FromArgb(0xFF, 0xEA, 0xB3, 0x08));   // #EAB308
+    private static readonly SolidColorBrush FlagBestBorder = new(Color.FromArgb(0x73, 0xEA, 0xB3, 0x08)); // rgba(234,179,8,.45)
+    private static readonly SolidColorBrush FlagBestBg = new(Color.FromArgb(0x1F, 0xEA, 0xB3, 0x08));     // rgba(234,179,8,.12)
+
+    // Score ring: r=80, stroke-width=10, confirmed directly against the scoped CSS's
+    // `.ring-track`/`.ring-fill` (differs from both Dashboard's r=45/sw=8 and Pilot Hub's
+    // r=65/sw=14). NOTE: unlike those two rings -- whose SVGs render 1:1 with their own viewBox
+    // (Dashboard 100x100, Pilot Hub 160x160) -- this modal's SVG has viewBox="0 0 200 200" but is
+    // rendered at a CSS-scaled-down 138x138 (`.lrm-ring-wrap`), a ~0.69x shrink with no WinUI
+    // equivalent. These constants use the literal r=80/sw=10 the plan calls for (as BuildRingArc's
+    // two prior consumers both did with their own literal SVG r values), which renders this ring
+    // visibly larger on screen than the original's 138px -- a real, reportable visual-fidelity
+    // gap, not a mistake; worth a follow-up visual-polish pass once this is actually seen on
+    // screen, same as Dashboard's own post-review polish commit.
+    private const double RingRadius = 80.0;
+    private const double RingStrokeWidth = 10.0;
+    private const double RingDiameter = RingRadius * 2;
+    private const double RingGridSize = RingDiameter + RingStrokeWidth * 2; // 180: same "diameter + stroke headroom" idiom Dashboard/Pilot Hub used
+    private const double RingCenter = RingGridSize / 2;
+
+    // Score-breakdown bar row geometry -- same fixed-width-track idiom as PilotHubPage.xaml.cs's
+    // RankProgressTrack/RankProgressFill (Width computed once in code, no live transition; a
+    // Star-width Grid column can't be measured synchronously at construction time the way a
+    // literal pixel Width can). Chosen to fit CardWidth (470) minus its 20px side padding, the
+    // label column (matching f-label's CSS width:118px), and the points column.
+    private const double FactorLabelWidth = 118.0;
+    private const double FactorTrackWidth = 260.0;
+    private const double FactorPtsWidth = 42.0;
+
     public static ContentDialog Build(XamlRoot xamlRoot, LandingReport report)
     {
         var contentStack = new StackPanel { Spacing = 0 };
         contentStack.Children.Add(BuildHeader(report));
-        // Task 2 adds the hero row (ring + grade badge/butter meter/quality flags) and the
-        // runway-dash divider here, between the header and the params grid.
+        contentStack.Children.Add(BuildHero(report));
+        contentStack.Children.Add(BuildRunwayDivider());
         contentStack.Children.Add(BuildParamsGrid(report));
-        // Task 2 adds the score-breakdown bars here, between the params grid and the footer.
+        contentStack.Children.Add(BuildBreakdown(report));
         contentStack.Children.Add(BuildFooter(report));
 
         // A Grid layers the (optional) decorative aircraft photo behind the real content, the
@@ -153,6 +204,341 @@ public static class LandingResultDialog
         };
     }
 
+    // ── Hero row: score ring (left) + grade badge/butter meter/quality flags column (right),
+    //    matching `.lrm-hero`'s flex row. ──────────────────────────────────────────────────────
+    private static Grid BuildHero(LandingReport report)
+    {
+        var hero = new Grid { Margin = new Thickness(20, 6, 20, 0) };
+        hero.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        hero.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var ring = BuildRing(report);
+        Grid.SetColumn(ring, 0);
+
+        var gradeColumn = BuildGradeColumn(report);
+        Grid.SetColumn(gradeColumn, 1);
+        gradeColumn.Margin = new Thickness(22, 0, 0, 0);
+
+        hero.Children.Add(ring);
+        hero.Children.Add(gradeColumn);
+        return hero;
+    }
+
+    // ── Score ring: static muted-track Ellipse + a Path arc from BuildRingArc, same technique
+    //    Dashboard's rank ring and Pilot Hub's landing ring already established -- this is the
+    //    third consumer. `percent` is `report.Score` directly (already 0-100), no threshold math
+    //    needed. Center text: big score number + smaller "/100", matching `.lrm-score-num`/
+    //    `.lrm-score-denom`'s visual split. Decorative tick marks (`.ring-tick-maj`/`-min`) are
+    //    skipped -- neither of this ring's two precedents drew them either, and the plan's own
+    //    Step 1 doesn't call for them. ────────────────────────────────────────────────────────
+    private static Grid BuildRing(LandingReport report)
+    {
+        var ringGrid = new Grid
+        {
+            Width = RingGridSize,
+            Height = RingGridSize,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+
+        var track = new Ellipse
+        {
+            Width = RingDiameter,
+            Height = RingDiameter,
+            StrokeThickness = RingStrokeWidth,
+            Stroke = ParamGridLineBrush, // #ECF0FB, matches .ring-track
+        };
+
+        // Fully-qualified: `using System.IO;` (Path.Combine, below in BuildPhotoOrNull) and
+        // `using Microsoft.UI.Xaml.Shapes;` (this Path shape) both bring a type named `Path`
+        // into scope, so the plain name is ambiguous here.
+        var fill = new Microsoft.UI.Xaml.Shapes.Path
+        {
+            StrokeThickness = RingStrokeWidth,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+            Stroke = HexToBrush(report.GradeColor),
+            Data = DashboardPage.BuildRingArc(centerX: RingCenter, centerY: RingCenter, radius: RingRadius, percent: report.Score),
+        };
+
+        var scoreCenter = new StackPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Spacing = 1,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = report.Score.ToString(CultureInfo.InvariantCulture),
+                    FontFamily = (FontFamily)Application.Current.Resources["DisplayFontBold"],
+                    FontSize = 36,
+                    FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                    Foreground = TextPrimaryBrush,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                },
+                new TextBlock
+                {
+                    Text = "/100",
+                    FontSize = 11,
+                    Foreground = TextMutedBrush,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                },
+            },
+        };
+
+        ringGrid.Children.Add(track);
+        ringGrid.Children.Add(fill);
+        ringGrid.Children.Add(scoreCenter);
+        return ringGrid;
+    }
+
+    private static StackPanel BuildGradeColumn(LandingReport report)
+    {
+        var column = new StackPanel { Spacing = 14 };
+        column.Children.Add(BuildGradeBadge(report));
+        column.Children.Add(BuildButterMeter(report));
+        column.Children.Add(BuildFlags(report));
+        return column;
+    }
+
+    // ── Grade badge: `report.Grade`, bordered/colored via `report.GradeColor`, background a
+    //    ~10% tint of the same color -- reproduces `GradeBg` directly off the ring/border color
+    //    rather than re-deriving the score-band switch, since they're the same colors either way
+    //    (LandingResult.LandingGradeColor's own >=90/75/60/40 bands already match GradeBg's rgba
+    //    literals exactly). ──────────────────────────────────────────────────────────────────
+    private static Border BuildGradeBadge(LandingReport report)
+    {
+        var gradeBrush = HexToBrush(report.GradeColor);
+        var gradeBg = new SolidColorBrush(Color.FromArgb(0x1A, gradeBrush.Color.R, gradeBrush.Color.G, gradeBrush.Color.B)); // ~10% (0x1A/255 ≈ 0.102)
+
+        return new Border
+        {
+            BorderBrush = gradeBrush,
+            BorderThickness = new Thickness(1.5),
+            CornerRadius = new CornerRadius(8),
+            Background = gradeBg,
+            Padding = new Thickness(16, 6, 16, 6),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Child = new TextBlock
+            {
+                Text = report.Grade,
+                FontFamily = (FontFamily)Application.Current.Resources["DisplayFontBold"],
+                FontSize = 13,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                CharacterSpacing = 90, // ~0.09em
+                Foreground = gradeBrush,
+            },
+        };
+    }
+
+    // ── Butter meter: rating headline + joke blurb + VS readout, all keyed off `report.ButterColor`.
+    //    `.lrm-butter`'s CSS is `border:1px solid var(--border); border-left-width:3px;` with the
+    //    inline `border-color` override replacing ALL four sides' color (only the left side's
+    //    WIDTH stays different) -- reproduced as a uniform-color, asymmetric-width Border. The
+    //    barely-visible `rgba(255,255,255,.04)` gradient over an already-white card is dropped as
+    //    imperceptible, not missing. ──────────────────────────────────────────────────────────
+    private static Border BuildButterMeter(LandingReport report)
+    {
+        var butterBrush = HexToBrush(report.ButterColor);
+
+        var vsLine = new TextBlock
+        {
+            FontFamily = (FontFamily)Application.Current.Resources["DisplayFontBold"],
+            FontSize = 12,
+            Foreground = TextMutedBrush,
+            Margin = new Thickness(0, 7, 0, 0),
+        };
+        vsLine.Inlines.Add(new Run
+        {
+            Text = report.VerticalSpeedFpm.ToString("F0", CultureInfo.InvariantCulture),
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Foreground = butterBrush,
+        });
+        vsLine.Inlines.Add(new Run { Text = " fpm touchdown" });
+
+        var stack = new StackPanel
+        {
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = report.ButterRating,
+                    FontFamily = (FontFamily)Application.Current.Resources["DisplayFontBold"],
+                    FontSize = 19,
+                    FontWeight = Microsoft.UI.Text.FontWeights.ExtraBold,
+                    Foreground = butterBrush,
+                },
+                new TextBlock
+                {
+                    Text = report.ButterBlurb,
+                    FontSize = 12,
+                    Foreground = TextMutedBrush,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 3, 0, 0),
+                },
+                vsLine,
+            },
+        };
+
+        return new Border
+        {
+            BorderBrush = butterBrush,
+            BorderThickness = new Thickness(3, 1, 1, 1), // left:3px, others:1px -- matches border-left-width override
+            CornerRadius = new CornerRadius(14),
+            Padding = new Thickness(14, 12, 14, 12),
+            Child = stack,
+        };
+    }
+
+    // ── Quality flags: up to 4 rows. Stable Approach / Flare Detected / Bounce are always shown;
+    //    the 4th row is an exact 3-way branch (Personal Best, OR rank/average if there's enough
+    //    history, OR nothing at all) matching the original's `@if (IsPersonalBest) ... else if
+    //    (TotalLandings > 1) ...` -- with no trailing `else`, so a pilot with 0 or 1 landings on
+    //    record gets neither row. ────────────────────────────────────────────────────────────
+    private static StackPanel BuildFlags(LandingReport report)
+    {
+        var flags = new StackPanel { Spacing = 6 };
+
+        flags.Children.Add(BuildFlagRow(
+            report.StableApproach ? "✓" : "✗",
+            report.StableApproach ? FlagOkPipBg : FlagFailPipBg,
+            report.StableApproach ? FlagOkPipText : FlagFailPipText,
+            "Stable Approach"));
+
+        flags.Children.Add(BuildFlagRow(
+            report.FlareDetected ? "✓" : "–",
+            report.FlareDetected ? FlagOkPipBg : FlagNeutralPipBg,
+            report.FlareDetected ? FlagOkPipText : TextMutedBrush,
+            "Flare Detected"));
+
+        if (report.BounceCount > 0)
+        {
+            flags.Children.Add(BuildFlagRow("!", FlagFailPipBg, FlagFailPipText,
+                $"{report.BounceCount} Bounce{(report.BounceCount > 1 ? "s" : "")}"));
+        }
+        else
+        {
+            flags.Children.Add(BuildFlagRow("✓", FlagOkPipBg, FlagOkPipText, "No Bounce"));
+        }
+
+        if (report.IsPersonalBest)
+        {
+            flags.Children.Add(BuildBestFlagRow());
+        }
+        else if (report.TotalLandings > 1)
+        {
+            flags.Children.Add(BuildFlagRow("#", FlagNeutralPipBg, TextMutedBrush,
+                $"{report.RankAmongLandings} of {report.TotalLandings} · avg {report.AverageScore}"));
+        }
+
+        return flags;
+    }
+
+    private static StackPanel BuildFlagRow(string pip, Brush pipBackground, Brush pipForeground, string label)
+    {
+        var pipBadge = new Border
+        {
+            Width = 18,
+            Height = 18,
+            CornerRadius = new CornerRadius(999),
+            Background = pipBackground,
+            Child = new TextBlock
+            {
+                Text = pip,
+                FontSize = 11,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                Foreground = pipForeground,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
+
+        return new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 7,
+            Children =
+            {
+                pipBadge,
+                new TextBlock
+                {
+                    Text = label,
+                    FontSize = 12,
+                    FontWeight = Microsoft.UI.Text.FontWeights.Medium,
+                    Foreground = FlagTextBrush,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+            },
+        };
+    }
+
+    // Personal Best is architecturally different from the other three flag rows: app.css's
+    // ".lrm-flag.flag-best" tints the WHOLE chip (border + background), not just a pip circle,
+    // and sets no border-radius (a square chip, not a pill) -- reproduced as its own Border
+    // rather than reusing BuildFlagRow's pip-badge shape.
+    private static Border BuildBestFlagRow()
+    {
+        var row = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 7,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = "★",
+                    FontSize = 11,
+                    FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                    Foreground = FlagBestText,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+                new TextBlock
+                {
+                    Text = "Personal Best",
+                    FontSize = 12,
+                    FontWeight = Microsoft.UI.Text.FontWeights.Medium,
+                    Foreground = FlagBestText,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+            },
+        };
+
+        return new Border
+        {
+            BorderBrush = FlagBestBorder,
+            BorderThickness = new Thickness(1),
+            Background = FlagBestBg,
+            Padding = new Thickness(8, 3, 10, 3),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Child = row,
+        };
+    }
+
+    // ── Runway-dash divider: 6 equal-width dashes, matching `.lrm-rwy-strip`'s `flex:1` children
+    //    -- a Grid with 6 Star columns is the true flex:1 equivalent (unlike a StackPanel, whose
+    //    children can't equally share remaining width), with per-dash margins simulating the
+    //    parent's `gap: 6px`. ───────────────────────────────────────────────────────────────────
+    private static Grid BuildRunwayDivider()
+    {
+        var strip = new Grid { Margin = new Thickness(20, 2, 20, 16) };
+        for (int i = 0; i < 6; i++)
+        {
+            strip.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var dash = new Border
+            {
+                Height = 3.5,
+                Background = TextPrimaryBrush,
+                Opacity = 0.07,
+                CornerRadius = new CornerRadius(2),
+                Margin = new Thickness(i == 0 ? 0 : 3, 0, i == 5 ? 0 : 3, 0),
+            };
+            Grid.SetColumn(dash, i);
+            strip.Children.Add(dash);
+        }
+        return strip;
+    }
+
     // ── Touchdown parameters: 6 cells (VS, IAS, pitch, bank, headwind, crosswind), 3x2 grid,
     //    with the VS/bank warning-threshold cells getting the orange tint. ───────────────────
     private static Border BuildParamsGrid(LandingReport report)
@@ -240,6 +626,88 @@ public static class LandingResultDialog
         };
     }
 
+    // ── Score breakdown: 6 factors from `report.Factors`, each already carrying a computed
+    //    Label/Score/Max/Pct/Color -- a Border-track + Border-fill-width row per factor, same
+    //    fixed-width-track idiom PilotHubPage.xaml.cs's rank-progress bar established. ─────────
+    private static StackPanel BuildBreakdown(LandingReport report)
+    {
+        var section = new StackPanel { Margin = new Thickness(20, 0, 20, 18) };
+        section.Children.Add(new TextBlock
+        {
+            Text = "SCORE BREAKDOWN",
+            FontSize = 10,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = TextMutedBrush,
+            CharacterSpacing = 120, // ~0.12em
+            Margin = new Thickness(0, 0, 0, 10),
+        });
+
+        foreach (var factor in report.Factors)
+        {
+            section.Children.Add(BuildFactorRow(factor));
+        }
+
+        return section;
+    }
+
+    private static Grid BuildFactorRow(LandingReportFactor factor)
+    {
+        var color = HexToBrush(factor.Color);
+
+        var label = new TextBlock
+        {
+            Text = factor.Label,
+            FontSize = 12,
+            FontWeight = Microsoft.UI.Text.FontWeights.Medium,
+            Foreground = FlagTextBrush, // #475569, matches .f-label
+            Width = FactorLabelWidth,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        var track = new Border
+        {
+            Width = FactorTrackWidth,
+            Height = 6,
+            CornerRadius = new CornerRadius(3),
+            Background = ParamGridLineBrush, // #ECF0FB, matches .f-track
+        };
+        var fill = new Border
+        {
+            Width = FactorTrackWidth * (factor.Pct / 100.0),
+            Height = 6,
+            CornerRadius = new CornerRadius(3),
+            Background = color,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        var trackHost = new Grid { Margin = new Thickness(9, 0, 9, 0), Children = { track, fill } };
+
+        var pts = new TextBlock
+        {
+            FontFamily = (FontFamily)Application.Current.Resources["DisplayFontBold"],
+            FontSize = 12,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Foreground = color,
+            Width = FactorPtsWidth,
+            TextAlignment = TextAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        pts.Inlines.Add(new Run { Text = factor.Score.ToString("F0", CultureInfo.InvariantCulture) });
+        pts.Inlines.Add(new Run { Text = $"/{(int)factor.Max}", Foreground = DotBrush }); // f-max color #CBD5E1
+
+        var row = new Grid { Margin = new Thickness(0, 0, 0, 7) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(label, 0);
+        Grid.SetColumn(trackHost, 1);
+        Grid.SetColumn(pts, 2);
+        row.Children.Add(label);
+        row.Children.Add(trackHost);
+        row.Children.Add(pts);
+        return row;
+    }
+
     // ── Footer stats: rollout/threshold/wind conditionally shown, fuel always shown. Close is
     //    handled by ContentDialog's own CloseButtonText, not a duplicate custom button. ───────
     private static Border BuildFooter(LandingReport report)
@@ -296,7 +764,9 @@ public static class LandingResultDialog
     {
         if (string.IsNullOrEmpty(report.AircraftImagePath)) return null;
 
-        var photoPath = Path.Combine(AppContext.BaseDirectory, "wwwroot", report.AircraftImagePath);
+        // Fully-qualified System.IO.Path -- `using Microsoft.UI.Xaml.Shapes;` (added for the
+        // score ring's Ellipse/Path shapes) makes the plain `Path` name ambiguous in this file.
+        var photoPath = System.IO.Path.Combine(AppContext.BaseDirectory, "wwwroot", report.AircraftImagePath);
         if (!File.Exists(photoPath)) return null;
 
         return new Image
