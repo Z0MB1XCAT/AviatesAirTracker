@@ -163,7 +163,8 @@
                  up). Filter/Export buttons and the per-row view-details/delete/force-remove
                  icons are visual-only in this task (Task 4 wires their Tapped handlers); Task 3
                  only makes them exist and show/hide correctly per row. -->
-            <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
+            <Border x:Name="FlightLogbookBorder" Background="#0C111D" BorderBrush="#14FFFFFF"
+                    BorderThickness="1" CornerRadius="20">
                 <StackPanel>
                     <!-- Header strip: title + inert Filter/Export -->
                     <Grid Padding="20,16" ColumnSpacing="12">
@@ -322,7 +323,9 @@
                                             </Border>
                                             <Border Width="26" Height="26" CornerRadius="999" Background="#121A2A"
                                                     BorderBrush="#4DEF4444" BorderThickness="1"
-                                                    Visibility="{Binding ShowDeleteAction}">
+                                                    Visibility="{Binding ShowDeleteAction}"
+                                                    Tag="{Binding}" Tapped="OnDeleteActionTapped"
+                                                    ToolTipService.ToolTip="Request deletion">
                                                 <Viewbox Width="11" Height="11">
                                                     <Path Data="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"
                                                           Stroke="#EF4444" StrokeThickness="2.5"
@@ -331,7 +334,9 @@
                                             </Border>
                                             <Border Width="26" Height="26" CornerRadius="999" Background="#121A2A"
                                                     BorderBrush="#4DEF4444" BorderThickness="1"
-                                                    Visibility="{Binding ShowForceRemoveAction}">
+                                                    Visibility="{Binding ShowForceRemoveAction}"
+                                                    Tag="{Binding}" Tapped="OnForceRemoveActionTapped"
+                                                    ToolTipService.ToolTip="Force remove broken flight">
                                                 <Viewbox Width="11" Height="11">
                                                     <Path Data="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"
                                                           Stroke="#EF4444" StrokeThickness="2.5"
@@ -339,6 +344,133 @@
                                                 </Viewbox>
                                             </Border>
                                         </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ── Deletion Requests table (Pending Review tab) ──
+                 Flights.razor's own top-level @if (_activeTab == "pending") branch: a distinct
+                 table from the Flight Logbook above, shown instead of it (not alongside), listing
+                 every deletion request regardless of status (open ones get Approve/Reject
+                 buttons; already-resolved ones show their reviewed-at timestamp instead; see
+                 DeletionRequestRow.ShowActions/ShowReviewedText). Visibility toggled in
+                 RefreshActiveTabContent, same technique as FlightLogbookBorder's own toggle. -->
+            <Border x:Name="DeletionRequestsBorder" Background="#0C111D" BorderBrush="#14FFFFFF"
+                    BorderThickness="1" CornerRadius="20" Visibility="Collapsed">
+                <StackPanel>
+                    <Grid Padding="20,16" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" BorderBrush="#14FFFFFF" BorderThickness="0,0,0,1"
+                                VerticalAlignment="Bottom" />
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="Deletion Requests" FontFamily="{StaticResource DisplayFontBold}"
+                                       FontSize="14" FontWeight="Bold" Foreground="#F1F5F9" VerticalAlignment="Center" />
+                            <TextBlock Text="Requests require approval before a flight is permanently removed"
+                                       FontSize="11" Foreground="#64748B" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Empty state: exact copy from Flights.razor's "No deletion requests found." panel -->
+                    <StackPanel x:Name="DeletionRequestsEmptyText" Visibility="Collapsed" Padding="24,48">
+                        <TextBlock Text="No deletion requests found." FontSize="13" Foreground="#64748B"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="DeletionRequestsTableContent">
+                        <!-- Header row -->
+                        <Grid Padding="20,12" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="0.9*" />
+                                <ColumnDefinition Width="1*" />
+                                <ColumnDefinition Width="1.8*" />
+                                <ColumnDefinition Width="1*" />
+                                <ColumnDefinition Width="0.8*" />
+                                <ColumnDefinition Width="1.1*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.ColumnSpan="6" BorderBrush="#14FFFFFF" BorderThickness="0,0,0,1"
+                                    VerticalAlignment="Bottom" />
+                            <TextBlock Grid.Column="0" Text="FLIGHT" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="1" Text="ROUTE" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="2" Text="REASON" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="3" Text="SUBMITTED" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="4" Text="STATUS" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <TextBlock Grid.Column="5" Text="ACTION" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                        </Grid>
+
+                        <ItemsControl x:Name="DeletionRequestsList">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Padding="20,13" ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="0.9*" />
+                                            <ColumnDefinition Width="1*" />
+                                            <ColumnDefinition Width="1.8*" />
+                                            <ColumnDefinition Width="1*" />
+                                            <ColumnDefinition Width="0.8*" />
+                                            <ColumnDefinition Width="1.1*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.ColumnSpan="6" BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1"
+                                                VerticalAlignment="Bottom" />
+
+                                        <TextBlock Grid.Column="0" Text="{Binding FlightNumber}"
+                                                   FontFamily="{StaticResource DisplayFontBold}" FontSize="13"
+                                                   FontWeight="SemiBold" Foreground="#F1F5F9" VerticalAlignment="Center" />
+
+                                        <TextBlock Grid.Column="1" Text="{Binding Route}" FontSize="12"
+                                                   FontWeight="SemiBold" Foreground="#F1F5F9" VerticalAlignment="Center" />
+
+                                        <TextBlock Grid.Column="2" Text="{Binding Reason}" FontSize="12"
+                                                   Foreground="#CBD5E1" TextWrapping="Wrap" VerticalAlignment="Center" />
+
+                                        <TextBlock Grid.Column="3" Text="{Binding SubmittedText}" FontSize="11"
+                                                   Foreground="#64748B" VerticalAlignment="Center" />
+
+                                        <Border Grid.Column="4" Background="{Binding StatusBackground}"
+                                                CornerRadius="999" Padding="9,4" HorizontalAlignment="Left"
+                                                VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Ellipse Width="6" Height="6" Fill="{Binding StatusColor}" VerticalAlignment="Center" />
+                                                <TextBlock Text="{Binding StatusLabel}" FontSize="11" FontWeight="SemiBold"
+                                                           Foreground="{Binding StatusColor}" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Action: Approve/Reject buttons when still Pending, else the
+                                             reviewed-at timestamp; mutually exclusive, matching
+                                             Flights.razor's own @if (req.Status == Pending) branch. -->
+                                        <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="6"
+                                                    VerticalAlignment="Center" Visibility="{Binding ShowActions}">
+                                            <Border Background="#1A22C55E" BorderBrush="#6622C55E" BorderThickness="1"
+                                                    CornerRadius="6" Padding="12,4"
+                                                    Tag="{Binding}" Tapped="OnApproveTapped">
+                                                <TextBlock Text="Approve" FontSize="11" FontWeight="Bold" Foreground="#22C55E" />
+                                            </Border>
+                                            <Border Background="#1FEF4444" BorderBrush="#66EF4444" BorderThickness="1"
+                                                    CornerRadius="6" Padding="12,4"
+                                                    Tag="{Binding}" Tapped="OnRejectTapped">
+                                                <TextBlock Text="Reject" FontSize="11" FontWeight="Bold" Foreground="#EF4444" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="5" Text="{Binding ReviewedText}" FontSize="11"
+                                                    Foreground="#64748B" VerticalAlignment="Center"
+                                                    Visibility="{Binding ShowReviewedText}" />
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

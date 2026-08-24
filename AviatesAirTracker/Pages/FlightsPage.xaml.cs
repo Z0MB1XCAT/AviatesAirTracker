@@ -60,6 +60,35 @@ public sealed class FlightLogRow
     public FlightRecord Source { get; set; } = null!;
 }
 
+/// <summary>
+/// Pre-formatted display row for the Pending Review tab's deletion-requests table (Task 4).
+/// Reproduces Flights.razor's <c>_pendingRequests</c> table body: every request regardless of
+/// status (not just open ones -- the tab shows Approved/Rejected history too), with Approve/
+/// Reject actions shown only for still-open (Pending-status) rows and a reviewed-at timestamp
+/// shown instead for already-resolved ones. Plain mutable class, not a record (CS8852 risk, same
+/// as every prior display-row class in this migration).
+/// </summary>
+public sealed class DeletionRequestRow
+{
+    public string FlightNumber { get; set; } = "—";
+    public string Route { get; set; } = "—";
+    public string Reason { get; set; } = "";
+    public string SubmittedText { get; set; } = "";
+
+    public string StatusLabel { get; set; } = "";
+    public Brush StatusColor { get; set; } = FlightsPage.TextMutedBrush;
+    public Brush StatusBackground { get; set; } = FlightsPage.TransparentBrush;
+
+    // Mutually exclusive, matching Flights.razor's own @if (req.Status == Pending) { buttons }
+    // else { reviewed-at text } branch in the Action column.
+    public Visibility ShowActions { get; set; } = Visibility.Collapsed;
+    public Visibility ShowReviewedText { get; set; } = Visibility.Collapsed;
+    public string ReviewedText { get; set; } = "";
+
+    // Needed by Task 4's approve/reject handlers to know which request a row's buttons act on.
+    public FlightDeletionRequest Source { get; set; } = null!;
+}
+
 public sealed partial class FlightsPage : Page
 {
     // Shared brush constants used both by this page's own chip-color mapping below and as
@@ -92,6 +121,7 @@ public sealed partial class FlightsPage : Page
     private static readonly Brush StatusRedBg = new SolidColorBrush(Color.FromArgb(0x1F, 0xEF, 0x44, 0x44));
 
     public ObservableCollection<FlightLogRow> FlightRows { get; } = [];
+    public ObservableCollection<DeletionRequestRow> PendingRequestRows { get; } = [];
 
     // ShellWindow.xaml.cs's ConfigureNavAppearance color convention for the nav rail's own
     // active item, reused here for the tab bar (same lookup mechanism, different control --
@@ -117,6 +147,7 @@ public sealed partial class FlightsPage : Page
         _viewModel = App.GetService<FlightsViewModel>();
         DataContext = _viewModel;
         FlightsList.ItemsSource = FlightRows;
+        DeletionRequestsList.ItemsSource = PendingRequestRows;
 
         UpdateTabVisuals();
 
@@ -124,7 +155,7 @@ public sealed partial class FlightsPage : Page
         {
             await _viewModel.RefreshAsync();
             RefreshStatStrip();
-            RebuildFlightRows();
+            RefreshActiveTabContent();
         };
     }
 
@@ -134,7 +165,22 @@ public sealed partial class FlightsPage : Page
 
         _activeTab = tab;
         UpdateTabVisuals();
-        RebuildFlightRows();
+        RefreshActiveTabContent();
+    }
+
+    // Dispatches to the right content builder for the active tab and toggles which of the two
+    // sibling panels (Flight Logbook vs. Deletion Requests) is visible -- matching Flights.razor's
+    // own top-level @if (_activeTab == "pending") { deletion-requests table } else { flight table }
+    // branch. "pending" isn't one of FlightsFilterLogic.FilterByTab's cases (it falls through to
+    // "all" there), so it's intercepted here before reaching RebuildFlightRows.
+    private void RefreshActiveTabContent()
+    {
+        var isPending = _activeTab == "pending";
+        FlightLogbookBorder.Visibility = isPending ? Visibility.Collapsed : Visibility.Visible;
+        DeletionRequestsBorder.Visibility = isPending ? Visibility.Visible : Visibility.Collapsed;
+
+        if (isPending) RebuildDeletionRequestRows();
+        else RebuildFlightRows();
     }
 
     private void UpdateTabVisuals()
@@ -293,5 +339,235 @@ public sealed partial class FlightsPage : Page
         var isEmpty = FlightRows.Count == 0;
         EmptyStateText.Visibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
         FlightsTableContent.Visibility = isEmpty ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    // Translates a DeletionRequestStatus into the (label, foreground, background) triple for its
+    // status chip -- Pending uses the same amber "pending" app.css treatment as the flight
+    // table's default status chip, Approved reuses the blue "done" treatment, and Rejected gets
+    // Flights.razor's own custom red inline style (not one of app.css's three named chip classes).
+    private static (string Label, Brush Fg, Brush Bg) DeletionStatusVisuals(DeletionRequestStatus status) => status switch
+    {
+        DeletionRequestStatus.Pending => ("Pending", StatusAmber, StatusAmberBg),
+        DeletionRequestStatus.Approved => ("Approved", StatusBlue, StatusBlueBg),
+        _ => ("Rejected", StatusRed, StatusRedBg),
+    };
+
+    // Task 4: Pending Review tab's own table (distinct from the flight table -- Flights.razor
+    // shows ALL deletion requests here regardless of status, not just open ones, since the tab
+    // doubles as approve/reject history). Called from RefreshActiveTabContent whenever the
+    // "pending" tab is active, in place of RebuildFlightRows.
+    private void RebuildDeletionRequestRows()
+    {
+        PendingRequestRows.Clear();
+
+        foreach (var req in _viewModel.PendingRequests)
+        {
+            var (label, fg, bg) = DeletionStatusVisuals(req.Status);
+            var isPending = req.Status == DeletionRequestStatus.Pending;
+
+            PendingRequestRows.Add(new DeletionRequestRow
+            {
+                FlightNumber = string.IsNullOrWhiteSpace(req.FlightNumber) ? "—" : req.FlightNumber,
+                Route = string.IsNullOrWhiteSpace(req.Route) ? "—" : req.Route,
+                Reason = req.Reason,
+                SubmittedText = req.SubmittedAt.ToLocalTime().ToString("MM/dd/yy HH:mm", CultureInfo.InvariantCulture),
+                StatusLabel = label,
+                StatusColor = fg,
+                StatusBackground = bg,
+                ShowActions = isPending ? Visibility.Visible : Visibility.Collapsed,
+                ShowReviewedText = isPending ? Visibility.Collapsed : Visibility.Visible,
+                ReviewedText = req.ReviewedAt?.ToLocalTime().ToString("MM/dd HH:mm", CultureInfo.InvariantCulture) ?? "",
+                Source = req,
+            });
+        }
+
+        // Exact empty-state copy from Flights.razor's "No deletion requests found." panel. Toggles
+        // the whole header-row-plus-ItemsControl group (DeletionRequestsTableContent), not just
+        // the ItemsControl on its own -- same reasoning as RebuildFlightRows's own
+        // FlightsTableContent toggle just above.
+        var isEmpty = PendingRequestRows.Count == 0;
+        DeletionRequestsEmptyText.Visibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
+        DeletionRequestsTableContent.Visibility = isEmpty ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    // ── Approve / Reject (Pending Review tab) ───────────────────────────────────────────────────
+    // Plain Border-as-button elements, no confirmation dialog -- Flights.razor doesn't have one
+    // for these two actions either, so none is added here.
+
+    private async void OnApproveTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: DeletionRequestRow row }) return;
+        await _viewModel.ApproveDeletionAsync(row.Source);
+        RefreshStatStrip();
+        RefreshActiveTabContent();
+    }
+
+    private async void OnRejectTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: DeletionRequestRow row }) return;
+        await _viewModel.RejectDeletionAsync(row.Source);
+        RefreshStatStrip();
+        RefreshActiveTabContent();
+    }
+
+    // ── Delete-with-reason and force-remove dialogs ─────────────────────────────────────────────
+    // WinUI's native ContentDialog, shown via ShowAsync() -- handles focus-trapping,
+    // dismiss-on-escape, and the darkened backdrop for free, unlike a hand-rolled overlay Border
+    // would. This is the first ContentDialog shown from a page hosted in ShellWindow's NativeHost
+    // Frame anywhere in this migration; this.XamlRoot resolving correctly here was verified by
+    // build + the plan's Task 4 note to check it explicitly (see this task's final report).
+
+    private async void OnDeleteActionTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: FlightLogRow row }) return;
+        await ShowDeleteReasonDialogAsync(row.Source);
+    }
+
+    private async void OnForceRemoveActionTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: FlightLogRow row }) return;
+        await ShowForceRemoveDialogAsync(row.Source);
+    }
+
+    // Small shared header (title + muted subtitle) reused by both dialogs below, reproducing the
+    // title/subtitle pairing from Flights.razor's own .modal-header markup for each modal
+    // (ContentDialog.Title accepts any UIElement, not just a string, so this replaces the
+    // single-line default rather than being tacked on as extra content).
+    private static StackPanel BuildDialogHeader(string title, string subtitle) => new()
+    {
+        Spacing = 2,
+        Children =
+        {
+            new TextBlock
+            {
+                Text = title, FontFamily = (FontFamily)Application.Current.Resources["DisplayFontBold"],
+                FontSize = 15, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromArgb(0xFF, 0xF1, 0xF5, 0xF9)),
+            },
+            new TextBlock { Text = subtitle, FontSize = 12, Foreground = TextMutedBrush, TextWrapping = TextWrapping.Wrap },
+        },
+    };
+
+    // Exact copy from Flights.razor's delete-with-reason modal: title, subtitle, reason-field
+    // label, placeholder, inline validation message, and helper text below the textarea -- read
+    // from the .razor file, not invented. Reproduces a re-entrancy guard against a fast
+    // double-click on the Submit button firing SubmitDeletionRequestAsync twice concurrently
+    // before the dialog visually closes (FlightsViewModel itself has no such guard).
+    private async Task ShowDeleteReasonDialogAsync(FlightRecord target)
+    {
+        var reasonLabel = new TextBlock
+        {
+            FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromArgb(0xFF, 0xCB, 0xD5, 0xE1)),
+            Text = "REASON FOR DELETION *",
+        };
+        var reasonBox = new TextBox
+        {
+            PlaceholderText = "Explain why this flight record should be removed (e.g. sim crash, wrong aircraft, duplicate entry)...",
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            Height = 96,
+        };
+        var errorText = new TextBlock
+        {
+            Text = "A reason is required to submit this request.",
+            FontSize = 11.5, Foreground = StatusRed, Visibility = Visibility.Collapsed,
+        };
+        var helperText = new TextBlock
+        {
+            Text = "Your request will be reviewed. The flight will remain in your logbook until approved.",
+            FontSize = 11, Foreground = TextMutedBrush, TextWrapping = TextWrapping.Wrap,
+        };
+        var panel = new StackPanel
+        {
+            Spacing = 8, Width = 380,
+            Children = { reasonLabel, reasonBox, errorText, helperText },
+        };
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = this.XamlRoot,
+            Title = BuildDialogHeader("Request Flight Deletion", "A reason is required and must be approved before deletion"),
+            Content = panel,
+            PrimaryButtonText = "Submit Request",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+
+        var isSubmitting = false;
+        dialog.PrimaryButtonClick += async (_, args) =>
+        {
+            if (isSubmitting) { args.Cancel = true; return; } // re-entrancy guard: ignore a second click while the first is still in flight
+
+            if (string.IsNullOrWhiteSpace(reasonBox.Text))
+            {
+                errorText.Visibility = Visibility.Visible;
+                args.Cancel = true; // keep the dialog open on validation failure
+                return;
+            }
+
+            var deferral = args.GetDeferral();
+            try
+            {
+                isSubmitting = true;
+                await _viewModel.SubmitDeletionRequestAsync(target, reasonBox.Text);
+                RefreshStatStrip();
+                RefreshActiveTabContent();
+            }
+            finally
+            {
+                isSubmitting = false;
+                deferral.Complete();
+            }
+        };
+
+        await dialog.ShowAsync();
+    }
+
+    // Exact copy from Flights.razor's force-remove modal: title, subtitle, and body text -- read
+    // from the .razor file, not invented. Same re-entrancy guard pattern as the delete dialog
+    // above.
+    private async Task ShowForceRemoveDialogAsync(FlightRecord target)
+    {
+        var flightLabel = string.IsNullOrWhiteSpace(target.FlightNumber)
+            ? target.Id.ToString()[..8].ToUpperInvariant()
+            : target.FlightNumber;
+
+        var body = new TextBlock
+        {
+            Text = $"Flight {flightLabel} will be permanently removed. This cannot be undone.",
+            FontSize = 13, Foreground = new SolidColorBrush(Color.FromArgb(0xFF, 0xCB, 0xD5, 0xE1)),
+            TextWrapping = TextWrapping.Wrap, Width = 340,
+        };
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = this.XamlRoot,
+            Title = BuildDialogHeader("Remove Broken Flight", "This will permanently delete the active flight record"),
+            Content = body,
+            PrimaryButtonText = "Remove",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close, // destructive action: Enter/default should not trigger a permanent delete
+        };
+
+        var isRemoving = false;
+        dialog.PrimaryButtonClick += async (_, args) =>
+        {
+            if (isRemoving) { args.Cancel = true; return; } // re-entrancy guard: ignore a second click while the first is still in flight
+
+            var deferral = args.GetDeferral();
+            try
+            {
+                isRemoving = true;
+                await _viewModel.ForceRemoveBrokenFlightAsync(target);
+                RefreshStatStrip();
+                RefreshActiveTabContent();
+            }
+            finally
+            {
+                isRemoving = false;
+                deferral.Complete();
+            }
+        };
+
+        await dialog.ShowAsync();
     }
 }
