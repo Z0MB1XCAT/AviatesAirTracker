@@ -217,7 +217,7 @@
 
                     <StackPanel x:Name="FlightsTableContent">
                         <!-- Header row -->
-                        <Grid Padding="20,12" ColumnSpacing="12">
+                        <Grid Padding="20,17" ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="1.3*" />
                                 <ColumnDefinition Width="1.5*" />
@@ -253,7 +253,7 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Padding="20,13" ColumnSpacing="12" Opacity="{Binding RowOpacity}">
+                                    <Grid Padding="20,19" ColumnSpacing="12" Opacity="{Binding RowOpacity}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="1.3*" />
                                             <ColumnDefinition Width="1.5*" />
@@ -384,7 +384,7 @@
 
                     <StackPanel x:Name="DeletionRequestsTableContent">
                         <!-- Header row -->
-                        <Grid Padding="20,12" ColumnSpacing="12">
+                        <Grid Padding="20,17" ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="0.9*" />
                                 <ColumnDefinition Width="1*" />
@@ -417,7 +417,7 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Padding="20,13" ColumnSpacing="12">
+                                    <Grid Padding="20,19" ColumnSpacing="12">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="0.9*" />
                                             <ColumnDefinition Width="1*" />
