@@ -27,6 +27,7 @@
     <Compile Include="../../AviatesAirTracker/Services/FlightSessionState.cs" Link="Services/FlightSessionState.cs" />
     <Compile Include="../../AviatesAirTracker/Shell/ShellBadgeLogic.cs" Link="Shell/ShellBadgeLogic.cs" />
     <Compile Include="../../AviatesAirTracker/Services/PilotStatsLogic.cs" Link="Services/PilotStatsLogic.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/FlightsFilterLogic.cs" Link="Services/FlightsFilterLogic.cs" />
   </ItemGroup>
 
 </Project>
