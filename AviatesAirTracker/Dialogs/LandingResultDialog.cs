@@ -48,11 +48,8 @@ public static class LandingResultDialog
     private static readonly SolidColorBrush ParamWarnValueBrush = new(Color.FromArgb(0xFF, 0xEA, 0x58, 0x0C)); // #EA580C
 
     // ── Task 2 colors. `.lrm-flag` (scoped CSS) sets its own base text color #475569 -- a
-    //    DIFFERENT color from TextSubBrush's #64748B above (that one is only actually confirmed
-    //    for .lrm-close-x; .lrm-sub has no scoped-CSS rule of its own -- see app.css instead,
-    //    which turns out to define it as var(--text-muted), i.e. TextMutedBrush, not TextSubBrush;
-    //    Task 1's header sub-line color is therefore slightly off, left alone here since fixing
-    //    Task 1's own commit is out of this task's scope -- flagged in the Task 2 report instead). ─
+    //    DIFFERENT color from TextSubBrush's #64748B above (that one is confirmed only for
+    //    .lrm-close-x). Header's sub-line color mismatch (found here, fixed in BuildHeader). ────
     private static readonly SolidColorBrush FlagTextBrush = new(Color.FromArgb(0xFF, 0x47, 0x55, 0x69)); // #475569
 
     // flag-ok / flag-fail / flag-neutral pip colors, scoped CSS: rgba(...,.12)/.15 backgrounds
@@ -73,14 +70,11 @@ public static class LandingResultDialog
 
     // Score ring: r=80, stroke-width=10, confirmed directly against the scoped CSS's
     // `.ring-track`/`.ring-fill` (differs from both Dashboard's r=45/sw=8 and Pilot Hub's
-    // r=65/sw=14). NOTE: unlike those two rings -- whose SVGs render 1:1 with their own viewBox
+    // r=65/sw=14). Unlike those two rings -- whose SVGs render 1:1 with their own viewBox
     // (Dashboard 100x100, Pilot Hub 160x160) -- this modal's SVG has viewBox="0 0 200 200" but is
-    // rendered at a CSS-scaled-down 138x138 (`.lrm-ring-wrap`), a ~0.69x shrink with no WinUI
-    // equivalent. These constants use the literal r=80/sw=10 the plan calls for (as BuildRingArc's
-    // two prior consumers both did with their own literal SVG r values), which renders this ring
-    // visibly larger on screen than the original's 138px -- a real, reportable visual-fidelity
-    // gap, not a mistake; worth a follow-up visual-polish pass once this is actually seen on
-    // screen, same as Dashboard's own post-review polish commit.
+    // rendered at a CSS-scaled-down 138x138 (`.lrm-ring-wrap`). BuildHero wraps this method's
+    // return value in a Viewbox targeting that same 138x138 to match, so these constants can stay
+    // the literal CSS r/stroke-width values without needing to be hand-rescaled themselves.
     private const double RingRadius = 80.0;
     private const double RingStrokeWidth = 10.0;
     private const double RingDiameter = RingRadius * 2;
@@ -172,7 +166,10 @@ public static class LandingResultDialog
             {
                 Text = string.Join("  ·  ", parts),
                 FontSize = 12.5,
-                Foreground = TextSubBrush,
+                // .lrm-sub has no rule of its own in the scoped CSS -- app.css resolves it to
+                // var(--text-muted), i.e. TextMutedBrush, not TextSubBrush (which is confirmed
+                // only for .lrm-close-x/.lrm-flag).
+                Foreground = TextMutedBrush,
                 TextWrapping = TextWrapping.Wrap,
             });
         }
@@ -212,7 +209,15 @@ public static class LandingResultDialog
         hero.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         hero.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var ring = BuildRing(report);
+        // The original SVG's viewBox="0 0 200 200" ring is CSS-scaled down to a rendered
+        // 138x138 (`.lrm-ring-wrap { width:138px; height:138px }`). BuildRing's own logical
+        // bounding box (RingGridSize=180, i.e. diameter+stroke headroom) doesn't need to match
+        // 200 for this to work: wrapping it in a Viewbox targeting the real 138x138 render size
+        // scales whatever BuildRing produces down to the correct on-screen footprint, the same
+        // technique already used elsewhere in this migration (Dashboard/PilotHub/Flights all
+        // wrap their small SVG-path icon reproductions in a Viewbox) rather than hand-rescaling
+        // every ring constant to hit 138 directly.
+        var ring = new Viewbox { Width = 138, Height = 138, Child = BuildRing(report) };
         Grid.SetColumn(ring, 0);
 
         var gradeColumn = BuildGradeColumn(report);
