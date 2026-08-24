@@ -95,7 +95,12 @@ public sealed partial class FlightsPage : Page
             TotalDistanceUnitText.Visibility = Visibility.Collapsed;
         }
 
-        PendingCountText.Text = _viewModel.PendingRequests.Count.ToString(CultureInfo.InvariantCulture);
+        // PendingRequests holds every deletion request regardless of status (the Pending Review
+        // tab needs to show Approved/Rejected rows too), but Flights.razor's badge counts only
+        // the genuinely-open ones -- matching that here rather than PendingRequests.Count, which
+        // would include already-resolved requests in the nav badge.
+        var openCount = _viewModel.PendingRequests.Count(r => r.Status == DeletionRequestStatus.Pending);
+        PendingCountText.Text = openCount.ToString(CultureInfo.InvariantCulture);
     }
 
     // Task 3 fills this in with the flight table (and pending-review table). Stubbed as a

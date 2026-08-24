@@ -62,10 +62,10 @@
                         <TextBlock x:Name="TabPendingText" Text="Pending Review" FontSize="13" FontWeight="SemiBold" />
                         <!-- Live count badge: Flights.razor's own pill (background is the
                              app.css red token, white text, fully rounded). Count is set in
-                             code-behind from
-                             _viewModel.PendingRequests.Count after RefreshAsync(), same
-                             imperative-set pattern PilotHubPage.xaml.cs already uses for
-                             RankSubText/etc. -->
+                             code-behind, filtered to Pending-status requests only (matching
+                             Flights.razor's own badge exactly) since PendingRequests itself
+                             holds every request regardless of status, same imperative-set
+                             pattern PilotHubPage.xaml.cs already uses for RankSubText/etc. -->
                         <Border Background="#EF4444" CornerRadius="999" Padding="7,1" MinWidth="18"
                                 VerticalAlignment="Center">
                             <TextBlock x:Name="PendingCountText" Text="0" FontSize="10" FontWeight="Bold"
