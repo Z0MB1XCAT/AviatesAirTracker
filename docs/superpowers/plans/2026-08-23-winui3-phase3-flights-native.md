@@ -485,3 +485,122 @@ git commit -m "feat(flights): wire native page into the nav rail and Dashboard's
 - Dashboard's "View Flights" button navigates to the native Flights page
 - Filter/Export/View-details stay inert, matching current behavior exactly
 - No `.razor` file touched; `Flights.razor` left in place, unreferenced
+
+---
+
+## Task 5 results (2026-08-24)
+
+**Starting-commit check:** the worktree's `HEAD` was initially `d908203` (unrelated PIREP-sync
+work several commits past the expected base), not `17b99995...`. `git merge-base --is-ancestor`
+confirmed `17b99995...` was still a strict descendant of `d908203` (i.e. a clean fast-forward, not
+a divergent branch) — `git merge --ff-only 17b99995c5be83cf2662c35ae3ead7e4a383db5c` succeeded
+after stashing an unrelated local-only `.claude/settings.local.json` permission-allowlist tweak
+(unstashed cleanly afterward, no conflict). `git rev-parse HEAD` confirmed the exact target hash
+before any Task 5 edits began. `FlightsPage.xaml`/`.xaml.cs` were confirmed present with the
+flight table, route flags, grade/status chips, the Pending Review request list, and all three
+`ContentDialog`s (delete-with-reason, force-remove, plus approve/reject actions) — Tasks 1–4's
+work, intact.
+
+**Step 1 — Nav destination:** Pass. Added
+`NativePageType: typeof(Pages.FlightsPage)` to the `"flights"` entry in
+`AviatesAirTracker/Navigation/NavDestinations.cs`, matching the `dashboard`/`pilot-hub` pattern
+exactly.
+
+**Step 2 — Dashboard CTA:** Pass, with one correction made along the way. Added
+`Tapped="OnViewFlightsTapped"` to the hero `Border` in `DashboardPage.xaml` and an
+`OnViewFlightsTapped` handler in `DashboardPage.xaml.cs` calling `this.Frame.Navigate(typeof(FlightsPage))`.
+The stale "Inert, matching the current Blazor page: no destination to navigate to yet." comment
+was rewritten to describe the new behavior. The initial edit introduced a literal `--` inside the
+updated XAML comment ("... in the code-behind) -- the first native-to-native navigation...") —
+caught by re-running the project's own documented `grep -n -- "--"` check before considering the
+task done, and fixed by rewording to a semicolon. This is exactly the recurring gotcha the plan's
+"Before you start" section warned about, now recurring once more, this time in a page that had
+been previously clean.
+
+`this.Frame` was **not** taken on faith. `ShellWindow.xaml` declares `NativeHost` as a literal
+`<Frame x:Name="NativeHost" .../>`, and `ShellWindow.Navigate()` calls
+`NativeHost.Navigate(destination.NativePageType)` to route to any native page. This is the
+standard WinUI/UWP `Frame.Navigate(Type)` API — its documented behavior is that the Frame sets the
+navigated-to `Page` instance's own `Frame` property to itself as part of navigation, which is
+framework plumbing, not something `ShellWindow` implements. `this.Frame.Navigate(...)` inside
+`DashboardPage` was written on that basis, with a defensive null-check that logs
+`Log.Warning("[Dashboard] View Flights tapped but this.Frame is null; cannot navigate to FlightsPage")`
+and returns rather than throwing, in case that framework guarantee doesn't hold in this specific
+host configuration for some undiscovered reason. **This has not been exercised at runtime** — the
+Step 4 startup check only confirms the app launches and the Dashboard page loads without an
+unhandled exception; it does not click the CTA. Whether `this.Frame` is actually non-null and
+whether the navigation actually lands on `FlightsPage` in practice is unverified and left to human
+click-through, per the task's explicit instruction not to attempt computer-use verification here.
+
+**Step 3 — Full build and test suite:** Pass. `dotnet build AviatesAirTracker.sln -c Debug` — 0
+errors. 9 unique warning messages (each emitted twice, once per restore/build pass), all
+pre-existing and unrelated to this task's files (`LandingAnalyzer`/`FlightSessionManager`/
+`FlightPhaseDetector` unused-field warnings, `MainViewModel` `MVVMTK0034` generated-property
+warnings) — no new warnings introduced by the `NavDestinations.cs`/`DashboardPage.xaml`/
+`DashboardPage.xaml.cs` changes. `dotnet test tests/AviatesAirTracker.Tests/AviatesAirTracker.Tests.csproj`
+— 39/39 passing, matching the expected count (including Task 1's `FlightsFilterLogicTests`); Task
+5 adds no new tests, as expected.
+
+**Step 4 — Startup check:** Pass, within its deliberately limited scope. `tasklist` confirmed MSFS
+was not running beforehand. The built exe was launched, left running ~10 seconds, and closed
+cleanly (process exit confirmed via `tasklist`/`Get-Process`). The Serilog log
+(`%AppData%\AviatesAirTracker\logs\aviates_20260824_001.log`) shows a clean startup: `[Startup] UI
+host ready at http://127.0.0.1:...`, `[Shell] Flights nav badge: AttentionDotInfoBadgeStyle`
+(the badge-refresh logic introduced back in Phase 3 Task 2, now exercising the `flights` entry's
+resolution normally), and no `[Shell]`-tagged errors, no `FTL`-level log lines, and no "Unhandled"/
+"Exception was thrown" entries anywhere in this run's window. The only exceptions logged are
+pre-existing, unrelated `SharpDX.SharpDXException: DIERR_DEVICENOTREG` debug-level noise from
+`PttInputService`'s joystick poll loop — expected on this machine, which has no physical joystick
+attached, and present in prior runs' logs too, unconnected to this task's changes.
+
+**What Step 4 does NOT verify** (consistent with every prior task in this migration, but a longer
+list than usual given how much of this page is new interaction surface):
+- Whether clicking "Flights" in the nav rail actually renders the native page correctly (table
+  layout, route flags, chip colors, tab switching).
+- Whether the Pending Review tab's request list — built from scratch in Task 4, no prior
+  equivalent — actually renders and behaves correctly.
+- Whether any of the three `ContentDialog`s actually display when triggered (`this.XamlRoot`
+  resolving correctly is the specific open question flagged since Task 4; this task is the first
+  point where it's reachable at all, but reachability was not exercised).
+- Whether `this.Frame.Navigate(...)` for the Dashboard→Flights CTA actually works end-to-end, as
+  covered above.
+- General visual fidelity of the whole page against `Flights.razor`/the design spec.
+
+All of the above are left to a human's click-through pass, per this project's established,
+deliberate practice (documented identically in the Dashboard and Pilot Hub tasks' own results
+sections) of not using computer-use/screenshot verification from an agent for this kind of check.
+
+**Notable fixes/decisions from earlier tasks, for context:**
+- **Pending Review badge bug (`ca41b80`):** `PendingRequests` holds every deletion request
+  regardless of status (the Pending Review tab itself needs to show Approved/Rejected rows, not
+  just open ones), but the nav-rail badge count was originally reading `PendingRequests.Count`
+  directly instead of filtering to `DeletionRequestStatus.Pending` — `Flights.razor`'s own badge
+  filters to just the open ones. Caught and fixed before it could show a misleading count once
+  real approval/rejection history accumulates.
+- **`FlightLogRow` naming (Task 3):** `DashboardPage.xaml.cs` already declares its own
+  `FlightDisplayRow` class (for the Recent Flights list) in the same `AviatesAirTracker.Pages`
+  namespace. Naming the Flights page's own display-row class `FlightDisplayRow` too would have
+  been a `CS0101` duplicate-type compile error the moment both pages exist in the same assembly,
+  so Task 3 named it `FlightLogRow` instead — same pattern (plain mutable class, not a record, for
+  the usual `CS8852` reason), different name.
+- **Double-click guard (Task 4):** Both the delete-with-reason and force-remove `ContentDialog`s
+  reproduce a re-entrancy guard ported from `Flights.razor` itself: a boolean (`isSubmitting`/
+  `isRemoving`) set before the async repository call and checked at the top of the
+  `PrimaryButtonClick` handler, cancelling (`args.Cancel = true`) a second click that arrives while
+  the first is still in flight — guarding against a fast double-click firing
+  `SubmitDeletionRequestAsync`/`ForceRemoveBrokenFlightAsync` twice concurrently before the dialog
+  visually closes. `FlightsViewModel` itself has no equivalent guard, matching the original
+  `.razor` behavior exactly (the guard lives at the UI layer, not the ViewModel layer).
+- **Pending Review tab's request list (Task 4):** Did not exist until Task 4 built it from
+  scratch — Task 3 only covered the flight table itself (all tabs before Task 4 showed the same
+  flight table, just filtered). Task 4 added the distinct deletion-request row layout with its own
+  Approve/Reject actions.
+
+**Overall verdict:** All five steps of Task 5 pass. Build is clean (0 errors, no new warnings),
+the full 39-test suite passes, and a real startup/shutdown cycle logged no `[Shell]` errors or
+unhandled exceptions. The nav-rail wiring and Dashboard CTA are code-complete and compile
+correctly, resting on a documented, standard WinUI `Frame` navigation guarantee rather than an
+untested assumption — but per this migration's consistent practice, actual visual and
+click-through behavior (dialog display, `XamlRoot` resolution, native-to-native navigation firing
+correctly, tab/table/Pending-Review rendering) remains unverified by this task and is left to a
+human pass, same as Dashboard's and Pilot Hub's own final tasks.

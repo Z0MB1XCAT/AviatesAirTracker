@@ -23,7 +23,7 @@ public static class NavDestinations
     public static readonly IReadOnlyList<NavDestination> All =
     [
         new("dashboard", "Dashboard", "/",          "Overview", NativePageType: typeof(Pages.DashboardPage)),
-        new("flights",   "Flights",   "/flights",   "Overview"),
+        new("flights",   "Flights",   "/flights",   "Overview", NativePageType: typeof(Pages.FlightsPage)),
         new("routes",    "Routes",    "/routes",    "Overview"),
         new("fleet",     "Fleet",     "/fleet",     "Overview"),
         new("pilot-hub", "Pilot Hub", "/pilot-hub", "Pilot", NativePageType: typeof(Pages.PilotHubPage)),

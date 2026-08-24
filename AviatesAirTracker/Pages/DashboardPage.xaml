@@ -96,10 +96,13 @@
                                  certainty (no <Style> means no way to reliably retemplate
                                  Button's own default corner/padding behavior); same reasoning
                                  as the eyebrow badge two elements up, which already renders
-                                 correctly with this exact technique. Inert, matching the current
-                                 Blazor page: no destination to navigate to yet. -->
+                                 correctly with this exact technique. Navigates to the native
+                                 Flights page via this.Frame.Navigate (see OnViewFlightsTapped
+                                 in the code-behind); the first native-to-native navigation in
+                                 this migration. -->
                             <Border Background="#FFFFFF" CornerRadius="999" Padding="22,11"
-                                    HorizontalAlignment="Left" Margin="0,10,0,0">
+                                    HorizontalAlignment="Left" Margin="0,10,0,0"
+                                    Tapped="OnViewFlightsTapped">
                                 <TextBlock Text="View Flights" FontSize="13.5" FontWeight="Bold" Foreground="#0F172A" />
                             </Border>
                         </StackPanel>

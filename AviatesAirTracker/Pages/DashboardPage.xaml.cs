@@ -2,9 +2,11 @@ using AviatesAirTracker.Services;
 using AviatesAirTracker.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Shapes;
+using Serilog;
 using System;
 using System.Collections.ObjectModel;
 using System.Globalization;
@@ -210,5 +212,33 @@ public sealed partial class DashboardPage : Page
         };
 
         return new PathGeometry { Figures = { figure } };
+    }
+
+    /// <summary>
+    /// The hero card's "View Flights" CTA -- the first native-to-native navigation in this
+    /// migration (Phase 3 Task 5). <c>this.Frame</c> is populated by the standard WinUI/UWP
+    /// Frame navigation infrastructure: when <c>ShellWindow</c>'s <c>NativeHost</c> (a
+    /// <c>Frame</c>) navigates to a page type, the Frame sets that page instance's own
+    /// <c>Frame</c> property to itself before/as it becomes the Frame's Content, exactly the
+    /// same way it would for any UWP/WinUI Frame-hosted Page -- this is documented framework
+    /// behavior, not something ShellWindow implements itself. Navigating via
+    /// <c>this.Frame.Navigate</c> therefore sends the SAME NativeHost Frame that is currently
+    /// showing this page on to FlightsPage, which is exactly what's wanted here (as opposed to,
+    /// say, a static back-reference to ShellWindow, which would also work but is a strictly
+    /// worse pattern than the standard Frame-navigation idiom every other Frame-hosted Page in
+    /// the ecosystem already uses).
+    /// </summary>
+    private void OnViewFlightsTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (this.Frame == null)
+        {
+            // Would mean the standard Frame-hosting behavior described above didn't hold for
+            // this page instance -- logged rather than silently no-op'd so a real regression
+            // here is observable in Serilog instead of just "the button does nothing."
+            Log.Warning("[Dashboard] View Flights tapped but this.Frame is null; cannot navigate to FlightsPage");
+            return;
+        }
+
+        this.Frame.Navigate(typeof(FlightsPage));
     }
 }
