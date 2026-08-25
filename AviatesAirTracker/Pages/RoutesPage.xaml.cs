@@ -101,6 +101,30 @@ public sealed partial class RoutesPage : Page
         };
     }
 
+    // ── Route card grid columns ─────────────────────────────────────────────────────────────
+
+    // Minimum comfortable card width before dropping to fewer columns, and the right/bottom
+    // gutter baked into each card's own Margin (see the DataTemplate in RoutesPage.xaml).
+    private const double CardMinWidth = 360;
+    private const double CardGutter = 16;
+
+    // ItemsWrapGrid wraps at a fixed ItemWidth, so a hardcoded card width leaves a dead gap
+    // whenever the available width isn't an exact multiple of it (the bug reported after Task 4:
+    // cards stopped short of the window edge instead of filling it). Recomputed on every resize
+    // so columns always stretch to fill RouteCardsList's own width exactly.
+    private void RouteCardsList_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateRouteGridColumns();
+
+    private void UpdateRouteGridColumns()
+    {
+        if (RouteCardsList.ItemsPanelRoot is not ItemsWrapGrid panel) return;
+
+        var available = RouteCardsList.ActualWidth;
+        if (available <= 0) return;
+
+        var columns = Math.Max(1, (int)Math.Floor((available + CardGutter) / (CardMinWidth + CardGutter)));
+        panel.ItemWidth = Math.Floor(available / columns);
+    }
+
     // ── Position instrument banner ──────────────────────────────────────────────────────────
 
     private void UpdatePositionBanner()
@@ -286,6 +310,11 @@ public sealed partial class RoutesPage : Page
                 Source = route,
             });
         }
+
+        // RouteCardsList was Collapsed (zero size, no layout) while empty/loading, so its own
+        // SizeChanged may not have fired with a usable width yet by the time rows exist -- call
+        // this explicitly rather than rely solely on the event once it's Visible with content.
+        UpdateRouteGridColumns();
     }
 
     // Matches Routes.razor's GetFleetColor exactly (mainline -> blue, cargo -> amber,

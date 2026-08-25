@@ -187,10 +187,12 @@
             <TextBlock x:Name="ResultCountText" Visibility="Collapsed" FontSize="12" Foreground="#94A3B8" />
 
             <!-- ── Route card grid ──
-                 ItemsWrapGrid lets cards wrap into a 3-column layout at this page's MaxWidth
-                 (each card is a fixed 420px wide Border with a 16px gutter, three fit comfortably
-                 inside the 1440px content width). -->
-            <ItemsControl x:Name="RouteCardsList">
+                 ItemsWrapGrid wraps cards into rows; ItemWidth is recomputed in code-behind
+                 (UpdateRouteGridColumns) from the panel's own ActualWidth so columns stretch to
+                 fill the available width instead of leaving a dead gap when it doesn't divide
+                 evenly by a fixed card width. Each card is HorizontalAlignment="Stretch" so it
+                 fills its ItemWidth cell (minus the right/bottom gutter margin). -->
+            <ItemsControl x:Name="RouteCardsList" SizeChanged="RouteCardsList_SizeChanged">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <ItemsWrapGrid Orientation="Horizontal" />
@@ -198,7 +200,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Width="420" Margin="0,0,16,16" Background="#0C111D" BorderBrush="#14FFFFFF"
+                        <Border HorizontalAlignment="Stretch" Margin="0,0,16,16" Background="#0C111D" BorderBrush="#14FFFFFF"
                                 BorderThickness="1" CornerRadius="20" Padding="20">
                             <StackPanel Spacing="10">
 
@@ -225,10 +227,42 @@
                                     </Border>
                                 </Grid>
 
-                                <!-- Title: flags + IATA route -->
-                                <StackPanel Orientation="Horizontal" Spacing="9" ToolTipService.ToolTip="{Binding RouteTooltip}">
-                                    <Image Source="{Binding OriginFlagSource}" Width="18" Height="13" Stretch="UniformToFill" />
-                                    <Image Source="{Binding DestFlagSource}" Width="18" Height="13" Stretch="UniformToFill" />
+                                <!-- Title: flags + IATA route
+                                     Reproduces app.css's .flag-route/.flag-route-dep/.flag-route-arr: a single
+                                     rounded chip with the two flags crossfading into each other via a linear
+                                     gradient, not two separate icons. WinUI has no CSS mask-image equivalent, so
+                                     the fade is faked with an overlay Rectangle whose LinearGradientBrush goes
+                                     from Transparent to the chip's own background color, visually identical
+                                     against this chip's solid backdrop. Origin flag fades out from 40% of its own
+                                     width to fully hidden by 100% (mask-image: linear-gradient(90deg,#000 40%,
+                                     transparent 100%)); dest flag fades in from fully hidden at 0% to fully shown
+                                     by 60% (linear-gradient(90deg,transparent 0%,#000 60%)). -->
+                                <StackPanel Orientation="Horizontal" Spacing="10" ToolTipService.ToolTip="{Binding RouteTooltip}">
+                                    <Border Width="52" Height="34" CornerRadius="6" Background="#0C111D"
+                                            BorderBrush="#14FFFFFF" BorderThickness="1">
+                                        <Grid>
+                                            <Image Source="{Binding OriginFlagSource}" Width="34" Height="34"
+                                                   HorizontalAlignment="Left" Stretch="UniformToFill" />
+                                            <Rectangle Width="34" Height="34" HorizontalAlignment="Left">
+                                                <Rectangle.Fill>
+                                                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                                        <GradientStop Color="Transparent" Offset="0.4" />
+                                                        <GradientStop Color="#0C111D" Offset="1.0" />
+                                                    </LinearGradientBrush>
+                                                </Rectangle.Fill>
+                                            </Rectangle>
+                                            <Image Source="{Binding DestFlagSource}" Width="34" Height="34"
+                                                   HorizontalAlignment="Right" Stretch="UniformToFill" />
+                                            <Rectangle Width="34" Height="34" HorizontalAlignment="Right">
+                                                <Rectangle.Fill>
+                                                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                                        <GradientStop Color="#0C111D" Offset="0.0" />
+                                                        <GradientStop Color="Transparent" Offset="0.6" />
+                                                    </LinearGradientBrush>
+                                                </Rectangle.Fill>
+                                            </Rectangle>
+                                        </Grid>
+                                    </Border>
                                     <TextBlock Text="{Binding RouteLabel}" FontFamily="{StaticResource DisplayFontBold}"
                                                FontSize="15" FontWeight="SemiBold" Foreground="#F1F5F9" />
                                 </StackPanel>

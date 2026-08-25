@@ -164,6 +164,11 @@ public static class BookingDialog
         var dialog = new ContentDialog
         {
             XamlRoot = xamlRoot,
+            RequestedTheme = ElementTheme.Dark,
+            Background = SurfaceBrush,
+            Foreground = TextPrimaryBrush,
+            BorderBrush = BorderBrush_,
+            CornerRadius = new CornerRadius(16),
             Title = BuildHeader(route),
             Content = new ScrollViewer { Content = content, MaxHeight = 560, VerticalScrollBarVisibility = ScrollBarVisibility.Auto },
             PrimaryButtonText = "Confirm Booking",
@@ -171,6 +176,16 @@ public static class BookingDialog
             DefaultButton = ContentDialogButton.Primary,
             IsPrimaryButtonEnabled = false, // re-enabled once the registration load below completes
         };
+
+        // RequestedTheme/Background/Foreground above only reach the dialog's own chrome -- the
+        // Primary/Close buttons are drawn by ContentDialog's default template using the system's
+        // light-theme button brushes regardless (the "looks like stock Windows" bug reported after
+        // Task 4), since neither is exposed as a settable property. PrimaryButton/CloseButton are
+        // fixed, stable template part names on every WinAppSDK version, so once the template is
+        // applied (Opened) we reach in via VisualTreeHelper and recolor the actual Button instances
+        // directly -- not a <Style> element, so the XamlCompiler crash risk this project has hit
+        // repeatedly elsewhere doesn't apply here.
+        dialog.Opened += (_, _) => ThemeDialogButtons(dialog);
 
         // Fire-and-forget: the dialog is shown immediately (loading indicator visible), and this
         // populates the ComboBox in place once FleetService responds -- matches OpenBookingModal's
@@ -241,6 +256,38 @@ public static class BookingDialog
         };
 
         await dialog.ShowAsync();
+    }
+
+    // Recolors the dialog's native Primary/Close buttons to match this dialog's own dark palette
+    // instead of the stock Windows light-theme button chrome: Confirm Booking gets a solid accent
+    // fill (matching the app's own primary-action color), Cancel gets the same translucent-white
+    // bordered look as every other secondary Border-button in this dialog (e.g. Regenerate).
+    private static void ThemeDialogButtons(ContentDialog dialog)
+    {
+        if (FindDescendant<Button>(dialog, "PrimaryButton") is { } primary)
+        {
+            primary.Background = AccentBrush;
+            primary.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
+            primary.BorderBrush = AccentBrush;
+        }
+        if (FindDescendant<Button>(dialog, "CloseButton") is { } close)
+        {
+            close.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
+            close.Foreground = TextSecondaryBrush;
+            close.BorderBrush = BorderBrush_;
+        }
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root, string name) where T : FrameworkElement
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T typed && typed.Name == name) return typed;
+            if (FindDescendant<T>(child, name) is { } found) return found;
+        }
+        return null;
     }
 
     private static void ShowError(Border errorBorder, TextBlock errorText, string message)
