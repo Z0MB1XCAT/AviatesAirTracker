@@ -417,6 +417,7 @@ public partial class App : Application
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<FleetViewModel>();
         services.AddSingleton<FlightsViewModel>();
+        services.AddSingleton<RoutesViewModel>();
         services.AddSingleton<ShellWindow>();
     }
 
