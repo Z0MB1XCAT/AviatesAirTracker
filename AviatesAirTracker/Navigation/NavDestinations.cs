@@ -31,7 +31,7 @@ public static class NavDestinations
         new("map",       "Map",       "/map",       "Pilot"),
         new("messages",  "Messages",  "/messages",  "Pilot"),
         new("news",      "News",      "/news",      "Community"),
-        new("events",    "Events",    "/events",    "Community"),
+        new("events",    "Events",    "/events",    "Community", NativePageType: typeof(Pages.EventsPage)),
         new("support",   "Support",   "/support",   "Community"),
         // Settings sits below the connection-status block in the sidebar footer,
         // outside every section heading.
