@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -73,6 +74,7 @@ public sealed partial class MessagesPage : Page
 
     private readonly MessagesViewModel _viewModel;
     private readonly SettingsService _settings;
+    private readonly MessagingService _messaging;
 
     private readonly ObservableCollection<FriendDisplayRow> _friendRows = [];
     private readonly ObservableCollection<CrewDisplayRow> _crewRows = [];
@@ -108,6 +110,7 @@ public sealed partial class MessagesPage : Page
 
         _viewModel = App.GetService<MessagesViewModel>();
         _settings = App.GetService<SettingsService>();
+        _messaging = App.GetService<MessagingService>();
         DataContext = _viewModel;
 
         FriendListItems.ItemsSource = _friendRows;
@@ -117,9 +120,72 @@ public sealed partial class MessagesPage : Page
 
         Loaded += async (_, _) =>
         {
+            // Subscribed here rather than the constructor: a Page (unlike ShellWindow, which
+            // lives for the app's whole lifetime) can be navigated away from and, in principle,
+            // shown again, so the subscribe/unsubscribe pair is tied to Loaded/Unloaded rather
+            // than construction/GC. MessagingService.NewMessageReceived/UnreadCountChanged fire
+            // from a background ThreadPool thread (the service's System.Threading.Timer poll --
+            // see MessagingService.cs's _pollTimer), unlike ShellWindow's own
+            // MessagingService.UnreadCountChanged subscription (whose handler mutates
+            // NavigationViewItem.InfoBadge directly with no TryEnqueue) or its
+            // AlertService.LandingResultReady subscription (also un-marshaled) -- both of those
+            // happen to fire from the UI-thread-affine 20Hz telemetry pump, not a background
+            // timer, so ShellWindow's own handlers are not actually proof that no marshaling is
+            // needed here. Every mutation below goes through DispatcherQueue.TryEnqueue.
+            _messaging.NewMessageReceived += OnNewMessageReceived;
+            _messaging.UnreadCountChanged += OnUnreadCountChanged;
+
             await _viewModel.RefreshAllAsync();
             RebuildUi();
         };
+
+        Unloaded += (_, _) =>
+        {
+            _messaging.NewMessageReceived -= OnNewMessageReceived;
+            _messaging.UnreadCountChanged -= OnUnreadCountChanged;
+        };
+    }
+
+    // ── Live-update subscriptions ────────────────────────────────────────────────────────────
+
+    // Full refresh + re-render, matching Messages.razor's OnNewMessage -> RefreshAll() +
+    // StateHasChanged(). DispatcherQueue.TryEnqueue accepts a plain DispatcherQueueHandler
+    // (a parameterless void delegate); an async lambda satisfies that signature directly (the
+    // compiler emits an async-void lambda), which is the standard WinUI pattern for running an
+    // awaited continuation on the UI thread from a background-thread event -- there was no
+    // existing example of this exact shape in ShellWindow.xaml.cs to copy (its own TryEnqueue
+    // call wraps a synchronous dialog.Hide(), not an awaited continuation).
+    private void OnNewMessageReceived(object? sender, PilotMessage message)
+    {
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            try
+            {
+                await _viewModel.RefreshAllAsync();
+                RebuildUi();
+            }
+            catch (Exception ex)
+            {
+                // An unhandled exception inside an async-void TryEnqueue callback would
+                // otherwise crash the process (async void exceptions propagate to the
+                // SynchronizationContext, not to any awaiter) -- log and swallow instead, same
+                // defensive posture as ShellWindow's other background-driven handlers.
+                Log.Warning(ex, "[Messages] Failed to refresh page after NewMessageReceived");
+            }
+        });
+    }
+
+    // Narrow update only: mirrors Messages.razor's OnUnreadCountChanged (`_unreadCount = count;
+    // StateHasChanged();`) -- sources the new count directly from the event argument rather than
+    // re-querying the ViewModel/repository, and only refreshes the Inbox tab's badge, not a full
+    // RebuildUi(). No await is needed here, so no try/catch-around-async-void concern applies.
+    private void OnUnreadCountChanged(object? sender, int count)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _viewModel.UnreadCount = count;
+            UpdateTabBadges();
+        });
     }
 
     // ── Top-level rebuild ────────────────────────────────────────────────────────────────────
