@@ -418,6 +418,9 @@ public partial class App : Application
         services.AddSingleton<FleetViewModel>();
         services.AddSingleton<FlightsViewModel>();
         services.AddSingleton<RoutesViewModel>();
+        // EventsViewModel (Task 1) wasn't registered when it was added -- required here so
+        // EventsPage's Task 2 App.GetService<EventsViewModel>() call resolves.
+        services.AddSingleton<EventsViewModel>();
         services.AddSingleton<ShellWindow>();
     }
 

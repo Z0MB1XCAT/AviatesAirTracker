@@ -1,0 +1,305 @@
+<Page
+    x:Class="AviatesAirTracker.Pages.EventsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="#080B14">
+
+    <!--
+      Native reproduction of AviatesAirTracker.LegacyWeb\Pages\Events.razor, following the same
+      Phase 2/3 rules every prior native page in this migration has followed: no Style element
+      and no new Theme\Tokens.xaml entry may appear anywhere in this project's XAML (silently
+      crashes XamlCompiler.exe on this SDK), and no literal double hyphen inside any XAML
+      comment (invalid XML, same silent crash) - use a single hyphen or the box-drawing "──"
+      character instead. Every color/spacing value below is a direct property value, taken from
+      wwwroot/css/app.css's html[data-theme="dark"] token block (the same hex values RoutesPage
+      and FleetPage already hardcode); existing Theme\Tokens.xaml/Typography.xaml StaticResource
+      lookups (DisplayFontBold, SidebarActiveBrush, etc.) are fine to reuse since those entries
+      already exist.
+
+      This task (Task 2) builds the page skeleton, status banner, tab bar, featured hero, event
+      list, and the three empty states. The Create Event dialog (Task 3) is wired up separately -
+      the "Create Event" button below is a no-op Tapped handler for now.
+
+      Event card footer layout: the original is a CSS flex row that wraps, with the trailing
+      Register/Unregister/Full element pinned via margin-left:auto. WinUI has no direct flex-wrap
+      equivalent without a bespoke wrap panel, so this reproduces it as a two-column Grid instead
+      (meta items left, trailing action right) - a deliberate simplification, not an oversight;
+      it matches the original's visual result for the realistic case of a handful of meta chips.
+    -->
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
+        <StackPanel MaxWidth="1440" Spacing="20" HorizontalAlignment="Stretch">
+
+            <!-- ── Page header ── -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="Events" FontFamily="{StaticResource DisplayFontBold}"
+                           FontSize="26" Foreground="#F1F5F9" />
+                <TextBlock Text="Group fly-ins, competitions, and community gatherings across the AviatesAir network."
+                           FontSize="14" Foreground="#94A3B8" />
+            </StackPanel>
+
+            <!-- ── Status banner ──
+                 Dismissible, success/error visual variants - colors/border swapped in code-behind
+                 (UpdateStatusBanner), matching Events.razor's .events-status/.events-status-error. -->
+            <Border x:Name="StatusBanner" Visibility="Collapsed" CornerRadius="12" Padding="14,10">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="StatusText" Grid.Column="0" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <Border Grid.Column="1" Tag="close" Tapped="OnStatusCloseTapped" VerticalAlignment="Center" Padding="6,0">
+                        <TextBlock x:Name="StatusCloseText" Text="&#x2715;" FontSize="14" />
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- ── Tab bar + Create Event ──
+                 Same Border-active-state technique RoutesPage/FleetPage already established. -->
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                    <Border x:Name="TabUpcomingBorder" Tag="upcoming" Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
+                        <TextBlock x:Name="TabUpcomingText" Text="Upcoming" FontSize="13" FontWeight="SemiBold" />
+                    </Border>
+                    <Border x:Name="TabPastBorder" Tag="past" Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
+                        <TextBlock x:Name="TabPastText" Text="Past Events" FontSize="13" FontWeight="SemiBold" />
+                    </Border>
+                    <Border x:Name="TabMyBorder" Tag="my" Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
+                        <TextBlock x:Name="TabMyText" Text="My Events" FontSize="13" FontWeight="SemiBold" />
+                    </Border>
+                </StackPanel>
+
+                <!-- Task 3 wires this. -->
+                <Border Grid.Column="1" Tag="create" Tapped="OnCreateEventTapped" Background="#4D9BEC"
+                        CornerRadius="8" Padding="14,8" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Viewbox Width="14" Height="14">
+                            <Grid Width="24" Height="24">
+                                <Line X1="12" Y1="5" X2="12" Y2="19" Stroke="#FFFFFF" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                <Line X1="5" Y1="12" X2="19" Y2="12" Stroke="#FFFFFF" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            </Grid>
+                        </Viewbox>
+                        <TextBlock Text="Create Event" FontSize="12" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- ── Loading state ── -->
+            <StackPanel x:Name="LoadingPanel" Visibility="Collapsed" HorizontalAlignment="Center"
+                        Padding="0,60" Spacing="12">
+                <ProgressRing IsActive="True" Width="32" Height="32" HorizontalAlignment="Center" />
+                <TextBlock Text="Loading events…" FontSize="13" Foreground="#94A3B8" HorizontalAlignment="Center" />
+            </StackPanel>
+
+            <!-- ── Featured-event hero card ──
+                 Upcoming tab only, when a featured event exists. The decorative concentric-circle
+                 SVG art (Events.razor lines 61-66) is reproduced in a simplified form - three
+                 plain concentric Ellipses - rather than the original's exact SVG, per the plan's
+                 explicit allowance for this element. -->
+            <Border x:Name="FeaturedHeroBorder" Visibility="Collapsed" CornerRadius="24" MinHeight="160" Padding="40,36">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#1B3F8B" Offset="0.0" />
+                        <GradientStop Color="#0F172A" Offset="0.48" />
+                        <GradientStop Color="#1A1040" Offset="1.0" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="200" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" MaxWidth="520" VerticalAlignment="Center" Spacing="0">
+                        <Border Background="#1AFFFFFF" BorderBrush="#24FFFFFF" BorderThickness="1"
+                                CornerRadius="999" Padding="12,4" HorizontalAlignment="Left" Margin="0,0,0,16">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Ellipse Width="5" Height="5" Fill="#06B6D4" VerticalAlignment="Center" />
+                                <TextBlock x:Name="FeaturedEyebrowText" FontSize="10" FontWeight="Bold"
+                                           CharacterSpacing="24" Foreground="#BFFFFFFF" />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock x:Name="FeaturedTitleText" FontFamily="{StaticResource DisplayFontBold}"
+                                    FontSize="24" FontWeight="Bold" Foreground="#FFFFFF" TextWrapping="Wrap" Margin="0,0,0,12" />
+                        <TextBlock x:Name="FeaturedDescText" FontSize="13" Foreground="#94FFFFFF"
+                                    TextWrapping="Wrap" MaxWidth="400" Margin="0,0,0,16" />
+                        <Border Tag="featured-cta" Tapped="OnFeaturedCtaTapped" Background="#FFFFFF"
+                                CornerRadius="999" Padding="18,9" HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock x:Name="FeaturedCtaText" FontSize="12.5" FontWeight="Bold" Foreground="#0F172A" />
+                                <Viewbox Width="14" Height="14">
+                                    <Grid Width="24" Height="24">
+                                        <Line X1="5" Y1="12" X2="19" Y2="12" Stroke="#0F172A" StrokeThickness="2.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                        <Path Data="M12,5 L19,12 L12,19" Stroke="#0F172A" StrokeThickness="2.5"
+                                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    </Grid>
+                                </Viewbox>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Simplified decorative art: concentric rings, no SVG text glyph. -->
+                    <Viewbox Grid.Column="1" Width="120" Height="120" HorizontalAlignment="Right" VerticalAlignment="Center" Opacity="0.7">
+                        <Grid Width="200" Height="160">
+                            <Ellipse Width="70" Height="70" Stroke="#4D9BEC" StrokeThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Ellipse Width="50" Height="50" Stroke="#4D9BEC" StrokeThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Ellipse Width="30" Height="30" Stroke="#4D9BEC" StrokeThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                    </Viewbox>
+                </Grid>
+            </Border>
+
+            <!-- ── Empty states ──
+                 One shared panel; exact text swapped in code-behind (RebuildUi) for the three
+                 distinct cases - My Events (ACARS-key-missing vs. no-registrations), Past, and
+                 Upcoming - matching Events.razor lines 79-94 verbatim. -->
+            <StackPanel x:Name="EmptyPanel" Visibility="Collapsed" HorizontalAlignment="Center"
+                        Padding="0,60" Spacing="16">
+                <Viewbox Width="48" Height="48" Opacity="0.25">
+                    <Grid Width="24" Height="24">
+                        <Rectangle Width="18" Height="18" RadiusX="2" RadiusY="2" Stroke="#94A3B8" StrokeThickness="1.5"
+                                   HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,2" />
+                        <Line X1="16" Y1="2" X2="16" Y2="6" Stroke="#94A3B8" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                        <Line X1="8" Y1="2" X2="8" Y2="6" Stroke="#94A3B8" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                        <Line X1="3" Y1="10" X2="21" Y2="10" Stroke="#94A3B8" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                    </Grid>
+                </Viewbox>
+                <TextBlock x:Name="EmptyText" FontSize="13.5" Foreground="#94A3B8" HorizontalAlignment="Center"
+                           TextWrapping="Wrap" TextAlignment="Center" MaxWidth="360" />
+            </StackPanel>
+
+            <!-- ── Event list ──
+                 Single vertical column (matches Events.razor's own flex-direction:column - NOT
+                 a wrapping grid, so no ItemsWrapGrid/SizeChanged column-fill logic is needed here). -->
+            <ItemsControl x:Name="EventsList">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Vertical" Spacing="12" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                CornerRadius="20" Padding="16">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Date block -->
+                                <Border Grid.Column="0" Width="52" Height="56" Background="#1F4D9BEC"
+                                        CornerRadius="12" VerticalAlignment="Top">
+                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="1">
+                                        <TextBlock Text="{Binding DayText}" FontFamily="{StaticResource DisplayFontBold}"
+                                                   FontSize="22" FontWeight="Bold" Foreground="#4D9BEC" HorizontalAlignment="Center" />
+                                        <TextBlock Text="{Binding MonthText}" FontSize="10" FontWeight="Bold"
+                                                   CharacterSpacing="24" Foreground="#4D9BEC" HorizontalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Body -->
+                                <StackPanel Grid.Column="1" Spacing="4" MinWidth="0">
+
+                                    <!-- Title row: title + Featured/Registered chips -->
+                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Title}" FontFamily="{StaticResource DisplayFontBold}"
+                                                   FontSize="14.5" FontWeight="Bold" Foreground="#F1F5F9" TextWrapping="Wrap" />
+                                        <Border Background="#1F4D9BEC" CornerRadius="6" Padding="8,2" Visibility="{Binding ShowFeaturedChip}">
+                                            <TextBlock Text="Featured" FontSize="10" FontWeight="SemiBold" Foreground="#4D9BEC" />
+                                        </Border>
+                                        <Border Background="#1F3EC7AC" CornerRadius="6" Padding="8,2" Visibility="{Binding ShowRegisteredChip}">
+                                            <TextBlock Text="Registered" FontSize="10" FontWeight="SemiBold" Foreground="#3EC7AC" />
+                                        </Border>
+                                    </StackPanel>
+
+                                    <!-- Description -->
+                                    <TextBlock Text="{Binding Description}" FontSize="12.5" Foreground="#94A3B8"
+                                               TextWrapping="Wrap" Visibility="{Binding ShowDescription}" Margin="0,4,0,0" />
+
+                                    <!-- Byline -->
+                                    <TextBlock Text="{Binding ByLine}" FontSize="11" Foreground="#64748B"
+                                               Visibility="{Binding ShowByLine}" Margin="0,2,0,0" />
+
+                                    <!-- Meta row + trailing action -->
+                                    <Grid Margin="0,8,0,0" ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" Spacing="5" Visibility="{Binding ShowTimeUtc}">
+                                                <Viewbox Width="12" Height="12">
+                                                    <Grid Width="24" Height="24">
+                                                        <Ellipse Width="20" Height="20" Stroke="#64748B" StrokeThickness="2" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                        <Line X1="12" Y1="12" X2="12" Y2="7" Stroke="#64748B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                        <Line X1="12" Y1="12" X2="16" Y2="14" Stroke="#64748B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                    </Grid>
+                                                </Viewbox>
+                                                <TextBlock Text="{Binding TimeUtcText}" FontSize="11.5" Foreground="#64748B" VerticalAlignment="Center" />
+                                            </StackPanel>
+
+                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                <Viewbox Width="12" Height="12">
+                                                    <Grid Width="24" Height="24">
+                                                        <Ellipse Width="9" Height="9" Stroke="#64748B" StrokeThickness="1.8" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6,2,0,0" />
+                                                        <Ellipse Width="9" Height="9" Stroke="#64748B" StrokeThickness="1.8" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,4,0,0" />
+                                                    </Grid>
+                                                </Viewbox>
+                                                <TextBlock Text="{Binding RegCountText}" FontSize="11.5" Foreground="#64748B" VerticalAlignment="Center" />
+                                            </StackPanel>
+
+                                            <StackPanel Orientation="Horizontal" Spacing="5" Visibility="{Binding ShowRoute}">
+                                                <Viewbox Width="12" Height="12">
+                                                    <Grid Width="24" Height="24">
+                                                        <Ellipse Width="18" Height="20" Stroke="#64748B" StrokeThickness="1.8" HorizontalAlignment="Center" VerticalAlignment="Top" />
+                                                        <Ellipse Width="5" Height="5" Fill="#64748B" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,6,0,0" />
+                                                    </Grid>
+                                                </Viewbox>
+                                                <TextBlock Text="{Binding RouteText}" FontSize="11.5" Foreground="#64748B" VerticalAlignment="Center" />
+                                            </StackPanel>
+
+                                            <Border Background="#1AF59E0B" CornerRadius="6" Padding="8,2" Visibility="{Binding ShowRankRestriction}" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding RankRestrictionText}" FontSize="10.5" FontWeight="SemiBold" Foreground="#F59E0B" />
+                                            </Border>
+
+                                            <Border Background="#1FB8934A" CornerRadius="6" Padding="8,2" Visibility="{Binding ShowAircraftRestriction}" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding AircraftRestrictionText}" FontSize="10.5" FontWeight="SemiBold" Foreground="#B8934A" />
+                                            </Border>
+                                        </StackPanel>
+
+                                        <!-- Trailing action: hidden entirely on the Past tab (ShowActionRow). Register /
+                                             Unregister / Full are mutually exclusive within it. -->
+                                        <StackPanel Grid.Column="1" Visibility="{Binding ShowActionRow}" VerticalAlignment="Center">
+                                            <Border Background="#4D9BEC" CornerRadius="8" Padding="14,7"
+                                                    Visibility="{Binding ShowRegisterButton}" Tag="{Binding}" Tapped="OnEventActionTapped"
+                                                    IsHitTestVisible="{Binding IsActionEnabled}">
+                                                <TextBlock Text="{Binding RegisterButtonText}" FontSize="12" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                            </Border>
+                                            <Border Background="Transparent" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="8" Padding="14,7"
+                                                    Visibility="{Binding ShowUnregisterButton}" Tag="{Binding}" Tapped="OnEventActionTapped"
+                                                    IsHitTestVisible="{Binding IsActionEnabled}">
+                                                <TextBlock Text="{Binding UnregisterButtonText}" FontSize="12" FontWeight="SemiBold" Foreground="#EF4444" />
+                                            </Border>
+                                            <Border Background="#1AF97316" CornerRadius="999" Padding="10,5"
+                                                    Visibility="{Binding ShowFullChip}">
+                                                <TextBlock Text="Full" FontSize="11" FontWeight="SemiBold" Foreground="#F97316" />
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>
