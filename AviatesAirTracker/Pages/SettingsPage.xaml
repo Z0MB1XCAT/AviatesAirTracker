@@ -351,7 +351,7 @@
                                  pre-built, visibility toggled in UpdateAcarsInfoBanner() (same
                                  established pattern as VerifiedBadgeBorder/VerifiedChipBorder). -->
                             <Border x:Name="AcarsVerifiedInfoBanner" Visibility="Collapsed"
-                                    Background="#141F4D9BEC" BorderBrush="#334D9BEC" BorderThickness="1"
+                                    Background="#144D9BEC" BorderBrush="#334D9BEC" BorderThickness="1"
                                     CornerRadius="12" Padding="14,12">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <Viewbox Width="15" Height="15" VerticalAlignment="Top">
@@ -833,7 +833,7 @@
                                  pre-built, visibility toggled together in
                                  UpdateAboutUpdatesPanel()). -->
                             <Border x:Name="UpdateAvailableBorder" Visibility="Collapsed"
-                                    Background="#121F4D9BEC" BorderBrush="#334D9BEC" BorderThickness="1"
+                                    Background="#124D9BEC" BorderBrush="#334D9BEC" BorderThickness="1"
                                     CornerRadius="12" Padding="13,12">
                                 <StackPanel Spacing="10">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
