@@ -1,3 +1,4 @@
+using AviatesAirTracker.Dialogs;
 using AviatesAirTracker.Services;
 using AviatesAirTracker.ViewModels;
 using Microsoft.UI;
@@ -148,10 +149,23 @@ public sealed partial class EventsPage : Page
         text.Foreground = isActive ? TabActiveForeground : TabInactiveForeground;
     }
 
-    // ── Create Event (stub) ─────────────────────────────────────────────────────────────────
-    // Task 3 wires this.
-    private void OnCreateEventTapped(object sender, TappedRoutedEventArgs e)
+    // ── Create Event ─────────────────────────────────────────────────────────────────────────
+
+    private async void OnCreateEventTapped(object sender, TappedRoutedEventArgs e)
     {
+        var created = await CreateEventDialog.ShowAsync(this.XamlRoot, _viewModel, _settings);
+        if (!created) return;
+
+        // Matches CreateEvent()'s exact post-success sequence:
+        // _showCreateModal = false; _newEvent = new(); _statusMessage = "Event created! It's now
+        // live in Upcoming Events."; _isError = false; _activeTab = "upcoming"; await LoadEvents();
+        // (the dialog itself already closed and reset its own fields on success -- this page just
+        // reacts to the returned bool.)
+        _activeTab = "upcoming";
+        UpdateTabVisuals();
+        _statusMessage = "Event created! It's now live in Upcoming Events.";
+        _isError = false;
+        await ReloadAsync();
     }
 
     // ── Status banner ────────────────────────────────────────────────────────────────────────
