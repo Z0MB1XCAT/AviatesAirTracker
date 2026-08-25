@@ -29,7 +29,7 @@ public static class NavDestinations
         new("pilot-hub", "Pilot Hub", "/pilot-hub", "Pilot", NativePageType: typeof(Pages.PilotHubPage)),
         new("acars",     "ACARS",     "/acars",     "Pilot"),
         new("map",       "Map",       "/map",       "Pilot"),
-        new("messages",  "Messages",  "/messages",  "Pilot"),
+        new("messages",  "Messages",  "/messages",  "Pilot", NativePageType: typeof(Pages.MessagesPage)),
         new("news",      "News",      "/news",      "Community"),
         new("events",    "Events",    "/events",    "Community", NativePageType: typeof(Pages.EventsPage)),
         new("support",   "Support",   "/support",   "Community"),
