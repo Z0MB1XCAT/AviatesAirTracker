@@ -315,10 +315,14 @@ public sealed partial class RoutesPage : Page
     }
 
     // ── Book button ──────────────────────────────────────────────────────────────────────────
-    // Task 3 wires this to BookingDialog.ShowAsync(this.XamlRoot, _viewModel, row.Source). Left
-    // as a no-op here so the build stays green -- BookingDialog doesn't exist yet.
-    private void OnBookTapped(object sender, TappedRoutedEventArgs e)
+    // A Page exposes XamlRoot directly (unlike ShellWindow, which needed RootGrid.XamlRoot) --
+    // this.XamlRoot is correct here. Reload runs unconditionally after the dialog closes (a
+    // reload after a failed/cancelled booking is a harmless no-op) -- simpler than threading a
+    // success flag back out, matching the plan's Task 3 note.
+    private async void OnBookTapped(object sender, TappedRoutedEventArgs e)
     {
-        // Task 3 wires this.
+        if (sender is not FrameworkElement { Tag: RouteDisplayRow row }) return;
+        await AviatesAirTracker.Dialogs.BookingDialog.ShowAsync(this.XamlRoot, _viewModel, row.Source);
+        await ReloadAsync();
     }
 }
