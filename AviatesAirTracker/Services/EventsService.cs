@@ -147,16 +147,22 @@ public class EventsService : IDisposable
     {
         try
         {
+            // Field names must match the backend's actual contract, which is snake_case
+            // throughout (every response DTO in this file maps snake_case JSON keys via
+            // [JsonPropertyName] -- event_date, time_utc, aircraft_restriction, etc.). This was
+            // previously camelCase, so most fields (including event_date) landed as null/undefined
+            // server-side: the row got created but never matched the date-based "upcoming"/"past"
+            // filters, making every created event invisible.
             var body = new
             {
-                title               = req.Title,
-                description         = req.Description,
-                eventDate           = req.EventDate,
-                timeUtc             = req.TimeUtc,
-                route               = req.Route,
-                aircraftRestriction = req.AircraftRestriction,
-                rankRestriction     = req.RankRestriction,
-                maxParticipants     = req.MaxParticipants,
+                title                = req.Title,
+                description          = req.Description,
+                event_date           = req.EventDate,
+                time_utc             = req.TimeUtc,
+                route                = req.Route,
+                aircraft_restriction = req.AircraftRestriction,
+                rank_restriction     = req.RankRestriction,
+                max_participants     = req.MaxParticipants,
             };
             using var httpReq = new HttpRequestMessage(HttpMethod.Post, "/api/events");
             httpReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", acarsKey);
