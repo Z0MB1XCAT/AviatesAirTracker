@@ -60,7 +60,14 @@ established (plain async methods, not `[RelayCommand]`-wrapped).
 - `SendDirectAsync(string recipientId, string content)` / `SendBroadcastAsync(string content)` —
   thin wrappers returning `(bool Success, string? Error)` via `MessagingService.LastSendError`,
   matching the original's exact optimistic-clear-then-restore-on-failure UX (the page owns the
-  compose-box clear/restore, not the ViewModel).
+  compose-box clear/restore, not the ViewModel). **Port the fixed behavior, not the original's
+  bug**: `Messages.razor`'s own `SendDirect()` refreshed `_inboxMessages` after sending but never
+  recomputed `_conversation` (the field the bubble list actually renders from), so a just-sent
+  message stayed invisible until the conversation was reopened — fixed directly in the legacy
+  page (commit `d054ba7`) by also recomputing the conversation after a successful send, matching
+  what `RefreshAll()` already did correctly. The native page's post-send handling must do the
+  equivalent: refresh `InboxMessages` *and* rebuild `Conversation` for the currently-selected
+  friend, not just the former.
 - `AddFriendByCodeAsync(string code, string? name)` / `RemoveFriendAsync(string pilotId)` — thin
   wrappers.
 - `MarkReadAsync(Guid messageId)` — thin wrapper, called for every currently-unread message from
@@ -95,6 +102,14 @@ established (plain async methods, not `[RelayCommand]`-wrapped).
   the same bubble-list/compose pattern as Inbox but single-column and everyone's messages show a
   sender-name label above non-mine bubbles (mine bubbles don't), empty state "No broadcasts yet.
   Be the first to post!", 280-char compose limit (vs. Inbox's 500).
+- **New-bubble animation, both tabs**: the legacy page (commit `d054ba7`, this same session) added
+  a spring-in appear animation (`transform`/`opacity` only, per this project's animation rules) to
+  new bubbles via a `.msg-bubble-wrap` CSS `animation` in `app.css` — reproduce the same feel
+  natively: when a message is appended to `InboxMessages`/`Conversation` or `BroadcastMessages`
+  (whether from a successful send or `NewMessageReceived` pushing one in), animate the newly-added
+  bubble's `Border` in via a `Storyboard` on `Opacity` (0→1) and a `TranslateTransform`/`ScaleTransform`
+  (matching the CSS's `translateY(10px) scale(0.96)` → identity), not on every bubble in the list —
+  only the bubble(s) that are actually new to that render pass.
 - **Friends tab**: two side-by-side cards — "Add a Pilot" (friend-code `TextBox`, uppercase/mono
   styling, 9-char max matching the `XXXX-XXXX` format, a name-fallback `TextBox`, inline
   success/error status text, an "Add Pilot" `Border`-button disabled until the code is 9
