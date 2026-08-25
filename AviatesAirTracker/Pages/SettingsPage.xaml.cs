@@ -81,6 +81,26 @@ public sealed partial class SettingsPage : Page
         AcarsKeyPasswordBox.Password = _settings.Settings.AcarsKey;
         SelectAutoPirepIntervalItem(_settings.Settings.AutoPirepIntervalMinutes);
 
+        // Task 3: Hoppies ACARS + App Preferences initial field values. Setting each
+        // ToggleSwitch.IsOn here can harmlessly re-fire its own Toggled handler (same "harmless
+        // re-write" reasoning as the TextBox initial values above) -- UpdateHoppiesCategoryEnabledState()
+        // is called unconditionally afterward regardless, so the category toggles' enabled/opacity
+        // state ends up correct either way.
+        HoppiesPilotCodeBox.Password = _settings.Settings.HoppiesPilotCode;
+        HoppiesEnabledToggle.IsOn = _settings.Settings.HoppiesEnabled;
+        HoppiesLoadsheetToggle.IsOn = _settings.Settings.HoppiesSendLoadsheet;
+        HoppiesTimingRemindersToggle.IsOn = _settings.Settings.HoppiesSendTimingReminders;
+        HoppiesAirborneLandingToggle.IsOn = _settings.Settings.HoppiesSendAirborneLandingCalls;
+        HoppiesPostFlightSummaryToggle.IsOn = _settings.Settings.HoppiesSendPostFlightSummary;
+        HoppiesWeatherAdvisoriesToggle.IsOn = _settings.Settings.HoppiesSendWeatherAdvisories;
+        HoppiesHazardAdvisoriesToggle.IsOn = _settings.Settings.HoppiesSendHazardAdvisories;
+        UpdateHoppiesCategoryEnabledState();
+
+        AutoConnectToggle.IsOn = _settings.Settings.AutoConnectSimConnect;
+        ShowApproachAlertsToggle.IsOn = _settings.Settings.ShowApproachAlerts;
+        MinimizeToTrayToggle.IsOn = _settings.Settings.MinimizeToTray;
+        ShareLivePositionToggle.IsOn = _settings.Settings.ShareLivePosition;
+
         UpdateStatusBanner();
         UpdateNameDisplay();
         UpdateThemeCardVisuals();
@@ -452,6 +472,99 @@ public sealed partial class SettingsPage : Page
         CopyIdleIconViewbox.Visibility = Visibility.Visible;
         CopyDoneIconViewbox.Visibility = Visibility.Collapsed;
         CopyFriendCodeButtonText.Text = "Copy";
+    }
+
+    // ── Hoppies ACARS ────────────────────────────────────────────────────────────────────────
+
+    private void OnHoppiesPilotCodeChanged(object sender, RoutedEventArgs e)
+    {
+        // Trimmed on write, matching Settings.razor's OnHoppiesPilotCodeInput exactly.
+        _settings.Settings.HoppiesPilotCode = HoppiesPilotCodeBox.Password.Trim();
+    }
+
+    private void OnHoppiesEnabledToggled(object sender, RoutedEventArgs e)
+    {
+        // Saves immediately -- not deferred to the page's Save button, matching the original's
+        // OnHoppiesEnabledChanged exactly.
+        _settings.Settings.HoppiesEnabled = HoppiesEnabledToggle.IsOn;
+        _settings.Save();
+        UpdateHoppiesCategoryEnabledState();
+    }
+
+    // Shared handler for all 6 Hoppies category toggles (Loadsheet/Timing Reminders/
+    // Airborne-Landing Calls/Post-Flight Summary/Weather Advisories/Hazard Advisories) -- each
+    // ToggleSwitch's Tag names which Settings.HoppiesSend* property it drives. Matches the
+    // original's OnCategoryToggle: setter(value); SettingsService.Save(); exactly, just
+    // deduplicated into one method instead of 6 near-identical handlers.
+    private void OnHoppiesCategoryToggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleSwitch { Tag: string category } toggle) return;
+
+        var value = toggle.IsOn;
+        switch (category)
+        {
+            case "Loadsheet": _settings.Settings.HoppiesSendLoadsheet = value; break;
+            case "TimingReminders": _settings.Settings.HoppiesSendTimingReminders = value; break;
+            case "AirborneLandingCalls": _settings.Settings.HoppiesSendAirborneLandingCalls = value; break;
+            case "PostFlightSummary": _settings.Settings.HoppiesSendPostFlightSummary = value; break;
+            case "WeatherAdvisories": _settings.Settings.HoppiesSendWeatherAdvisories = value; break;
+            case "HazardAdvisories": _settings.Settings.HoppiesSendHazardAdvisories = value; break;
+        }
+
+        _settings.Save();
+    }
+
+    // Dims (Opacity 0.5, matching the original's CSS opacity transition) AND disables
+    // (IsEnabled = false) the 6 category toggles together whenever the master Hoppies toggle is
+    // off, and restores both when it's on. Called on load AND every time the master toggle
+    // changes (OnHoppiesEnabledToggled above) -- not just at page load.
+    private void UpdateHoppiesCategoryEnabledState()
+    {
+        var enabled = _settings.Settings.HoppiesEnabled;
+        HoppiesCategoriesPanel.Opacity = enabled ? 1.0 : 0.5;
+
+        HoppiesLoadsheetToggle.IsEnabled = enabled;
+        HoppiesTimingRemindersToggle.IsEnabled = enabled;
+        HoppiesAirborneLandingToggle.IsEnabled = enabled;
+        HoppiesPostFlightSummaryToggle.IsEnabled = enabled;
+        HoppiesWeatherAdvisoriesToggle.IsEnabled = enabled;
+        HoppiesHazardAdvisoriesToggle.IsEnabled = enabled;
+    }
+
+    // ── App Preferences ──────────────────────────────────────────────────────────────────────
+    // Auto-connect / Desktop Alerts / Minimize to Tray are plain deferred-to-Save binds -- no
+    // SettingsService.Save() call here, matching the original's plain @bind with no side effect
+    // (only Task 6's Save button persists these). Share My Live Position is the one toggle in
+    // this panel that DOES save immediately and calls AviatesBackendClient.SetLiveSharingAsync,
+    // matching OnShareLivePositionChanged's exact immediate-effect behavior.
+
+    private void OnAutoConnectToggled(object sender, RoutedEventArgs e)
+    {
+        _settings.Settings.AutoConnectSimConnect = AutoConnectToggle.IsOn;
+    }
+
+    private void OnShowApproachAlertsToggled(object sender, RoutedEventArgs e)
+    {
+        _settings.Settings.ShowApproachAlerts = ShowApproachAlertsToggle.IsOn;
+    }
+
+    private void OnMinimizeToTrayToggled(object sender, RoutedEventArgs e)
+    {
+        _settings.Settings.MinimizeToTray = MinimizeToTrayToggle.IsOn;
+    }
+
+    private async void OnShareLivePositionToggled(object sender, RoutedEventArgs e)
+    {
+        var enabled = ShareLivePositionToggle.IsOn;
+        _settings.Settings.ShareLivePosition = enabled;
+        _settings.Save();
+
+        var key = (_settings.Settings.AcarsKey ?? "").Trim();
+        if (!string.IsNullOrEmpty(key))
+        {
+            var backendClient = App.GetService<AviatesBackendClient>();
+            await backendClient.SetLiveSharingAsync(enabled, key);
+        }
     }
 
     // ── Status banner ────────────────────────────────────────────────────────────────────────

@@ -418,14 +418,210 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Task 3 builds Hoppies ACARS here. -->
-                    <Border x:Name="HoppiesAcarsStub" />
+                    <!-- ── Hoppies ACARS ── -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                            CornerRadius="20" Padding="20">
+                        <StackPanel Spacing="16">
+                            <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,0,0,12">
+                                <TextBlock Text="Hoppies ACARS" FontFamily="{StaticResource DisplayFontBold}"
+                                           FontSize="16" FontWeight="Bold" Foreground="#F1F5F9" />
+                            </Border>
+
+                            <!-- Hoppies pilot code field -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Your Hoppies Code" FontSize="12.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                                <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1.5" CornerRadius="12">
+                                    <PasswordBox x:Name="HoppiesPilotCodeBox" PlaceholderText="Paste your personal Hoppies logon code"
+                                                 Background="Transparent" BorderThickness="0" Foreground="#F1F5F9"
+                                                 Padding="14,10" PasswordChanged="OnHoppiesPilotCodeChanged" />
+                                </Border>
+                                <TextBlock Text="Stored for a future feature. Not required for company messages to reach you — those use the VA's own Hoppies connection."
+                                           FontSize="12" Foreground="#64748B" TextWrapping="Wrap" LineHeight="20" />
+                            </StackPanel>
+
+                            <!-- Master enable toggle - no bottom divider, matches the original's
+                                 style="border-bottom:none;padding-bottom:0;" on this specific row. -->
+                            <Grid ColumnSpacing="12" Padding="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Enable Hoppies ACARS Messages" FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                    <TextBlock Text="Send position and event updates over the Hoppies ACARS network"
+                                               FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" x:Name="HoppiesEnabledToggle" OnContent="" OffContent=""
+                                              VerticalAlignment="Center" Toggled="OnHoppiesEnabledToggled" />
+                            </Grid>
+
+                            <!-- Category toggles - dimmed AND disabled together whenever the master
+                                 toggle above is off (both at load and live, refreshed from
+                                 OnHoppiesEnabledToggled — see UpdateHoppiesCategoryEnabledState in
+                                 code-behind). Opacity mirrors the original's
+                                 opacity:@(HoppiesEnabled ? "1" : "0.5") CSS transition. -->
+                            <StackPanel x:Name="HoppiesCategoriesPanel">
+                                <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,14">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Loadsheet" FontSize="14" FontWeight="SemiBold"
+                                                   Foreground="#F1F5F9" VerticalAlignment="Center" />
+                                        <ToggleSwitch Grid.Column="1" x:Name="HoppiesLoadsheetToggle" Tag="Loadsheet"
+                                                      OnContent="" OffContent="" VerticalAlignment="Center"
+                                                      Toggled="OnHoppiesCategoryToggled" />
+                                    </Grid>
+                                </Border>
+                                <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,14">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Timing Reminders" FontSize="14" FontWeight="SemiBold"
+                                                   Foreground="#F1F5F9" VerticalAlignment="Center" />
+                                        <ToggleSwitch Grid.Column="1" x:Name="HoppiesTimingRemindersToggle" Tag="TimingReminders"
+                                                      OnContent="" OffContent="" VerticalAlignment="Center"
+                                                      Toggled="OnHoppiesCategoryToggled" />
+                                    </Grid>
+                                </Border>
+                                <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,14">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Airborne / Landing Calls" FontSize="14" FontWeight="SemiBold"
+                                                   Foreground="#F1F5F9" VerticalAlignment="Center" />
+                                        <ToggleSwitch Grid.Column="1" x:Name="HoppiesAirborneLandingToggle" Tag="AirborneLandingCalls"
+                                                      OnContent="" OffContent="" VerticalAlignment="Center"
+                                                      Toggled="OnHoppiesCategoryToggled" />
+                                    </Grid>
+                                </Border>
+                                <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,14">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Post-Flight Summary" FontSize="14" FontWeight="SemiBold"
+                                                   Foreground="#F1F5F9" VerticalAlignment="Center" />
+                                        <ToggleSwitch Grid.Column="1" x:Name="HoppiesPostFlightSummaryToggle" Tag="PostFlightSummary"
+                                                      OnContent="" OffContent="" VerticalAlignment="Center"
+                                                      Toggled="OnHoppiesCategoryToggled" />
+                                    </Grid>
+                                </Border>
+                                <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,14">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Weather Advisories" FontSize="14" FontWeight="SemiBold"
+                                                   Foreground="#F1F5F9" VerticalAlignment="Center" />
+                                        <ToggleSwitch Grid.Column="1" x:Name="HoppiesWeatherAdvisoriesToggle" Tag="WeatherAdvisories"
+                                                      OnContent="" OffContent="" VerticalAlignment="Center"
+                                                      Toggled="OnHoppiesCategoryToggled" />
+                                    </Grid>
+                                </Border>
+                                <Grid ColumnSpacing="12" Padding="0,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Hazard Advisories" FontSize="14" FontWeight="SemiBold"
+                                               Foreground="#F1F5F9" VerticalAlignment="Center" />
+                                    <ToggleSwitch Grid.Column="1" x:Name="HoppiesHazardAdvisoriesToggle" Tag="HazardAdvisories"
+                                                  OnContent="" OffContent="" VerticalAlignment="Center"
+                                                  Toggled="OnHoppiesCategoryToggled" />
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
 
                     <!-- Task 4 builds Dispatch Radio here. -->
                     <Border x:Name="DispatchRadioStub" />
 
-                    <!-- Task 3 builds App Preferences here. -->
-                    <Border x:Name="AppPreferencesStub" />
+                    <!-- ── App Preferences ── -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                            CornerRadius="20" Padding="20">
+                        <StackPanel>
+                            <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,0,0,12">
+                                <TextBlock Text="Preferences" FontFamily="{StaticResource DisplayFontBold}"
+                                           FontSize="16" FontWeight="Bold" Foreground="#F1F5F9" />
+                            </Border>
+
+                            <!-- Auto-connect / Desktop Alerts / Minimize to Tray: plain
+                                 deferred-to-Save binds, no SettingsService.Save() call on Toggled —
+                                 matches the original's plain @bind with no side effect, persisted
+                                 only by the page's Save button (Task 6). -->
+                            <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,14">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Auto-connect to MSFS" FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                        <TextBlock Text="Automatically detect and connect to MSFS on launch"
+                                                   FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleSwitch Grid.Column="1" x:Name="AutoConnectToggle" OnContent="" OffContent=""
+                                                  VerticalAlignment="Center" Toggled="OnAutoConnectToggled" />
+                                </Grid>
+                            </Border>
+                            <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,14">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Desktop Alerts" FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                        <TextBlock Text="Show notifications for phase changes and landing events"
+                                                   FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleSwitch Grid.Column="1" x:Name="ShowApproachAlertsToggle" OnContent="" OffContent=""
+                                                  VerticalAlignment="Center" Toggled="OnShowApproachAlertsToggled" />
+                                </Grid>
+                            </Border>
+                            <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,14">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Minimize to Tray" FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                        <TextBlock Text="Keep running in the system tray when window is closed"
+                                                   FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleSwitch Grid.Column="1" x:Name="MinimizeToTrayToggle" OnContent="" OffContent=""
+                                                  VerticalAlignment="Center" Toggled="OnMinimizeToTrayToggled" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Share My Live Position: the one toggle in this panel that DOES save
+                                 immediately and calls AviatesBackendClient.SetLiveSharingAsync —
+                                 explicitly different from the three toggles above. No bottom divider
+                                 (last row), matching the original's style="border-bottom:none;". -->
+                            <Grid ColumnSpacing="12" Padding="0,14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Share My Live Position" FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                    <TextBlock Text="Show your flight on the Aviates Air live map for other pilots and the website. Takes effect immediately."
+                                               FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" x:Name="ShareLivePositionToggle" OnContent="" OffContent=""
+                                              VerticalAlignment="Center" Toggled="OnShareLivePositionToggled" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
 
                     <!-- ── Friend Code ── -->
                     <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
