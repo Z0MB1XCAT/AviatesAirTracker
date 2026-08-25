@@ -1213,10 +1213,110 @@ public sealed partial class SettingsPage : Page
         }
     }
 
+    // ── Save / Reset ─────────────────────────────────────────────────────────────────────────
+    // Ported from Settings.razor's SaveSettings()/ResetSettings() (lines 984-1012). Reset is the
+    // one handler on this page that has no Blazor StateHasChanged()-equivalent to lean on: the
+    // original just mutates SettingsService.Settings and lets the framework re-render every
+    // @bind/@if expression from scratch. Here, every control that only ever WRITES to Settings
+    // (TextBox.TextChanged, PasswordBox.PasswordChanged, ToggleSwitch.Toggled) has to be pushed
+    // the freshly-reset values explicitly, then every panel's own Update*() method re-run --
+    // otherwise the page keeps showing whatever was on screen before Reset was tapped.
+
+    private void OnSaveSettingsTapped(object sender, TappedRoutedEventArgs e)
+    {
+        // Matches Settings.razor's SaveSettings() exactly: regenerate/persist the Friend Code
+        // first (RefreshFriendCode() saves internally too), refresh the Pilot Profile name
+        // display, then a final explicit Save() to persist everything else currently in memory --
+        // including the 4 deferred-save toggles (Auto-connect to MSFS, Desktop Alerts, Minimize
+        // to Tray, Start EFB Automatically) that intentionally don't save immediately anywhere
+        // else on this page.
+        _settings.RefreshFriendCode();
+        UpdateNameDisplay();
+        _settings.Save();
+
+        _statusMessage = "Settings saved successfully.";
+        _isError = false;
+        UpdateStatusBanner();
+    }
+
+    private void OnResetSettingsTapped(object sender, TappedRoutedEventArgs e)
+    {
+        _settings.Reset();
+
+        _isVerified = false;
+        _verifiedEmail = "";
+
+        // Re-push every control's raw value from the freshly-reset Settings object. This mirrors
+        // the constructor's own initial-value assignments verbatim (including the same "setting
+        // .Text/.Password/.IsOn here harmlessly re-fires its own handler, which just re-writes
+        // the same value back to Settings" reasoning documented there) -- it is the simplest way
+        // to guarantee every control agrees with the reset object rather than patching each one
+        // individually and risking a miss.
+        PilotNameTextBox.Text = _settings.Settings.PilotName;
+        PilotIdTextBox.Text = _settings.Settings.PilotId;
+        SimBriefUsernameTextBox.Text = _settings.Settings.SimBriefUsername;
+        AcarsKeyPasswordBox.Password = _settings.Settings.AcarsKey;
+        SelectAutoPirepIntervalItem(_settings.Settings.AutoPirepIntervalMinutes);
+
+        HoppiesPilotCodeBox.Password = _settings.Settings.HoppiesPilotCode;
+        HoppiesEnabledToggle.IsOn = _settings.Settings.HoppiesEnabled;
+        HoppiesLoadsheetToggle.IsOn = _settings.Settings.HoppiesSendLoadsheet;
+        HoppiesTimingRemindersToggle.IsOn = _settings.Settings.HoppiesSendTimingReminders;
+        HoppiesAirborneLandingToggle.IsOn = _settings.Settings.HoppiesSendAirborneLandingCalls;
+        HoppiesPostFlightSummaryToggle.IsOn = _settings.Settings.HoppiesSendPostFlightSummary;
+        HoppiesWeatherAdvisoriesToggle.IsOn = _settings.Settings.HoppiesSendWeatherAdvisories;
+        HoppiesHazardAdvisoriesToggle.IsOn = _settings.Settings.HoppiesSendHazardAdvisories;
+
+        AutoConnectToggle.IsOn = _settings.Settings.AutoConnectSimConnect;
+        ShowApproachAlertsToggle.IsOn = _settings.Settings.ShowApproachAlerts;
+        MinimizeToTrayToggle.IsOn = _settings.Settings.MinimizeToTray;
+        ShareLivePositionToggle.IsOn = _settings.Settings.ShareLivePosition;
+
+        DispatchBackendUrlTextBox.Text = _settings.Settings.DispatchBackendUrl;
+        // Joystick binding is cleared by Reset() too (PttJoystickGuid/PttJoystickButton are part
+        // of AppSettings) -- re-populating the combo box re-selects "-- No joystick --" since no
+        // connected device will match Guid.Empty.
+        PopulateJoystickComboBox();
+
+        EfbEnabledToggle.IsOn = _settings.Settings.EfbEnabled;
+        EfbAutoStartToggle.IsOn = _settings.Settings.EfbAutoStart;
+
+        // Re-run every panel's own refresh method against the now-reset Settings object -- the
+        // same sequence the constructor runs on first load, so nothing is left showing stale
+        // pre-reset state. Enumerated explicitly (not "rebuild the whole page") so it's provable
+        // nothing was skipped: Pilot Profile, Appearance, SimBrief, ACARS Configuration, Friend
+        // Code, Hoppies category dim/disable, Dispatch Radio's PTT hotkey/joystick displays, and
+        // EFB Companion.
+        UpdateNameDisplay();
+        UpdateThemeCardVisuals();
+        UpdatePilotProfileVerifiedVisuals();
+        UpdateSimBriefHintVisibility();
+        UpdateAcarsInfoBanner();
+        UpdateVerifySyncButtonState();
+        UpdateFriendCodePanel();
+        UpdateHoppiesCategoryEnabledState();
+        UpdatePttHotkeyDisplay();
+        UpdateJoystickBoundText();
+        UpdateBindJoystickButtonState();
+        UpdateCheckForUpdatesButtonState();
+        UpdateUpdateAvailablePanel();
+        UpdateEfbPanel();
+
+        // Microphone/Speaker selection also needs to re-sync (PttMicrophoneDeviceId/
+        // PttSpeakerDeviceId are now blank) -- re-running the same async enumeration+select this
+        // page already uses on load re-selects "System default" for both, since no device will
+        // match an empty saved id.
+        _ = LoadAudioDevicesAsync();
+
+        _statusMessage = "Settings reset to defaults.";
+        _isError = false;
+        UpdateStatusBanner();
+    }
+
     // ── Status banner ────────────────────────────────────────────────────────────────────────
     // Same dismissible success/error pattern EventsPage.xaml.cs's own status banner already
     // established. Task 2's SyncProfileAsync() above is the first behavior to actually raise a
-    // status message; Task 6's Save/Reset row will be the next.
+    // status message; the Save/Reset row above is the next.
 
     private void OnStatusCloseTapped(object sender, TappedRoutedEventArgs e)
     {

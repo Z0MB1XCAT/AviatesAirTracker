@@ -999,6 +999,36 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- ── Save / Reset ──
+                         Matches Settings.razor lines 601-608: a flex-grow primary Save button beside
+                         a fixed-width secondary Reset button, at the bottom of the right column below
+                         EFB Companion. Border-not-Button per this page's own convention. -->
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" x:Name="SaveSettingsButtonBorder" Tag="save" Tapped="OnSaveSettingsTapped"
+                                Background="#4D9BEC" CornerRadius="10" Padding="0,12" HorizontalAlignment="Stretch">
+                            <StackPanel Orientation="Horizontal" Spacing="6"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Viewbox Width="14" Height="14">
+                                    <Grid Width="24" Height="24">
+                                        <Polyline Points="20,6 9,17 4,12" Stroke="#FFFFFF" StrokeThickness="2.5"
+                                                  StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    </Grid>
+                                </Viewbox>
+                                <TextBlock Text="Save Settings" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="1" x:Name="ResetSettingsButtonBorder" Tag="reset" Tapped="OnResetSettingsTapped"
+                                Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                CornerRadius="10" Padding="20,12" VerticalAlignment="Stretch">
+                            <TextBlock Text="Reset" FontSize="13" FontWeight="SemiBold" Foreground="#F1F5F9"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </Grid>
+
                 </StackPanel>
 
             </Grid>

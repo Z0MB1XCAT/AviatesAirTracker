@@ -35,6 +35,6 @@ public static class NavDestinations
         new("support",   "Support",   "/support",   "Community"),
         // Settings sits below the connection-status block in the sidebar footer,
         // outside every section heading.
-        new("settings",  "Settings",  "/settings",  null),
+        new("settings",  "Settings",  "/settings",  null, NativePageType: typeof(Pages.SettingsPage)),
     ];
 }
