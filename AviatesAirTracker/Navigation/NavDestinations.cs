@@ -32,7 +32,7 @@ public static class NavDestinations
         new("messages",  "Messages",  "/messages",  "Pilot", NativePageType: typeof(Pages.MessagesPage)),
         new("news",      "News",      "/news",      "Community"),
         new("events",    "Events",    "/events",    "Community", NativePageType: typeof(Pages.EventsPage)),
-        new("support",   "Support",   "/support",   "Community"),
+        new("support",   "Support",   "/support",   "Community", NativePageType: typeof(Pages.SupportPage)),
         // Settings sits below the connection-status block in the sidebar footer,
         // outside every section heading.
         new("settings",  "Settings",  "/settings",  null, NativePageType: typeof(Pages.SettingsPage)),

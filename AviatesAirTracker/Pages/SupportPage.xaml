@@ -1,0 +1,318 @@
+<Page
+    x:Class="AviatesAirTracker.Pages.SupportPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="#080B14">
+
+    <!--
+      Native reproduction of AviatesAirTracker.LegacyWeb\Pages\Support.razor (dark theme values
+      from wwwroot\css\app.css), following the same Phase 2/3 rules every prior native page in
+      this migration has followed: no Style element and no new Theme\Tokens.xaml entry may
+      appear anywhere in this project's XAML (silently crashes XamlCompiler.exe on this SDK,
+      zero diagnostics), and no literal double hyphen inside any XAML comment (invalid XML, same
+      silent crash; use a single hyphen or the box-drawing "──" character instead).
+
+      This page has no ViewModel and no service dependency of any kind ── Support.razor's own
+      @code block is just an OpenFaq string and a static Faqs dictionary, no injected service.
+      Everything below is static content plus the FAQ accordion's local toggle state
+      (SupportPage.xaml.cs's own _openFaqIndex field).
+
+      Feature cards: Live Chat / Knowledge Base / GitHub Issues, icon paths ported verbatim from
+      Support.razor's inline SVGs. None of the three buttons has an @onclick in the original ──
+      they are purely decorative there, so OnFeatureButtonTapped below is a documented no-op, not
+      a place to invent a real destination.
+    -->
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
+        <StackPanel MaxWidth="1440" Spacing="24" HorizontalAlignment="Stretch">
+
+            <!-- ── Page header ── -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="Support" FontFamily="{StaticResource DisplayFontBold}"
+                           FontSize="26" FontWeight="Bold" Foreground="#F1F5F9" />
+                <TextBlock Text="Get help, report issues, or connect with the AviatesAir community."
+                           FontSize="14" Foreground="#94A3B8" />
+            </StackPanel>
+
+            <!-- ── Feature card grid ──
+                 Support.razor's card-grid-3: three equal-width feature-card Borders (surface bg,
+                 hairline border, r-xl=20 corner radius, sp-5=20 padding, matching every prior
+                 page's own feature/type card treatment). -->
+            <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Live Chat (blue / accent, btn-primary "Open Chat") -->
+                <Border Grid.Column="0" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                        CornerRadius="20" Padding="20">
+                    <StackPanel HorizontalAlignment="Stretch">
+                        <Border Width="56" Height="56" CornerRadius="12" Background="#1F4D9BEC"
+                                HorizontalAlignment="Center" Margin="0,0,0,16">
+                            <Viewbox Width="24" Height="24">
+                                <Path Data="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"
+                                      Stroke="#4D9BEC" StrokeThickness="1.8"
+                                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            </Viewbox>
+                        </Border>
+                        <TextBlock Text="Live Chat" FontFamily="{StaticResource DisplayFontBold}" FontWeight="Bold"
+                                   FontSize="15.5" Foreground="#F1F5F9" HorizontalAlignment="Center" Margin="0,0,0,5" />
+                        <TextBlock Text="Chat directly with our operations staff or community members in real time."
+                                   FontSize="12.5" Foreground="#64748B" TextWrapping="Wrap" TextAlignment="Center"
+                                   HorizontalAlignment="Center" Margin="0,0,0,16" />
+                        <!-- Inert: no @onclick in the original. Border-not-Button per this project's
+                             convention (no Style to retemplate Button's CornerRadius on this SDK). -->
+                        <Border Tag="live-chat" Tapped="OnFeatureButtonTapped"
+                                Background="#4D9BEC" CornerRadius="10" Padding="0,10" HorizontalAlignment="Stretch">
+                            <TextBlock Text="Open Chat" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF"
+                                       HorizontalAlignment="Center" />
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Knowledge Base (violet, btn-ghost "Browse Docs") -->
+                <Border Grid.Column="1" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                        CornerRadius="20" Padding="20">
+                    <StackPanel HorizontalAlignment="Stretch">
+                        <Border Width="56" Height="56" CornerRadius="12" Background="#1FB8934A"
+                                HorizontalAlignment="Center" Margin="0,0,0,16">
+                            <Viewbox Width="24" Height="24">
+                                <Grid Width="24" Height="24">
+                                    <Ellipse Width="18" Height="18" Stroke="#B8934A" StrokeThickness="1.8"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Path Data="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3M12 17h.01"
+                                          Stroke="#B8934A" StrokeThickness="1.8"
+                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                </Grid>
+                            </Viewbox>
+                        </Border>
+                        <TextBlock Text="Knowledge Base" FontFamily="{StaticResource DisplayFontBold}" FontWeight="Bold"
+                                   FontSize="15.5" Foreground="#F1F5F9" HorizontalAlignment="Center" Margin="0,0,0,5" />
+                        <TextBlock Text="Browse guides on ACARS setup, flight filing, rank requirements, and more."
+                                   FontSize="12.5" Foreground="#64748B" TextWrapping="Wrap" TextAlignment="Center"
+                                   HorizontalAlignment="Center" Margin="0,0,0,16" />
+                        <!-- Inert: no @onclick in the original (btn-ghost styling only). -->
+                        <Border Tag="knowledge-base" Tapped="OnFeatureButtonTapped"
+                                Background="Transparent" BorderBrush="#1F4D9BEC" BorderThickness="1.5"
+                                CornerRadius="10" Padding="0,10" HorizontalAlignment="Stretch">
+                            <TextBlock Text="Browse Docs" FontSize="13" FontWeight="SemiBold" Foreground="#4D9BEC"
+                                       HorizontalAlignment="Center" />
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- GitHub Issues (cyan, btn-ghost "Open GitHub") -->
+                <Border Grid.Column="2" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                        CornerRadius="20" Padding="20">
+                    <StackPanel HorizontalAlignment="Stretch">
+                        <Border Width="56" Height="56" CornerRadius="12" Background="#1F06B6D4"
+                                HorizontalAlignment="Center" Margin="0,0,0,16">
+                            <Viewbox Width="24" Height="24">
+                                <Path Data="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"
+                                      Stroke="#06B6D4" StrokeThickness="1.8"
+                                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            </Viewbox>
+                        </Border>
+                        <TextBlock Text="GitHub Issues" FontFamily="{StaticResource DisplayFontBold}" FontWeight="Bold"
+                                   FontSize="15.5" Foreground="#F1F5F9" HorizontalAlignment="Center" Margin="0,0,0,5" />
+                        <TextBlock Text="Report bugs or request features directly on our public GitHub repository."
+                                   FontSize="12.5" Foreground="#64748B" TextWrapping="Wrap" TextAlignment="Center"
+                                   HorizontalAlignment="Center" Margin="0,0,0,16" />
+                        <!-- Inert: no @onclick in the original (btn-ghost styling only). -->
+                        <Border Tag="github-issues" Tapped="OnFeatureButtonTapped"
+                                Background="Transparent" BorderBrush="#1F4D9BEC" BorderThickness="1.5"
+                                CornerRadius="10" Padding="0,10" HorizontalAlignment="Stretch">
+                            <TextBlock Text="Open GitHub" FontSize="13" FontWeight="SemiBold" Foreground="#4D9BEC"
+                                       HorizontalAlignment="Center" />
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- ── FAQ ──
+                 Support.razor's Faqs dictionary, ported verbatim (6 question/answer pairs).
+                 Exactly one row open at a time, driven by SupportPage.xaml.cs's single nullable
+                 _openFaqIndex field ── matching ToggleFaq's exact logic, not a per-row bool set.
+                 Each row's Tag carries its 0-based index so OnFaqTapped can look it up. -->
+            <StackPanel Spacing="16">
+                <TextBlock Text="Frequently Asked Questions" FontFamily="{StaticResource DisplayFontBold}"
+                           FontWeight="Bold" FontSize="17" Foreground="#F1F5F9" />
+
+                <StackPanel Spacing="12">
+
+                    <!-- FAQ 0 -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
+                        <StackPanel>
+                            <Border Tag="0" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="How do I set up ACARS tracking?"
+                                               FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Column="1" Text="+" FontSize="18" Foreground="#64748B"
+                                               VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                        <TextBlock.RenderTransform>
+                                            <RotateTransform x:Name="Faq0Rotate" Angle="0" />
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                            <Border x:Name="Faq0Answer" Visibility="Collapsed"
+                                    BorderBrush="#0DFFFFFF" BorderThickness="0,1,0,0" Padding="20,12,20,16">
+                                <TextBlock Text="Go to Settings and enter your ACARS key. Then launch MSFS and load a flight — the tracker will connect automatically once SimConnect is active."
+                                           FontSize="13.5" Foreground="#64748B" TextWrapping="Wrap" LineHeight="22" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- FAQ 1 -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
+                        <StackPanel>
+                            <Border Tag="1" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="How is my landing score calculated?"
+                                               FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Column="1" Text="+" FontSize="18" Foreground="#64748B"
+                                               VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                        <TextBlock.RenderTransform>
+                                            <RotateTransform x:Name="Faq1Rotate" Angle="0" />
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                            <Border x:Name="Faq1Answer" Visibility="Collapsed"
+                                    BorderBrush="#0DFFFFFF" BorderThickness="0,1,0,0" Padding="20,12,20,16">
+                                <TextBlock Text="Your landing score is based on vertical speed at touchdown, pitch angle, bank angle, airspeed relative to Vref, crosswind component, and approach stability. Each factor contributes to a 0–100 score."
+                                           FontSize="13.5" Foreground="#64748B" TextWrapping="Wrap" LineHeight="22" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- FAQ 2 -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
+                        <StackPanel>
+                            <Border Tag="2" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="How do I advance my rank?"
+                                               FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Column="1" Text="+" FontSize="18" Foreground="#64748B"
+                                               VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                        <TextBlock.RenderTransform>
+                                            <RotateTransform x:Name="Faq2Rotate" Angle="0" />
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                            <Border x:Name="Faq2Answer" Visibility="Collapsed"
+                                    BorderBrush="#0DFFFFFF" BorderThickness="0,1,0,0" Padding="20,12,20,16">
+                                <TextBlock Text="Rank progression is based on logged block hours, number of completed flights, and average landing score. Visit Pilot Hub to see your current progress toward the next rank."
+                                           FontSize="13.5" Foreground="#64748B" TextWrapping="Wrap" LineHeight="22" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- FAQ 3 -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
+                        <StackPanel>
+                            <Border Tag="3" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="What aircraft types can I fly?"
+                                               FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Column="1" Text="+" FontSize="18" Foreground="#64748B"
+                                               VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                        <TextBlock.RenderTransform>
+                                            <RotateTransform x:Name="Faq3Rotate" Angle="0" />
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                            <Border x:Name="Faq3Answer" Visibility="Collapsed"
+                                    BorderBrush="#0DFFFFFF" BorderThickness="0,1,0,0" Padding="20,12,20,16">
+                                <TextBlock Text="You can fly any aircraft available in MSFS. The tracker records your aircraft type from SimConnect automatically. Some events may restrict to specific types."
+                                           FontSize="13.5" Foreground="#64748B" TextWrapping="Wrap" LineHeight="22" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- FAQ 4 -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
+                        <StackPanel>
+                            <Border Tag="4" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="How do I join a fly-in event?"
+                                               FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Column="1" Text="+" FontSize="18" Foreground="#64748B"
+                                               VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                        <TextBlock.RenderTransform>
+                                            <RotateTransform x:Name="Faq4Rotate" Angle="0" />
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                            <Border x:Name="Faq4Answer" Visibility="Collapsed"
+                                    BorderBrush="#0DFFFFFF" BorderThickness="0,1,0,0" Padding="20,12,20,16">
+                                <TextBlock Text="Visit the Events page and click Register on any upcoming event. You will receive details and a briefing packet via the in-app notification system."
+                                           FontSize="13.5" Foreground="#64748B" TextWrapping="Wrap" LineHeight="22" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- FAQ 5 -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
+                        <StackPanel>
+                            <Border Tag="5" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Can I import a SimBrief OFP?"
+                                               FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Column="1" Text="+" FontSize="18" Foreground="#64748B"
+                                               VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                        <TextBlock.RenderTransform>
+                                            <RotateTransform x:Name="Faq5Rotate" Angle="0" />
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                            <Border x:Name="Faq5Answer" Visibility="Collapsed"
+                                    BorderBrush="#0DFFFFFF" BorderThickness="0,1,0,0" Padding="20,12,20,16">
+                                <TextBlock Text="Yes — go to Settings and enter your SimBrief Pilot ID. Then use the Import SimBrief button in the main header to load your active OFP before departure."
+                                           FontSize="13.5" Foreground="#64748B" TextWrapping="Wrap" LineHeight="22" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>
