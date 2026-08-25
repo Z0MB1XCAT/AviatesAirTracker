@@ -229,35 +229,37 @@
 
                                 <!-- Title: flags + IATA route
                                      Reproduces app.css's .flag-route/.flag-route-dep/.flag-route-arr: a single
-                                     rounded chip with the two flags crossfading into each other via a linear
-                                     gradient, not two separate icons. WinUI has no CSS mask-image equivalent, so
-                                     the fade is faked with an overlay Rectangle whose LinearGradientBrush goes
-                                     from Transparent to the chip's own background color, visually identical
-                                     against this chip's solid backdrop. Origin flag fades out from 40% of its own
-                                     width to fully hidden by 100% (mask-image: linear-gradient(90deg,#000 40%,
-                                     transparent 100%)); dest flag fades in from fully hidden at 0% to fully shown
-                                     by 60% (linear-gradient(90deg,transparent 0%,#000 60%)). -->
+                                     rounded chip with the two flags fading into a shared dark seam, not two
+                                     separate icons. WinUI has no CSS mask-image equivalent, so the fade is faked
+                                     with an overlay Rectangle per flag whose LinearGradientBrush goes from
+                                     Transparent to the chip's own background color, each Image given its own
+                                     non-overlapping half (0-26 / 26-52) so neither flag's fully-opaque pixels can
+                                     hard-clip the other's fade partway through (the earlier version let the two
+                                     Images' bounds overlap, and whichever was drawn on top being fully opaque
+                                     clipped the other flag's gradient dead at its own edge instead of letting it
+                                     fade smoothly, the "hard seam" reported after the first pass). Both flags
+                                     now taper into the same dark midpoint instead. -->
                                 <StackPanel Orientation="Horizontal" Spacing="10" ToolTipService.ToolTip="{Binding RouteTooltip}">
                                     <Border Width="52" Height="34" CornerRadius="6" Background="#0C111D"
                                             BorderBrush="#14FFFFFF" BorderThickness="1">
                                         <Grid>
-                                            <Image Source="{Binding OriginFlagSource}" Width="34" Height="34"
+                                            <Image Source="{Binding OriginFlagSource}" Width="26" Height="34"
                                                    HorizontalAlignment="Left" Stretch="UniformToFill" />
-                                            <Rectangle Width="34" Height="34" HorizontalAlignment="Left">
+                                            <Rectangle Width="26" Height="34" HorizontalAlignment="Left">
                                                 <Rectangle.Fill>
                                                     <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
-                                                        <GradientStop Color="Transparent" Offset="0.4" />
+                                                        <GradientStop Color="Transparent" Offset="0.25" />
                                                         <GradientStop Color="#0C111D" Offset="1.0" />
                                                     </LinearGradientBrush>
                                                 </Rectangle.Fill>
                                             </Rectangle>
-                                            <Image Source="{Binding DestFlagSource}" Width="34" Height="34"
+                                            <Image Source="{Binding DestFlagSource}" Width="26" Height="34"
                                                    HorizontalAlignment="Right" Stretch="UniformToFill" />
-                                            <Rectangle Width="34" Height="34" HorizontalAlignment="Right">
+                                            <Rectangle Width="26" Height="34" HorizontalAlignment="Right">
                                                 <Rectangle.Fill>
                                                     <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
                                                         <GradientStop Color="#0C111D" Offset="0.0" />
-                                                        <GradientStop Color="Transparent" Offset="0.6" />
+                                                        <GradientStop Color="Transparent" Offset="0.75" />
                                                     </LinearGradientBrush>
                                                 </Rectangle.Fill>
                                             </Rectangle>
