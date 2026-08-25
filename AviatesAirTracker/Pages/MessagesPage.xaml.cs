@@ -102,7 +102,13 @@ public sealed partial class MessagesPage : Page
     // a rebuild triggered by switching tabs and back, or by a refresh that doesn't add new
     // messages, does not re-animate bubbles that are already on screen. Cleared whenever the
     // selected conversation changes (a fresh conversation has nothing "already seen" yet).
-    private readonly HashSet<Guid> _renderedBubbleIds = [];
+    // Two separate sets, not one shared set -- opening a conversation clears only the
+    // conversation's "already seen" bookkeeping (there's genuinely nothing to animate-skip in a
+    // freshly-opened chat), but must NOT also wipe Broadcast's, or the next Broadcast rebuild
+    // (e.g. a live NewMessageReceived push) would re-animate every existing broadcast bubble
+    // instead of just the new one -- the exact flash/jump the animation was added to avoid.
+    private readonly HashSet<Guid> _renderedConversationBubbleIds = [];
+    private readonly HashSet<Guid> _renderedBroadcastBubbleIds = [];
 
     public MessagesPage()
     {
@@ -311,7 +317,7 @@ public sealed partial class MessagesPage : Page
         if (sender is not FrameworkElement { Tag: FriendDisplayRow row }) return;
 
         await _viewModel.SelectFriendAsync(row.PilotId);
-        _renderedBubbleIds.Clear(); // a freshly-opened conversation has nothing "already seen" yet
+        _renderedConversationBubbleIds.Clear(); // a freshly-opened conversation has nothing "already seen" yet
         RebuildFriendList();
         RebuildConversation();
     }
@@ -599,7 +605,7 @@ public sealed partial class MessagesPage : Page
         UpdateDmSendError();
 
         await _viewModel.SelectFriendAsync(row.PilotId);
-        _renderedBubbleIds.Clear(); // a freshly-opened conversation has nothing "already seen" yet
+        _renderedConversationBubbleIds.Clear(); // a freshly-opened conversation has nothing "already seen" yet
         RebuildFriendList();
         RebuildConversation();
     }
@@ -707,10 +713,11 @@ public sealed partial class MessagesPage : Page
 
         wrap.Children.Add(bubble);
 
-        var isNew = !_renderedBubbleIds.Contains(msg.Id);
+        var renderedIds = isBroadcast ? _renderedBroadcastBubbleIds : _renderedConversationBubbleIds;
+        var isNew = !renderedIds.Contains(msg.Id);
         if (isNew)
         {
-            _renderedBubbleIds.Add(msg.Id);
+            renderedIds.Add(msg.Id);
             AnimateBubbleIn(bubble, translate, scale);
         }
         else
