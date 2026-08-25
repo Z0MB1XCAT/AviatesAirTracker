@@ -1,0 +1,349 @@
+<Page
+    x:Class="AviatesAirTracker.Pages.FleetPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="#080B14">
+
+    <!--
+      Native reproduction of AviatesAirTracker.LegacyWeb\Pages\Fleet.razor (dark theme values
+      from wwwroot\css\app.css), following the same Phase 2/3 rules every prior native page in
+      this migration has followed: no Style element and no new Theme\Tokens.xaml entry may
+      appear anywhere in this project's XAML (silently crashes XamlCompiler.exe on this SDK,
+      zero diagnostics), and no literal double hyphen inside any XAML comment (invalid XML, same
+      silent crash; use a single hyphen or the box-drawing "──" character instead). Every
+      color/spacing value below is a direct property value; existing
+      Theme\Tokens.xaml/Typography.xaml StaticResource lookups (DisplayFontBold, etc.) are fine
+      to reuse since those entries already exist.
+
+      This task (Task 1) builds the page skeleton, header, loading/error states, stats row,
+      filter tabs, and the type card grid. The registration detail panel and the type card's
+      tap-to-select wiring are Task 2; OnTypeCardTapped below is a deliberate no-op stub for
+      now, matching the exact pattern Routes' own Task 2 used for its "Book" button stub.
+    -->
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
+        <StackPanel MaxWidth="1440" Spacing="20" HorizontalAlignment="Stretch">
+
+            <!-- ── Page header ── -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Spacing="4">
+                    <TextBlock Text="Fleet" FontFamily="{StaticResource DisplayFontBold}"
+                               FontSize="26" Foreground="#F1F5F9" />
+                    <TextBlock Text="AviatesAir operates a modern, fuel-efficient fleet across all subsidiaries."
+                               FontSize="14" Foreground="#94A3B8" />
+                </StackPanel>
+
+                <!-- Border, not Button: this SDK has no Style to retemplate Button's chrome, so
+                     CornerRadius doesn't reliably render (established after Dashboard's "sharp
+                     oval" bug). Static icon, not spun on IsLoading; see
+                     FleetPage.xaml.cs's OnRefreshTapped doc comment. -->
+                <Border Grid.Column="1" Tag="refresh" Tapped="OnRefreshTapped"
+                        Background="#0FFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1"
+                        CornerRadius="10" Padding="10" VerticalAlignment="Top">
+                    <Viewbox Width="16" Height="16">
+                        <Path Data="M23,4 L23,10 L17,10 M20.49,15 A9,9 0 1 1 18.37,5.64 L23,10"
+                              Stroke="#94A3B8" StrokeThickness="2"
+                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                    </Viewbox>
+                </Border>
+            </Grid>
+
+            <!-- ── Loading state ──
+                 Fleet.razor's first @if branch: VM.IsLoading && VM.Data.Types.Count == 0. A
+                 plain ProgressRing is used in place of the CSS's own bordered spinning circle
+                 (same simplification Routes' own LoadingPanel already used). -->
+            <StackPanel x:Name="LoadingPanel" Visibility="Collapsed" HorizontalAlignment="Center"
+                        Padding="0,64" Spacing="12">
+                <ProgressRing IsActive="True" Width="28" Height="28" HorizontalAlignment="Center" />
+                <TextBlock Text="Loading fleet data…" FontSize="13" Foreground="#94A3B8" HorizontalAlignment="Center" />
+            </StackPanel>
+
+            <!-- ── Error state ──
+                 Fleet.razor's second @if branch: VM.Error != null. Colors read directly from
+                 app.css's .fleet-error-banner rule (rgba(239,68,68,0.07) bg,
+                 rgba(239,68,68,0.25) border, the red text token). -->
+            <Border x:Name="ErrorBanner" Visibility="Collapsed" Background="#12EF4444"
+                    BorderBrush="#40EF4444" BorderThickness="1" CornerRadius="16" Padding="18,14">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Viewbox Width="18" Height="18">
+                        <Grid Width="24" Height="24">
+                            <Ellipse Width="20" Height="20" Stroke="#EF4444" StrokeThickness="2"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Line X1="12" Y1="8" X2="12" Y2="12" Stroke="#EF4444" StrokeThickness="2"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            <Ellipse Width="1.6" Height="1.6" Fill="#EF4444" HorizontalAlignment="Center"
+                                     VerticalAlignment="Center" Margin="0,4.2,0,0" />
+                        </Grid>
+                    </Viewbox>
+                    <TextBlock x:Name="ErrorText" FontSize="13" FontWeight="Medium" Foreground="#EF4444"
+                               TextWrapping="Wrap" VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+
+            <!-- ── Main content ──
+                 Fleet.razor's else branch: stats row, filter tabs, type card grid (registration
+                 panel is Task 2). -->
+            <StackPanel x:Name="MainContent" Visibility="Collapsed" Spacing="20">
+
+                <!-- ── Stats row ──
+                     Same 44x44 icon-chip + number + label pattern as DashboardPage.xaml's own
+                     stat strip (padding 20, radius 20, border/surface colors); app.css's own
+                     .fleet-stat-card rule uses the identical padding/radius, so this reuses
+                     Dashboard's exact visual pattern rather than inventing a new one, per the
+                     plan. Icon paths copied verbatim from Fleet.razor lines 52-93. -->
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                            CornerRadius="20" Padding="20">
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <Border Width="44" Height="44" CornerRadius="12" Background="#1F4D9BEC">
+                                <Viewbox Width="20" Height="20">
+                                    <Path Data="M22,16.5 L13,3 L11,7 L6,6 L2,9 L7,11 L6,14 L10,15 L11,20 L16,17 Z"
+                                          Stroke="#4D9BEC" StrokeThickness="2"
+                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                </Viewbox>
+                            </Border>
+                            <StackPanel>
+                                <TextBlock x:Name="StatTotalText" FontFamily="{StaticResource DisplayFontBold}"
+                                           FontSize="26" Foreground="#F1F5F9" />
+                                <TextBlock Text="Total Aircraft" FontSize="12" Foreground="#64748B" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                            CornerRadius="20" Padding="20">
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <Border Width="44" Height="44" CornerRadius="12" Background="#1F3EC7AC">
+                                <Viewbox Width="20" Height="20">
+                                    <Polyline Points="20,6 9,17 4,12" Stroke="#3EC7AC" StrokeThickness="2"
+                                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                </Viewbox>
+                            </Border>
+                            <StackPanel>
+                                <TextBlock x:Name="StatInServiceText" FontFamily="{StaticResource DisplayFontBold}"
+                                           FontSize="26" Foreground="#F1F5F9" />
+                                <TextBlock Text="In Service" FontSize="12" Foreground="#64748B" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="2" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                            CornerRadius="20" Padding="20">
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <Border Width="44" Height="44" CornerRadius="12" Background="#1FF59E0B">
+                                <Viewbox Width="20" Height="20">
+                                    <Grid Width="24" Height="24">
+                                        <Ellipse Width="20" Height="20" Stroke="#F59E0B" StrokeThickness="2"
+                                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Line X1="12" Y1="8" X2="12" Y2="12" Stroke="#F59E0B" StrokeThickness="2"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                        <Ellipse Width="1.6" Height="1.6" Fill="#F59E0B" HorizontalAlignment="Center"
+                                                 VerticalAlignment="Center" Margin="0,4.2,0,0" />
+                                    </Grid>
+                                </Viewbox>
+                            </Border>
+                            <StackPanel>
+                                <TextBlock x:Name="StatMaintenanceText" FontFamily="{StaticResource DisplayFontBold}"
+                                           FontSize="26" Foreground="#F1F5F9" />
+                                <TextBlock Text="In Maintenance" FontSize="12" Foreground="#64748B" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="3" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                            CornerRadius="20" Padding="20">
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <Border Width="44" Height="44" CornerRadius="12" Background="#1FB8934A">
+                                <Viewbox Width="20" Height="20">
+                                    <Path Data="M12,22 C12,22 20,18 20,12 L20,5 L12,2 L4,5 L4,12 C4,18 12,22 12,22 Z"
+                                          Stroke="#B8934A" StrokeThickness="2"
+                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                </Viewbox>
+                            </Border>
+                            <StackPanel>
+                                <TextBlock x:Name="StatOnOrderText" FontFamily="{StaticResource DisplayFontBold}"
+                                           FontSize="26" Foreground="#F1F5F9" />
+                                <TextBlock Text="On Order" FontSize="12" Foreground="#64748B" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- ── Filter tabs ──
+                     app.css's .fleet-filter-tab rule: pill radius (r-full), solid accent fill
+                     when active (a different technique from Routes/Flights' own tab bars, which
+                     reuse the sidebar's SidebarActiveBrush; Fleet.razor's own CSS just fills
+                     solid accent, so this reproduces that instead). -->
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Border x:Name="TabAllBorder" Tag="All" Tapped="OnFilterTapped"
+                            BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="999" Padding="16,6">
+                        <TextBlock x:Name="TabAllText" Text="All" FontFamily="{StaticResource DisplayFontBold}"
+                                   FontSize="12" FontWeight="SemiBold" />
+                    </Border>
+                    <Border x:Name="TabMainlineBorder" Tag="Mainline" Tapped="OnFilterTapped"
+                            BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="999" Padding="16,6">
+                        <TextBlock x:Name="TabMainlineText" Text="Mainline" FontFamily="{StaticResource DisplayFontBold}"
+                                   FontSize="12" FontWeight="SemiBold" />
+                    </Border>
+                    <Border x:Name="TabRegionalBorder" Tag="Regional" Tapped="OnFilterTapped"
+                            BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="999" Padding="16,6">
+                        <TextBlock x:Name="TabRegionalText" Text="Regional" FontFamily="{StaticResource DisplayFontBold}"
+                                   FontSize="12" FontWeight="SemiBold" />
+                    </Border>
+                    <Border x:Name="TabCargoBorder" Tag="Cargo" Tapped="OnFilterTapped"
+                            BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="999" Padding="16,6">
+                        <TextBlock x:Name="TabCargoText" Text="Cargo" FontFamily="{StaticResource DisplayFontBold}"
+                                   FontSize="12" FontWeight="SemiBold" />
+                    </Border>
+                </StackPanel>
+
+                <!-- ── Type card grid ──
+                     ItemsWrapGrid wraps cards into rows; ItemWidth is recomputed in code-behind
+                     (UpdateTypeGridColumns, ported from RoutesPage.xaml.cs's own
+                     UpdateRouteGridColumns) from the panel's own ActualWidth so columns stretch
+                     to fill the available width instead of leaving a dead gap. Each card is
+                     HorizontalAlignment="Stretch" so it fills its ItemWidth cell (minus the
+                     right/bottom gutter margin). -->
+                <ItemsControl x:Name="TypeCardsList" SizeChanged="TypeCardsList_SizeChanged">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <ItemsWrapGrid Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid HorizontalAlignment="Stretch" Margin="0,0,16,16">
+                                <Border Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}"
+                                        BorderThickness="{Binding CardBorderThickness}" CornerRadius="20" Padding="20"
+                                        Tag="{Binding}" Tapped="OnTypeCardTapped">
+                                    <StackPanel Spacing="0">
+
+                                        <!-- Head: status chip + type code badge -->
+                                        <Grid Margin="0,0,0,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Background="{Binding StatusChipBackground}"
+                                                    CornerRadius="999" Padding="9,4" HorizontalAlignment="Left">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <Ellipse Width="6" Height="6" Fill="{Binding StatusChipColor}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding StatusLabel}" FontSize="11" FontWeight="SemiBold"
+                                                               Foreground="{Binding StatusChipColor}" />
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Grid.Column="1" Background="#121A2A" BorderBrush="#14FFFFFF"
+                                                    BorderThickness="1" CornerRadius="8" Padding="8,3">
+                                                <TextBlock Text="{Binding TypeCode}" FontFamily="Consolas" FontSize="11"
+                                                           FontWeight="SemiBold" Foreground="#CBD5E1" />
+                                            </Border>
+                                        </Grid>
+
+                                        <!-- Photo / gradient placeholder -->
+                                        <Border Height="132" CornerRadius="12" Margin="0,0,0,16">
+                                            <Grid>
+                                                <Image Source="{Binding PhotoSource}" Visibility="{Binding ShowPhoto}"
+                                                       Opacity="{Binding PhotoOpacity}" Stretch="UniformToFill" />
+                                                <Border Visibility="{Binding ShowEmojiPlaceholder}" CornerRadius="12">
+                                                    <Border.Background>
+                                                        <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                                            <GradientStop Color="#161D2E" Offset="0.0" />
+                                                            <GradientStop Color="#0C111D" Offset="1.0" />
+                                                        </LinearGradientBrush>
+                                                    </Border.Background>
+                                                    <TextBlock Text="{Binding EmojiText}" FontSize="40" Opacity="0.55"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- Name + active/on-order line -->
+                                        <TextBlock Text="{Binding Name}" FontFamily="{StaticResource DisplayFontBold}"
+                                                   FontSize="16" FontWeight="Bold" Foreground="{Binding NameColor}"
+                                                   Margin="0,0,0,3" />
+                                        <TextBlock Text="{Binding SubText}" FontFamily="Consolas" FontSize="12"
+                                                   Foreground="{Binding SubTextColor}" Margin="0,0,0,16" />
+
+                                        <!-- 4-stat mini grid -->
+                                        <Grid BorderBrush="#0DFFFFFF" BorderThickness="0,1,0,0" Padding="0,12,0,0"
+                                              ColumnSpacing="12" RowSpacing="10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+
+                                            <StackPanel Grid.Row="0" Grid.Column="0" Spacing="3">
+                                                <TextBlock Text="{Binding Stat1Val}" FontFamily="{StaticResource DisplayFontBold}"
+                                                           FontSize="16" FontWeight="Bold" Foreground="{Binding Stat1Color}" />
+                                                <TextBlock Text="{Binding Stat1Lbl}" FontSize="10.5" FontWeight="SemiBold"
+                                                           Foreground="#64748B" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="0" Grid.Column="1" Spacing="3">
+                                                <TextBlock Text="{Binding Stat2Val}" FontFamily="{StaticResource DisplayFontBold}"
+                                                           FontSize="16" FontWeight="Bold" Foreground="{Binding Stat2Color}" />
+                                                <TextBlock Text="Range (nm)" FontSize="10.5" FontWeight="SemiBold"
+                                                           Foreground="#64748B" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="1" Grid.Column="0" Spacing="3">
+                                                <TextBlock Text="{Binding Stat3Val}" FontFamily="{StaticResource DisplayFontBold}"
+                                                           FontSize="16" FontWeight="Bold" Foreground="{Binding Stat3Color}" />
+                                                <TextBlock Text="{Binding Stat3Lbl}" FontSize="10.5" FontWeight="SemiBold"
+                                                           Foreground="#64748B" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="3">
+                                                <TextBlock Text="{Binding Stat4Val}" FontFamily="{StaticResource DisplayFontBold}"
+                                                           FontSize="16" FontWeight="Bold" Foreground="{Binding Stat4Color}" />
+                                                <TextBlock Text="Subsidiary" FontSize="10.5" FontWeight="SemiBold"
+                                                           Foreground="#64748B" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- Expand affordance -->
+                                        <Grid BorderBrush="#14FFFFFF" BorderThickness="0,1,0,0" Margin="0,12,0,0" Padding="0,12,0,0">
+                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                <Viewbox Width="13" Height="13">
+                                                    <Path Data="M6,9 L12,15 L18,9" Stroke="{Binding ExpandColor}" StrokeThickness="2"
+                                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                </Viewbox>
+                                                <TextBlock Text="{Binding ExpandText}" FontSize="11" FontWeight="SemiBold"
+                                                           Foreground="{Binding ExpandColor}" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Dashed-border overlay for the on-order state
+                                     (app.css's fleet-card, ordered variant): a separate
+                                     Rectangle drawn on top of the Border above, since Border
+                                     itself has no dash-pattern property in WinUI. Same Margin as
+                                     the Border so it traces the same rounded rect exactly. -->
+                                <Rectangle Visibility="{Binding ShowDashedOverlay}" Margin="0,0,16,16"
+                                           Stroke="#334155" StrokeThickness="1.5" StrokeDashArray="4,3"
+                                           RadiusX="20" RadiusY="20" IsHitTestVisible="False" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>
