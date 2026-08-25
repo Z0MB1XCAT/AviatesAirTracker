@@ -1,0 +1,168 @@
+<Page
+    x:Class="AviatesAirTracker.Pages.NewsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="#080B14">
+
+    <!--
+      Native reproduction of AviatesAirTracker.LegacyWeb\Pages\News.razor (dark theme values
+      from wwwroot\css\app.css), following the same Phase 2/3 rules every prior native page in
+      this migration has followed: no Style element and no new Theme\Tokens.xaml entry may
+      appear anywhere in this project's XAML (silently crashes XamlCompiler.exe on this SDK,
+      zero diagnostics), and no literal double hyphen inside any XAML comment (invalid XML, same
+      silent crash; use a single hyphen or the box-drawing "──" character instead).
+
+      This page has no ViewModel and no service dependency of any kind ── News.razor has no
+      @code block at all. Everything below is static content: a 5-tab bar where only "All News"
+      is ever active in the original (none of the 5 has an @onclick, so none is wired to a
+      Tapped handler here either ── purely visual, matching the source exactly), and a
+      responsive 6-card grid (RoutesPage.xaml.cs's ItemsWrapGrid/SizeChanged column-recompute
+      technique, ported to avoid the dead-gap-on-resize bug that fix was created for). Each
+      card's "Read" footer link is wired to a documented no-op Tapped handler
+      (NewsPage.xaml.cs's OnReadTapped), matching SupportPage.xaml.cs's precedent for the
+      original's own dead href="#" links ── Border-not-Button per this project's convention
+      (no Style to retemplate Button's CornerRadius on this SDK).
+    -->
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
+        <StackPanel MaxWidth="1440" Spacing="20" HorizontalAlignment="Stretch">
+
+            <!-- ── Page header ── -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="News &amp; Announcements" FontFamily="{StaticResource DisplayFontBold}"
+                           FontSize="26" FontWeight="Bold" Foreground="#F1F5F9" />
+                <TextBlock Text="Stay up to date with AviatesAir operations, fleet updates, and community news."
+                           FontSize="14" Foreground="#94A3B8" />
+            </StackPanel>
+
+            <!-- ── Tab bar ──
+                 News.razor's .tab-bar: 5 tab-item divs, only "All News" ever carries the
+                 `active` class in the original markup, and none of the 5 has an @onclick ──
+                 so these are static Borders with no Tapped wiring at all (this task's chosen
+                 option per the design spec, since wiring a no-op handler to 5 inert tabs would
+                 add code with nothing behind it). -->
+            <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                    CornerRadius="14" Padding="4" HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <Border Background="#4D9BEC" CornerRadius="10" Padding="18,9">
+                        <TextBlock Text="All News" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                    </Border>
+                    <Border CornerRadius="10" Padding="18,9">
+                        <TextBlock Text="Operations" FontSize="13" FontWeight="SemiBold" Foreground="#64748B" />
+                    </Border>
+                    <Border CornerRadius="10" Padding="18,9">
+                        <TextBlock Text="Fleet" FontSize="13" FontWeight="SemiBold" Foreground="#64748B" />
+                    </Border>
+                    <Border CornerRadius="10" Padding="18,9">
+                        <TextBlock Text="Community" FontSize="13" FontWeight="SemiBold" Foreground="#64748B" />
+                    </Border>
+                    <Border CornerRadius="10" Padding="18,9">
+                        <TextBlock Text="Events" FontSize="13" FontWeight="SemiBold" Foreground="#64748B" />
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- ── News card grid ──
+                 ItemsWrapGrid wraps cards into rows; ItemWidth is recomputed in code-behind
+                 (UpdateNewsGridColumns) from the panel's own ActualWidth so columns stretch to
+                 fill the available width instead of leaving a dead gap when it doesn't divide
+                 evenly by a fixed card width ── same technique RoutesPage.xaml/.xaml.cs
+                 established. Each card is HorizontalAlignment="Stretch" so it fills its
+                 ItemWidth cell (minus the right/bottom gutter margin). -->
+            <ItemsControl x:Name="NewsCardsList" SizeChanged="NewsCardsList_SizeChanged">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ItemsWrapGrid Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border HorizontalAlignment="Stretch" Margin="0,0,16,16" Background="#0C111D"
+                                BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
+                            <StackPanel>
+
+                                <!-- Banner: photo (2 cards) OR gradient + low-opacity emoji (4 cards),
+                                     layered in the same Grid so the Border's own CornerRadius clips
+                                     whichever is visible to the card's rounded top corners
+                                     (WinUI Border clips its child to CornerRadius automatically,
+                                     same as FleetPage.xaml's photo/gradient-placeholder Grid). -->
+                                <Grid Height="160">
+                                    <Image Source="{Binding PhotoSource}" Visibility="{Binding ShowPhoto}"
+                                           Stretch="UniformToFill" />
+                                    <Border Visibility="{Binding ShowGradient}" Background="{Binding GradientBrush}">
+                                        <TextBlock Text="{Binding EmojiGlyph}" FontSize="80" Opacity="0.1"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+
+                                    <!-- Tag chip, top-left corner -->
+                                    <Border Background="#1FFFFFFF" BorderBrush="#29FFFFFF" BorderThickness="1"
+                                            CornerRadius="999" Padding="10,4" Margin="14"
+                                            HorizontalAlignment="Left" VerticalAlignment="Top">
+                                        <TextBlock Text="{Binding TagDisplay}" FontSize="10" FontWeight="Bold"
+                                                   Foreground="#E6FFFFFF" CharacterSpacing="100" />
+                                    </Border>
+
+                                    <!-- Date chip, bottom-right corner -->
+                                    <Border Background="#66000000" CornerRadius="8" Padding="8,4" Margin="14"
+                                            HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                                        <TextBlock Text="{Binding Date}" FontSize="11" Foreground="#CCFFFFFF" />
+                                    </Border>
+                                </Grid>
+
+                                <!-- Body -->
+                                <StackPanel Padding="16" Spacing="8">
+                                    <TextBlock Text="{Binding Title}" FontFamily="{StaticResource DisplayFontBold}"
+                                               FontSize="15" FontWeight="Bold" Foreground="#F1F5F9"
+                                               TextWrapping="Wrap" LineHeight="20" />
+                                    <TextBlock Text="{Binding Excerpt}" FontSize="12.5" Foreground="#64748B"
+                                               TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                                               LineHeight="19" Margin="0,0,0,4" />
+
+                                    <Border Height="1" Background="#0DFFFFFF" Margin="0,0,0,8" />
+
+                                    <!-- Footer: avatar + author name, "Read" link -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8"
+                                                    VerticalAlignment="Center">
+                                            <Border Width="24" Height="24" CornerRadius="12">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                        <GradientStop Color="#4D9BEC" Offset="0" />
+                                                        <GradientStop Color="#B8934A" Offset="1" />
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                                <TextBlock Text="{Binding AuthorInitials}" FontSize="9" FontWeight="Bold"
+                                                           Foreground="#FFFFFF" HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                            </Border>
+                                            <TextBlock Text="{Binding AuthorName}" FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="#CBD5E1" />
+                                        </StackPanel>
+
+                                        <!-- Inert: News.razor's own "Read" link is href="#" on all 6 cards. -->
+                                        <Border Grid.Column="1" Tag="{Binding}" Tapped="OnReadTapped"
+                                                VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                                <TextBlock Text="Read" FontSize="12" FontWeight="Bold" Foreground="#4D9BEC" />
+                                                <Viewbox Width="12" Height="12">
+                                                    <Path Data="M5 12h14M12 5l7 7-7 7" Stroke="#4D9BEC" StrokeThickness="2.5"
+                                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                </Viewbox>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>

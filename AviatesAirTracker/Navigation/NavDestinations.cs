@@ -30,7 +30,7 @@ public static class NavDestinations
         new("acars",     "ACARS",     "/acars",     "Pilot"),
         new("map",       "Map",       "/map",       "Pilot"),
         new("messages",  "Messages",  "/messages",  "Pilot", NativePageType: typeof(Pages.MessagesPage)),
-        new("news",      "News",      "/news",      "Community"),
+        new("news",      "News",      "/news",      "Community", NativePageType: typeof(Pages.NewsPage)),
         new("events",    "Events",    "/events",    "Community", NativePageType: typeof(Pages.EventsPage)),
         new("support",   "Support",   "/support",   "Community", NativePageType: typeof(Pages.SupportPage)),
         // Settings sits below the connection-status block in the sidebar footer,
