@@ -1494,7 +1494,10 @@ input, textarea, select { font-family: inherit; }
   display: flex; flex-direction: column; gap: var(--sp-3);
 }
 .msg-bubble-list.broadcast { border-bottom: 1px solid var(--border); }
-.msg-bubble-wrap { display: flex; flex-direction: column; }
+.msg-bubble-wrap {
+  display: flex; flex-direction: column;
+  animation: bubble-in 0.32s var(--ease-spring) both;
+}
 .msg-bubble-wrap.mine  { align-items: flex-end; }
 .msg-bubble-wrap.theirs { align-items: flex-start; }
 .msg-bubble-sender { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 3px; padding: 0 var(--sp-2); }
@@ -1655,6 +1658,7 @@ input, textarea, select { font-family: inherit; }
 @keyframes radar-pulse   { 0% { transform: scale(0.6); opacity: 0.7; } 100% { transform: scale(2.0); opacity: 0; } }
 @keyframes bar-grow      { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 @keyframes toast-in      { from { opacity: 0; transform: translateX(20px) scale(0.95); } to { opacity: 1; transform: translateX(0) scale(1); } }
+@keyframes bubble-in     { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes plane-float   { 0%,100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-6px) rotate(-5deg); } }
 
 .anim-up    { animation: fade-slide-up 0.5s var(--ease-out) both; }

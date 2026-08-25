@@ -393,6 +393,10 @@ else
             _dmSendError = MessagingService.LastSendError ?? "Failed to send message.";
         }
         _inboxMessages = await MessagingService.GetInboxAsync();
+        // The bubble list renders from _conversation, not _inboxMessages directly -- without this,
+        // a just-sent message was in _inboxMessages but invisible until SelectFriend ran again
+        // (e.g. reopening the page) and recomputed _conversation from the refreshed inbox.
+        if (_selectedFriendId != null) _conversation = GetConversation(_selectedFriendId);
         _isSending = false;
         StateHasChanged();
     }
