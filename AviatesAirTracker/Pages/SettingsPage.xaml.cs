@@ -1,5 +1,7 @@
 using AviatesAirTracker.Core.Backend;
+using AviatesAirTracker.Core.Efb;
 using AviatesAirTracker.Services;
+using AviatesAirTracker.Services.Efb;
 using Microsoft.UI.Input;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -10,6 +12,7 @@ using Microsoft.UI.Xaml.Shapes;
 using Serilog;
 using System;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
@@ -51,8 +54,20 @@ public sealed partial class SettingsPage : Page
     private static readonly Brush TextPrimaryBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0xF1, 0xF5, 0xF9));
     private static readonly Brush WhiteBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
 
+    // Task 5: EFB Companion's QR module grid -- rendered as plain black/white Rectangle cells
+    // (see EnsureEfbQrBuilt below), not an SVG string (WinUI has no inline-SVG renderer).
+    private static readonly Brush BlackBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x00, 0x00, 0x00));
+
+    // Task 5: About & Updates' download-progress fill Border's Width is set in code-behind as a
+    // pixel fraction of this constant -- must match UpdateProgressTrack's fixed Width="380" in
+    // the XAML, same technique PilotHubPage.xaml's RankProgressTrack/RankProgressFill pair
+    // already established (RankProgressTrackWidth there).
+    private const double UpdateProgressTrackWidth = 380.0;
+
     private readonly SettingsService _settings;
     private readonly PttInputService _pttInput;
+    private readonly UpdateService _updateService;
+    private readonly EfbServer _efbServer;
 
     // Page-local UI state, same placement decision every prior page has made for its own
     // _activeTab/_statusMessage-style fields (Settings.razor keeps these on the component too,
@@ -80,12 +95,30 @@ public sealed partial class SettingsPage : Page
     private string? _hotkeyRejectedMessage;
     private bool _capturingJoystick;
 
+    // Task 5: About & Updates + EFB Companion -- page-local UI state, same placement decision as
+    // every other field above (Settings.razor keeps these on the component too, not on
+    // SettingsService).
+    private string _appVersion = "1.0.0";
+    private bool _isCheckingUpdate;
+    private bool _updateChecked;
+    private bool _isInstallingUpdate;
+    private int _updateDlProgress;
+
+    private bool _efbBusy;
+
+    // Cache key for the built QR module grid -- rebuilt only when EfbServer.PrimaryUrl actually
+    // changes (port/token can change across a stop/start cycle), matching Settings.razor's own
+    // _efbQrCache/_efbQrForUrl caching.
+    private string? _efbQrBuiltForUrl;
+
     public SettingsPage()
     {
         InitializeComponent();
 
         _settings = App.GetService<SettingsService>();
         _pttInput = App.GetService<PttInputService>();
+        _updateService = App.GetService<UpdateService>();
+        _efbServer = App.GetService<EfbServer>();
 
         // Initial field values. Setting .Text here also fires each TextChanged handler once,
         // which harmlessly re-writes the same value back to Settings -- not worth guarding
@@ -124,6 +157,15 @@ public sealed partial class SettingsPage : Page
         DispatchBackendUrlTextBox.Text = _settings.Settings.DispatchBackendUrl;
         PopulateJoystickComboBox();
 
+        // Task 5: About & Updates + EFB Companion initial field values.
+        var version = Assembly.GetExecutingAssembly().GetName().Version;
+        if (version is not null)
+            _appVersion = $"{version.Major}.{version.Minor}.{version.Build}";
+        AppVersionText.Text = "v" + _appVersion;
+
+        EfbEnabledToggle.IsOn = _settings.Settings.EfbEnabled;
+        EfbAutoStartToggle.IsOn = _settings.Settings.EfbAutoStart;
+
         UpdateStatusBanner();
         UpdateNameDisplay();
         UpdateThemeCardVisuals();
@@ -135,6 +177,25 @@ public sealed partial class SettingsPage : Page
         UpdatePttHotkeyDisplay();
         UpdateJoystickBoundText();
         UpdateBindJoystickButtonState();
+        UpdateCheckForUpdatesButtonState();
+        UpdateUpdateAvailablePanel();
+        UpdateEfbPanel();
+
+        Loaded += (_, _) =>
+        {
+            // Task 5: UpdateService.DownloadProgressChanged/EfbServer.StatusChanged may not fire
+            // on the UI thread -- same Loaded/Unloaded subscribe-unsubscribe shape
+            // MessagesPage.xaml.cs established for MessagingService's events, with every mutation
+            // marshaled via DispatcherQueue.TryEnqueue.
+            _updateService.DownloadProgressChanged += OnUpdateProgress;
+            _efbServer.StatusChanged += OnEfbStatusChanged;
+        };
+
+        Unloaded += (_, _) =>
+        {
+            _updateService.DownloadProgressChanged -= OnUpdateProgress;
+            _efbServer.StatusChanged -= OnEfbStatusChanged;
+        };
 
         Loaded += (_, _) =>
         {
@@ -880,6 +941,275 @@ public sealed partial class SettingsPage : Page
         {
             var backendClient = App.GetService<AviatesBackendClient>();
             await backendClient.SetLiveSharingAsync(enabled, key);
+        }
+    }
+
+    // ── About & Updates ──────────────────────────────────────────────────────────────────────
+
+    private async void OnCheckForUpdatesTapped(object sender, TappedRoutedEventArgs e)
+    {
+        // Defensive guard matching the original's disabled condition -- the button is already
+        // dimmed/hit-test-disabled below, but guard here too in case Tapped still fires.
+        if (_isCheckingUpdate || _isInstallingUpdate) return;
+
+        await CheckForUpdatesAsync();
+    }
+
+    // Ported from Settings.razor's CheckForUpdatesAsync() -- sets the checking flag, rebuilds,
+    // awaits UpdateService.CheckAsync(), then marks the check complete and resets the checking
+    // flag in a finally, rebuilding again.
+    private async Task CheckForUpdatesAsync()
+    {
+        _isCheckingUpdate = true;
+        _updateChecked = false;
+        UpdateCheckForUpdatesButtonState();
+        UpdateUpdateAvailablePanel();
+
+        try
+        {
+            await _updateService.CheckAsync();
+            _updateChecked = true;
+        }
+        finally
+        {
+            _isCheckingUpdate = false;
+            UpdateCheckForUpdatesButtonState();
+            UpdateUpdateAvailablePanel();
+        }
+    }
+
+    private async void OnDownloadInstallTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (_isInstallingUpdate) return;
+
+        await InstallFromSettingsAsync();
+    }
+
+    // Ported from Settings.razor's InstallFromSettingsAsync() -- on success, DownloadAndInstallAsync
+    // shuts the app down itself (see UpdateService.cs), so there is nothing further to do here. On
+    // exception, this silently resets the installing flag/progress and rebuilds without showing an
+    // error -- that matches the original's own catch block exactly, even though it looks
+    // incomplete; ported verbatim rather than "fixed".
+    private async Task InstallFromSettingsAsync()
+    {
+        _isInstallingUpdate = true;
+        _updateDlProgress = 0;
+        UpdateUpdateAvailablePanel();
+
+        try
+        {
+            await _updateService.DownloadAndInstallAsync();
+        }
+        catch
+        {
+            _isInstallingUpdate = false;
+            _updateDlProgress = 0;
+            UpdateUpdateAvailablePanel();
+        }
+    }
+
+    // UpdateService.DownloadProgressChanged fires from a background download loop (see
+    // UpdateService.DownloadAndInstallAsync's while-read loop), not the UI thread -- marshaled via
+    // DispatcherQueue.TryEnqueue, same pattern as Messages' live-event subscriptions.
+    private void OnUpdateProgress(object? sender, int pct)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _updateDlProgress = pct;
+            UpdateUpdateAvailablePanel();
+        });
+    }
+
+    // Matches the original's exact `_isCheckingUpdate || _isInstallingUpdate` disabled condition
+    // and the idle/checking icon-vs-spinner swap.
+    private void UpdateCheckForUpdatesButtonState()
+    {
+        var enabled = !_isCheckingUpdate && !_isInstallingUpdate;
+        CheckForUpdatesButtonBorder.IsHitTestVisible = enabled;
+        CheckForUpdatesButtonBorder.Opacity = enabled ? 1.0 : 0.45;
+
+        CheckForUpdatesIdleIconViewbox.Visibility = _isCheckingUpdate ? Visibility.Collapsed : Visibility.Visible;
+        CheckForUpdatesProgressRing.Visibility = _isCheckingUpdate ? Visibility.Visible : Visibility.Collapsed;
+        CheckForUpdatesProgressRing.IsActive = _isCheckingUpdate;
+        CheckForUpdatesButtonText.Text = _isCheckingUpdate ? "Checking…" : "Check for Updates";
+    }
+
+    // Matches Settings.razor's exact 3-way @if (AvailableUpdate is { } update) / else if
+    // (_updateChecked) / implicit-else-nothing. The download-progress bar's fill Width is a pixel
+    // fraction of UpdateProgressTrackWidth, same technique PilotHubPage.xaml's
+    // RankProgressTrack/RankProgressFill pair already established.
+    private void UpdateUpdateAvailablePanel()
+    {
+        var update = _updateService.AvailableUpdate;
+
+        if (update is not null)
+        {
+            UpdateAvailableBorder.Visibility = Visibility.Visible;
+            UpToDateBanner.Visibility = Visibility.Collapsed;
+
+            UpdateAvailableVersionText.Text = $"v{update.Version} is available";
+
+            UpdateProgressPanel.Visibility = _isInstallingUpdate ? Visibility.Visible : Visibility.Collapsed;
+            DownloadInstallButtonBorder.Visibility = _isInstallingUpdate ? Visibility.Collapsed : Visibility.Visible;
+
+            UpdateProgressPercentText.Text = $"{_updateDlProgress}%";
+            UpdateProgressFill.Width = UpdateProgressTrackWidth * (_updateDlProgress / 100.0);
+        }
+        else if (_updateChecked)
+        {
+            UpdateAvailableBorder.Visibility = Visibility.Collapsed;
+            UpToDateBanner.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            UpdateAvailableBorder.Visibility = Visibility.Collapsed;
+            UpToDateBanner.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    // ── EFB Companion ────────────────────────────────────────────────────────────────────────
+
+    // EfbServer.StatusChanged fires whenever the server starts/stops, which can happen from a
+    // background async continuation -- marshaled via DispatcherQueue.TryEnqueue, same pattern as
+    // OnUpdateProgress above and Messages' live-event subscriptions. Invalidates the cached QR
+    // grid, matching Settings.razor's own `_efbQrCache = null` on this event (URL/port may have
+    // changed across a stop/start cycle).
+    private void OnEfbStatusChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _efbQrBuiltForUrl = null;
+            UpdateEfbPanel();
+        });
+    }
+
+    private async void OnStartEfbTapped(object sender, TappedRoutedEventArgs e) => await StartEfbAsync();
+
+    private async void OnStopEfbTapped(object sender, TappedRoutedEventArgs e) => await StopEfbAsync();
+
+    private async Task StartEfbAsync()
+    {
+        if (_efbBusy) return;
+        _efbBusy = true;
+        UpdateEfbPanel();
+
+        try
+        {
+            await _efbServer.StartAsync();
+        }
+        finally
+        {
+            _efbBusy = false;
+            UpdateEfbPanel();
+        }
+    }
+
+    private async Task StopEfbAsync()
+    {
+        if (_efbBusy) return;
+        _efbBusy = true;
+        UpdateEfbPanel();
+
+        try
+        {
+            await _efbServer.StopAsync();
+        }
+        finally
+        {
+            _efbBusy = false;
+            UpdateEfbPanel();
+        }
+    }
+
+    // Matches Settings.razor's OnEfbEnabledChanged exactly: saves immediately (unlike Start
+    // Automatically below, a plain deferred-to-Save bind), and stops the running server if the
+    // toggle is switched off while it's up.
+    private async void OnEfbEnabledToggled(object sender, RoutedEventArgs e)
+    {
+        var enabled = EfbEnabledToggle.IsOn;
+        _settings.Settings.EfbEnabled = enabled;
+        _settings.Save();
+
+        if (!enabled && _efbServer.IsRunning)
+            await StopEfbAsync();
+    }
+
+    // Plain deferred-to-Save bind, no immediate side effect -- matches the original's plain @bind
+    // on Settings.EfbAutoStart, explicitly different from Enable EFB Companion above.
+    private void OnEfbAutoStartToggled(object sender, RoutedEventArgs e)
+    {
+        _settings.Settings.EfbAutoStart = EfbAutoStartToggle.IsOn;
+    }
+
+    private void UpdateEfbPanel()
+    {
+        var running = _efbServer.IsRunning;
+
+        EfbRunningGrid.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
+        EfbStoppedBanner.Visibility = running ? Visibility.Collapsed : Visibility.Visible;
+        StopEfbButtonBorder.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
+        StartEfbButtonBorder.Visibility = running ? Visibility.Collapsed : Visibility.Visible;
+
+        // Both Start/Stop are disabled while a start/stop call is in flight, matching the
+        // original's exact `disabled="@_efbBusy"` on both buttons.
+        var enabled = !_efbBusy;
+        StartEfbButtonBorder.IsHitTestVisible = enabled;
+        StartEfbButtonBorder.Opacity = enabled ? 1.0 : 0.45;
+        StartEfbButtonText.Text = _efbBusy ? "Starting…" : "Start EFB Server";
+
+        StopEfbButtonBorder.IsHitTestVisible = enabled;
+        StopEfbButtonBorder.Opacity = enabled ? 1.0 : 0.45;
+
+        if (running)
+        {
+            EnsureEfbQrBuilt();
+            EfbStatusText.Text = $"Running · port {_efbServer.Port}";
+            EfbAddressText.Text = _efbServer.PrimaryUrl.Split('#')[0];
+            EfbPairingCodeText.Text = _efbServer.PairingCode;
+        }
+    }
+
+    // Renders the QR code as a Grid of black/white Rectangle cells built from QrCode.Size/
+    // GetModule(x, y) -- per the design spec's explicit resolution of this (WinUI has no inline
+    // SVG renderer), NOT the original's QrCode.Encode(...).ToSvg(...) MarkupString injection.
+    // Cached per URL (EfbServer.PrimaryUrl encodes the pairing token, which changes across a
+    // stop/start cycle), same reasoning as Settings.razor's own _efbQrCache/_efbQrForUrl pair.
+    private void EnsureEfbQrBuilt()
+    {
+        var url = _efbServer.PrimaryUrl;
+        if (string.IsNullOrEmpty(url)) return;
+        if (_efbQrBuiltForUrl == url) return;
+
+        EfbQrGrid.RowDefinitions.Clear();
+        EfbQrGrid.ColumnDefinitions.Clear();
+        EfbQrGrid.Children.Clear();
+
+        try
+        {
+            var qr = QrCode.Encode(url, QrEcc.Medium);
+
+            for (var i = 0; i < qr.Size; i++)
+            {
+                EfbQrGrid.RowDefinitions.Add(new RowDefinition());
+                EfbQrGrid.ColumnDefinitions.Add(new ColumnDefinition());
+            }
+
+            for (var y = 0; y < qr.Size; y++)
+            {
+                for (var x = 0; x < qr.Size; x++)
+                {
+                    var cell = new Rectangle { Fill = qr.GetModule(x, y) ? BlackBrush : WhiteBrush };
+                    Grid.SetRow(cell, y);
+                    Grid.SetColumn(cell, x);
+                    EfbQrGrid.Children.Add(cell);
+                }
+            }
+
+            _efbQrBuiltForUrl = url;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Settings] Failed to build EFB QR");
         }
     }
 

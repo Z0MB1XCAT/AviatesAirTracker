@@ -785,11 +785,219 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Task 5 builds About & Updates here. -->
-                    <Border x:Name="AboutUpdatesStub" />
+                    <!-- ── About & Updates ── -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                            CornerRadius="20" Padding="20">
+                        <StackPanel Spacing="16">
+                            <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,0,0,12">
+                                <TextBlock Text="About &amp; Updates" FontFamily="{StaticResource DisplayFontBold}"
+                                           FontSize="16" FontWeight="Bold" Foreground="#F1F5F9" />
+                            </Border>
 
-                    <!-- Task 5 builds EFB Companion here. -->
-                    <Border x:Name="EfbCompanionStub" />
+                            <!-- Version row: current version + Check for Updates button (idle vs
+                                 checking-with-ProgressRing states, driven from code-behind's
+                                 UpdateCheckForUpdatesButtonState). -->
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3">
+                                    <TextBlock Text="Current Version" FontSize="12" Foreground="#64748B" />
+                                    <TextBlock x:Name="AppVersionText" FontFamily="Consolas" FontSize="14"
+                                               FontWeight="Bold" Foreground="#F1F5F9" />
+                                </StackPanel>
+                                <Border Grid.Column="1" x:Name="CheckForUpdatesButtonBorder" Tag="check"
+                                        Tapped="OnCheckForUpdatesTapped" Background="#0C111D" BorderBrush="#14FFFFFF"
+                                        BorderThickness="1" CornerRadius="10" Padding="16,0" VerticalAlignment="Stretch">
+                                    <StackPanel Orientation="Horizontal" Spacing="6"
+                                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Viewbox x:Name="CheckForUpdatesIdleIconViewbox" Width="13" Height="13">
+                                            <Grid Width="24" Height="24">
+                                                <Path Data="M23 4v6h-6" Stroke="#F1F5F9" StrokeThickness="2" StrokeLineJoin="Round" />
+                                                <Path Data="M1 20v-6h6" Stroke="#F1F5F9" StrokeThickness="2" StrokeLineJoin="Round" />
+                                                <Path Data="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"
+                                                      Stroke="#F1F5F9" StrokeThickness="2" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                            </Grid>
+                                        </Viewbox>
+                                        <ProgressRing x:Name="CheckForUpdatesProgressRing" IsActive="False" Visibility="Collapsed"
+                                                      Width="13" Height="13" Foreground="#F1F5F9" />
+                                        <TextBlock x:Name="CheckForUpdatesButtonText" Text="Check for Updates"
+                                                   FontSize="13" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <!-- Update-available panel vs. "up to date" strip vs. nothing - matches
+                                 Settings.razor's exact 3-way @if/else-if/implicit-else-nothing (both
+                                 pre-built, visibility toggled together in
+                                 UpdateAboutUpdatesPanel()). -->
+                            <Border x:Name="UpdateAvailableBorder" Visibility="Collapsed"
+                                    Background="#121F4D9BEC" BorderBrush="#334D9BEC" BorderThickness="1"
+                                    CornerRadius="12" Padding="13,12">
+                                <StackPanel Spacing="10">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Viewbox Width="14" Height="14">
+                                            <Grid Width="24" Height="24">
+                                                <Polyline Points="7,16 12,21 17,16" Stroke="#4D9BEC" StrokeThickness="2"
+                                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                <Line X1="12" Y1="3" X2="12" Y2="21" Stroke="#4D9BEC" StrokeThickness="2"
+                                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                            </Grid>
+                                        </Viewbox>
+                                        <TextBlock x:Name="UpdateAvailableVersionText" FontSize="12.5"
+                                                   FontWeight="Bold" Foreground="#4D9BEC" />
+                                    </StackPanel>
+
+                                    <!-- Download progress bar (while _isInstallingUpdate) vs.
+                                         Download & Install button - both pre-built, visibility
+                                         toggled together. Fill-width technique matches
+                                         PilotHubPage.xaml's RankProgressTrack/RankProgressFill
+                                         pair: a fixed-Width track Border + an inner fill Border
+                                         whose Width is set in code-behind as a pixel fraction of
+                                         the track's own fixed Width (UpdateProgressTrackWidth
+                                         constant in code-behind must match this Border's Width). -->
+                                    <StackPanel x:Name="UpdateProgressPanel" Visibility="Collapsed" Spacing="6">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Downloading…" FontSize="11" Foreground="#64748B" />
+                                            <TextBlock x:Name="UpdateProgressPercentText" Grid.Column="1" FontSize="11" Foreground="#64748B" />
+                                        </Grid>
+                                        <Border x:Name="UpdateProgressTrack" Width="380" Height="6" CornerRadius="999" Background="#14FFFFFF">
+                                            <Border x:Name="UpdateProgressFill" Width="0" CornerRadius="999" Background="#4D9BEC"
+                                                    HorizontalAlignment="Left" />
+                                        </Border>
+                                    </StackPanel>
+                                    <Border x:Name="DownloadInstallButtonBorder" Tag="install" Tapped="OnDownloadInstallTapped"
+                                            Background="#4D9BEC" CornerRadius="10" Padding="0,10" HorizontalAlignment="Stretch">
+                                        <StackPanel Orientation="Horizontal" Spacing="7"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Viewbox Width="13" Height="13">
+                                                <Grid Width="24" Height="24">
+                                                    <Path Data="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" Stroke="#FFFFFF"
+                                                          StrokeThickness="2" StrokeLineJoin="Round" />
+                                                    <Polyline Points="7,10 12,15 17,10" Stroke="#FFFFFF" StrokeThickness="2"
+                                                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                    <Line X1="12" Y1="15" X2="12" Y2="3" Stroke="#FFFFFF" StrokeThickness="2"
+                                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                </Grid>
+                                            </Viewbox>
+                                            <TextBlock Text="Download &amp; Install" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                            <Border x:Name="UpToDateBanner" Visibility="Collapsed"
+                                    Background="#1F3EC7AC" CornerRadius="10" Padding="10,8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Viewbox Width="13" Height="13">
+                                        <Grid Width="24" Height="24">
+                                            <Polyline Points="20,6 9,17 4,12" Stroke="#3EC7AC" StrokeThickness="2.5"
+                                                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                        </Grid>
+                                    </Viewbox>
+                                    <TextBlock Text="You're on the latest version." FontSize="12.5" Foreground="#3EC7AC" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ── EFB Companion ── -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                            CornerRadius="20" Padding="20">
+                        <StackPanel Spacing="16">
+                            <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,0,0,12">
+                                <TextBlock Text="EFB Companion" FontFamily="{StaticResource DisplayFontBold}"
+                                           FontSize="16" FontWeight="Bold" Foreground="#F1F5F9" />
+                            </Border>
+                            <TextBlock FontSize="13" Foreground="#64748B" TextWrapping="Wrap" LineHeight="21"
+                                       Text="Host a virtual AviatesAir tablet on your network. Open the address below on an iPad, phone, or second monitor — or scan the QR — to get a live EFB with your flight dashboard, performance tools, checklists and manuals." />
+
+                            <!-- Running state: QR code (Grid-of-Rectangle module grid, built in
+                                 code-behind's BuildEfbQrGrid - NOT an SVG hack, per the design
+                                 spec's explicit resolution) + status dot/label/address/pairing
+                                 code + Stop button. Stopped state: info banner + Start button.
+                                 Both states pre-built, visibility toggled together in
+                                 UpdateEfbPanel(). -->
+                            <Grid x:Name="EfbRunningGrid" Visibility="Collapsed" ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="150" Height="150" Background="White"
+                                        CornerRadius="12" Padding="8" VerticalAlignment="Top">
+                                    <Grid x:Name="EfbQrGrid" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" MinWidth="0">
+                                    <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,0,0,8">
+                                        <Ellipse Width="9" Height="9" Fill="#3EC7AC" />
+                                        <TextBlock x:Name="EfbStatusText" FontSize="13" FontWeight="Bold" Foreground="#3EC7AC" />
+                                    </StackPanel>
+                                    <TextBlock Text="ADDRESS" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" CharacterSpacing="35" />
+                                    <TextBlock x:Name="EfbAddressText" FontFamily="Consolas" FontSize="12.5" Foreground="#F1F5F9"
+                                               TextWrapping="Wrap" Margin="0,0,0,10" />
+                                    <TextBlock Text="PAIRING CODE" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" CharacterSpacing="35" />
+                                    <TextBlock x:Name="EfbPairingCodeText" FontFamily="Consolas" FontSize="26"
+                                               FontWeight="Bold" Foreground="#4D9BEC" CharacterSpacing="40" />
+                                </StackPanel>
+                            </Grid>
+                            <Border x:Name="EfbStoppedBanner" Visibility="Visible"
+                                    Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                    CornerRadius="12" Padding="14,12">
+                                <TextBlock Text="The EFB server is stopped. Start it to pair a device."
+                                           FontSize="12.5" Foreground="#64748B" TextWrapping="Wrap" />
+                            </Border>
+
+                            <Border x:Name="StopEfbButtonBorder" Visibility="Collapsed" Tag="stop" Tapped="OnStopEfbTapped"
+                                    Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                    CornerRadius="10" Padding="0,10" HorizontalAlignment="Stretch">
+                                <TextBlock Text="Stop EFB Server" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="#F1F5F9" HorizontalAlignment="Center" />
+                            </Border>
+                            <Border x:Name="StartEfbButtonBorder" Visibility="Visible" Tag="start" Tapped="OnStartEfbTapped"
+                                    Background="#4D9BEC" CornerRadius="10" Padding="0,10" HorizontalAlignment="Stretch">
+                                <TextBlock x:Name="StartEfbButtonText" Text="Start EFB Server" FontSize="13"
+                                           FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" />
+                            </Border>
+
+                            <!-- Enable EFB Companion: saves immediately AND stops the server if
+                                 turned off while running (matches OnEfbEnabledChanged exactly).
+                                 Start Automatically: plain deferred-to-Save bind, no immediate
+                                 side effect (matches the original - do NOT save this one
+                                 immediately). -->
+                            <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,14">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Enable EFB Companion" FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                        <TextBlock Text="Allow devices on your network to connect"
+                                                   FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleSwitch Grid.Column="1" x:Name="EfbEnabledToggle" OnContent="" OffContent=""
+                                                  VerticalAlignment="Center" Toggled="OnEfbEnabledToggled" />
+                                </Grid>
+                            </Border>
+                            <Grid ColumnSpacing="12" Padding="0,14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="Start Automatically" FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                    <TextBlock Text="Launch the EFB server when the app starts"
+                                               FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" x:Name="EfbAutoStartToggle" OnContent="" OffContent=""
+                                              VerticalAlignment="Center" Toggled="OnEfbAutoStartToggled" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
 
                 </StackPanel>
 
