@@ -541,8 +541,115 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Task 4 builds Dispatch Radio here. -->
-                    <Border x:Name="DispatchRadioStub" />
+                    <!-- ── Dispatch Radio ──
+                         Per the design spec's explicit scope decision (#2): the microphone/speaker
+                         dropdowns below enumerate REAL native Windows audio devices via
+                         Windows.Devices.Enumeration.DeviceInformation.FindAllAsync, not the
+                         original's JS-only "aviatesVoice.getAudioDevices" call (no JS runtime on
+                         this native page). Selecting a device only persists the choice to
+                         SettingsService - nothing native exists yet to receive an
+                         "aviatesVoice.setMicrophone"/"setSpeaker"-shaped call, and inventing one
+                         would be worse than clearly doing nothing beyond persisting the setting. -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                            CornerRadius="20" Padding="20">
+                        <StackPanel Spacing="16">
+                            <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,0,0,12">
+                                <TextBlock Text="Dispatch Radio" FontFamily="{StaticResource DisplayFontBold}"
+                                           FontSize="16" FontWeight="Bold" Foreground="#F1F5F9" />
+                            </Border>
+
+                            <!-- Dispatch Backend URL -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Dispatch Backend URL" FontSize="12.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                                <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1.5" CornerRadius="12">
+                                    <TextBox x:Name="DispatchBackendUrlTextBox"
+                                             PlaceholderText="wss://aviates-dispatch-radio.dexterhsrees.workers.dev"
+                                             Background="Transparent" BorderThickness="0" Foreground="#F1F5F9"
+                                             Padding="14,10" TextChanged="OnDispatchBackendUrlTextChanged" />
+                                </Border>
+                            </StackPanel>
+                            <Border Background="#121A2A" CornerRadius="12" Padding="13,10">
+                                <TextBlock FontSize="12" Foreground="#64748B" TextWrapping="Wrap" LineHeight="20">
+                                    <Run Text="Tune COM1 to " />
+                                    <Run Text="123.575 MHz" FontWeight="Bold" />
+                                    <Run Text=" in MSFS to connect to dispatch. Leave this blank if you don't have a dispatch backend URL yet." />
+                                </TextBlock>
+                            </Border>
+
+                            <!-- PTT Hotkey - readonly TextBox that captures the next key pressed
+                                 while it has focus (see OnPttHotkeyTextBoxKeyDown in code-behind). -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="PTT Hotkey" FontSize="12.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1.5" CornerRadius="12">
+                                        <TextBox x:Name="PttHotkeyTextBox" IsReadOnly="True"
+                                                 Background="Transparent" BorderThickness="0" Foreground="#F1F5F9"
+                                                 Padding="14,10" GotFocus="OnPttHotkeyGotFocus" LostFocus="OnPttHotkeyLostFocus"
+                                                 KeyDown="OnPttHotkeyTextBoxKeyDown" />
+                                    </Border>
+                                    <Border Grid.Column="1" x:Name="ClearHotkeyButtonBorder" Tag="clear" Tapped="OnClearHotkeyTapped"
+                                            Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="10"
+                                            Padding="16,0" VerticalAlignment="Stretch">
+                                        <TextBlock Text="Clear" FontSize="13" FontWeight="SemiBold" Foreground="#F1F5F9"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                </Grid>
+                                <!-- Rejection message vs. normal hint - both pre-built, visibility
+                                     toggled together in UpdatePttHotkeyDisplay() (same established
+                                     pattern as AcarsVerifiedInfoBanner/AcarsUnverifiedInfoBanner). -->
+                                <TextBlock x:Name="PttHotkeyRejectionText" FontSize="12" Foreground="#F87171"
+                                           TextWrapping="Wrap" Visibility="Collapsed" />
+                                <TextBlock x:Name="PttHotkeyHintText"
+                                           Text="Click the field, then press the key you want to hold to talk. Works even while MSFS has focus."
+                                           FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <!-- PTT Joystick Button -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="PTT Joystick Button" FontSize="12.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox x:Name="JoystickComboBox" Grid.Column="0" HorizontalAlignment="Stretch"
+                                              Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1.5"
+                                              CornerRadius="12" Foreground="#F1F5F9" Padding="12,8"
+                                              SelectionChanged="OnJoystickComboBoxSelectionChanged" />
+                                    <Border Grid.Column="1" x:Name="BindJoystickButtonBorder" Tag="bind" Tapped="OnBindJoystickButtonTapped"
+                                            Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="10"
+                                            Padding="16,0" VerticalAlignment="Stretch">
+                                        <TextBlock x:Name="BindJoystickButtonText" Text="Bind Button" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="#F1F5F9" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                </Grid>
+                                <TextBlock x:Name="JoystickBoundText" FontSize="12" Foreground="#64748B"
+                                           TextWrapping="Wrap" Visibility="Collapsed" />
+                            </StackPanel>
+
+                            <!-- Microphone / Speaker - real native Windows.Devices.Enumeration
+                                 device lists, populated asynchronously in Loaded (see
+                                 LoadAudioDevicesAsync in code-behind). -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Microphone" FontSize="12.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                                <ComboBox x:Name="MicrophoneComboBox" HorizontalAlignment="Stretch"
+                                          Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1.5"
+                                          CornerRadius="12" Foreground="#F1F5F9" Padding="12,8"
+                                          SelectionChanged="OnMicrophoneSelectionChanged" />
+                            </StackPanel>
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Speaker" FontSize="12.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                                <ComboBox x:Name="SpeakerComboBox" HorizontalAlignment="Stretch"
+                                          Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1.5"
+                                          CornerRadius="12" Foreground="#F1F5F9" Padding="12,8"
+                                          SelectionChanged="OnSpeakerSelectionChanged" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
 
                     <!-- ── App Preferences ── -->
                     <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"

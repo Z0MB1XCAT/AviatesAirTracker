@@ -1,16 +1,22 @@
 using AviatesAirTracker.Core.Backend;
 using AviatesAirTracker.Services;
+using Microsoft.UI.Input;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
+using Serilog;
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
+using Windows.Devices.Enumeration;
+using Windows.System;
 using Windows.UI;
+using Windows.UI.Core;
 
 namespace AviatesAirTracker.Pages;
 
@@ -46,6 +52,7 @@ public sealed partial class SettingsPage : Page
     private static readonly Brush WhiteBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
 
     private readonly SettingsService _settings;
+    private readonly PttInputService _pttInput;
 
     // Page-local UI state, same placement decision every prior page has made for its own
     // _activeTab/_statusMessage-style fields (Settings.razor keeps these on the component too,
@@ -66,11 +73,19 @@ public sealed partial class SettingsPage : Page
     // persisted to Settings.
     private bool _isSyncing;
 
+    // Task 4: Dispatch Radio's PTT hotkey/joystick capture state -- page-local UI state, same
+    // placement decision as every other field above (Settings.razor keeps these on the component
+    // too, not on SettingsService).
+    private bool _capturingHotkey;
+    private string? _hotkeyRejectedMessage;
+    private bool _capturingJoystick;
+
     public SettingsPage()
     {
         InitializeComponent();
 
         _settings = App.GetService<SettingsService>();
+        _pttInput = App.GetService<PttInputService>();
 
         // Initial field values. Setting .Text here also fires each TextChanged handler once,
         // which harmlessly re-writes the same value back to Settings -- not worth guarding
@@ -101,6 +116,14 @@ public sealed partial class SettingsPage : Page
         MinimizeToTrayToggle.IsOn = _settings.Settings.MinimizeToTray;
         ShareLivePositionToggle.IsOn = _settings.Settings.ShareLivePosition;
 
+        // Task 4: Dispatch Radio initial field values. The joystick list is populated once here
+        // (GetConnectedJoysticks() is synchronous, plain C#) -- matching Settings.razor's
+        // OnInitialized(), which also only loads this list once, not on every render. Audio
+        // devices are enumerated asynchronously below (Loaded), since DeviceInformation.FindAllAsync
+        // is a WinRT async call and the constructor can't await.
+        DispatchBackendUrlTextBox.Text = _settings.Settings.DispatchBackendUrl;
+        PopulateJoystickComboBox();
+
         UpdateStatusBanner();
         UpdateNameDisplay();
         UpdateThemeCardVisuals();
@@ -109,6 +132,9 @@ public sealed partial class SettingsPage : Page
         UpdateAcarsInfoBanner();
         UpdateVerifySyncButtonState();
         UpdateFriendCodePanel();
+        UpdatePttHotkeyDisplay();
+        UpdateJoystickBoundText();
+        UpdateBindJoystickButtonState();
 
         Loaded += (_, _) =>
         {
@@ -126,6 +152,11 @@ public sealed partial class SettingsPage : Page
             UpdateAcarsInfoBanner();
             UpdateVerifySyncButtonState();
         };
+
+        // Per the design spec's explicit scope decision: enumerate REAL native Windows audio
+        // devices via Windows.Devices.Enumeration.DeviceInformation.FindAllAsync -- there is no JS
+        // runtime on this page to call "aviatesVoice.getAudioDevices" into, unlike Settings.razor.
+        Loaded += async (_, _) => await LoadAudioDevicesAsync();
     }
 
     // ── Pilot Profile ────────────────────────────────────────────────────────────────────────
@@ -472,6 +503,291 @@ public sealed partial class SettingsPage : Page
         CopyIdleIconViewbox.Visibility = Visibility.Visible;
         CopyDoneIconViewbox.Visibility = Visibility.Collapsed;
         CopyFriendCodeButtonText.Text = "Copy";
+    }
+
+    // ── Dispatch Radio ───────────────────────────────────────────────────────────────────────
+
+    private void OnDispatchBackendUrlTextChanged(object sender, TextChangedEventArgs e)
+    {
+        // Plain write-through, no side effect -- matches Settings.razor's plain @bind on this field.
+        _settings.Settings.DispatchBackendUrl = DispatchBackendUrlTextBox.Text;
+    }
+
+    // ── PTT Hotkey ──
+
+    private void OnPttHotkeyGotFocus(object sender, RoutedEventArgs e)
+    {
+        _capturingHotkey = true;
+        _hotkeyRejectedMessage = null;
+        UpdatePttHotkeyDisplay();
+    }
+
+    private void OnPttHotkeyLostFocus(object sender, RoutedEventArgs e)
+    {
+        _capturingHotkey = false;
+        UpdatePttHotkeyDisplay();
+    }
+
+    // Reads the pressed key while capturing, translates it to the DOM "code" string PttKeyMap
+    // expects (see ResolvePttDomCode below), and either rejects it or saves the binding. Ported
+    // from Settings.razor's OnCaptureHotkey.
+    private void OnPttHotkeyTextBoxKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (!_capturingHotkey) return;
+        e.Handled = true;
+
+        var domCode = ResolvePttDomCode(e.Key);
+        var vk = domCode != null ? PttKeyMap.ToVirtualKey(domCode) : null;
+
+        if (vk is null)
+        {
+            _hotkeyRejectedMessage = $"\"{PttKeyDisplayName(e.Key)}\" can't be used as a PTT hotkey — try a different key.";
+            _capturingHotkey = false;
+        }
+        else
+        {
+            _hotkeyRejectedMessage = null;
+            _settings.Settings.PttHotkeyVkCode = vk.Value;
+            _settings.Settings.PttHotkeyLabel = PttKeyMap.Describe(domCode!);
+            _settings.Save();
+            _capturingHotkey = false;
+        }
+
+        UpdatePttHotkeyDisplay();
+    }
+
+    private void OnClearHotkeyTapped(object sender, TappedRoutedEventArgs e)
+    {
+        _settings.Settings.PttHotkeyVkCode = 0;
+        _settings.Settings.PttHotkeyLabel = "";
+        _settings.Save();
+        _hotkeyRejectedMessage = null;
+        UpdatePttHotkeyDisplay();
+    }
+
+    private void UpdatePttHotkeyDisplay()
+    {
+        PttHotkeyTextBox.Text = _capturingHotkey
+            ? "Press a key…"
+            : (_settings.Settings.PttHotkeyVkCode == 0
+                ? "Unbound — click and press a key"
+                : _settings.Settings.PttHotkeyLabel);
+
+        var hasRejection = !string.IsNullOrEmpty(_hotkeyRejectedMessage);
+        PttHotkeyRejectionText.Text = _hotkeyRejectedMessage ?? "";
+        PttHotkeyRejectionText.Visibility = hasRejection ? Visibility.Visible : Visibility.Collapsed;
+        PttHotkeyHintText.Visibility = hasRejection ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    // Translates a native WinUI VirtualKey (from a KeyDown event) into the DOM "code" string
+    // PttKeyMap.cs expects -- that class was written for BlazorWebView's browser
+    // KeyboardEventArgs.Code, and this page has no browser to source that string from anymore.
+    // Windows.System.VirtualKey's underlying int values already equal the same Win32 VK_* codes
+    // PttKeyMap.Map stores (confirmed by reading PttKeyMap.cs directly), so this is a syntactic
+    // translation only -- no new vk-code table is introduced, PttKeyMap.ToVirtualKey/Describe
+    // remain the single source of truth for which keys are bindable and how they're labeled.
+    //
+    // Ctrl/Shift/Alt need special handling: a native KeyDown's e.Key reports the GENERIC
+    // VirtualKey (Control/Shift/Menu) for either physical side, not the left/right-specific one
+    // PttKeyMap.Map distinguishes. The left/right distinction requires probing
+    // InputKeyboardSource for current key state -- the same technique MessagesPage.xaml.cs
+    // already uses (OnComposeKeyDown) to check whether Shift is held during Enter.
+    private static string? ResolvePttDomCode(VirtualKey key)
+    {
+        if (key == VirtualKey.Control) return IsKeyDown(VirtualKey.RightControl) ? "ControlRight" : "ControlLeft";
+        if (key == VirtualKey.Shift) return IsKeyDown(VirtualKey.RightShift) ? "ShiftRight" : "ShiftLeft";
+        if (key == VirtualKey.Menu) return IsKeyDown(VirtualKey.RightMenu) ? "AltRight" : "AltLeft";
+
+        if (key >= VirtualKey.F1 && key <= VirtualKey.F12) return "F" + (key - VirtualKey.F1 + 1);
+        if (key >= VirtualKey.A && key <= VirtualKey.Z) return "Key" + key;
+        if (key >= VirtualKey.Number0 && key <= VirtualKey.Number9) return "Digit" + (key - VirtualKey.Number0);
+        if (key >= VirtualKey.NumberPad0 && key <= VirtualKey.NumberPad9) return "Numpad" + (key - VirtualKey.NumberPad0);
+
+        return key switch
+        {
+            VirtualKey.Space => "Space",
+            VirtualKey.CapitalLock => "CapsLock",
+            VirtualKey.Enter => "Enter",
+            VirtualKey.Up => "ArrowUp",
+            VirtualKey.Down => "ArrowDown",
+            VirtualKey.Left => "ArrowLeft",
+            VirtualKey.Right => "ArrowRight",
+            VirtualKey.Insert => "Insert",
+            VirtualKey.Delete => "Delete",
+            VirtualKey.Home => "Home",
+            VirtualKey.End => "End",
+            VirtualKey.PageUp => "PageUp",
+            VirtualKey.PageDown => "PageDown",
+            // OEM/punctuation keys have no named VirtualKey members, but the enum's underlying
+            // int values still equal the same Win32 VK_OEM_* codes PttKeyMap.Map stores, so a
+            // direct cast-to-int comparison (via a constant-pattern case label) is correct here.
+            (VirtualKey)0xBD => "Minus",        // VK_OEM_MINUS
+            (VirtualKey)0xBB => "Equal",        // VK_OEM_PLUS
+            (VirtualKey)0xDB => "BracketLeft",  // VK_OEM_4
+            (VirtualKey)0xDD => "BracketRight", // VK_OEM_6
+            (VirtualKey)0xDC => "Backslash",    // VK_OEM_5
+            (VirtualKey)0xBA => "Semicolon",    // VK_OEM_1
+            (VirtualKey)0xDE => "Quote",        // VK_OEM_7
+            (VirtualKey)0xBC => "Comma",        // VK_OEM_COMMA
+            (VirtualKey)0xBE => "Period",       // VK_OEM_PERIOD
+            (VirtualKey)0xBF => "Slash",        // VK_OEM_2
+            (VirtualKey)0xC0 => "Backquote",    // VK_OEM_3
+            _ => null,
+        };
+    }
+
+    private static bool IsKeyDown(VirtualKey key) =>
+        (InputKeyboardSource.GetKeyStateForCurrentThread(key) & CoreVirtualKeyStates.Down) == CoreVirtualKeyStates.Down;
+
+    // Used only for the rejection message's key name -- Ctrl/Shift/Alt never reach here since
+    // ResolvePttDomCode above always resolves them successfully.
+    private static string PttKeyDisplayName(VirtualKey key) => key.ToString();
+
+    // ── PTT Joystick Button ──
+
+    // Populated once on load (GetConnectedJoysticks() is a plain synchronous C# call) -- matches
+    // Settings.razor's OnInitialized(), which also doesn't live-refresh this list.
+    private void PopulateJoystickComboBox()
+    {
+        JoystickComboBox.Items.Clear();
+        JoystickComboBox.Items.Add(new ComboBoxItem { Content = "-- No joystick --", Tag = "" });
+
+        var savedGuid = _settings.Settings.PttJoystickGuid;
+        ComboBoxItem? matched = null;
+
+        foreach (var (instanceGuid, productName) in _pttInput.GetConnectedJoysticks())
+        {
+            var item = new ComboBoxItem { Content = productName, Tag = instanceGuid.ToString() };
+            JoystickComboBox.Items.Add(item);
+            if (savedGuid != Guid.Empty && instanceGuid == savedGuid)
+                matched = item;
+        }
+
+        JoystickComboBox.SelectedItem = matched ?? JoystickComboBox.Items[0];
+    }
+
+    private void OnJoystickComboBoxSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateBindJoystickButtonState();
+    }
+
+    // Ported from Settings.razor's BindJoystickButtonAsync -- a 10-second-timeout capture on the
+    // currently-selected joystick, saving Settings.PttJoystickGuid/PttJoystickButton on success.
+    private async void OnBindJoystickButtonTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (_capturingJoystick) return;
+        if (JoystickComboBox.SelectedItem is not ComboBoxItem { Tag: string tag } || string.IsNullOrEmpty(tag)) return;
+        if (!Guid.TryParse(tag, out var guid)) return;
+
+        _capturingJoystick = true;
+        BindJoystickButtonText.Text = "Press a button…";
+        UpdateBindJoystickButtonState();
+
+        try
+        {
+            using var captureCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var button = await _pttInput.CaptureNextJoystickButtonAsync(guid, captureCts.Token);
+
+            if (button is not null)
+            {
+                _settings.Settings.PttJoystickGuid = guid;
+                _settings.Settings.PttJoystickButton = button.Value;
+                _settings.Save();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Settings] Joystick button capture failed");
+        }
+        finally
+        {
+            _capturingJoystick = false;
+            BindJoystickButtonText.Text = "Bind Button";
+            UpdateBindJoystickButtonState();
+            UpdateJoystickBoundText();
+        }
+    }
+
+    // Disabled when no joystick is selected in the dropdown OR a capture is already in flight --
+    // matches the original's exact `disabled="@(string.IsNullOrEmpty(_selectedJoystickGuid) ||
+    // _capturingJoystick)"` condition.
+    private void UpdateBindJoystickButtonState()
+    {
+        var hasSelection = JoystickComboBox.SelectedItem is ComboBoxItem { Tag: string tag } && !string.IsNullOrEmpty(tag);
+        var enabled = hasSelection && !_capturingJoystick;
+        BindJoystickButtonBorder.IsHitTestVisible = enabled;
+        BindJoystickButtonBorder.Opacity = enabled ? 1.0 : 0.45;
+    }
+
+    private void UpdateJoystickBoundText()
+    {
+        var button = _settings.Settings.PttJoystickButton;
+        var bound = button >= 0;
+        JoystickBoundText.Visibility = bound ? Visibility.Visible : Visibility.Collapsed;
+        if (bound)
+            JoystickBoundText.Text = $"Bound: button {button + 1}";
+    }
+
+    // ── Microphone / Speaker ──
+    //
+    // Per the design spec's explicit scope decision (#2): this enumerates REAL native Windows
+    // audio devices via Windows.Devices.Enumeration.DeviceInformation.FindAllAsync -- there is no
+    // JS runtime on this native page to call "aviatesVoice.getAudioDevices" into, unlike
+    // Settings.razor. Selecting a device here only persists PttMicrophoneDeviceId/
+    // PttSpeakerDeviceId to SettingsService -- it deliberately does NOT call anything shaped like
+    // "aviatesVoice.setMicrophone"/"setSpeaker", because there is no native audio pipeline to
+    // receive that call yet (the actual PTT voice pipeline only runs inside the still-Blazor
+    // ACARS page today, regardless of which Settings UI wrote the device id).
+
+    private async Task LoadAudioDevicesAsync()
+    {
+        try
+        {
+            var microphones = await DeviceInformation.FindAllAsync(DeviceClass.AudioCapture);
+            var speakers = await DeviceInformation.FindAllAsync(DeviceClass.AudioRender);
+
+            PopulateAudioDeviceComboBox(MicrophoneComboBox, microphones, _settings.Settings.PttMicrophoneDeviceId);
+            PopulateAudioDeviceComboBox(SpeakerComboBox, speakers, _settings.Settings.PttSpeakerDeviceId);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Settings] Failed to enumerate audio devices");
+        }
+    }
+
+    private static void PopulateAudioDeviceComboBox(ComboBox comboBox, DeviceInformationCollection devices, string savedDeviceId)
+    {
+        comboBox.Items.Clear();
+        comboBox.Items.Add(new ComboBoxItem { Content = "System default", Tag = "" });
+
+        ComboBoxItem? matched = null;
+        foreach (var device in devices)
+        {
+            var item = new ComboBoxItem { Content = device.Name, Tag = device.Id };
+            comboBox.Items.Add(item);
+            if (!string.IsNullOrEmpty(savedDeviceId) && device.Id == savedDeviceId)
+                matched = item;
+        }
+
+        comboBox.SelectedItem = matched ?? comboBox.Items[0];
+    }
+
+    private void OnMicrophoneSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (MicrophoneComboBox.SelectedItem is ComboBoxItem { Tag: string deviceId })
+        {
+            _settings.Settings.PttMicrophoneDeviceId = deviceId;
+            _settings.Save();
+        }
+    }
+
+    private void OnSpeakerSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SpeakerComboBox.SelectedItem is ComboBoxItem { Tag: string deviceId })
+        {
+            _settings.Settings.PttSpeakerDeviceId = deviceId;
+            _settings.Save();
+        }
     }
 
     // ── Hoppies ACARS ────────────────────────────────────────────────────────────────────────
