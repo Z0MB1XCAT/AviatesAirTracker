@@ -21,7 +21,7 @@ namespace AviatesAirTracker.Pages;
 /// (chip colors, dimmed text, dashed-border overlay visibility) is precomputed here rather than
 /// via a converter, since classic {Binding} has no converter without a Page.Resources entry
 /// (the same XamlCompiler-crash risk documented throughout this migration -- see
-/// DashboardPage.xaml's header comment). <see cref="Source"/> is the full AircraftType Task 2's
+/// DashboardPage.xaml's header comment). <see cref="Source"/> is the full AircraftType the
 /// selection wiring needs when a card is tapped.
 /// </summary>
 public sealed class TypeDisplayRow
@@ -71,9 +71,44 @@ public sealed class TypeDisplayRow
     public string ExpandText { get; set; } = "Show registrations";
     public Brush ExpandColor { get; set; } = FleetPage.TextMutedBrush;
 
-    // Task 2 wires this: the click handler needs the full AircraftType to call
-    // _viewModel.SelectTypeAsync(type).
+    // The click handler needs the full AircraftType to call _viewModel.SelectTypeAsync(type).
     public AircraftType Source { get; set; } = null!;
+}
+
+/// <summary>
+/// One conditionally-shown stat slot in a registration card's stat grid (MSN / delivery-or-
+/// expected date / hub / flights / hours). Fleet.razor's own <c>.fleet-reg-stats</c> is a CSS
+/// grid (2 columns, auto-flow) that packs only the fields present for a given registration --
+/// several are real conditionals, not always-shown fields (read Fleet.razor lines 278-308). A
+/// fixed Row/Column Grid (like TypeDisplayRow's always-exactly-4-field mini grid) can't reproduce
+/// that variable packing, so instead each registration precomputes a flat, already-filtered list
+/// of only the stats it actually has, rendered via a nested ItemsWrapGrid that wraps at a fixed
+/// item width -- a close approximation of the CSS's 2-column auto-flow without a bespoke layout.
+/// </summary>
+public sealed class RegStatItem
+{
+    public string Value { get; set; } = "";
+    public string Label { get; set; } = "";
+}
+
+/// <summary>
+/// Pre-formatted display row for one registration card in the Fleet detail panel. Plain mutable
+/// class with { get; set; } properties, not a record (CS8852 risk, same reasoning as
+/// TypeDisplayRow above).
+/// </summary>
+public sealed class RegistrationDisplayRow
+{
+    public string RegistrationCode { get; set; } = "";
+
+    public Brush StatusChipColor { get; set; } = FleetPage.TextMutedBrush;
+    public Brush StatusChipBackground { get; set; } = FleetPage.TransparentBrush;
+    public string StatusLabel { get; set; } = "";
+
+    // Only the fields this registration actually has -- see RegStatItem's doc comment.
+    public List<RegStatItem> StatItems { get; set; } = [];
+
+    public Visibility ShowNotes { get; set; } = Visibility.Collapsed;
+    public string NotesVal { get; set; } = "";
 }
 
 public sealed partial class FleetPage : Page
@@ -136,6 +171,7 @@ public sealed partial class FleetPage : Page
     private string _activeFilter = "All";
 
     public ObservableCollection<TypeDisplayRow> TypeRows { get; } = [];
+    public ObservableCollection<RegistrationDisplayRow> RegRows { get; } = [];
 
     public FleetPage()
     {
@@ -144,6 +180,7 @@ public sealed partial class FleetPage : Page
         _viewModel = App.GetService<FleetViewModel>();
         DataContext = _viewModel;
         TypeCardsList.ItemsSource = TypeRows;
+        RegCardsList.ItemsSource = RegRows;
 
         UpdateFilterVisuals();
 
@@ -209,6 +246,7 @@ public sealed partial class FleetPage : Page
         {
             RebuildStats();
             RebuildTypeCards();
+            RebuildRegistrationPanel();
         }
     }
 
@@ -353,10 +391,137 @@ public sealed partial class FleetPage : Page
         UpdateTypeGridColumns();
     }
 
-    // Task 2 wires this to _viewModel.SelectTypeAsync(type) followed by a grid/panel rebuild.
-    private void OnTypeCardTapped(object sender, TappedRoutedEventArgs e)
+    // Card tap toggles selection through the ViewModel -- SelectTypeAsync already handles the
+    // "clicked the same card again" toggle-off case internally (see FleetViewModel.cs), so this
+    // just forwards the tapped card's own AircraftType. Deliberately does NOT reproduce
+    // Fleet.razor's own HandleTypeClick, which duplicates SelectTypeAsync's logic inline by
+    // calling FleetService directly instead of going through the ViewModel -- the design spec
+    // calls this out as an inconsistency to flatten, not carry over. Both the card grid (the
+    // selected card's own accent-ring state) and the registration panel depend on
+    // VM.SelectedType, so both are rebuilt after the await completes.
+    private async void OnTypeCardTapped(object sender, TappedRoutedEventArgs e)
     {
-        // Task 2 wires this.
+        if (sender is not Border { Tag: TypeDisplayRow row }) return;
+
+        await _viewModel.SelectTypeAsync(row.Source);
+        RebuildTypeCards();
+        RebuildRegistrationPanel();
+    }
+
+    // ── Registration detail panel ───────────────────────────────────────────────────────────
+    // Ported directly from RoutesPage.xaml.cs's UpdateRouteGridColumns/RebuildRouteCards
+    // technique: app.css's .fleet-reg-grid rule is
+    // "grid-template-columns: repeat(auto-fill, minmax(210px, 1fr))", i.e. it also wraps into
+    // multiple columns and would hit the same "dead gap on the right" bug the type card grid
+    // above (and Routes, originally) had to guard against if given a fixed ItemWidth -- so this
+    // recomputes ItemWidth from the panel's own ActualWidth on every resize, same as
+    // UpdateTypeGridColumns above.
+    private const double RegCardMinWidth = 210;
+    private const double RegCardGutter = 16;
+
+    private void RegCardsList_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateRegGridColumns();
+
+    private void UpdateRegGridColumns()
+    {
+        if (RegCardsList.ItemsPanelRoot is not ItemsWrapGrid panel) return;
+
+        var available = RegCardsList.ActualWidth;
+        if (available <= 0) return;
+
+        var columns = Math.Max(1, (int)Math.Floor((available + RegCardGutter) / (RegCardMinWidth + RegCardGutter)));
+        panel.ItemWidth = Math.Floor(available / columns);
+    }
+
+    private void OnRegPanelCloseTapped(object sender, TappedRoutedEventArgs e)
+    {
+        _viewModel.ClearSelection();
+        RebuildTypeCards();
+        RebuildRegistrationPanel();
+    }
+
+    // Reproduces Fleet.razor lines 209-319: visible only when VM.SelectedType != null, its own
+    // header (type emoji, "{Name} — Registrations", then a sub-line with aircraft count /
+    // category / subsidiary and the two optional cruise-speed/service-ceiling additions), then
+    // one of three mutually-exclusive states -- loading / empty / populated grid -- exactly like
+    // the page-level loading/error/main-content split above.
+    private void RebuildRegistrationPanel()
+    {
+        var type = _viewModel.SelectedType;
+        var showPanel = type != null;
+        RegPanel.Visibility = showPanel ? Visibility.Visible : Visibility.Collapsed;
+        if (!showPanel) return;
+
+        RegPanelEmoji.Text = type!.Emoji;
+        RegPanelTitle.Text = $"{type.Name} — Registrations";
+
+        var subLine = $"{type.TotalAircraft} aircraft · {type.Category} · {type.Subsidiary}";
+        if (type.CruiseSpeedKts.HasValue) subLine += $" · Cruise {type.CruiseSpeedKts} kts";
+        if (type.MaxAltitudeFt.HasValue) subLine += $" · FL{type.MaxAltitudeFt.Value / 100}";
+        RegPanelSubLine.Text = subLine;
+
+        var showLoading = _viewModel.IsLoadingRegs;
+        var showEmpty = !showLoading && _viewModel.SelectedRegistrations.Count == 0;
+        var showGrid = !showLoading && !showEmpty;
+
+        RegLoadingPanel.Visibility = showLoading ? Visibility.Visible : Visibility.Collapsed;
+        RegEmptyPanel.Visibility = showEmpty ? Visibility.Visible : Visibility.Collapsed;
+        RegCardsList.Visibility = showGrid ? Visibility.Visible : Visibility.Collapsed;
+
+        if (showGrid) RebuildRegCards();
+    }
+
+    // Reproduces Fleet.razor lines 253-316's four registration-status states (active/
+    // maintenance/on-order/retired -- NOT the type card grid's three, per the plan) and its
+    // conditional field set exactly: MSN only if present, delivery-or-expected date always shown
+    // (label depends on status via AircraftRegistration.DateLabel), hub only if present,
+    // flights+hours only as a pair when TotalFlights > 0, notes only if present.
+    private void RebuildRegCards()
+    {
+        RegRows.Clear();
+
+        foreach (var reg in _viewModel.SelectedRegistrations)
+        {
+            var (statusLabel, statusFg, statusBg) = reg.Status switch
+            {
+                "maintenance" => ("Maintenance", AmberBrush, AmberBg),
+                "ordered" => ("On Order", TextMutedBrush, Surface2Brush),
+                "retired" => ("Retired", TextMutedBrush, Surface2Brush),
+                _ => ("Active", GreenBrush, GreenBg),
+            };
+
+            var items = new List<RegStatItem>();
+            if (!string.IsNullOrEmpty(reg.Msn))
+            {
+                items.Add(new RegStatItem { Value = reg.Msn, Label = "MSN" });
+            }
+            items.Add(new RegStatItem { Value = reg.DisplayDate, Label = reg.DateLabel });
+            if (!string.IsNullOrEmpty(reg.HubIcao))
+            {
+                items.Add(new RegStatItem { Value = reg.HubIcao, Label = "Hub" });
+            }
+            if (reg.TotalFlights > 0)
+            {
+                items.Add(new RegStatItem { Value = reg.TotalFlights.ToString("N0", CultureInfo.InvariantCulture), Label = "Flights" });
+                items.Add(new RegStatItem { Value = $"{reg.TotalHours.ToString("N0", CultureInfo.InvariantCulture)}h", Label = "Hours" });
+            }
+
+            var row = new RegistrationDisplayRow
+            {
+                RegistrationCode = reg.Registration,
+                StatusLabel = statusLabel,
+                StatusChipColor = statusFg,
+                StatusChipBackground = statusBg,
+                StatItems = items,
+                ShowNotes = !string.IsNullOrEmpty(reg.Notes) ? Visibility.Visible : Visibility.Collapsed,
+                NotesVal = reg.Notes ?? "",
+            };
+
+            RegRows.Add(row);
+        }
+
+        // Same reasoning as RebuildTypeCards' own trailing call: the grid may not have fired a
+        // usable SizeChanged yet the first time it goes from empty to populated.
+        UpdateRegGridColumns();
     }
 
     private static ImageSource? FleetPhoto(string? typeCode)

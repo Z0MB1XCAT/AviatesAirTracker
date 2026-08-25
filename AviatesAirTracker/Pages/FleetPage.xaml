@@ -15,10 +15,9 @@
       Theme\Tokens.xaml/Typography.xaml StaticResource lookups (DisplayFontBold, etc.) are fine
       to reuse since those entries already exist.
 
-      This task (Task 1) builds the page skeleton, header, loading/error states, stats row,
-      filter tabs, and the type card grid. The registration detail panel and the type card's
-      tap-to-select wiring are Task 2; OnTypeCardTapped below is a deliberate no-op stub for
-      now, matching the exact pattern Routes' own Task 2 used for its "Book" button stub.
+      The page has the skeleton, header, loading/error states, stats row, filter tabs, the type
+      card grid, and the registration detail panel (below the grid, shown when
+      VM.SelectedType != null) with card tap-to-select wiring.
     -->
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
@@ -341,6 +340,136 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+
+                <!-- ── Registration detail panel ──
+                     Reproduces Fleet.razor lines 209-319: appears below the grid, inline, when
+                     VM.SelectedType != null (not a separate page/dialog). Colors/spacing read
+                     from app.css's .fleet-detail-panel/.fleet-detail-header rules. -->
+                <Border x:Name="RegPanel" Visibility="Collapsed" Background="#0C111D"
+                        BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="24">
+                    <StackPanel Spacing="0">
+
+                        <!-- Header: emoji, "{Name} — Registrations", sub-line, close button -->
+                        <Grid Margin="0,0,0,20" Padding="0,0,0,20" BorderBrush="#14FFFFFF" BorderThickness="0,0,0,1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="14" VerticalAlignment="Top">
+                                <TextBlock x:Name="RegPanelEmoji" FontSize="36" Opacity="0.9" VerticalAlignment="Top" />
+                                <StackPanel>
+                                    <TextBlock x:Name="RegPanelTitle" FontFamily="{StaticResource DisplayFontBold}"
+                                               FontSize="18" FontWeight="Bold" Foreground="#F1F5F9" />
+                                    <TextBlock x:Name="RegPanelSubLine" FontSize="12" Foreground="#64748B"
+                                               Margin="0,3,0,0" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Border, not Button; same icon-button chrome as the header's own
+                                 refresh button above for a consistent icon-only-button look. -->
+                            <Border Grid.Column="1" Tag="close" Tapped="OnRegPanelCloseTapped"
+                                    Background="#0FFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1"
+                                    CornerRadius="10" Padding="8" VerticalAlignment="Top">
+                                <Viewbox Width="16" Height="16">
+                                    <Grid Width="24" Height="24">
+                                        <Line X1="18" Y1="6" X2="6" Y2="18" Stroke="#94A3B8" StrokeThickness="2"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                        <Line X1="6" Y1="6" X2="18" Y2="18" Stroke="#94A3B8" StrokeThickness="2"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    </Grid>
+                                </Viewbox>
+                            </Border>
+                        </Grid>
+
+                        <!-- Loading state: VM.IsLoadingRegs -->
+                        <StackPanel x:Name="RegLoadingPanel" Visibility="Collapsed" Orientation="Horizontal"
+                                    Spacing="10" Padding="0,20">
+                            <ProgressRing IsActive="True" Width="16" Height="16" />
+                            <TextBlock Text="Loading registrations…" FontSize="13" Foreground="#64748B"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- Empty state: VM.SelectedRegistrations.Count == 0 -->
+                        <TextBlock x:Name="RegEmptyPanel" Visibility="Collapsed" Text="No registration records found."
+                                   FontSize="13" Foreground="#64748B" Padding="0,20" />
+
+                        <!-- Populated state: registration-card grid, same responsive ItemWidth
+                             recompute technique as TypeCardsList above (RegCardsList_SizeChanged/
+                             UpdateRegGridColumns in FleetPage.xaml.cs) since app.css's
+                             .fleet-reg-grid also wraps into multiple columns
+                             (repeat(auto-fill, minmax(210px, 1fr))). -->
+                        <ItemsControl x:Name="RegCardsList" Visibility="Collapsed" SizeChanged="RegCardsList_SizeChanged">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <ItemsWrapGrid Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border HorizontalAlignment="Stretch" Margin="0,0,16,16"
+                                            Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                            CornerRadius="16" Padding="16">
+                                        <StackPanel Spacing="0">
+
+                                            <!-- Top: registration badge + status chip -->
+                                            <Grid Margin="0,0,0,12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="{Binding RegistrationCode}"
+                                                           FontFamily="Consolas" FontSize="14" FontWeight="Bold"
+                                                           Foreground="#F1F5F9" VerticalAlignment="Center" />
+                                                <Border Grid.Column="1" Background="{Binding StatusChipBackground}"
+                                                        CornerRadius="999" Padding="8,2">
+                                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                                        <Ellipse Width="6" Height="6" Fill="{Binding StatusChipColor}" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding StatusLabel}" FontSize="10" FontWeight="SemiBold"
+                                                                   Foreground="{Binding StatusChipColor}" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </Grid>
+
+                                            <!-- Conditional stat items (MSN / date / hub / flights / hours):
+                                                 a nested ItemsWrapGrid packing only the fields this registration
+                                                 actually has, approximating app.css's 2-column CSS-grid auto-flow
+                                                 (see RegStatItem's doc comment in FleetPage.xaml.cs). -->
+                                            <ItemsControl ItemsSource="{Binding StatItems}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <ItemsWrapGrid Orientation="Horizontal" ItemWidth="95" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Spacing="3" Margin="0,0,8,8">
+                                                            <TextBlock Text="{Binding Value}" FontFamily="{StaticResource DisplayFontBold}"
+                                                                       FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
+                                                            <TextBlock Text="{Binding Label}" FontSize="10" FontWeight="SemiBold"
+                                                                       Foreground="#64748B" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <!-- Optional notes line: Grid, not TextBlock, carries the
+                                                 top-border/padding/margin since TextBlock (unlike WinUI 3's
+                                                 own Grid) has no BorderBrush/BorderThickness/Padding. -->
+                                            <Grid Visibility="{Binding ShowNotes}" BorderBrush="#14FFFFFF"
+                                                  BorderThickness="0,1,0,0" Margin="0,4,0,0" Padding="0,8,0,0">
+                                                <TextBlock Text="{Binding NotesVal}" FontSize="11" FontStyle="Italic"
+                                                           Foreground="#64748B" TextWrapping="Wrap" />
+                                            </Grid>
+
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                    </StackPanel>
+                </Border>
 
             </StackPanel>
 
