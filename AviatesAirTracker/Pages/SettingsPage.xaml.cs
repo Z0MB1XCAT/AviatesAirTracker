@@ -1,3 +1,4 @@
+using AviatesAirTracker.Core.Backend;
 using AviatesAirTracker.Services;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -7,6 +8,8 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using System;
 using System.Linq;
+using System.Threading.Tasks;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.UI;
 
 namespace AviatesAirTracker.Pages;
@@ -34,6 +37,14 @@ public sealed partial class SettingsPage : Page
     private static readonly Brush StatusErrorBorder = new SolidColorBrush(Color.FromArgb(0x4D, 0xEF, 0x44, 0x44));
     private static readonly Brush StatusErrorFg = new SolidColorBrush(Color.FromArgb(0xFF, 0xEF, 0x44, 0x44));
 
+    // ACARS Configuration's Verify & Sync button: "verified" visual state matches .btn-secondary
+    // (background var(--surface) #0C111D, border var(--border) #14FFFFFF, text var(--text-primary)
+    // #F1F5F9) -- reuses HairlineBrush above for the border, adds the two brushes .btn-secondary
+    // needs that nothing else on this page has defined yet.
+    private static readonly Brush SurfaceBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x0C, 0x11, 0x1D));
+    private static readonly Brush TextPrimaryBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0xF1, 0xF5, 0xF9));
+    private static readonly Brush WhiteBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
+
     private readonly SettingsService _settings;
 
     // Page-local UI state, same placement decision every prior page has made for its own
@@ -51,6 +62,10 @@ public sealed partial class SettingsPage : Page
     private bool _isVerified;
     private string _verifiedEmail = "";
 
+    // Task 2: ACARS sync in-flight flag -- page-local like every other UI-state field here, not
+    // persisted to Settings.
+    private bool _isSyncing;
+
     public SettingsPage()
     {
         InitializeComponent();
@@ -63,12 +78,17 @@ public sealed partial class SettingsPage : Page
         PilotNameTextBox.Text = _settings.Settings.PilotName;
         PilotIdTextBox.Text = _settings.Settings.PilotId;
         SimBriefUsernameTextBox.Text = _settings.Settings.SimBriefUsername;
+        AcarsKeyPasswordBox.Password = _settings.Settings.AcarsKey;
+        SelectAutoPirepIntervalItem(_settings.Settings.AutoPirepIntervalMinutes);
 
         UpdateStatusBanner();
         UpdateNameDisplay();
         UpdateThemeCardVisuals();
         UpdatePilotProfileVerifiedVisuals();
         UpdateSimBriefHintVisibility();
+        UpdateAcarsInfoBanner();
+        UpdateVerifySyncButtonState();
+        UpdateFriendCodePanel();
 
         Loaded += (_, _) =>
         {
@@ -83,6 +103,8 @@ public sealed partial class SettingsPage : Page
             UpdateNameDisplay();
             UpdatePilotProfileVerifiedVisuals();
             UpdateSimBriefHintVisibility();
+            UpdateAcarsInfoBanner();
+            UpdateVerifySyncButtonState();
         };
     }
 
@@ -207,11 +229,235 @@ public sealed partial class SettingsPage : Page
         SimBriefSyncedHintText.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    // ── ACARS Configuration ──────────────────────────────────────────────────────────────────
+
+    private void OnAcarsKeyPasswordChanged(object sender, RoutedEventArgs e)
+    {
+        _settings.Settings.AcarsKey = AcarsKeyPasswordBox.Password;
+
+        // Key changed manually -- clear verified state until they re-sync (matches
+        // Settings.razor's OnAcarsKeyInput exact side effect).
+        _isVerified = false;
+        _verifiedEmail = "";
+
+        UpdatePilotProfileVerifiedVisuals();
+        UpdateSimBriefHintVisibility();
+        UpdateAcarsInfoBanner();
+        UpdateVerifySyncButtonState();
+        // Settings.razor recomputes the Friend Code panel on every render (Blazor re-renders after
+        // every @oninput), so the empty-key prompt flips to a live-computed code the moment any
+        // character is typed -- ported here for fidelity, not just after a real sync.
+        UpdateFriendCodePanel();
+    }
+
+    private void UpdateAcarsInfoBanner()
+    {
+        AcarsVerifiedInfoBanner.Visibility = _isVerified ? Visibility.Visible : Visibility.Collapsed;
+        AcarsUnverifiedInfoBanner.Visibility = _isVerified ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private async void OnVerifySyncTapped(object sender, TappedRoutedEventArgs e)
+    {
+        // Defensive guard matching the original's disabled condition -- the button is already
+        // dimmed/hit-test-disabled below, but guard here too in case Tapped still fires.
+        if (_isSyncing || string.IsNullOrWhiteSpace(_settings.Settings.AcarsKey)) return;
+
+        await SyncProfileAsync();
+    }
+
+    // Ported from Settings.razor's SyncProfileAsync() -- trims the key, validates against the
+    // backend, and on success populates PilotName/SimBriefUsername/PilotId, regenerates the
+    // Friend Code, and flips _isVerified/_verifiedEmail. On failure or network exception, clears
+    // verified state and shows the appropriate status message (both exact original error strings).
+    private async Task SyncProfileAsync()
+    {
+        var key = (_settings.Settings.AcarsKey ?? "").Trim();
+        if (string.IsNullOrEmpty(key)) return;
+
+        // Write the trimmed key back so it's clean for future saves, and keep the password field
+        // in sync with the trimmed value.
+        _settings.Settings.AcarsKey = key;
+        AcarsKeyPasswordBox.Password = key;
+
+        _isSyncing = true;
+        _statusMessage = null;
+        UpdateVerifySyncButtonState();
+        UpdateStatusBanner();
+
+        var backendClient = App.GetService<AviatesBackendClient>();
+
+        try
+        {
+            var result = await backendClient.ValidateAcarsKeyAsync(key);
+
+            if (result is { IsValid: true })
+            {
+                // Always populate name from the backend -- it is authoritative.
+                if (!string.IsNullOrWhiteSpace(result.Name))
+                {
+                    _settings.Settings.PilotName = result.Name;
+                    PilotNameTextBox.Text = result.Name;
+                    UpdateNameDisplay();
+                }
+
+                // Only populate SimBrief if the backend has a value.
+                if (!string.IsNullOrWhiteSpace(result.SimBrief))
+                {
+                    _settings.Settings.SimBriefUsername = result.SimBrief;
+                    SimBriefUsernameTextBox.Text = result.SimBrief;
+                }
+
+                // Populate PilotId from backend; derive from ACARS key if server didn't return one.
+                // A stable PilotId is required for the messaging system to route and display
+                // messages correctly.
+                if (!string.IsNullOrWhiteSpace(result.PilotId))
+                {
+                    _settings.Settings.PilotId = result.PilotId;
+                    PilotIdTextBox.Text = result.PilotId;
+                }
+                else if (string.IsNullOrEmpty(_settings.Settings.PilotId))
+                {
+                    // Derive a deterministic ID from the ACARS key so every pilot has one -- ported
+                    // verbatim from Settings.razor's own derivation.
+                    var hash = System.Security.Cryptography.SHA256.HashData(
+                        System.Text.Encoding.UTF8.GetBytes("AVIATES_PID_" + key));
+                    _settings.Settings.PilotId = "avt_" + Convert.ToHexString(hash)[..12].ToLowerInvariant();
+                    PilotIdTextBox.Text = _settings.Settings.PilotId;
+                }
+
+                _isVerified = true;
+                _verifiedEmail = result.Email;
+
+                // Regenerate friend code and persist.
+                _settings.RefreshFriendCode();
+
+                _statusMessage = $"Profile synced — welcome, {result.Name}!";
+                _isError = false;
+            }
+            else
+            {
+                _isVerified = false;
+                _verifiedEmail = "";
+                _statusMessage = "ACARS key not recognised. Check the key and try again.";
+                _isError = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _isVerified = false;
+            _verifiedEmail = "";
+            _statusMessage = $"Could not reach AviatesAir servers — {ex.Message}";
+            _isError = true;
+        }
+        finally
+        {
+            _isSyncing = false;
+            UpdateVerifySyncButtonState();
+            UpdatePilotProfileVerifiedVisuals();
+            UpdateSimBriefHintVisibility();
+            UpdateAcarsInfoBanner();
+            UpdateFriendCodePanel();
+            UpdateStatusBanner();
+        }
+    }
+
+    // Refreshes the button's disabled/dimmed state (matches the original's exact
+    // `_isSyncing || string.IsNullOrWhiteSpace(AcarsKey)` condition), its background/border/text
+    // color (btn-primary while unverified, btn-secondary once verified -- driven only by
+    // _isVerified, same as the original's class expression, independent of _isSyncing), and which
+    // of the three icon/spinner/text combinations is showing (syncing beats verified beats idle,
+    // matching the original's @if/@else-if chain).
+    private void UpdateVerifySyncButtonState()
+    {
+        var hasKey = !string.IsNullOrWhiteSpace(_settings.Settings.AcarsKey);
+        var enabled = !_isSyncing && hasKey;
+        VerifySyncButtonBorder.IsHitTestVisible = enabled;
+        VerifySyncButtonBorder.Opacity = enabled ? 1.0 : 0.45;
+
+        VerifySyncButtonBorder.Background = _isVerified ? SurfaceBrush : AccentBrush;
+        VerifySyncButtonBorder.BorderBrush = _isVerified ? HairlineBrush : null;
+        VerifySyncButtonBorder.BorderThickness = _isVerified ? new Thickness(1) : new Thickness(0);
+
+        VerifySyncIdleIconViewbox.Visibility = !_isSyncing && !_isVerified ? Visibility.Visible : Visibility.Collapsed;
+        VerifySyncVerifiedIconViewbox.Visibility = !_isSyncing && _isVerified ? Visibility.Visible : Visibility.Collapsed;
+        VerifySyncProgressRing.Visibility = _isSyncing ? Visibility.Visible : Visibility.Collapsed;
+        VerifySyncProgressRing.IsActive = _isSyncing;
+
+        VerifySyncButtonText.Text = _isSyncing ? "Syncing…" : (_isVerified ? "Synced" : "Verify & Sync");
+        VerifySyncButtonText.Foreground = _isVerified ? TextPrimaryBrush : WhiteBrush;
+    }
+
+    private void OnAutoPirepIntervalSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (AutoPirepIntervalComboBox.SelectedItem is ComboBoxItem { Tag: string tag } &&
+            int.TryParse(tag, out var minutes))
+        {
+            _settings.Settings.AutoPirepIntervalMinutes = minutes;
+        }
+    }
+
+    private void SelectAutoPirepIntervalItem(int minutes)
+    {
+        foreach (var obj in AutoPirepIntervalComboBox.Items)
+        {
+            if (obj is ComboBoxItem { Tag: string tag } item &&
+                int.TryParse(tag, out var value) && value == minutes)
+            {
+                AutoPirepIntervalComboBox.SelectedItem = item;
+                return;
+            }
+        }
+
+        // No exact match (a hand-edited settings file, say) -- fall back to "Off" rather than
+        // leaving the ComboBox with nothing selected.
+        AutoPirepIntervalComboBox.SelectedIndex = 0;
+    }
+
+    // ── Friend Code ──────────────────────────────────────────────────────────────────────────
+
+    // Matches Settings.razor's exact fallback: use the stored FriendCode if present, else compute
+    // one live from the current AcarsKey (GenerateFriendCode is deterministic/static, so this is
+    // safe to call on every refresh without persisting anything).
+    private void UpdateFriendCodePanel()
+    {
+        var hasKey = !string.IsNullOrEmpty(_settings.Settings.AcarsKey);
+        FriendCodeEmptyBanner.Visibility = hasKey ? Visibility.Collapsed : Visibility.Visible;
+        FriendCodeDisplayGrid.Visibility = hasKey ? Visibility.Visible : Visibility.Collapsed;
+
+        if (hasKey)
+        {
+            FriendCodeText.Text = string.IsNullOrEmpty(_settings.Settings.FriendCode)
+                ? SettingsService.GenerateFriendCode(_settings.Settings.AcarsKey)
+                : _settings.Settings.FriendCode;
+        }
+    }
+
+    private async void OnCopyFriendCodeTapped(object sender, TappedRoutedEventArgs e)
+    {
+        var code = FriendCodeText.Text;
+        if (string.IsNullOrEmpty(code)) return;
+
+        // Native clipboard API -- this page has no WebView, so there is no JS interop equivalent
+        // to fall back to.
+        var package = new DataPackage();
+        package.SetText(code);
+        Clipboard.SetContent(package);
+
+        CopyIdleIconViewbox.Visibility = Visibility.Collapsed;
+        CopyDoneIconViewbox.Visibility = Visibility.Visible;
+        CopyFriendCodeButtonText.Text = "Copied!";
+
+        await Task.Delay(2000);
+
+        CopyIdleIconViewbox.Visibility = Visibility.Visible;
+        CopyDoneIconViewbox.Visibility = Visibility.Collapsed;
+        CopyFriendCodeButtonText.Text = "Copy";
+    }
+
     // ── Status banner ────────────────────────────────────────────────────────────────────────
     // Same dismissible success/error pattern EventsPage.xaml.cs's own status banner already
-    // established -- no Settings-specific behavior calls this yet in Task 1 (nothing raises a
-    // status message), but the banner and its close handler are wired up now since later tasks
-    // (ACARS sync, Save/Reset) both need it.
+    // established. Task 2's SyncProfileAsync() above is the first behavior to actually raise a
+    // status message; Task 6's Save/Reset row will be the next.
 
     private void OnStatusCloseTapped(object sender, TappedRoutedEventArgs e)
     {

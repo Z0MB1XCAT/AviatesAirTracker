@@ -286,11 +286,209 @@
                 </StackPanel>
 
                 <!-- ── Right column ──
-                     Task 2 builds ACARS Configuration and Friend Code here. Task 3 adds Hoppies
-                     ACARS and App Preferences. Task 4 adds Dispatch Radio. Task 5 adds About &amp;
-                     Updates and EFB Companion. Left empty on purpose for this task so the build
-                     stays green with a structurally-present-but-empty column. -->
-                <Border Grid.Column="1" x:Name="RightColumnPanel" />
+                     Task 2 (this task) builds ACARS Configuration and Friend Code. Task 3 adds
+                     Hoppies ACARS and App Preferences (stub Borders below mark exactly where).
+                     Task 4 adds Dispatch Radio. Task 5 adds About &amp; Updates and EFB Companion.
+                     Panel order matches Settings.razor's own top-to-bottom order in this column. -->
+                <StackPanel Grid.Column="1" Spacing="20">
+
+                    <!-- ── ACARS Configuration ── -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                            CornerRadius="20" Padding="20">
+                        <StackPanel Spacing="16">
+                            <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,0,0,12">
+                                <TextBlock Text="ACARS Configuration" FontFamily="{StaticResource DisplayFontBold}"
+                                           FontSize="16" FontWeight="Bold" Foreground="#F1F5F9" />
+                            </Border>
+
+                            <!-- ACARS Key field + Verify &amp; Sync button. PasswordBox mirrors the
+                                 TextBox pattern used elsewhere in this file (Background=Transparent,
+                                 BorderThickness=0, wrapped in a custom-colored Border) so its own
+                                 default chrome doesn't fight the app's hardcoded dark palette. -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="ACARS Key" FontSize="12.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1.5" CornerRadius="12">
+                                        <PasswordBox x:Name="AcarsKeyPasswordBox" PlaceholderText="Paste your ACARS key"
+                                                     Background="Transparent" BorderThickness="0" Foreground="#F1F5F9"
+                                                     Padding="14,10" PasswordChanged="OnAcarsKeyPasswordChanged" />
+                                    </Border>
+                                    <Border Grid.Column="1" x:Name="VerifySyncButtonBorder" Tag="sync"
+                                            Tapped="OnVerifySyncTapped" CornerRadius="10" Padding="18,0"
+                                            BorderThickness="0" VerticalAlignment="Stretch">
+                                        <StackPanel Orientation="Horizontal" Spacing="6"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Viewbox x:Name="VerifySyncIdleIconViewbox" Width="14" Height="14">
+                                                <Grid Width="24" Height="24">
+                                                    <Path Data="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" Stroke="#FFFFFF"
+                                                          StrokeThickness="2" StrokeLineJoin="Round" />
+                                                    <Polyline Points="17,8 12,3 7,8" Stroke="#FFFFFF" StrokeThickness="2"
+                                                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                    <Line X1="12" Y1="3" X2="12" Y2="15" Stroke="#FFFFFF" StrokeThickness="2"
+                                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                </Grid>
+                                            </Viewbox>
+                                            <Viewbox x:Name="VerifySyncVerifiedIconViewbox" Width="14" Height="14" Visibility="Collapsed">
+                                                <Grid Width="24" Height="24">
+                                                    <Polyline Points="20,6 9,17 4,12" Stroke="#F1F5F9" StrokeThickness="2.5"
+                                                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                </Grid>
+                                            </Viewbox>
+                                            <ProgressRing x:Name="VerifySyncProgressRing" IsActive="False" Visibility="Collapsed"
+                                                          Width="14" Height="14" Foreground="#FFFFFF" />
+                                            <TextBlock x:Name="VerifySyncButtonText" Text="Verify &amp; Sync"
+                                                       FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Conditional info banner (verified vs. unverified copy) - both banners
+                                 pre-built, visibility toggled in UpdateAcarsInfoBanner() (same
+                                 established pattern as VerifiedBadgeBorder/VerifiedChipBorder). -->
+                            <Border x:Name="AcarsVerifiedInfoBanner" Visibility="Collapsed"
+                                    Background="#141F4D9BEC" BorderBrush="#334D9BEC" BorderThickness="1"
+                                    CornerRadius="12" Padding="14,12">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Viewbox Width="15" Height="15" VerticalAlignment="Top">
+                                        <Grid Width="24" Height="24">
+                                            <Path Data="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"
+                                                  Stroke="#4D9BEC" StrokeThickness="2" StrokeLineJoin="Round" />
+                                        </Grid>
+                                    </Viewbox>
+                                    <TextBlock Text="Profile synced — name and SimBrief ID have been populated from your AviatesAir account."
+                                               FontSize="12.5" Foreground="#4D9BEC" TextWrapping="Wrap" LineHeight="20" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+                            <Border x:Name="AcarsUnverifiedInfoBanner" Visibility="Visible"
+                                    Background="#1F4D9BEC" CornerRadius="12" Padding="14,12">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Viewbox Width="16" Height="16" VerticalAlignment="Top">
+                                        <Grid Width="24" Height="24">
+                                            <Ellipse Width="20" Height="20" Stroke="#4D9BEC" StrokeThickness="2"
+                                                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            <Line X1="12" Y1="8" X2="12" Y2="12" Stroke="#4D9BEC" StrokeThickness="2" StrokeStartLineCap="Round" />
+                                            <Ellipse Width="1.4" Height="1.4" Fill="#4D9BEC"
+                                                     HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,15.3,0,0" />
+                                        </Grid>
+                                    </Viewbox>
+                                    <TextBlock FontSize="12.5" Foreground="#4D9BEC" TextWrapping="Wrap" LineHeight="20" VerticalAlignment="Center">
+                                        <Run Text="Your ACARS key is provided when you register at flyaviatesair.uk. Paste it above and click " />
+                                        <Run Text="Verify &amp; Sync" FontWeight="Bold" />
+                                        <Run Text=" to auto-fill your profile." />
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Auto position report interval -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Auto Position Report Interval" FontSize="12.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                                <ComboBox x:Name="AutoPirepIntervalComboBox" HorizontalAlignment="Stretch"
+                                          Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1.5"
+                                          CornerRadius="12" Foreground="#F1F5F9" Padding="12,8"
+                                          SelectionChanged="OnAutoPirepIntervalSelectionChanged">
+                                    <ComboBoxItem Content="Off" Tag="0" />
+                                    <ComboBoxItem Content="Every 1 minute" Tag="1" />
+                                    <ComboBoxItem Content="Every 5 minutes" Tag="5" />
+                                    <ComboBoxItem Content="Every 10 minutes" Tag="10" />
+                                    <ComboBoxItem Content="Every 15 minutes" Tag="15" />
+                                    <ComboBoxItem Content="Every 30 minutes" Tag="30" />
+                                </ComboBox>
+                                <TextBlock Text="Automatically sends position reports to the Aviates Air network while airborne. Requires a valid ACARS key."
+                                           FontSize="12" Foreground="#64748B" TextWrapping="Wrap" LineHeight="20" />
+                            </StackPanel>
+
+                            <!-- FMC shortcut hint strip - static, no interactivity (this shortcut
+                                 fires from the ACARS page, not from this Settings page). -->
+                            <Border Background="#121A2A" CornerRadius="12" Padding="13,10">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                            CornerRadius="6" Padding="7,2">
+                                        <TextBlock Text="Ctrl+Shift+F" FontFamily="Consolas" FontSize="10"
+                                                   FontWeight="Bold" Foreground="#F1F5F9" CharacterSpacing="30" />
+                                    </Border>
+                                    <TextBlock Text="Opens the FMC overlay from anywhere on the ACARS page — a hidden shortcut."
+                                               FontSize="12" Foreground="#64748B" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Task 3 builds Hoppies ACARS here. -->
+                    <Border x:Name="HoppiesAcarsStub" />
+
+                    <!-- Task 4 builds Dispatch Radio here. -->
+                    <Border x:Name="DispatchRadioStub" />
+
+                    <!-- Task 3 builds App Preferences here. -->
+                    <Border x:Name="AppPreferencesStub" />
+
+                    <!-- ── Friend Code ── -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                            CornerRadius="20" Padding="20">
+                        <StackPanel Spacing="16">
+                            <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,0,0,12">
+                                <TextBlock Text="Friend Code" FontFamily="{StaticResource DisplayFontBold}"
+                                           FontSize="16" FontWeight="Bold" Foreground="#F1F5F9" />
+                            </Border>
+                            <TextBlock FontSize="13" Foreground="#64748B" TextWrapping="Wrap" LineHeight="21"
+                                       Text="Share this code with other AviatesAir pilots so they can add you as a friend in the Messages page. It is derived from your ACARS key and is safe to share publicly." />
+
+                            <!-- Amber "set your key" prompt vs. code display - both pre-built,
+                                 visibility toggled in UpdateFriendCodePanel(). -->
+                            <Border x:Name="FriendCodeEmptyBanner" Visibility="Visible"
+                                    Background="#1AF59E0B" CornerRadius="12" Padding="14,12">
+                                <TextBlock Text="Set your ACARS key and save to generate your Friend Code."
+                                           FontSize="12.5" Foreground="#F59E0B" TextWrapping="Wrap" />
+                            </Border>
+                            <Grid x:Name="FriendCodeDisplayGrid" Visibility="Collapsed" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                        CornerRadius="12" Padding="18,14">
+                                    <TextBlock x:Name="FriendCodeText" FontFamily="Consolas" FontSize="20" FontWeight="Bold"
+                                               Foreground="#4D9BEC" CharacterSpacing="180" HorizontalAlignment="Center" />
+                                </Border>
+                                <Border Grid.Column="1" x:Name="CopyFriendCodeButtonBorder" Tag="copy"
+                                        Tapped="OnCopyFriendCodeTapped" Background="#0C111D" BorderBrush="#14FFFFFF"
+                                        BorderThickness="1" CornerRadius="10" Padding="16,0" VerticalAlignment="Stretch">
+                                    <StackPanel Orientation="Horizontal" Spacing="6"
+                                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Viewbox x:Name="CopyIdleIconViewbox" Width="15" Height="15">
+                                            <Grid Width="24" Height="24">
+                                                <Rectangle Width="13" Height="13" RadiusX="2" RadiusY="2" Stroke="#F1F5F9" StrokeThickness="2"
+                                                           HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,2,2" />
+                                                <Path Data="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" Stroke="#F1F5F9"
+                                                      StrokeThickness="2" StrokeLineJoin="Round" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                                            </Grid>
+                                        </Viewbox>
+                                        <Viewbox x:Name="CopyDoneIconViewbox" Width="15" Height="15" Visibility="Collapsed">
+                                            <Grid Width="24" Height="24">
+                                                <Polyline Points="20,6 9,17 4,12" Stroke="#F1F5F9" StrokeThickness="2.5"
+                                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                            </Grid>
+                                        </Viewbox>
+                                        <TextBlock x:Name="CopyFriendCodeButtonText" Text="Copy" FontSize="13"
+                                                   FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Task 5 builds About & Updates here. -->
+                    <Border x:Name="AboutUpdatesStub" />
+
+                    <!-- Task 5 builds EFB Companion here. -->
+                    <Border x:Name="EfbCompanionStub" />
+
+                </StackPanel>
 
             </Grid>
 
