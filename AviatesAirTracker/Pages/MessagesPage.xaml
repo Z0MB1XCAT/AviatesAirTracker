@@ -333,16 +333,221 @@
                         </Border>
                     </Grid>
 
-                    <!-- ── BROADCAST TAB ── Task 3 builds this. -->
+                    <!-- ── BROADCAST TAB ──
+                         Single-column public feed. Reuses Inbox's exact RebuildBubbleList/BuildBubble
+                         code-behind helpers (isBroadcast: true) so the bubble-in Storyboard animation
+                         applies here too, per the design spec's "both tabs, don't skip it". -->
                     <Grid x:Name="BroadcastPanel" Visibility="Collapsed">
-                        <TextBlock Text="Broadcast is coming soon." FontSize="13.5" Foreground="#64748B"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20"
+                                MaxWidth="640" HorizontalAlignment="Center">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <!-- Header -->
+                                <Border Grid.Row="0" BorderBrush="#14FFFFFF" BorderThickness="0,0,0,1" Padding="16">
+                                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <TextBlock Text="AviatesAir Pilot Channel" FontSize="14" FontWeight="Bold" Foreground="#F1F5F9" />
+                                        <Border Background="#1F3EC7AC" CornerRadius="999" Padding="8,2">
+                                            <TextBlock Text="Public" FontSize="10" FontWeight="Bold" Foreground="#3EC7AC" CharacterSpacing="24" />
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Bubble list -->
+                                <ScrollViewer Grid.Row="1" x:Name="BroadcastBubbleListScroll" VerticalScrollBarVisibility="Auto" Padding="16">
+                                    <StackPanel x:Name="BroadcastBubbleListPanel" Spacing="12" />
+                                </ScrollViewer>
+
+                                <!-- Inline send-error banner -->
+                                <Border Grid.Row="2" x:Name="BroadcastSendErrorBorder" Visibility="Collapsed"
+                                        Background="#1AEF4444" BorderBrush="#2EEF4444" BorderThickness="0,1,0,0" Padding="16,9">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <Viewbox Width="14" Height="14">
+                                            <Grid Width="24" Height="24">
+                                                <Ellipse Width="20" Height="20" Stroke="#EF4444" StrokeThickness="2"
+                                                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                <Line X1="12" Y1="8" X2="12" Y2="12" Stroke="#EF4444" StrokeThickness="2" StrokeStartLineCap="Round" />
+                                                <Line X1="12" Y1="16" X2="12" Y2="16.01" Stroke="#EF4444" StrokeThickness="2" StrokeStartLineCap="Round" />
+                                            </Grid>
+                                        </Viewbox>
+                                        <TextBlock x:Name="BroadcastSendErrorText" FontSize="12.5" FontWeight="Medium"
+                                                   Foreground="#EF4444" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Compose row (280-char max, unlike Inbox's 500) -->
+                                <Grid Grid.Row="3" Padding="16,12" ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0" Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="999">
+                                        <TextBox x:Name="BroadcastComposeTextBox" PlaceholderText="Broadcast to all pilots..." MaxLength="280"
+                                                 Background="Transparent" BorderThickness="0" Foreground="#F1F5F9"
+                                                 Padding="18,10" VerticalAlignment="Center"
+                                                 KeyDown="OnBroadcastComposeKeyDown" TextChanged="OnBroadcastComposeTextChanged" />
+                                    </Border>
+
+                                    <Border Grid.Column="1" x:Name="BroadcastSendButtonBorder" Tag="send" Tapped="OnSendBroadcastTapped"
+                                            Width="42" Height="42" CornerRadius="21" Background="#4D9BEC" Opacity="0.45">
+                                        <Grid>
+                                            <Viewbox x:Name="BroadcastSendIconViewbox" Width="18" Height="18">
+                                                <Grid Width="24" Height="24">
+                                                    <Line X1="22" Y1="2" X2="11" Y2="13" Stroke="#FFFFFF" StrokeThickness="2"
+                                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                    <Polygon Points="22,2 15,22 11,13 2,9" Stroke="#FFFFFF" StrokeThickness="2"
+                                                             StrokeLineJoin="Round" />
+                                                </Grid>
+                                            </Viewbox>
+                                            <ProgressRing x:Name="BroadcastSendProgressRing" IsActive="False" Visibility="Collapsed"
+                                                          Width="18" Height="18" Foreground="#FFFFFF" />
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                            </Grid>
+                        </Border>
                     </Grid>
 
-                    <!-- ── FRIENDS TAB ── Task 3 builds this. -->
+                    <!-- ── FRIENDS TAB ──
+                         Two side-by-side cards: "Add a Pilot" (friend-code lookup form) and
+                         "Your Crew" (the friends list, also usable to jump into the Inbox tab). -->
                     <Grid x:Name="FriendsPanel" Visibility="Collapsed">
-                        <TextBlock Text="Friends management is coming soon." FontSize="13.5" Foreground="#64748B"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- "Add a Pilot" card -->
+                        <Border Grid.Column="0" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                CornerRadius="20" Padding="20" VerticalAlignment="Top">
+                            <StackPanel Spacing="14">
+                                <TextBlock Text="Add a Pilot" FontSize="15" FontWeight="Bold" Foreground="#F1F5F9" />
+                                <TextBlock Text="Ask another pilot for their Friend Code (found in their Settings page) and enter it below."
+                                           FontSize="13" Foreground="#94A3B8" TextWrapping="Wrap" LineHeight="20" />
+
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="FRIEND CODE" FontSize="11" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="20" />
+                                    <Border Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="10">
+                                        <TextBox x:Name="FriendCodeTextBox" PlaceholderText="e.g. K4MR-B7WN" MaxLength="9"
+                                                 CharacterCasing="Upper" FontFamily="Consolas" CharacterSpacing="60"
+                                                 Background="Transparent" BorderThickness="0" Foreground="#F1F5F9"
+                                                 Padding="14,10" TextChanged="OnFriendCodeTextChanged" />
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="PILOT NAME" FontSize="11" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="20" />
+                                    <Border Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="10">
+                                        <TextBox x:Name="FriendNameTextBox" PlaceholderText="Their name (used if lookup is offline)" MaxLength="60"
+                                                 Background="Transparent" BorderThickness="0" Foreground="#F1F5F9"
+                                                 Padding="14,10" />
+                                    </Border>
+                                </StackPanel>
+
+                                <Border x:Name="AddFriendStatusBorder" Visibility="Collapsed" CornerRadius="10" Padding="14,9">
+                                    <TextBlock x:Name="AddFriendStatusText" FontSize="12.5" FontWeight="Medium" TextWrapping="Wrap" />
+                                </Border>
+
+                                <Border x:Name="AddFriendButtonBorder" Tag="add" Tapped="OnAddFriendTapped"
+                                        Background="#4D9BEC" CornerRadius="10" Padding="0,12" Opacity="0.45">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                        <Viewbox x:Name="AddFriendIconViewbox" Width="15" Height="15">
+                                            <Grid Width="24" Height="24">
+                                                <Ellipse Width="8" Height="8" Stroke="#FFFFFF" StrokeThickness="1.8"
+                                                         HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,3,0,0" />
+                                                <Path Data="M3,21 V19 A4,4,0,0,1,7,15 H11 A4,4,0,0,1,15,19 V21"
+                                                      Stroke="#FFFFFF" StrokeThickness="1.8"
+                                                      StrokeStartLineCap="Round" StrokeLineJoin="Round" />
+                                                <Line X1="19" Y1="8" X2="19" Y2="14" Stroke="#FFFFFF" StrokeThickness="1.8" StrokeStartLineCap="Round" />
+                                                <Line X1="16" Y1="11" X2="22" Y2="11" Stroke="#FFFFFF" StrokeThickness="1.8" StrokeStartLineCap="Round" />
+                                            </Grid>
+                                        </Viewbox>
+                                        <ProgressRing x:Name="AddFriendProgressRing" IsActive="False" Visibility="Collapsed"
+                                                      Width="15" Height="15" Foreground="#FFFFFF" />
+                                        <TextBlock x:Name="AddFriendButtonText" Text="Add Pilot" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- "Your Crew" card -->
+                        <Border Grid.Column="2" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                CornerRadius="20" Padding="20" VerticalAlignment="Top">
+                            <StackPanel Spacing="14">
+                                <TextBlock x:Name="CrewTitleText" Text="Your Crew — 0 pilots" FontSize="15" FontWeight="Bold" Foreground="#F1F5F9" />
+
+                                <StackPanel x:Name="CrewEmptyPanel" Visibility="Collapsed" Spacing="4" Padding="0,28" HorizontalAlignment="Center">
+                                    <TextBlock Text="No friends added yet." FontSize="13" Foreground="#64748B" HorizontalAlignment="Center" />
+                                    <TextBlock Text="Enter a Friend Code to get started." FontSize="13" Foreground="#64748B" HorizontalAlignment="Center" />
+                                </StackPanel>
+
+                                <ItemsControl x:Name="CrewListItems">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Vertical" Spacing="8" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="14" Padding="12,10">
+                                                <Grid ColumnSpacing="10">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <Border Grid.Column="0" Width="32" Height="32" CornerRadius="16">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                <GradientStop Color="#4D9BEC" Offset="0" />
+                                                                <GradientStop Color="#B8934A" Offset="1" />
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                        <TextBlock Text="{Binding Initials}" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Border>
+
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1" MinWidth="0">
+                                                        <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
+                                                                   Foreground="#F1F5F9" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding SubText}" FontSize="11.5" Foreground="#64748B"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+
+                                                    <Border Grid.Column="2" Tag="{Binding}" Tapped="OnMessageFriendTapped"
+                                                            Background="#1A4D9BEC" CornerRadius="8" Padding="12,5" VerticalAlignment="Center">
+                                                        <TextBlock Text="Message" FontSize="12" FontWeight="SemiBold" Foreground="#4D9BEC" />
+                                                    </Border>
+
+                                                    <Border Grid.Column="3" Tag="{Binding}" Tapped="OnRemoveCrewFriendTapped"
+                                                            Width="28" Height="28" CornerRadius="8" VerticalAlignment="Center">
+                                                        <Viewbox Width="14" Height="14">
+                                                            <Grid Width="24" Height="24">
+                                                                <Polyline Points="3,6 5,6 21,6" Stroke="#64748B" StrokeThickness="2"
+                                                                          StrokeStartLineCap="Round" StrokeLineJoin="Round" />
+                                                                <Path Data="M19,6 L18,20 H6 L5,6" Stroke="#64748B" StrokeThickness="2"
+                                                                      StrokeStartLineCap="Round" StrokeLineJoin="Round" />
+                                                                <Path Data="M10,11 V17 M14,11 V17 M9,6 V4 H15 V6" Stroke="#64748B" StrokeThickness="2"
+                                                                      StrokeStartLineCap="Round" StrokeLineJoin="Round" />
+                                                            </Grid>
+                                                        </Viewbox>
+                                                    </Border>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
                     </Grid>
 
                 </Grid>

@@ -37,6 +37,21 @@ public sealed class FriendDisplayRow
     public Brush RowBackground { get; set; } = new SolidColorBrush(Color.FromArgb(0x00, 0x00, 0x00, 0x00));
 }
 
+/// <summary>
+/// Display row for one "Your Crew" entry on the Friends tab. Plain mutable class ({ get; set; }),
+/// same CS8852-avoidance pattern as FriendDisplayRow above -- kept separate rather than reusing
+/// FriendDisplayRow because the Friends-tab row needs a precomputed "{Rank} · Added {date}"
+/// SubText string and no unread-dot/row-highlight state, so the two shapes would otherwise carry
+/// unused properties for each other's use case.
+/// </summary>
+public sealed class CrewDisplayRow
+{
+    public string PilotId { get; set; } = "";
+    public string Initials { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string SubText { get; set; } = "";
+}
+
 public sealed partial class MessagesPage : Page
 {
     // Dark-theme hex values read directly from wwwroot/css/app.css's html[data-theme="dark"]
@@ -51,11 +66,16 @@ public sealed partial class MessagesPage : Page
     private static readonly Brush WhiteMutedBrush = new SolidColorBrush(Color.FromArgb(0x99, 0xFF, 0xFF, 0xFF));
     private static readonly Brush TransparentBrush = new SolidColorBrush(Color.FromArgb(0x00, 0x00, 0x00, 0x00));
     private static readonly Brush TabInactiveForeground = TextMutedBrush;
+    private static readonly Brush GreenBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x3E, 0xC7, 0xAC));
+    private static readonly Brush GreenLightBrush = new SolidColorBrush(Color.FromArgb(0x1F, 0x3E, 0xC7, 0xAC));
+    private static readonly Brush RedBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0xEF, 0x44, 0x44));
+    private static readonly Brush RedLightBrush = new SolidColorBrush(Color.FromArgb(0x1A, 0xEF, 0x44, 0x44));
 
     private readonly MessagesViewModel _viewModel;
     private readonly SettingsService _settings;
 
     private readonly ObservableCollection<FriendDisplayRow> _friendRows = [];
+    private readonly ObservableCollection<CrewDisplayRow> _crewRows = [];
 
     // Lives on the page, not the ViewModel -- matches Messages.razor's own _activeTab/
     // _dmSendError field placement (the design spec's "page owns its own UI-local state"
@@ -63,6 +83,18 @@ public sealed partial class MessagesPage : Page
     private string _activeTab = "inbox";
     private string? _dmSendError;
     private bool _isSending;
+
+    // Broadcast tab: same page-local-state shape as Inbox's _dmSendError/_isSending, but tracked
+    // separately (not shared with Inbox's own fields) so a send in flight on one tab never fights
+    // over a shared busy/error flag with the other -- the two tabs never render simultaneously,
+    // but their compose actions are logically independent.
+    private string? _broadcastSendError;
+    private bool _isSendingBroadcast;
+
+    // Friends tab: mirrors Messages.razor's _addFriendStatus/_addFriendError/_isAddingFriend.
+    private string _addFriendStatus = "";
+    private bool _addFriendError;
+    private bool _isAddingFriend;
 
     // Tracks which message ids have already been rendered (and animated) in the bubble list, so
     // a rebuild triggered by switching tabs and back, or by a refresh that doesn't add new
@@ -79,6 +111,7 @@ public sealed partial class MessagesPage : Page
         DataContext = _viewModel;
 
         FriendListItems.ItemsSource = _friendRows;
+        CrewListItems.ItemsSource = _crewRows;
 
         UpdateTabVisuals();
 
@@ -107,6 +140,8 @@ public sealed partial class MessagesPage : Page
         ShowActiveTabPanel();
         RebuildFriendList();
         RebuildConversation();
+        RebuildBroadcast();
+        RebuildCrewList();
     }
 
     // ── ACARS gate ───────────────────────────────────────────────────────────────────────────
@@ -126,12 +161,17 @@ public sealed partial class MessagesPage : Page
         if (sender is not Border { Tag: string tab } || tab == _activeTab) return;
 
         _activeTab = tab;
-        // Matches Messages.razor's SwitchTab: clears page-local status/error text on every switch.
+        // Matches Messages.razor's SwitchTab: clears page-local status/error text on every switch
+        // (_dmSendError, _broadcastSendError, _addFriendStatus -- all three, not just Inbox's).
         _dmSendError = null;
+        _broadcastSendError = null;
+        _addFriendStatus = "";
 
         UpdateTabVisuals();
         ShowActiveTabPanel();
         UpdateDmSendError();
+        UpdateBroadcastSendError();
+        UpdateAddFriendStatus();
     }
 
     private void UpdateTabVisuals()
@@ -309,6 +349,206 @@ public sealed partial class MessagesPage : Page
     {
         DmSendErrorBorder.Visibility = string.IsNullOrEmpty(_dmSendError) ? Visibility.Collapsed : Visibility.Visible;
         DmSendErrorText.Text = _dmSendError ?? "";
+    }
+
+    // ── Broadcast tab ────────────────────────────────────────────────────────────────────────
+
+    private void RebuildBroadcast()
+    {
+        // Routed through the exact same RebuildBubbleList/BuildBubble helpers Inbox uses (see
+        // below), isBroadcast: true so non-mine bubbles get a sender-name label -- this is what
+        // makes the bubble-in Storyboard animation apply to Broadcast "for free" rather than
+        // needing a second, non-animated static renderer.
+        RebuildBubbleList(BroadcastBubbleListPanel, _viewModel.BroadcastMessages, isBroadcast: true,
+            "No broadcasts yet. Be the first to post!");
+        UpdateBroadcastSendError();
+        UpdateBroadcastComposeState();
+    }
+
+    private void OnBroadcastComposeTextChanged(object sender, TextChangedEventArgs e) => UpdateBroadcastComposeState();
+
+    private void OnBroadcastComposeKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != VirtualKey.Enter) return;
+
+        var shiftState = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift);
+        var isShiftDown = (shiftState & CoreVirtualKeyStates.Down) == CoreVirtualKeyStates.Down;
+        if (isShiftDown) return; // matches OnBroadcastKeyDown's `if (e.Key == "Enter" && !e.ShiftKey)`
+
+        e.Handled = true;
+        _ = SendBroadcastAsync();
+    }
+
+    private void OnSendBroadcastTapped(object sender, TappedRoutedEventArgs e) => _ = SendBroadcastAsync();
+
+    private async Task SendBroadcastAsync()
+    {
+        var text = BroadcastComposeTextBox.Text;
+        if (string.IsNullOrWhiteSpace(text) || _isSendingBroadcast) return;
+
+        // Same optimistic-clear sequencing as SendDirectAsync: grab the text, clear the box, show
+        // the busy/disabled state, then send.
+        BroadcastComposeTextBox.Text = "";
+        _isSendingBroadcast = true;
+        _broadcastSendError = null;
+        UpdateBroadcastComposeState();
+        UpdateBroadcastSendError();
+
+        var (ok, error) = await _viewModel.SendBroadcastAsync(text);
+        if (!ok)
+        {
+            BroadcastComposeTextBox.Text = text; // restore so the pilot can edit and retry
+            _broadcastSendError = error;
+        }
+
+        _isSendingBroadcast = false;
+
+        // SendBroadcastAsync already refreshed BroadcastMessages internally -- just re-render.
+        RebuildBroadcast();
+    }
+
+    private void UpdateBroadcastComposeState()
+    {
+        var hasText = !string.IsNullOrWhiteSpace(BroadcastComposeTextBox.Text);
+        var enabled = hasText && !_isSendingBroadcast;
+
+        BroadcastSendButtonBorder.IsHitTestVisible = enabled;
+        BroadcastSendButtonBorder.Opacity = enabled ? 1.0 : 0.45;
+
+        BroadcastSendIconViewbox.Visibility = _isSendingBroadcast ? Visibility.Collapsed : Visibility.Visible;
+        BroadcastSendProgressRing.Visibility = _isSendingBroadcast ? Visibility.Visible : Visibility.Collapsed;
+        BroadcastSendProgressRing.IsActive = _isSendingBroadcast;
+    }
+
+    private void UpdateBroadcastSendError()
+    {
+        BroadcastSendErrorBorder.Visibility = string.IsNullOrEmpty(_broadcastSendError) ? Visibility.Collapsed : Visibility.Visible;
+        BroadcastSendErrorText.Text = _broadcastSendError ?? "";
+    }
+
+    // ── Friends tab ──────────────────────────────────────────────────────────────────────────
+
+    private void RebuildCrewList()
+    {
+        var count = _viewModel.Friends.Count;
+        CrewTitleText.Text = $"Your Crew — {count} pilot{(count == 1 ? "" : "s")}"; // matches @(_friends.Count == 1 ? "" : "s")
+
+        _crewRows.Clear();
+
+        if (count == 0)
+        {
+            CrewEmptyPanel.Visibility = Visibility.Visible;
+            CrewListItems.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        CrewEmptyPanel.Visibility = Visibility.Collapsed;
+        CrewListItems.Visibility = Visibility.Visible;
+
+        foreach (var friend in _viewModel.Friends)
+        {
+            _crewRows.Add(new CrewDisplayRow
+            {
+                PilotId = friend.PilotId,
+                Initials = GetInitials(friend.PilotName),
+                Name = friend.PilotName,
+                SubText = $"{friend.Rank} · Added {friend.AddedAt:MMM d}",
+            });
+        }
+    }
+
+    private void OnFriendCodeTextChanged(object sender, TextChangedEventArgs e) => UpdateAddFriendButtonState();
+
+    private void UpdateAddFriendButtonState()
+    {
+        // Matches the original's exact disabled condition: `_addFriendCode.Length < 9 || _isAddingFriend`.
+        var enabled = FriendCodeTextBox.Text.Length == 9 && !_isAddingFriend;
+        AddFriendButtonBorder.IsHitTestVisible = enabled;
+        AddFriendButtonBorder.Opacity = enabled ? 1.0 : 0.45;
+
+        AddFriendIconViewbox.Visibility = _isAddingFriend ? Visibility.Collapsed : Visibility.Visible;
+        AddFriendProgressRing.Visibility = _isAddingFriend ? Visibility.Visible : Visibility.Collapsed;
+        AddFriendProgressRing.IsActive = _isAddingFriend;
+        AddFriendButtonText.Text = _isAddingFriend ? "Looking up pilot..." : "Add Pilot";
+    }
+
+    private async void OnAddFriendTapped(object sender, TappedRoutedEventArgs e)
+    {
+        var code = FriendCodeTextBox.Text;
+        // Defensive guard matching the original's disabled condition -- the button is already
+        // disabled below 9 characters, but guard here too in case Tapped still fires.
+        if (code.Length < 9 || _isAddingFriend) return;
+
+        _isAddingFriend = true;
+        _addFriendStatus = "";
+        UpdateAddFriendButtonState();
+        UpdateAddFriendStatus();
+
+        var name = FriendNameTextBox.Text;
+        var (ok, entry) = await _viewModel.AddFriendByCodeAsync(code, name);
+        if (ok && entry != null)
+        {
+            _addFriendStatus = $"{entry.PilotName} added to your crew.";
+            _addFriendError = false;
+            FriendCodeTextBox.Text = "";
+            FriendNameTextBox.Text = "";
+        }
+        else
+        {
+            _addFriendStatus = "Friend code not found. Check the code and try again.";
+            _addFriendError = true;
+        }
+
+        _isAddingFriend = false;
+        UpdateAddFriendButtonState();
+        UpdateAddFriendStatus();
+
+        // AddFriendByCodeAsync already refreshed the ViewModel's Friends collection internally on
+        // success -- re-render everything that depends on Friends (the crew list itself, the
+        // Inbox friend list, and the Friends-tab badge count).
+        RebuildCrewList();
+        RebuildFriendList();
+        UpdateTabBadges();
+    }
+
+    private void UpdateAddFriendStatus()
+    {
+        var hasStatus = !string.IsNullOrEmpty(_addFriendStatus);
+        AddFriendStatusBorder.Visibility = hasStatus ? Visibility.Visible : Visibility.Collapsed;
+        AddFriendStatusText.Text = _addFriendStatus;
+        AddFriendStatusBorder.Background = _addFriendError ? RedLightBrush : GreenLightBrush;
+        AddFriendStatusText.Foreground = _addFriendError ? RedBrush : GreenBrush;
+    }
+
+    private async void OnMessageFriendTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: CrewDisplayRow row }) return;
+
+        // Matches SelectFriendAndSwitchToInbox: switch to Inbox, then reuse the exact same
+        // select-friend flow OnFriendTapped uses.
+        _activeTab = "inbox";
+        _dmSendError = null;
+        UpdateTabVisuals();
+        ShowActiveTabPanel();
+        UpdateDmSendError();
+
+        await _viewModel.SelectFriendAsync(row.PilotId);
+        _renderedBubbleIds.Clear(); // a freshly-opened conversation has nothing "already seen" yet
+        RebuildFriendList();
+        RebuildConversation();
+    }
+
+    private async void OnRemoveCrewFriendTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: CrewDisplayRow row }) return;
+
+        await _viewModel.RemoveFriendAsync(row.PilotId);
+        // Mirrors OnRemoveFriendTapped: the ViewModel already clears SelectedFriendId/Conversation
+        // itself if the removed friend was the one currently selected in the Inbox tab.
+        RebuildCrewList();
+        RebuildFriendList();
+        RebuildConversation();
+        UpdateTabBadges();
     }
 
     // ── Bubble list (shared helper -- Task 3's Broadcast tab reuses this rather than
