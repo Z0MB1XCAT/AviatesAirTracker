@@ -24,7 +24,7 @@ public static class NavDestinations
     [
         new("dashboard", "Dashboard", "/",          "Overview", NativePageType: typeof(Pages.DashboardPage)),
         new("flights",   "Flights",   "/flights",   "Overview", NativePageType: typeof(Pages.FlightsPage)),
-        new("routes",    "Routes",    "/routes",    "Overview"),
+        new("routes",    "Routes",    "/routes",    "Overview", NativePageType: typeof(Pages.RoutesPage)),
         new("fleet",     "Fleet",     "/fleet",     "Overview"),
         new("pilot-hub", "Pilot Hub", "/pilot-hub", "Pilot", NativePageType: typeof(Pages.PilotHubPage)),
         new("acars",     "ACARS",     "/acars",     "Pilot"),
