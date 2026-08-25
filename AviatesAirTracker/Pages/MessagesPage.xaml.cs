@@ -344,6 +344,7 @@ public sealed partial class MessagesPage : Page
         RebuildBubbleList(BubbleListPanel, _viewModel.Conversation, isBroadcast: false, "No messages yet — say hello!");
         UpdateDmSendError();
         UpdateComposeState();
+        ScrollToBottom(BubbleListScroll);
     }
 
     private async void OnRemoveFriendTapped(object sender, TappedRoutedEventArgs e)
@@ -435,6 +436,18 @@ public sealed partial class MessagesPage : Page
             "No broadcasts yet. Be the first to post!");
         UpdateBroadcastSendError();
         UpdateBroadcastComposeState();
+        ScrollToBottom(BroadcastBubbleListScroll);
+    }
+
+    // Scrolls a bubble-list ScrollViewer to the newest message. UpdateLayout() forces a synchronous
+    // layout pass first -- without it, ScrollableHeight/ExtentHeight would still reflect the state
+    // before the just-added bubble(s), since StackPanel children added a moment ago haven't been
+    // measured/arranged yet. Called after every rebuild (opening a conversation, sending, or a live
+    // NewMessageReceived push), not just on send, so the latest message is always in view.
+    private static void ScrollToBottom(ScrollViewer scrollViewer)
+    {
+        scrollViewer.UpdateLayout();
+        scrollViewer.ChangeView(null, scrollViewer.ScrollableHeight, null);
     }
 
     private void OnBroadcastComposeTextChanged(object sender, TextChangedEventArgs e) => UpdateBroadcastComposeState();

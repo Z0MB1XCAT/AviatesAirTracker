@@ -305,7 +305,7 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
 
-                                        <Border Grid.Column="0" Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="999">
+                                        <Border Grid.Column="0" Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="12">
                                             <TextBox x:Name="ComposeTextBox" PlaceholderText="Type a message..." MaxLength="500"
                                                      Background="Transparent" BorderThickness="0" Foreground="#F1F5F9"
                                                      Padding="18,10" VerticalAlignment="Center"
@@ -338,8 +338,7 @@
                          code-behind helpers (isBroadcast: true) so the bubble-in Storyboard animation
                          applies here too, per the design spec's "both tabs, don't skip it". -->
                     <Grid x:Name="BroadcastPanel" Visibility="Collapsed">
-                        <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20"
-                                MaxWidth="640" HorizontalAlignment="Center">
+                        <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -387,7 +386,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <Border Grid.Column="0" Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="999">
+                                    <Border Grid.Column="0" Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="12">
                                         <TextBox x:Name="BroadcastComposeTextBox" PlaceholderText="Broadcast to all pilots..." MaxLength="280"
                                                  Background="Transparent" BorderThickness="0" Foreground="#F1F5F9"
                                                  Padding="18,10" VerticalAlignment="Center"
