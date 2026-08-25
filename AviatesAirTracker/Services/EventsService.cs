@@ -114,7 +114,7 @@ public class EventsService : IDisposable
             var result = await response.Content.ReadFromJsonAsync<EventsApiResult>();
             return response.IsSuccessStatusCode
                 ? (true, "")
-                : (false, result?.Error ?? "Registration failed");
+                : (false, ResolveErrorMessage(result, "Registration failed"));
         }
         catch (Exception ex)
         {
@@ -134,7 +134,7 @@ public class EventsService : IDisposable
             var result = await response.Content.ReadFromJsonAsync<EventsApiResult>();
             return response.IsSuccessStatusCode
                 ? (true, "")
-                : (false, result?.Error ?? "Failed to unregister");
+                : (false, ResolveErrorMessage(result, "Failed to unregister"));
         }
         catch (Exception ex)
         {
@@ -171,13 +171,24 @@ public class EventsService : IDisposable
             var result = await response.Content.ReadFromJsonAsync<EventsApiResult>();
             return response.IsSuccessStatusCode
                 ? (true, "")
-                : (false, result?.Error ?? "Failed to create event");
+                : (false, ResolveErrorMessage(result, "Failed to create event"));
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "[EventsService] Create event failed");
             return (false, "Network error — please try again");
         }
+    }
+
+    // result?.Error ?? fallback only catches a literal null -- a response like
+    // {"success":false,"error":""} (empty but non-null) or one that puts the real reason in
+    // "message" instead of "error" would silently produce a blank error bar in the UI instead of
+    // any visible text. Checks both fields and treats whitespace-only as absent too.
+    private static string ResolveErrorMessage(EventsApiResult? result, string fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(result?.Error)) return result.Error;
+        if (!string.IsNullOrWhiteSpace(result?.Message)) return result.Message!;
+        return fallback;
     }
 
     public void Dispose() => _http.Dispose();
