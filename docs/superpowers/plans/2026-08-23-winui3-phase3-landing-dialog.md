@@ -363,3 +363,12 @@ dialog is code-complete (yes, Tasks 1-2 plus this task's wiring); real-landing f
 confirmation explicitly deferred, not skipped (yes, see above); `LandingResultModal.razor`,
 `MainLayout.razor`, `LandingAnalysisViewModel` untouched (yes, confirmed via `git status`); no
 `/landings` page built (yes, out of scope, not touched).
+
+## Confirmed by the user (2026-08-23), via `--debug-landing`
+
+The orchestrating session found and used the `--debug-landing` dev flag noted above to close the
+deferred functional-verification gap without needing a live MSFS session. The user ran the app
+with the flag, saw the synthetic landing trigger the native dialog, and confirmed it renders
+correctly — closing the one item this task's own verification had to leave open.
+
+**Phase 3's fourth conversion (the landing-result dialog) is done.**
