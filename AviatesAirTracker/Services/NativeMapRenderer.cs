@@ -19,9 +19,11 @@ namespace AviatesAirTracker.Services;
 /// 17-function JS API this app actually calls; resetPath/setFlightPath/invalidateSize have zero
 /// callers anywhere in the repo and are deliberately not ported.
 ///
-/// Task 1 scope: tile layer, own-aircraft marker + rotation, flown-path polyline capped at a
-/// 2000-point ring buffer (drop-oldest). Altitude-colored path segments, planned route,
-/// waypoint/airport markers, other-pilot markers, and pan/zoom/center wrappers are Tasks 2-3.
+/// Task 1: tile layer, own-aircraft marker + rotation, flown-path polyline capped at a
+/// 2000-point ring buffer (drop-oldest). Task 2: altitude-colored path segments, planned route +
+/// waypoint markers, airport markers. Task 3: other-pilot markers + their route lines, and the
+/// pan/zoom/center wrappers -- this class now covers the full window.aviatesMap API surface this
+/// app actually calls.
 /// </summary>
 public sealed class NativeMapRenderer : IDisposable
 {
@@ -85,6 +87,33 @@ public sealed class NativeMapRenderer : IDisposable
     private const double FitBoundsPaddingPx = 48.0;
     private const int FitBoundsMaxZoomLevel = 10;
 
+    // Confirmed exact from interop.js's upsertOtherPilot() marker (L.divIcon, 14x14px, white fill
+    // @ 55% opacity, 2px blue-ish border @ 90% opacity) and its per-pilot route line
+    // (color/weight/opacity/dashArray on the L.polyline).
+    private const string OtherPilotFillColorHex = "#FFFFFF";
+    private const float OtherPilotFillOpacity = 0.55f;
+    private const string OtherPilotOutlineColorHex = "#3D7EEE";
+    private const float OtherPilotOutlineOpacity = 0.9f;
+    private const double OtherPilotOutlineWidth = 2.0;
+    // Same approximation as WaypointSymbolScale above: Mapsui's SymbolStyle has no direct
+    // pixel-radius knob, only a scale relative to SymbolStyle.DefaultWidth/Height (32px), so
+    // 14/32 is the closest equivalent to the original's 14px-diameter divIcon.
+    private const double OtherPilotSymbolScale = 14.0 / 32.0;
+
+    private const string OtherPilotRouteColorHex = "#3D7EEE";
+    private const double OtherPilotRouteWeight = 1.5;
+    private const float OtherPilotRouteOpacity = 0.45f;
+    private static readonly float[] OtherPilotRouteDashArray = { 4f, 5f };
+
+    // Confirmed exact from interop.js's panTo(): this._map.panTo([lat, lon], { animate: true,
+    // duration: 0.5 }) -- 0.5s == 500ms, which Mapsui's Navigator takes directly.
+    private const long PanAnimationDurationMs = 500;
+    // Leaflet animates zoomIn()/zoomOut() by default via a ~0.25s CSS transition baked into its
+    // default map options; there is no single exported JS constant to port verbatim (it's a CSS
+    // rule, not a JS value), so 250ms is used here as a close, standard approximation of the same
+    // felt behavior rather than an invented arbitrary duration.
+    private const long ZoomAnimationDurationMs = 250;
+
     public Mapsui.Map Map { get; }
 
     private MemoryLayer? _aircraftLayer;
@@ -93,6 +122,8 @@ public sealed class NativeMapRenderer : IDisposable
     private MemoryLayer? _plannedRouteLayer;
     private MemoryLayer? _waypointLayer;
     private MemoryLayer? _airportMarkerLayer;
+    private MemoryLayer? _otherPilotLayer;
+    private MemoryLayer? _otherPilotRouteLayer;
 
     private PointFeature? _aircraftFeature;
     private readonly List<Coordinate> _flownPathPoints = new();
@@ -102,6 +133,11 @@ public sealed class NativeMapRenderer : IDisposable
     private readonly List<MPoint> _plannedRoutePoints = new();
     private readonly List<MPoint> _airportMarkerPoints = new();
     private readonly List<IFeature> _airportMarkerFeatures = new();
+
+    // Keyed by pilotId, matching interop.js's _otherPilotMarkers/_otherPilotRoutes dictionaries --
+    // create-or-move on UpsertOtherPilot, dropped on RemoveOtherPilot.
+    private readonly Dictionary<string, PointFeature> _otherPilotFeatures = new();
+    private readonly Dictionary<string, GeometryFeature> _otherPilotRouteFeatures = new();
 
     /// <summary>
     /// Wraps/owns a Mapsui.Map. Accepts an externally-constructed map (e.g. one already bound to
@@ -171,9 +207,27 @@ public sealed class NativeMapRenderer : IDisposable
         };
         Map.Layers.Add(_airportMarkerLayer);
 
+        _otherPilotRouteLayer = new MemoryLayer
+        {
+            Name = "OtherPilotRoutes",
+            Features = Array.Empty<IFeature>(),
+            Style = null,
+        };
+        Map.Layers.Add(_otherPilotRouteLayer);
+
+        _otherPilotLayer = new MemoryLayer
+        {
+            Name = "OtherPilots",
+            Features = Array.Empty<IFeature>(),
+            Style = null,
+        };
+        Map.Layers.Add(_otherPilotLayer);
+
         _plannedRoutePoints.Clear();
         _airportMarkerPoints.Clear();
         _airportMarkerFeatures.Clear();
+        _otherPilotFeatures.Clear();
+        _otherPilotRouteFeatures.Clear();
 
         var (x, y) = SphericalMercator.FromLonLat(lon, lat);
         var resolution = Map.Navigator.Resolutions.Count > InitialZoomLevel
@@ -484,6 +538,119 @@ public sealed class NativeMapRenderer : IDisposable
     }
 
     /// <summary>
+    /// Per-other-pilot marker + optional dashed route line (Task 3). Exact port of interop.js's
+    /// upsertOtherPilot(): create-or-move a marker keyed by <paramref name="pilotId"/>, plus a
+    /// dashed route polyline when non-empty <paramref name="waypoints"/> are supplied, dropped
+    /// again once they become null/empty (matching the original's <c>route.remove()</c> branch).
+    /// Waypoints are filtered the same way as the original (drop stray (0,0) points and anything
+    /// outside valid lat/lon range) before being turned into a line.
+    ///
+    /// Marker taps: this class only owns a <c>Mapsui.Map</c>, not a <c>MapControl</c> -- the same
+    /// boundary already established for waypoint names on <see cref="SetPlannedRoute"/> (see that
+    /// method's doc comment). Rather than have this class grow a <c>MapControl</c> reference just
+    /// to raise one C# event -- which would just be the JS interop's DotNetObjectReference/
+    /// [JSInvokable] round-trip reintroduced in the opposite direction -- the pilotId is stored on
+    /// the feature (see <see cref="GetOtherPilotId"/>) so the page's own MapControl.Info-based tap
+    /// handler (which it needs anyway for waypoint names) can resolve it the same way. One
+    /// hit-testing boundary, one lookup pattern, no duplicate plumbing.
+    /// </summary>
+    public void UpsertOtherPilot(string pilotId, double lat, double lon, IReadOnlyList<(double Lat, double Lon)>? waypoints)
+    {
+        if (_otherPilotLayer == null || _otherPilotRouteLayer == null)
+        {
+            return;
+        }
+
+        var (x, y) = SphericalMercator.FromLonLat(lon, lat);
+
+        if (!_otherPilotFeatures.TryGetValue(pilotId, out var feature))
+        {
+            feature = new PointFeature(new MPoint(x, y));
+            feature["PilotId"] = pilotId;
+            feature.Styles.Add(new SymbolStyle
+            {
+                SymbolType = SymbolType.Ellipse,
+                SymbolScale = OtherPilotSymbolScale,
+                Fill = new Brush(Color.Opacity(Color.FromString(OtherPilotFillColorHex), OtherPilotFillOpacity)),
+                Outline = new Pen(Color.Opacity(Color.FromString(OtherPilotOutlineColorHex), OtherPilotOutlineOpacity), OtherPilotOutlineWidth),
+            });
+            _otherPilotFeatures[pilotId] = feature;
+        }
+        else
+        {
+            feature.Point.X = x;
+            feature.Point.Y = y;
+        }
+
+        _otherPilotLayer.Features = _otherPilotFeatures.Values.ToArray();
+        _otherPilotLayer.DataHasChanged();
+
+        // interop.js: `waypoints.filter(w => (w.lat !== 0 || w.lon !== 0) && Math.abs(w.lat) <= 90
+        // && Math.abs(w.lon) <= 180)`.
+        var validCoordinates = (waypoints ?? Array.Empty<(double Lat, double Lon)>())
+            .Where(w => (w.Lat != 0 || w.Lon != 0) && Math.Abs(w.Lat) <= 90 && Math.Abs(w.Lon) <= 180)
+            .Select(w =>
+            {
+                var (wx, wy) = SphericalMercator.FromLonLat(w.Lon, w.Lat);
+                return new Coordinate(wx, wy);
+            })
+            .ToArray();
+
+        if (validCoordinates.Length >= 2)
+        {
+            if (!_otherPilotRouteFeatures.TryGetValue(pilotId, out var routeFeature))
+            {
+                routeFeature = new GeometryFeature { Geometry = new LineString(validCoordinates) };
+                routeFeature.Styles.Add(new VectorStyle
+                {
+                    Line = new Pen(Color.Opacity(Color.FromString(OtherPilotRouteColorHex), OtherPilotRouteOpacity), OtherPilotRouteWeight)
+                    {
+                        PenStyle = PenStyle.UserDefined,
+                        DashArray = OtherPilotRouteDashArray,
+                    },
+                });
+                _otherPilotRouteFeatures[pilotId] = routeFeature;
+            }
+            else
+            {
+                routeFeature.Geometry = new LineString(validCoordinates);
+            }
+        }
+        else
+        {
+            // Fewer than 2 valid points can't form a line. interop.js's route.setLatLngs() would
+            // happily accept a degenerate 0/1-point polyline; dropping the feature here is
+            // cleaner and avoids handing Mapsui's LineString fewer points than it requires.
+            _otherPilotRouteFeatures.Remove(pilotId);
+        }
+
+        _otherPilotRouteLayer.Features = _otherPilotRouteFeatures.Values.ToArray();
+        _otherPilotRouteLayer.DataHasChanged();
+    }
+
+    public void RemoveOtherPilot(string pilotId)
+    {
+        if (_otherPilotFeatures.Remove(pilotId) && _otherPilotLayer != null)
+        {
+            _otherPilotLayer.Features = _otherPilotFeatures.Values.ToArray();
+            _otherPilotLayer.DataHasChanged();
+        }
+
+        if (_otherPilotRouteFeatures.Remove(pilotId) && _otherPilotRouteLayer != null)
+        {
+            _otherPilotRouteLayer.Features = _otherPilotRouteFeatures.Values.ToArray();
+            _otherPilotRouteLayer.DataHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Resolves the pilotId stored by <see cref="UpsertOtherPilot"/> on a feature the page
+    /// identified via its own MapControl.Info hit-testing -- see the tap-handling boundary
+    /// documented on <see cref="UpsertOtherPilot"/>.
+    /// </summary>
+    public static string? GetOtherPilotId(IFeature feature) => feature["PilotId"] as string;
+
+    /// <summary>
     /// Fits the viewport to the planned-route points + airport markers combined, matching
     /// interop.js's fitRouteBounds() (`L.map.fitBounds(bounds, { padding: [48, 48], maxZoom: 10
     /// })`). Mapsui's <c>Navigator.ZoomToBox</c> has no pixel-padding parameter, so the padding is
@@ -531,6 +698,50 @@ public sealed class NativeMapRenderer : IDisposable
         Map.Navigator.CenterOnAndZoomTo(box.Centroid, resolution);
     }
 
+    /// <summary>
+    /// Recenters the viewport on the current own-aircraft position (Task 3). No original JS
+    /// equivalent -- interop.js has no dedicated "center on me" function; MapPage.razor's map
+    /// controls call panTo(vm.Lat, vm.Lon) directly for this button. Exposing it as its own
+    /// method here instead lets the renderer reuse the position it already tracks from
+    /// <see cref="UpdatePosition"/> rather than the page re-supplying coordinates it already
+    /// handed over. No-ops if <see cref="UpdatePosition"/> hasn't been called yet.
+    /// </summary>
+    public void CenterOnAircraft()
+    {
+        if (_aircraftFeature == null)
+        {
+            return;
+        }
+
+        Map.Navigator.CenterOn(_aircraftFeature.Point.X, _aircraftFeature.Point.Y, PanAnimationDurationMs);
+    }
+
+    /// <summary>
+    /// Exact behavioral port of interop.js's zoomIn() (<c>this._map.zoomIn()</c>). Leaflet
+    /// animates zoom-level changes by default via a ~0.25s CSS transition baked into its default
+    /// map options; Mapsui's <c>Navigator.ZoomIn</c> defaults to an instant jump (duration &lt;=
+    /// 0 skips animation entirely -- confirmed by decompiling Navigator.SetViewport), so an
+    /// explicit 250ms duration is passed to reproduce the same felt behavior. Leaflet's default
+    /// is a CSS rule, not an exported JS constant, so this is a close standard approximation
+    /// rather than a value ported verbatim.
+    /// </summary>
+    public void ZoomIn() => Map.Navigator.ZoomIn(ZoomAnimationDurationMs);
+
+    /// <summary>Exact behavioral port of interop.js's zoomOut() -- see <see cref="ZoomIn"/>.</summary>
+    public void ZoomOut() => Map.Navigator.ZoomOut(ZoomAnimationDurationMs);
+
+    /// <summary>
+    /// Exact port of interop.js's panTo(): <c>this._map.panTo([lat, lon], { animate: true,
+    /// duration: 0.5 })</c>. Mapsui's <c>Navigator.CenterOn</c> takes a duration in milliseconds
+    /// and animates whenever it's &gt; 0 (confirmed by decompiling Navigator.SetViewport), so 500
+    /// reproduces the original's 0.5s animated pan exactly -- no simplification needed.
+    /// </summary>
+    public void PanTo(double lat, double lon)
+    {
+        var (x, y) = SphericalMercator.FromLonLat(lon, lat);
+        Map.Navigator.CenterOn(x, y, PanAnimationDurationMs);
+    }
+
     public void Dispose()
     {
         Map.Layers.Clear();
@@ -539,11 +750,15 @@ public sealed class NativeMapRenderer : IDisposable
         _plannedRoutePoints.Clear();
         _airportMarkerPoints.Clear();
         _airportMarkerFeatures.Clear();
+        _otherPilotFeatures.Clear();
+        _otherPilotRouteFeatures.Clear();
         _aircraftLayer = null;
         _flownPathLayer = null;
         _flownPathAltitudeLayer = null;
         _plannedRouteLayer = null;
         _waypointLayer = null;
         _airportMarkerLayer = null;
+        _otherPilotLayer = null;
+        _otherPilotRouteLayer = null;
     }
 }
