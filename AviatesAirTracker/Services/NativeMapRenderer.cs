@@ -191,6 +191,19 @@ public sealed class NativeMapRenderer : IDisposable
             userAgent: TileUserAgent);
         Map.Layers.Add(new TileLayer(new BoundsCheckedTileSource(tileSource)) { Name = "Base" });
 
+        // Mapsui's own zoom-bounds calculation (Map.GetMinMaxResolution, confirmed by decompiling
+        // Mapsui.dll) lets the deepest reachable resolution go to HALF of the schema's smallest
+        // defined resolution -- i.e. it lets the + button/scroll zoom in "one extra level" beyond
+        // MaxZoomLevel by default. BoundsCheckedTileSource above already guards against any tile
+        // that ends up genuinely out of range, but the user still hit the placeholder in that
+        // over-zoom band in live testing (reported: the 14th zoom-in click broke, the 13th didn't).
+        // Overriding ZoomBounds to exactly the schema's own min/max resolution removes that extra
+        // half-level of headroom entirely, so the + button/scroll/pinch physically cannot zoom
+        // past MaxZoomLevel's native resolution -- confirmed with an isolated probe that simulated
+        // 20 consecutive ZoomIn() calls and never left the schema's defined range.
+        var schemaResolutions = tileSchema.Resolutions.Values.Select(r => r.UnitsPerPixel).ToList();
+        Map.Navigator.OverrideZoomBounds = new MMinMax(schemaResolutions.Min(), schemaResolutions.Max());
+
         _aircraftFeature = null;
         _aircraftLayer = new MemoryLayer
         {
