@@ -797,8 +797,10 @@ public sealed partial class SettingsPage : Page
     // Settings.razor. Selecting a device here only persists PttMicrophoneDeviceId/
     // PttSpeakerDeviceId to SettingsService -- it deliberately does NOT call anything shaped like
     // "aviatesVoice.setMicrophone"/"setSpeaker", because there is no native audio pipeline to
-    // receive that call yet (the actual PTT voice pipeline only runs inside the still-Blazor
-    // ACARS page today, regardless of which Settings UI wrote the device id).
+    // receive that call yet. The voice pipeline actually lives in Shared/MainLayout.razor (the
+    // global Blazor layout, bridging DispatchRadioService C# events to aviatesVoice.* JS), not on
+    // the ACARS page itself -- it's active on every still-Blazor route today, and stays that way
+    // regardless of which Settings UI wrote the device id, until MainLayout itself is converted.
 
     private async Task LoadAudioDevicesAsync()
     {
