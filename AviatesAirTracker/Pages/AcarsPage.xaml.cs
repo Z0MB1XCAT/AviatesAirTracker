@@ -1,6 +1,8 @@
 using AviatesAirTracker.Core.Analytics;
 using AviatesAirTracker.Core.Reference;
 using AviatesAirTracker.Core.SimConnect;
+using AviatesAirTracker.Dialogs;
+using AviatesAirTracker.Models;
 using AviatesAirTracker.Services;
 using AviatesAirTracker.ViewModels;
 using Microsoft.UI.Text;
@@ -16,7 +18,9 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.UI;
 
 namespace AviatesAirTracker.Pages;
@@ -36,6 +40,19 @@ public sealed class AcarsEventLogDisplayRow
 {
     public string TimeText { get; set; } = "";
     public string Description { get; set; } = "";
+}
+
+/// <summary>Pre-formatted display row for one Hoppies ACARS Log entry (Acars.razor:540-546) --
+/// same CS8852 rationale as AcarsEventLogDisplayRow above. StatusBrush is a genuinely-typed Brush
+/// property (not a hex string + converter), so {Binding StatusBrush} on a TextBlock.Foreground
+/// binds directly with no StringFormat/IValueConverter involved -- unlike the timestamp text
+/// formatting, a same-type property-to-property binding needs no Page.Resources converter entry.</summary>
+public sealed class HoppiesLogDisplayRow
+{
+    public string CategoryText { get; set; } = "";
+    public string StatusText { get; set; } = "";
+    public Brush StatusBrush { get; set; } = new SolidColorBrush(Color.FromArgb(0xFF, 0x64, 0x74, 0x8B));
+    public string TimeText { get; set; } = "";
 }
 
 /// <summary>
@@ -74,11 +91,41 @@ public sealed partial class AcarsPage : Page
     // carrying the stale magic number forward, matching every other native page's accent usage.
     private static readonly Brush ActivePhaseRowBrush = new SolidColorBrush(Color.FromArgb(0x14, 0x4D, 0x9B, 0xEC));
 
+    // Task 4 additions: accent/red for the Hoppies log SENT/FAILED text, and the four
+    // .completion-stat-value.vs-* colors for the completion overlay's landing-VS stat.
+    private static readonly Brush AccentBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x4D, 0x9B, 0xEC));
+    private static readonly Brush RedBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0xEF, 0x44, 0x44));
+    private static readonly Brush VsGreenBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x22, 0xC5, 0x5E));
+    private static readonly Brush VsAmberBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0xF5, 0x9E, 0x0B));
+    private static readonly Brush VsRedBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0xEF, 0x44, 0x44));
+    private static readonly Brush VsNeutralBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x94, 0xA3, 0xB8));
+    private static readonly Brush TextMutedBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x64, 0x74, 0x8B));
+    private static readonly Brush TextSecondaryBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0xCB, 0xD5, 0xE1));
+    private static readonly Brush BorderBrush_ = new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
+    // Waypoint route strip's DEP/ARR fix-tag chips -- var(--green)/var(--green-light) and
+    // var(--amber)/var(--amber-light) from app.css (dark theme leaves --green at the root's
+    // #3EC7AC; --amber is #F59E0B in both themes), matching the same ~0.12/~0.10 alpha-hex
+    // convention this page's own LiveGroupPanel/CompleteChipBorder Background values already use.
+    private static readonly Brush GreenChipBg = new SolidColorBrush(Color.FromArgb(0x1F, 0x3E, 0xC7, 0xAC));
+    private static readonly Brush GreenChipBorder = new SolidColorBrush(Color.FromArgb(0xFF, 0x3E, 0xC7, 0xAC));
+    private static readonly Brush GreenChipText = new SolidColorBrush(Color.FromArgb(0xFF, 0x3E, 0xC7, 0xAC));
+    private static readonly Brush AmberChipBg = new SolidColorBrush(Color.FromArgb(0x1A, 0xF5, 0x9E, 0x0B));
+    private static readonly Brush AmberChipBorder = new SolidColorBrush(Color.FromArgb(0xFF, 0xF5, 0x9E, 0x0B));
+    private static readonly Brush AmberChipText = new SolidColorBrush(Color.FromArgb(0xFF, 0xF5, 0x9E, 0x0B));
+
     private readonly AcarsViewModel _vm;
     private readonly FlightSessionManager _session;
     private readonly SimConnectManager _simConnect;
     private readonly FlightPhaseDetector _phaseDetector;
     private readonly BookingService _booking;
+    // Task 4: PilotHubViewModel is needed only for the completion overlay's rank-before/-after
+    // snapshot (AcarsViewModel deviation #1 -- the VM has no PilotHubViewModel dependency of its
+    // own, so the page supplies RankBeforeSnapshot/NotifyRankRefreshed from here). FlightTrailService
+    // is needed only for the OFP-import wipe-warning's Clear() call -- the VM only ever *reads* the
+    // trail (WouldWipeTrail/GetTrailIfChanged), never clears it (see AcarsViewModel.ApplyImportedPlanAsync's
+    // own doc comment: "the page calls FlightTrailService.Clear() itself, separately, only on confirm").
+    private readonly PilotHubViewModel _pilotHub;
+    private readonly FlightTrailService _flightTrail;
 
     private readonly NativeMapRenderer _renderer;
     private readonly Mapsui.UI.WinUI.MapControl _mapControl;
@@ -89,6 +136,14 @@ public sealed partial class AcarsPage : Page
     // OnEventLogCollectionChanged inserting each new entry at index 0).
     private readonly ObservableCollection<AcarsEventLogDisplayRow> _eventLogRows = [];
 
+    // Page-local mirror of AcarsViewModel.HoppiesLog. Unlike EventLog, HoppiesLog is already
+    // newest-first at the VM (constructor seeds via TakeLast(50).Reverse().Add(), live entries via
+    // Insert(0, entry)), so no reversal is needed here -- this mirror exists only to precompute
+    // TimeText/StatusText/StatusBrush the same way AcarsEventLogDisplayRow precomputes TimeText (see
+    // that class's own doc comment). A full rebuild on every CollectionChanged (rather than
+    // delta-patching Add/Remove/Reset individually) is simplest and cheap at HoppiesLog's 50-entry cap.
+    private readonly ObservableCollection<HoppiesLogDisplayRow> _hoppiesLogRows = [];
+
     // CLAUDE.md: "Do not call StateHasChanged() on every 20Hz tick -- batch every 3-5 samples."
     // AcarsViewModel.UpdateTelemetry already does its own internal /5 decimation for its own
     // properties, but this page's own TextBlock/MapControl writes are separately decimated here to
@@ -98,6 +153,17 @@ public sealed partial class AcarsPage : Page
     private int _uiTickCount = 4; // matches AcarsViewModel/MapViewModel's own seed so the first tick passes
 
     private DispatcherTimer? _utcClockTimer;
+    // Legacy 10-minute METAR auto-refresh (Acars.razor's own System.Threading.Timer) -- kept as a
+    // page-owned DispatcherTimer per AcarsViewModel's own class-doc deviation #2 ("no ViewModel
+    // anywhere owns a DispatcherTimer... this ViewModel therefore exposes RefreshMetarsAsync() for
+    // the page's own DispatcherTimer to call every 10 minutes").
+    private DispatcherTimer? _metarTimer;
+
+    // Page-local UI-only state (collapsed-panel booleans, "just copied" flash) -- matches the
+    // design spec's own carve-out and AcarsViewModel's class-doc deviation #4.
+    private bool _showNotams;
+    private bool _showOfp;
+    private bool _pirepCopied;
 
     public AcarsPage()
     {
@@ -108,8 +174,11 @@ public sealed partial class AcarsPage : Page
         _simConnect = App.GetService<SimConnectManager>();
         _phaseDetector = App.GetService<FlightPhaseDetector>();
         _booking = App.GetService<BookingService>();
+        _pilotHub = App.GetService<PilotHubViewModel>();
+        _flightTrail = App.GetService<FlightTrailService>();
 
         EventLogItemsControl.ItemsSource = _eventLogRows;
+        HoppiesLogItemsControl.ItemsSource = _hoppiesLogRows;
 
         // Same construction pattern as MapPage.xaml.cs: NativeMapRenderer(map: null) creates and
         // owns its own Mapsui.Map, handed to the MapControl below to "pre-wire" it. This mini-map
@@ -131,8 +200,12 @@ public sealed partial class AcarsPage : Page
         _simConnect.ConnectionStatusChanged += OnSimConnectionStatusChanged;
         _session.SessionStateChanged += OnSessionStateChanged;
         _session.TelemetryUpdated += OnTelemetryUpdated;
+        _session.FlightCompleted += OnFlightCompleted;
         _phaseDetector.PhaseChanged += OnPhaseChanged;
+        _pilotHub.DataRefreshed += OnPilotHubDataRefreshed;
         _vm.EventLog.CollectionChanged += OnEventLogCollectionChanged;
+        _vm.HoppiesLog.CollectionChanged += OnHoppiesLogCollectionChanged;
+        _vm.PosReportHistory.CollectionChanged += OnPosReportHistoryCollectionChanged;
 
         var snap = _session.LatestTelemetry;
         _renderer.Init(snap?.Latitude ?? 0, snap?.Longitude ?? 0);
@@ -149,9 +222,16 @@ public sealed partial class AcarsPage : Page
         _utcClockTimer.Start();
         UpdateUtcClock();
 
+        // 10-minute METAR auto-refresh -- see AcarsViewModel's class-doc deviation #2 for why this
+        // timer lives here rather than in the ViewModel.
+        _metarTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(10) };
+        _metarTimer.Tick += async (_, _) => await RefreshMetarsAsync();
+        _metarTimer.Start();
+
         // Mirrors Acars.razor's OnAfterRenderAsync(firstRender): render whatever state already
         // exists the moment this page opens, not just future updates.
         SeedEventLogMirror();
+        SeedHoppiesLogMirror();
         RefreshAllSections();
 
         try
@@ -173,11 +253,17 @@ public sealed partial class AcarsPage : Page
         _simConnect.ConnectionStatusChanged -= OnSimConnectionStatusChanged;
         _session.SessionStateChanged -= OnSessionStateChanged;
         _session.TelemetryUpdated -= OnTelemetryUpdated;
+        _session.FlightCompleted -= OnFlightCompleted;
         _phaseDetector.PhaseChanged -= OnPhaseChanged;
+        _pilotHub.DataRefreshed -= OnPilotHubDataRefreshed;
         _vm.EventLog.CollectionChanged -= OnEventLogCollectionChanged;
+        _vm.HoppiesLog.CollectionChanged -= OnHoppiesLogCollectionChanged;
+        _vm.PosReportHistory.CollectionChanged -= OnPosReportHistoryCollectionChanged;
 
         _utcClockTimer?.Stop();
         _utcClockTimer = null;
+        _metarTimer?.Stop();
+        _metarTimer = null;
     }
 
     private void RefreshAllSections()
@@ -190,6 +276,8 @@ public sealed partial class AcarsPage : Page
         UpdatePhaseLadder();
         UpdateSimBriefCard();
         UpdateAcarsKeyCard();
+        UpdateOfpDetailsStrip();
+        UpdateCompletionOverlay();
     }
 
     // ── SimConnectManager.ConnectionStatusChanged / FlightSessionManager.SessionStateChanged /
@@ -222,6 +310,7 @@ public sealed partial class AcarsPage : Page
             {
                 UpdateConnectionBanner();
                 UpdatePhaseLadder();
+                UpdatePirepPanel();
             }
             catch (Exception ex)
             {
@@ -262,6 +351,7 @@ public sealed partial class AcarsPage : Page
                 UpdateProgressStrip();
                 UpdateBookingBanner();
                 UpdatePhaseLadder();
+                UpdatePirepPanel();
 
                 _renderer.UpdatePosition(snap.Latitude, snap.Longitude, snap.Raw.HeadingTrue);
                 var trail = _vm.GetTrailIfChanged();
@@ -301,15 +391,21 @@ public sealed partial class AcarsPage : Page
         UpdateConnectionBanner();
     }
 
-    // Task 4's job to replace this with a real ContentDialog (title/message/Confirm/Cancel) --
-    // deliberately a no-op stub for Task 3, per the implementation plan's own explicit allowance:
-    // "wire the button here, the dialog itself is Task 4's job -- a stub/no-op handler is fine for
-    // this task if sequencing is awkward, note if so." Calling Session.EndFlightManually()
-    // directly here (skipping confirmation) would defeat the point of the dialog the design spec
-    // asks for, so this intentionally does nothing yet rather than a lossy partial implementation.
-    private void OnEndFlightTapped(object sender, TappedRoutedEventArgs e)
+    // Task 4: real confirm dialog, gating AcarsViewModel.EndFlight() (-> Session.EndFlightManually())
+    // behind an explicit Confirm tap. ConfirmDialog.ShowAsync only returns true for the primary
+    // (confirm) button -- Cancel/close/light-dismiss all return false, so EndFlight() is never
+    // called on anything but an explicit confirm.
+    private async void OnEndFlightTapped(object sender, TappedRoutedEventArgs e)
     {
-        // Intentionally empty -- see method doc comment above.
+        var confirmed = await ConfirmDialog.ShowAsync(
+            XamlRoot,
+            "End Flight?",
+            "This will end your current flight and finalize the flight record. This cannot be undone.",
+            "End Flight",
+            "Cancel");
+
+        if (confirmed)
+            _vm.EndFlight();
     }
 
     // ── Active booking banner ───────────────────────────────────────────────────────────────
@@ -497,10 +593,14 @@ public sealed partial class AcarsPage : Page
         RefreshAllSections();
     }
 
-    // Task 4 adds the WouldWipeTrail(...) confirmation ContentDialog gate here (see this class's
-    // doc comment and AcarsPage.xaml's header comment) -- for now this always fetches and applies
-    // the plan directly, matching the plan's own explicit Task 3/4 split (the OFP-import
-    // wipe-warning dialog is listed under Task 4, not Task 3).
+    // Task 4: the OFP-import wipe-warning gate. FetchSimBriefPlanAsync always runs first (matching
+    // Task 3's own sequencing); WouldWipeTrail(...) then decides (ViewModel-owned decision, per its
+    // own doc comment: "the ViewModel decides, the page prompts") whether the fetched plan would
+    // require clearing the persistent flight trail. If true, ConfirmDialog gates BOTH the trail
+    // clear AND the plan application behind an explicit Confirm tap -- declining leaves the
+    // previously-loaded plan and the recorded trail completely untouched (the whole import is
+    // cancelled, not half-applied). If WouldWipeTrail is false (same dep+arr, or same flight
+    // number), the plan is applied immediately with no dialog, identical to Task 3's own behavior.
     private async void OnImportOfpTapped(object sender, TappedRoutedEventArgs e) => await ImportOrRefreshOfpAsync();
 
     private async void OnRefreshOfpTapped(object sender, TappedRoutedEventArgs e) => await ImportOrRefreshOfpAsync();
@@ -509,9 +609,31 @@ public sealed partial class AcarsPage : Page
     {
         RefreshAllSections(); // reflect LoadingSimBrief=true immediately
         var (plan, _) = await _vm.FetchSimBriefPlanAsync();
-        if (plan is not null)
-            await _vm.ApplyImportedPlanAsync(plan);
+        if (plan is null)
+        {
+            RefreshAllSections(); // reflect LoadingSimBrief=false / SimBriefError, if any
+            return;
+        }
 
+        if (_vm.WouldWipeTrail(plan))
+        {
+            var confirmed = await ConfirmDialog.ShowAsync(
+                XamlRoot,
+                "Clear Flight Trail?",
+                "Importing this OFP will clear your recorded flight trail. Continue?",
+                "Continue",
+                "Cancel");
+
+            if (!confirmed)
+            {
+                RefreshAllSections(); // LoadingSimBrief already false (FetchSimBriefPlanAsync's own finally)
+                return; // cancel the whole import -- old plan and trail both stay exactly as they were
+            }
+
+            _flightTrail.Clear();
+        }
+
+        await _vm.ApplyImportedPlanAsync(plan);
         RefreshAllSections();
     }
 
@@ -559,6 +681,428 @@ public sealed partial class AcarsPage : Page
     }
 
     private void OnConfigureAcarsTapped(object sender, TappedRoutedEventArgs e) => Frame.Navigate(typeof(SettingsPage));
+
+    // ── SimBrief OFP details strip (Acars.razor:395-664) — Task 4 ──────────────────────────────
+    // Entirely gated on FlightPlan != null, matching Acars.razor's own single @if wrapping the
+    // whole strip (waypoint route, METAR cards, NOTAMs, Hoppies log, OFP text, PIREP panel).
+
+    private void UpdateOfpDetailsStrip()
+    {
+        var hasPlan = _vm.FlightPlan is not null;
+        OfpDetailsStripPanel.Visibility = hasPlan ? Visibility.Visible : Visibility.Collapsed;
+        if (!hasPlan) return;
+
+        UpdateWaypointRouteStrip();
+        UpdateMetarCards();
+        UpdateNotamsPanel();
+        UpdateOfpTextPanel();
+        UpdatePirepPanel();
+    }
+
+    // ── Waypoint route strip (Acars.razor:401-437) ──────────────────────────────────────────────
+
+    private void UpdateWaypointRouteStrip()
+    {
+        var plan = _vm.FlightPlan;
+        var hasWaypoints = plan is not null && plan.Waypoints.Count > 0;
+        WaypointStripBorder.Visibility = hasWaypoints ? Visibility.Visible : Visibility.Collapsed;
+        if (!hasWaypoints || plan is null) return;
+
+        WaypointStripTitleText.Text = $"Route — {plan.DepartureICAO} → {plan.ArrivalICAO}";
+
+        // SID/STAR label line -- falls back to the runway when no SID/STAR name is present,
+        // matching Acars.razor:407-408 exactly. The original also color-differentiates the " · "
+        // separators (var(--border)) from the label text (var(--text-muted)); this uses a single
+        // uniform muted color instead -- a minor, purely decorative simplification (no Style/
+        // converter needed either way), noted here rather than silently dropped.
+        var sidText = !string.IsNullOrWhiteSpace(plan.SID) ? plan.SID : plan.DepartureRunway;
+        var starText = !string.IsNullOrWhiteSpace(plan.STAR) ? plan.STAR : plan.ArrivalRunway;
+        var sb = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(sidText))
+        {
+            sb.Append("SID: ").Append(sidText);
+            if (!string.IsNullOrWhiteSpace(plan.DepartureRunway) && !string.IsNullOrWhiteSpace(plan.SID))
+                sb.Append(" · Rwy ").Append(plan.DepartureRunway);
+        }
+        if (!string.IsNullOrWhiteSpace(sidText) && !string.IsNullOrWhiteSpace(starText)) sb.Append("  ·  ");
+        if (!string.IsNullOrWhiteSpace(starText))
+        {
+            sb.Append("STAR: ").Append(starText);
+            if (!string.IsNullOrWhiteSpace(plan.ArrivalRunway) && !string.IsNullOrWhiteSpace(plan.STAR))
+                sb.Append(" · Rwy ").Append(plan.ArrivalRunway);
+        }
+        WaypointSidStarText.Text = sb.ToString();
+        WaypointSidStarText.Visibility = sb.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        // Scrollable fix-tag chips: DEP (green) -- intermediate fixes (type != "ltlg", surface-2) --
+        // ARR (amber). Built in code (count varies per OFP), matching how the instrument row/phase
+        // ladder above build their own fixed-count rows directly rather than via an ItemsControl.
+        WaypointChipsPanel.Children.Clear();
+        WaypointChipsPanel.Children.Add(BuildFixChip(plan.DepartureICAO, GreenChipBg, GreenChipBorder, GreenChipText, bold: true));
+        foreach (var wp in plan.Waypoints.Where(w => w.Type != "ltlg"))
+            WaypointChipsPanel.Children.Add(BuildFixChip(wp.Identifier, Surface2Brush, BorderBrush_, TextSecondaryBrush, bold: false));
+        WaypointChipsPanel.Children.Add(BuildFixChip(plan.ArrivalICAO, AmberChipBg, AmberChipBorder, AmberChipText, bold: true));
+
+        var hasRoute = !string.IsNullOrWhiteSpace(plan.Route);
+        WaypointRawRouteText.Visibility = hasRoute ? Visibility.Visible : Visibility.Collapsed;
+        WaypointRawRouteText.Text = hasRoute ? plan.Route : "";
+    }
+
+    private static Border BuildFixChip(string text, Brush background, Brush border, Brush foreground, bool bold) => new()
+    {
+        Background = background,
+        BorderBrush = border,
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(6),
+        Padding = new Thickness(bold ? 8 : 7, 3, bold ? 8 : 7, 3),
+        Child = new TextBlock
+        {
+            Text = text,
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 10,
+            FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
+            Foreground = foreground,
+        },
+    };
+
+    // ── METAR cards — DEP / ARR / ALT (Acars.razor:439-506) ─────────────────────────────────────
+
+    private void UpdateMetarCards()
+    {
+        var plan = _vm.FlightPlan;
+        if (plan is null) { MetarCardsGrid.Visibility = Visibility.Collapsed; return; }
+
+        var depText = _vm.DepMetar ?? plan.DepartureMetar;
+        var arrText = _vm.ArrMetar ?? plan.ArrivalMetar;
+        var altText = _vm.AltMetar;
+
+        var showDep = !string.IsNullOrWhiteSpace(depText);
+        var showArr = !string.IsNullOrWhiteSpace(arrText);
+        var showAlt = !string.IsNullOrWhiteSpace(altText) && !string.IsNullOrWhiteSpace(plan.AlternateICAO);
+        MetarCardsGrid.Visibility = showDep || showArr || showAlt ? Visibility.Visible : Visibility.Collapsed;
+
+        var timeText = _vm.MetarRefreshedAt is { } t ? t.ToString("HH:mm") : "";
+
+        DepMetarCardBorder.Visibility = showDep ? Visibility.Visible : Visibility.Collapsed;
+        if (showDep)
+        {
+            DepMetarTitleText.Text = $"DEP METAR — {plan.DepartureICAO}";
+            DepMetarTimeText.Text = timeText;
+            DepMetarBodyText.Text = depText;
+            DepMetarRefreshIconText.Text = _vm.MetarRefreshing ? "…" : "↻";
+        }
+
+        ArrMetarCardBorder.Visibility = showArr ? Visibility.Visible : Visibility.Collapsed;
+        if (showArr)
+        {
+            ArrMetarTitleText.Text = $"ARR METAR — {plan.ArrivalICAO}";
+            ArrMetarTimeText.Text = timeText;
+            ArrMetarBodyText.Text = arrText;
+            ArrMetarRefreshIconText.Text = _vm.MetarRefreshing ? "…" : "↻";
+        }
+
+        AltMetarCardBorder.Visibility = showAlt ? Visibility.Visible : Visibility.Collapsed;
+        if (showAlt)
+        {
+            AltMetarTitleText.Text = $"ALT METAR — {plan.AlternateICAO}";
+            AltMetarTimeText.Text = timeText;
+            AltMetarBodyText.Text = altText;
+            AltMetarRefreshIconText.Text = _vm.MetarRefreshing ? "…" : "↻";
+        }
+    }
+
+    private async void OnRefreshMetarsTapped(object sender, TappedRoutedEventArgs e)
+    {
+        await RefreshMetarsAsync();
+    }
+
+    private async Task RefreshMetarsAsync()
+    {
+        await _vm.RefreshMetarsAsync();
+        UpdateMetarCards();
+    }
+
+    // ── NOTAMs panel — collapsible (Acars.razor:508-526) ────────────────────────────────────────
+
+    private void UpdateNotamsPanel()
+    {
+        var plan = _vm.FlightPlan;
+        var hasNotams = plan is not null && plan.NOTAMs.Count > 0;
+        NotamsBorder.Visibility = hasNotams ? Visibility.Visible : Visibility.Collapsed;
+        if (!hasNotams || plan is null) return;
+
+        NotamsCountText.Text = $"({plan.NOTAMs.Count})";
+        NotamsChevronText.Text = _showNotams ? "▲" : "▼";
+        NotamsListPanel.Visibility = _showNotams ? Visibility.Visible : Visibility.Collapsed;
+
+        if (!_showNotams) return; // no need to rebuild the (collapsed) list every refresh
+
+        NotamsListPanel.Children.Clear();
+        foreach (var notam in plan.NOTAMs)
+        {
+            NotamsListPanel.Children.Add(new Border
+            {
+                Background = Surface2Brush,
+                BorderBrush = BorderBrush_,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(12),
+                Padding = new Thickness(12, 10, 12, 10),
+                Child = new TextBlock
+                {
+                    Text = notam,
+                    FontFamily = new FontFamily("Consolas"),
+                    FontSize = 11,
+                    Foreground = TextSecondaryBrush,
+                    TextWrapping = TextWrapping.Wrap,
+                },
+            });
+        }
+    }
+
+    private void OnToggleNotamsTapped(object sender, TappedRoutedEventArgs e)
+    {
+        _showNotams = !_showNotams;
+        UpdateNotamsPanel();
+    }
+
+    // ── Hoppies ACARS Log panel — read-only (Acars.razor:528-550) ──────────────────────────────
+    // Already seeded from HoppiesAcarsOrchestrator.MessageLog by AcarsViewModel's own constructor
+    // (the design spec's named fix) -- SeedHoppiesLogMirror below just mirrors whatever VM.HoppiesLog
+    // already holds the moment this page loads, then OnHoppiesLogCollectionChanged keeps it current.
+
+    private void SeedHoppiesLogMirror()
+    {
+        _hoppiesLogRows.Clear();
+        foreach (var entry in _vm.HoppiesLog) // already newest-first at the VM
+            _hoppiesLogRows.Add(ToHoppiesDisplayRow(entry));
+
+        UpdateHoppiesLogEmptyState();
+    }
+
+    private void OnHoppiesLogCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => SeedHoppiesLogMirror();
+
+    private void UpdateHoppiesLogEmptyState()
+    {
+        var hasEntries = _hoppiesLogRows.Count > 0;
+        HoppiesLogEmptyText.Visibility = hasEntries ? Visibility.Collapsed : Visibility.Visible;
+        HoppiesLogScrollViewer.Visibility = hasEntries ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static HoppiesLogDisplayRow ToHoppiesDisplayRow(HoppiesLogEntry entry) => new()
+    {
+        CategoryText = entry.Category,
+        StatusText = entry.Success ? "SENT" : "FAILED",
+        StatusBrush = entry.Success ? AccentBrush : RedBrush,
+        TimeText = entry.SentAtUtc.ToString("HH:mm:ss") + "Z",
+    };
+
+    // ── OFP text viewer — collapsible (Acars.razor:552-567) ─────────────────────────────────────
+
+    private void UpdateOfpTextPanel()
+    {
+        var plan = _vm.FlightPlan;
+        var hasText = plan is not null && !string.IsNullOrWhiteSpace(plan.OFPText);
+        OfpTextBorder.Visibility = hasText ? Visibility.Visible : Visibility.Collapsed;
+        if (!hasText || plan is null) return;
+
+        OfpTextChevronText.Text = _showOfp ? "▲" : "▼";
+        OfpTextScrollViewer.Visibility = _showOfp ? Visibility.Visible : Visibility.Collapsed;
+        if (_showOfp)
+            OfpTextBodyText.Text = plan.OFPText;
+    }
+
+    private void OnToggleOfpTextTapped(object sender, TappedRoutedEventArgs e)
+    {
+        _showOfp = !_showOfp;
+        UpdateOfpTextPanel();
+    }
+
+    // ── Position Report / PIREP panel (Acars.razor:569-661) ─────────────────────────────────────
+
+    private void UpdatePirepPanel()
+    {
+        if (_vm.FlightPlan is null) return; // panel itself is inside OfpDetailsStripPanel's gate
+
+        PirepAutoBadgeBorder.Visibility = _vm.Settings.Settings.AutoPirepIntervalMinutes > 0
+            ? Visibility.Visible : Visibility.Collapsed;
+        if (_vm.PosReportHistory.Count > 0)
+            PirepLastReportText.Text = $"Last: {_vm.PosReportHistory[^1]:HH:mm}Z";
+        else
+            PirepLastReportText.Text = "Auto-filled from telemetry";
+
+        PirepPositionText.Text = _session.LatestTelemetry is not null ? _vm.CoordsText : "—";
+        PirepAltitudeText.Text = $"{_vm.AltText} ft";
+        PirepIasGsText.Text = $"{_vm.IasText} / {_vm.GsText} kts";
+        PirepFuelText.Text = $"{_vm.FuelText} lbs";
+        PirepEtaLabelText.Text = $"ETA {_vm.FlightPlan!.ArrivalICAO}";
+        PirepEtaText.Text = _vm.EtaText;
+        PirepPhaseText.Text = _vm.SessionState.ToString();
+
+        var showCruise = _vm.CruiseLabel != "—";
+        PirepCruiseBorder.Visibility = showCruise ? Visibility.Visible : Visibility.Collapsed;
+        if (showCruise)
+        {
+            PirepCruiseLabelText.Text = $"CRUISE FL{_vm.FlightPlan.CruiseAltitudeFt / 100:D3}";
+            PirepCruiseValueText.Text = _vm.CruiseLabel;
+            PirepCruiseValueText.Foreground = BrushFromHex(_vm.CruiseColorHex);
+        }
+
+        var hasHistory = _vm.PosReportHistory.Count > 0;
+        PirepRecentReportsPanel.Visibility = hasHistory ? Visibility.Visible : Visibility.Collapsed;
+        if (hasHistory)
+        {
+            PirepRecentReportsChipsPanel.Children.Clear();
+            foreach (var rpt in _vm.PosReportHistory.Reverse().Take(5))
+            {
+                PirepRecentReportsChipsPanel.Children.Add(new Border
+                {
+                    Background = Surface2Brush,
+                    BorderBrush = BorderBrush_,
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(6),
+                    Padding = new Thickness(8, 3, 8, 3),
+                    Child = new TextBlock
+                    {
+                        Text = rpt.ToString("HH:mm") + "Z",
+                        FontFamily = new FontFamily("Consolas"),
+                        FontSize = 10,
+                        Foreground = TextMutedBrush,
+                    },
+                });
+            }
+        }
+
+        var hasAcarsKey = !string.IsNullOrWhiteSpace(_vm.Settings.Settings.AcarsKey);
+        var canSubmit = !_vm.PirepSubmitting && _session.LatestTelemetry is not null && hasAcarsKey;
+        SubmitPirepButtonText.Text = _vm.PirepSubmitting ? "Sending..." : (_vm.PirepSubmitResult ?? "Submit Position Report");
+        SubmitPirepButtonBorder.Opacity = canSubmit ? 1.0 : 0.5;
+        PirepConfigureAcarsText.Visibility = hasAcarsKey ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void OnPosReportHistoryCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => UpdatePirepPanel();
+
+    private void OnPirepRemarksTextChanged(object sender, TextChangedEventArgs e) => _vm.PirepRemarks = PirepRemarksTextBox.Text;
+
+    private async void OnCopyPirepTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (_pirepCopied) return; // ignore a fast double-tap while the flash is already showing
+
+        var package = new DataPackage();
+        package.SetText(_vm.BuildPirepText());
+        Clipboard.SetContent(package);
+
+        _pirepCopied = true;
+        CopyPirepButtonText.Text = "✓ Copied to clipboard";
+
+        await Task.Delay(2200); // matches Acars.razor's own Task.Delay(2200)
+
+        _pirepCopied = false;
+        CopyPirepButtonText.Text = "Copy PIREP Text";
+    }
+
+    private async void OnSubmitPirepTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (_vm.PirepSubmitting || _session.LatestTelemetry is null || string.IsNullOrWhiteSpace(_vm.Settings.Settings.AcarsKey))
+            return;
+
+        UpdatePirepPanel(); // reflect "Sending..." immediately
+        await _vm.SubmitPositionReportAsync();
+        UpdatePirepPanel();
+        await Task.Delay(2500); // matches AcarsViewModel.SubmitPositionReportAsync's own Task.Delay(2500)
+        UpdatePirepPanel(); // clears the transient "✓ Sent"/"Failed" result text
+    }
+
+    // ── Flight completion overlay (Acars.razor:1414-1479) ───────────────────────────────────────
+    // AcarsViewModel's own Session.FlightCompleted subscription (registered at DI-singleton
+    // construction, well before this page's Loaded ever runs) always finishes updating
+    // CompletedRecord/ShowCompletionPanel before this page's own handler (subscribed later) runs --
+    // see this class's own doc comment for the full ordering argument. This handler's only real job
+    // is therefore the piece AcarsViewModel deliberately cannot do itself (deviation #1): snapshot
+    // PilotHubViewModel.PilotRank into RankBeforeSnapshot right now, before any later
+    // PilotHub.DataRefreshed fires and moves PilotRank on.
+
+    private void OnFlightCompleted(object? sender, FlightRecord record)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            try
+            {
+                _vm.RankBeforeSnapshot = _pilotHub.PilotRank;
+                UpdateCompletionOverlay();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "[Acars] Flight-completion overlay refresh failed");
+            }
+        });
+    }
+
+    private void OnPilotHubDataRefreshed()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            try
+            {
+                _vm.NotifyRankRefreshed(_pilotHub.PilotRank);
+                UpdateCompletionOverlay();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "[Acars] Rank-refresh overlay update failed");
+            }
+        });
+    }
+
+    private void UpdateCompletionOverlay()
+    {
+        var show = _vm.ShowCompletionPanel && _vm.CompletedRecord is not null;
+        CompletionOverlayGrid.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (!show) return;
+
+        var record = _vm.CompletedRecord!;
+        CompletionDepText.Text = record.DepartureICAO;
+        CompletionArrText.Text = record.ArrivalICAO;
+        CompletionSubText.Text = string.IsNullOrEmpty(record.Callsign)
+            ? record.AircraftType
+            : $"{record.AircraftType} · {record.Callsign}";
+
+        CompletionVsText.Text = AcarsViewModel.FormatVS(record);
+        CompletionVsText.Foreground = AcarsViewModel.LandingVsClass(record) switch
+        {
+            "green" => VsGreenBrush,
+            "amber" => VsAmberBrush,
+            "red" => VsRedBrush,
+            _ => VsNeutralBrush,
+        };
+        CompletionScoreText.Text = record.PrimaryLanding?.LandingScore.ToString() ?? "—";
+        CompletionAirTimeText.Text = AcarsViewModel.FormatAirTime(record.AirTime);
+        CompletionDistanceText.Text = $"{record.ActualDistanceNm:F0} nm";
+        CompletionFuelText.Text = $"{record.FuelUsedLbs:F0} lbs";
+
+        var rankUp = _vm.RankUp;
+        CompletionRankupBorder.Visibility = rankUp is not null ? Visibility.Visible : Visibility.Collapsed;
+        if (rankUp is not null)
+            CompletionRankupValueText.Text = rankUp;
+    }
+
+    private void OnCompletionOverlayTapped(object sender, TappedRoutedEventArgs e) => DismissCompletionOverlay();
+
+    // Stops the tap from bubbling to CompletionOverlayGrid's own Tapped handler (which would
+    // otherwise dismiss the panel on every tap inside it) -- mirrors Acars.razor's
+    // @onclick:stopPropagation="true" on .completion-panel.
+    private void OnCompletionPanelTapped(object sender, TappedRoutedEventArgs e) => e.Handled = true;
+
+    private void OnCompletionDismissTapped(object sender, TappedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        DismissCompletionOverlay();
+    }
+
+    private void DismissCompletionOverlay()
+    {
+        _vm.DismissCompletionPanel();
+        UpdateCompletionOverlay();
+    }
 
     // ── Mini-map: "Full Map ↗" ──────────────────────────────────────────────────────────────
 

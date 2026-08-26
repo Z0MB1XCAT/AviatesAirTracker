@@ -21,14 +21,13 @@
       ported — confirmed by the design spec's research to be purely decorative (hardcoded
       placeholder text, not wired to any real data), dropped as a small, explicit scope cut.
 
-      Task 4 (not this file's job yet) adds: the OFP details strip (waypoint route, METAR cards,
+      Task 4 (this file's job now) adds: the OFP details strip (waypoint route, METAR cards,
       NOTAMs, Hoppies ACARS log, OFP text viewer, PIREP panel), the End Flight confirmation
-      ContentDialog, the OFP-import wipe-warning ContentDialog, and the flight completion overlay.
-      The End Flight button below is wired to a stub handler for exactly this reason (see
-      AcarsPage.xaml.cs's OnEndFlightTapped) — the plan's own Task 3 step 3 explicitly allows
-      this: "wire the button here, the dialog itself is Task 4's job". Likewise "Import Latest
-      OFP"/"Refresh OFP" apply the fetched plan directly without the wipe-warning gate — Task 4's
-      job per the plan's own Task 3/4 split; noted again on OnImportOfpTapped/OnRefreshOfpTapped.
+      ContentDialog (AviatesAirTracker.Dialogs.ConfirmDialog — the first plain confirm-modal in
+      this migration), the OFP-import wipe-warning ContentDialog (same ConfirmDialog), and the
+      flight completion overlay (a right-docked slide-in panel, positioned via a wrapping Grid
+      below rather than the ScrollViewer being the Page's sole child, so it can render on top of
+      the whole scrollable page like Acars.razor's own `position:fixed; inset:0` overlay).
 
       Mini-map: a second, independent Mapsui.UI.WinUI.MapControl + NativeMapRenderer instance
       (constructed in code-behind, matching MapPage.xaml.cs's convention of never declaring the
@@ -42,6 +41,7 @@
       already made for its refresh icon ("Static icon, not spun on IsLoading").
     -->
 
+    <Grid>
     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
         <StackPanel MaxWidth="1440" Spacing="20" HorizontalAlignment="Stretch">
 
@@ -554,6 +554,377 @@
                 </StackPanel>
             </Border>
 
+            <!-- ── SimBrief OFP details strip (Acars.razor:395-664) — only when a plan is loaded ── -->
+            <StackPanel x:Name="OfpDetailsStripPanel" Spacing="20" Visibility="Collapsed">
+
+                <!-- Waypoint route strip (Acars.razor:401-437) -->
+                <Border x:Name="WaypointStripBorder"
+                        Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20"
+                        Visibility="Collapsed">
+                    <StackPanel Spacing="10">
+                        <Grid>
+                            <TextBlock x:Name="WaypointStripTitleText" Text="Route" FontFamily="{StaticResource DisplayFontBold}"
+                                       FontSize="15" Foreground="#F1F5F9" HorizontalAlignment="Left" />
+                            <TextBlock x:Name="WaypointSidStarText" Text="" FontFamily="Consolas" FontSize="11"
+                                       Foreground="#64748B" HorizontalAlignment="Right" Visibility="Collapsed" />
+                        </Grid>
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                            <StackPanel x:Name="WaypointChipsPanel" Orientation="Horizontal" Spacing="5" />
+                        </ScrollViewer>
+                        <TextBlock x:Name="WaypointRawRouteText" Text="" FontFamily="Consolas" FontSize="11"
+                                   Foreground="#64748B" TextWrapping="Wrap" Visibility="Collapsed" />
+                    </StackPanel>
+                </Border>
+
+                <!-- METAR cards — DEP / ARR / ALT (Acars.razor:439-506) -->
+                <Grid x:Name="MetarCardsGrid" ColumnSpacing="16" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border x:Name="DepMetarCardBorder" Grid.Column="0"
+                            Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20"
+                            Visibility="Collapsed">
+                        <StackPanel Spacing="10">
+                            <Grid>
+                                <TextBlock x:Name="DepMetarTitleText" Text="DEP METAR" FontFamily="{StaticResource DisplayFontBold}"
+                                           FontSize="15" Foreground="#F1F5F9" HorizontalAlignment="Left" />
+                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                    <TextBlock x:Name="DepMetarTimeText" Text="" FontSize="10" Foreground="#64748B" VerticalAlignment="Center" />
+                                    <Border Tapped="OnRefreshMetarsTapped" Padding="5,1" VerticalAlignment="Center">
+                                        <TextBlock x:Name="DepMetarRefreshIconText" Text="↻" FontSize="11" FontWeight="Bold" Foreground="#4D9BEC" />
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                            <Border Background="#121A2A" CornerRadius="12" Padding="12,10">
+                                <TextBlock x:Name="DepMetarBodyText" Text="" FontFamily="Consolas" FontSize="11"
+                                           Foreground="#CBD5E1" TextWrapping="Wrap" LineHeight="19" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="ArrMetarCardBorder" Grid.Column="1"
+                            Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20"
+                            Visibility="Collapsed">
+                        <StackPanel Spacing="10">
+                            <Grid>
+                                <TextBlock x:Name="ArrMetarTitleText" Text="ARR METAR" FontFamily="{StaticResource DisplayFontBold}"
+                                           FontSize="15" Foreground="#F1F5F9" HorizontalAlignment="Left" />
+                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                    <TextBlock x:Name="ArrMetarTimeText" Text="" FontSize="10" Foreground="#64748B" VerticalAlignment="Center" />
+                                    <Border Tapped="OnRefreshMetarsTapped" Padding="5,1" VerticalAlignment="Center">
+                                        <TextBlock x:Name="ArrMetarRefreshIconText" Text="↻" FontSize="11" FontWeight="Bold" Foreground="#4D9BEC" />
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                            <Border Background="#121A2A" CornerRadius="12" Padding="12,10">
+                                <TextBlock x:Name="ArrMetarBodyText" Text="" FontFamily="Consolas" FontSize="11"
+                                           Foreground="#CBD5E1" TextWrapping="Wrap" LineHeight="19" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="AltMetarCardBorder" Grid.Column="2"
+                            Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20"
+                            Visibility="Collapsed">
+                        <StackPanel Spacing="10">
+                            <Grid>
+                                <TextBlock x:Name="AltMetarTitleText" Text="ALT METAR" FontFamily="{StaticResource DisplayFontBold}"
+                                           FontSize="15" Foreground="#F1F5F9" HorizontalAlignment="Left" />
+                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                    <TextBlock x:Name="AltMetarTimeText" Text="" FontSize="10" Foreground="#64748B" VerticalAlignment="Center" />
+                                    <Border Tapped="OnRefreshMetarsTapped" Padding="5,1" VerticalAlignment="Center">
+                                        <TextBlock x:Name="AltMetarRefreshIconText" Text="↻" FontSize="11" FontWeight="Bold" Foreground="#4D9BEC" />
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                            <Border Background="#121A2A" CornerRadius="12" Padding="12,10">
+                                <TextBlock x:Name="AltMetarBodyText" Text="" FontFamily="Consolas" FontSize="11"
+                                           Foreground="#CBD5E1" TextWrapping="Wrap" LineHeight="19" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- NOTAMs panel — collapsible (Acars.razor:508-526) -->
+                <Border x:Name="NotamsBorder"
+                        Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20"
+                        Visibility="Collapsed">
+                    <StackPanel Spacing="0">
+                        <Grid Tapped="OnToggleNotamsTapped" Margin="0,0,0,8">
+                            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left">
+                                <TextBlock Text="NOTAMs" FontFamily="{StaticResource DisplayFontBold}" FontSize="15" Foreground="#F1F5F9" />
+                                <TextBlock x:Name="NotamsCountText" Text="" FontSize="11" FontWeight="Medium" Foreground="#64748B" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock x:Name="NotamsChevronText" Text="▼" FontSize="12" Foreground="#64748B" HorizontalAlignment="Right" />
+                        </Grid>
+                        <StackPanel x:Name="NotamsListPanel" Spacing="12" Visibility="Collapsed" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Hoppies ACARS Log panel — read-only (Acars.razor:528-550) -->
+                <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20">
+                    <StackPanel Spacing="0">
+                        <TextBlock Text="Hoppies ACARS Log" FontFamily="{StaticResource DisplayFontBold}"
+                                   FontSize="15" Foreground="#F1F5F9" Margin="0,0,0,12" />
+                        <TextBlock x:Name="HoppiesLogEmptyText" Text="No messages sent yet this session."
+                                   FontSize="12" Foreground="#64748B" />
+                        <ScrollViewer x:Name="HoppiesLogScrollViewer" MaxHeight="300" VerticalScrollBarVisibility="Auto"
+                                      Visibility="Collapsed">
+                            <ItemsControl x:Name="HoppiesLogItemsControl">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,6,0,6" ColumnSpacing="12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding CategoryText}" FontSize="12"
+                                                       FontWeight="SemiBold" Foreground="#F1F5F9" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="{Binding StatusBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="2" Text="{Binding TimeText}" FontSize="11" Foreground="#64748B"
+                                                       Opacity="0.7" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+
+                <!-- OFP text viewer — collapsible (Acars.razor:552-567) -->
+                <Border x:Name="OfpTextBorder"
+                        Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20"
+                        Visibility="Collapsed">
+                    <StackPanel Spacing="0">
+                        <Grid Tapped="OnToggleOfpTextTapped" Margin="0,0,0,8">
+                            <TextBlock Text="OFP Text" FontFamily="{StaticResource DisplayFontBold}"
+                                       FontSize="15" Foreground="#F1F5F9" HorizontalAlignment="Left" />
+                            <TextBlock x:Name="OfpTextChevronText" Text="▼" FontSize="12" Foreground="#64748B" HorizontalAlignment="Right" />
+                        </Grid>
+                        <ScrollViewer x:Name="OfpTextScrollViewer" MaxHeight="400" VerticalScrollBarVisibility="Auto"
+                                      Visibility="Collapsed">
+                            <Border Background="#121A2A" CornerRadius="12" Padding="14,12">
+                                <TextBlock x:Name="OfpTextBodyText" Text="" FontFamily="Consolas" FontSize="10"
+                                           Foreground="#CBD5E1" TextWrapping="Wrap" LineHeight="17" />
+                            </Border>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+
+                <!-- Position Report / PIREP panel (Acars.razor:569-661) -->
+                <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20">
+                    <StackPanel Spacing="16">
+                        <Grid>
+                            <TextBlock Text="Position Report" FontFamily="{StaticResource DisplayFontBold}"
+                                       FontSize="15" Foreground="#F1F5F9" HorizontalAlignment="Left" />
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                <Border x:Name="PirepAutoBadgeBorder" Background="#1F3EC7AC" CornerRadius="6" Padding="7,2"
+                                        Visibility="Collapsed">
+                                    <TextBlock Text="AUTO" FontSize="10" FontWeight="Bold" CharacterSpacing="60" Foreground="#3EC7AC" />
+                                </Border>
+                                <TextBlock x:Name="PirepLastReportText" Text="Auto-filled from telemetry"
+                                           FontSize="11" Foreground="#64748B" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Telemetry data grid -->
+                        <Grid ColumnSpacing="12" RowSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0" Grid.Column="0" Background="#121A2A" CornerRadius="12" Padding="12,8">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="POSITION" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                                    <TextBlock x:Name="PirepPositionText" Text="—" FontFamily="Consolas" FontSize="11" Foreground="#F1F5F9" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="0" Grid.Column="1" Background="#121A2A" CornerRadius="12" Padding="12,8">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="ALTITUDE" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                                    <TextBlock x:Name="PirepAltitudeText" Text="— ft" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="0" Grid.Column="2" Background="#121A2A" CornerRadius="12" Padding="12,8">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="IAS / GS" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                                    <TextBlock x:Name="PirepIasGsText" Text="— / — kts" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="1" Grid.Column="0" Background="#121A2A" CornerRadius="12" Padding="12,8">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="FUEL REMAINING" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                                    <TextBlock x:Name="PirepFuelText" Text="— lbs" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="1" Grid.Column="1" Background="#121A2A" CornerRadius="12" Padding="12,8">
+                                <StackPanel Spacing="4">
+                                    <TextBlock x:Name="PirepEtaLabelText" Text="ETA" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                                    <TextBlock x:Name="PirepEtaText" Text="—" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="1" Grid.Column="2" Background="#121A2A" CornerRadius="12" Padding="12,8">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="FLIGHT PHASE" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                                    <TextBlock x:Name="PirepPhaseText" Text="—" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- Cruise compliance -->
+                        <Border x:Name="PirepCruiseBorder" Background="#121A2A" CornerRadius="12" Padding="12,8" Visibility="Collapsed">
+                            <Grid>
+                                <TextBlock x:Name="PirepCruiseLabelText" Text="" FontSize="10" FontWeight="Bold" Foreground="#64748B"
+                                           CharacterSpacing="100" HorizontalAlignment="Left" />
+                                <TextBlock x:Name="PirepCruiseValueText" Text="" FontFamily="Consolas" FontSize="12" FontWeight="Bold"
+                                           HorizontalAlignment="Right" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Remarks -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="REMARKS" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                            <TextBox x:Name="PirepRemarksTextBox"
+                                     PlaceholderText="ATC remarks, weather observations, or notes..."
+                                     AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60"
+                                     Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                     Foreground="#F1F5F9" FontFamily="Consolas" FontSize="12"
+                                     TextChanged="OnPirepRemarksTextChanged" />
+                        </StackPanel>
+
+                        <!-- Recent auto-reports -->
+                        <StackPanel x:Name="PirepRecentReportsPanel" Spacing="6" Visibility="Collapsed">
+                            <TextBlock Text="RECENT REPORTS" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                <StackPanel x:Name="PirepRecentReportsChipsPanel" Orientation="Horizontal" Spacing="6" />
+                            </ScrollViewer>
+                        </StackPanel>
+
+                        <!-- Actions -->
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Tapped="OnCopyPirepTapped"
+                                    Background="#4D9BEC" CornerRadius="9999" Padding="16,8">
+                                <TextBlock x:Name="CopyPirepButtonText" Text="Copy PIREP Text" FontSize="12" FontWeight="Bold" Foreground="White" />
+                            </Border>
+                            <Border Grid.Column="1" x:Name="SubmitPirepButtonBorder" Tapped="OnSubmitPirepTapped"
+                                    Background="Transparent" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                    CornerRadius="9999" Padding="16,8">
+                                <TextBlock x:Name="SubmitPirepButtonText" Text="Submit Position Report" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                            </Border>
+                            <TextBlock x:Name="PirepConfigureAcarsText" Grid.Column="2" Text="Configure ACARS key in Settings"
+                                       FontSize="11" Foreground="#64748B" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       Visibility="Collapsed" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+
         </StackPanel>
     </ScrollViewer>
+
+    <!-- ── Flight completion overlay (Acars.razor:1414-1479) — right-docked slide-in panel,
+         full-height. Tapping the transparent backdrop dismisses; tapping inside the panel does not
+         (Handled=true stops the Tapped bubble at CompletionPanelBorder, mirroring @onclick +
+         @onclick:stopPropagation). accent color here uses the CURRENT app accent (#4D9BEC), not
+         Acars.razor.css's literal #3D7EEE (the app's *previous* accent, same stale-magic-number
+         situation this file's own ActivePhaseRowBrush comment already found and fixed elsewhere on
+         this page — applied consistently here rather than reintroducing the stale value). ── -->
+    <Grid x:Name="CompletionOverlayGrid" Background="Transparent" Visibility="Collapsed" Tapped="OnCompletionOverlayTapped">
+        <Border x:Name="CompletionPanelBorder" Tapped="OnCompletionPanelTapped"
+                HorizontalAlignment="Right" VerticalAlignment="Stretch" Width="340"
+                BorderBrush="#594D9BEC" BorderThickness="2,0,0,0" Padding="24,32,24,28">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#111827" Offset="0" />
+                    <GradientStop Color="#0F172A" Offset="1" />
+                </LinearGradientBrush>
+            </Border.Background>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="0">
+
+                    <StackPanel Spacing="6" Margin="0,0,0,24">
+                        <TextBlock Text="✦ FLIGHT COMPLETE" FontSize="10" FontWeight="Bold" Foreground="#4D9BEC" CharacterSpacing="150" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="CompletionDepText" Text="----" FontFamily="Consolas" FontSize="26" FontWeight="Black" Foreground="White" />
+                            <TextBlock Text="→" FontSize="20" Foreground="#4D9BEC" Margin="6,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock x:Name="CompletionArrText" Text="----" FontFamily="Consolas" FontSize="26" FontWeight="Black" Foreground="White" />
+                        </StackPanel>
+                        <TextBlock x:Name="CompletionSubText" Text="" FontSize="12" Foreground="#64748B" Margin="0,6,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="6" Margin="0,0,0,20">
+                        <Border Background="#0A0D17" CornerRadius="10" Padding="14,11">
+                            <Grid>
+                                <TextBlock Text="Landing VS" FontSize="11" Foreground="#64748B" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                                <TextBlock x:Name="CompletionVsText" Text="—" FontSize="16" FontWeight="ExtraBold" Foreground="White" HorizontalAlignment="Right" />
+                            </Grid>
+                        </Border>
+                        <Border Background="#0A0D17" CornerRadius="10" Padding="14,11">
+                            <Grid>
+                                <TextBlock Text="Score" FontSize="11" Foreground="#64748B" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                                <TextBlock x:Name="CompletionScoreText" Text="—" FontSize="16" FontWeight="ExtraBold" Foreground="#4D9BEC" HorizontalAlignment="Right" />
+                            </Grid>
+                        </Border>
+                        <Border Background="#0A0D17" CornerRadius="10" Padding="14,11">
+                            <Grid>
+                                <TextBlock Text="Air Time" FontSize="11" Foreground="#64748B" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                                <TextBlock x:Name="CompletionAirTimeText" Text="—" FontSize="16" FontWeight="ExtraBold" Foreground="White" HorizontalAlignment="Right" />
+                            </Grid>
+                        </Border>
+                        <Border Background="#0A0D17" CornerRadius="10" Padding="14,11">
+                            <Grid>
+                                <TextBlock Text="Distance" FontSize="11" Foreground="#64748B" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                                <TextBlock x:Name="CompletionDistanceText" Text="—" FontSize="16" FontWeight="ExtraBold" Foreground="White" HorizontalAlignment="Right" />
+                            </Grid>
+                        </Border>
+                        <Border Background="#0A0D17" CornerRadius="10" Padding="14,11">
+                            <Grid>
+                                <TextBlock Text="Fuel Used" FontSize="11" Foreground="#64748B" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                                <TextBlock x:Name="CompletionFuelText" Text="—" FontSize="16" FontWeight="ExtraBold" Foreground="White" HorizontalAlignment="Right" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <Border x:Name="CompletionRankupBorder" CornerRadius="10" Padding="14" Margin="0,0,0,20" Visibility="Collapsed">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#1F8B5CF6" Offset="0" />
+                                <GradientStop Color="#144D9BEC" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock Text="🎖" FontSize="22" VerticalAlignment="Center" />
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="RANK UP!" FontSize="10" FontWeight="Bold" Foreground="#A78BFA" CharacterSpacing="100" />
+                                <TextBlock x:Name="CompletionRankupValueText" Text="" FontSize="14" FontWeight="ExtraBold" Foreground="#C4B5FD" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Tapped="OnCompletionDismissTapped" Background="#4D9BEC" CornerRadius="10" Padding="0,13" Margin="0,12,0,0">
+                        <TextBlock Text="Dismiss" FontSize="13" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" CharacterSpacing="30" />
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+    </Grid>
 </Page>
