@@ -21,8 +21,8 @@
 
       HUD z-order (back to front, matching the original's z-index 0 / 50 / 100): MapHost (tiles),
       then the "no active flight" overlay (z-index 50 in the original — sits BEHIND the HUD
-      panels), then the four HUD panels/controls (z-index 100), then the waypoint-name popup
-      canvas (topmost, transient).
+      panels), then the six HUD panels/controls (identity, progress, map-controls, pilot-detail,
+      plan HUD — z-index 100), then the waypoint-name popup canvas (topmost, transient).
     -->
 
     <Grid>
@@ -167,6 +167,154 @@
                     <TextBlock Text="−" FontSize="14" Foreground="#A6FFFFFF"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- ── Top-right: pilot-detail panel (offset left of the plan HUD, matching the
+             original's `right: 190px`), conditional on a selected other-pilot marker tap.
+             Drag handle: the original's markup has one but never actually calls initDrag on it
+             (a confirmed pre-existing bug — the panel looks draggable but isn't). This port WIRES
+             real dragging here (reusing AttachDragHandle, same as every other draggable panel) —
+             a small, defensible fix rather than a faithful bug-for-bug reproduction, since this
+             panel is structurally identical to the ones that already drag correctly. Called out
+             explicitly in the Task 5 commit message/report per the plan's instruction. ── -->
+        <Border x:Name="PilotDetailPanel"
+                Background="#E00A0D17" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="6"
+                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,190,0" MinWidth="170"
+                Visibility="Collapsed">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="PilotDetailPanelTransform" />
+            </Border.RenderTransform>
+            <StackPanel>
+                <Border x:Name="PilotDetailDragHandle" Height="4" Background="#263D7EEE" CornerRadius="6,6,0,0" />
+                <StackPanel Padding="13,8,13,10" Spacing="6">
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="PilotNameText" Grid.Column="0" Text="----"
+                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                   Foreground="#D9FFFFFF" CharacterSpacing="40" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
+                        <Border Grid.Column="1" Background="#223D7EEE" BorderBrush="#663D7EEE" BorderThickness="1"
+                                CornerRadius="3" Padding="6,2" VerticalAlignment="Center" Margin="6,0,0,0">
+                            <TextBlock x:Name="PilotPhaseBadgeText" Text="----"
+                                       FontFamily="Consolas" FontSize="7" FontWeight="Bold" CharacterSpacing="120"
+                                       Foreground="#3D7EEE" />
+                        </Border>
+                        <Border x:Name="PilotDetailCloseButton" Grid.Column="2" Width="18" Height="18"
+                                Background="Transparent" VerticalAlignment="Center" Margin="6,0,0,0"
+                                Tapped="OnPilotDetailCloseTapped">
+                            <TextBlock Text="×" FontSize="14" Foreground="#66FFFFFF"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </Grid>
+                    <Border Height="1" Background="#263D7EEE" />
+                    <Grid ColumnSpacing="8" RowSpacing="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition />
+                            <RowDefinition />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="ALT"
+                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
+                        <TextBlock x:Name="PilotAltValueText" Grid.Row="0" Grid.Column="1" Text="----"
+                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold" CharacterSpacing="-10" Foreground="#FFFFFF" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="GS" Margin="12,0,0,0"
+                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
+                        <TextBlock x:Name="PilotGsValueText" Grid.Row="0" Grid.Column="3" Text="----"
+                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold" CharacterSpacing="-10" Foreground="#FFFFFF" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="HDG"
+                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
+                        <TextBlock x:Name="PilotHdgValueText" Grid.Row="1" Grid.Column="1" Text="----"
+                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold" CharacterSpacing="-10" Foreground="#FFFFFF" />
+                    </Grid>
+                    <Border x:Name="PilotRouteDivider" Height="1" Background="#263D7EEE" Visibility="Collapsed" />
+                    <TextBlock x:Name="PilotRouteText" Text="" Visibility="Collapsed"
+                               FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
+                    <Border Height="1" Background="#263D7EEE" />
+                    <Border Height="22" Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
+                            Tapped="OnMessagePilotTapped">
+                        <TextBlock Text="MESSAGE" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   FontFamily="Consolas" FontSize="9" CharacterSpacing="60" Foreground="#A6FFFFFF" />
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- ── Top-right: SimBrief plan HUD (draggable via PlanDragHandle) — 4 states:
+             loading / loaded / error-and-no-username / no-plan, matching the original exactly. ── -->
+        <Border x:Name="PlanHudPanel"
+                Background="#E00A0D17" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="6"
+                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,12,0" MinWidth="160">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="PlanPanelTransform" />
+            </Border.RenderTransform>
+            <StackPanel>
+                <Border x:Name="PlanDragHandle" Height="4" Background="#263D7EEE" CornerRadius="6,6,0,0" />
+                <StackPanel Padding="13,8,13,10" Spacing="6">
+
+                    <!-- Loading state -->
+                    <StackPanel x:Name="PlanLoadingPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                        <ProgressRing IsActive="True" Width="12" Height="12" Foreground="#3D7EEE" />
+                        <TextBlock Text="FETCHING OFP…"
+                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
+                    </StackPanel>
+
+                    <!-- Loaded state -->
+                    <StackPanel x:Name="PlanLoadedPanel" Spacing="6" Visibility="Collapsed">
+                        <TextBlock x:Name="PlanRouteText" Text="---- → ----"
+                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#D9FFFFFF" CharacterSpacing="40" />
+                        <Border Height="1" Background="#263D7EEE" />
+                        <TextBlock x:Name="PlanDetailText" Text="---- · 0 WPT"
+                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
+                        <Border Height="1" Background="#263D7EEE" />
+                        <Border Height="22" Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
+                                Tapped="OnRefreshOfpTapped">
+                            <TextBlock Text="REFRESH OFP" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       FontFamily="Consolas" FontSize="9" CharacterSpacing="60" Foreground="#A6FFFFFF" />
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Empty state (error / no-username / no-plan) -->
+                    <StackPanel x:Name="PlanEmptyPanel" Spacing="6" Visibility="Collapsed">
+                        <TextBlock x:Name="PlanErrorText" Text="" Visibility="Collapsed"
+                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="60" Foreground="#F97316" />
+                        <Border x:Name="PlanErrorDivider" Height="1" Background="#263D7EEE" Visibility="Collapsed" />
+
+                        <StackPanel x:Name="PlanNoUsernamePanel" Spacing="6" Visibility="Collapsed">
+                            <TextBlock Text="NO SIMBRIEF ID"
+                                       FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
+                            <Border Height="1" Background="#263D7EEE" />
+                            <Border Height="22" Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
+                                    Tapped="OnConfigureTapped">
+                                <TextBlock Text="CONFIGURE" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           FontFamily="Consolas" FontSize="9" CharacterSpacing="60" Foreground="#A6FFFFFF" />
+                            </Border>
+                        </StackPanel>
+
+                        <StackPanel x:Name="PlanNoPlanPanel" Spacing="6" Visibility="Collapsed">
+                            <TextBlock Text="NO FLIGHT PLAN"
+                                       FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
+                            <Border Height="1" Background="#263D7EEE" />
+                            <Border Height="22" Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
+                                    Tapped="OnImportOfpTapped">
+                                <TextBlock Text="IMPORT OFP" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           FontFamily="Consolas" FontSize="9" CharacterSpacing="60" Foreground="#A6FFFFFF" />
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+
+                </StackPanel>
             </StackPanel>
         </Border>
 

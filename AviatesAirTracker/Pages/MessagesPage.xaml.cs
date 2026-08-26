@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
+using Microsoft.UI.Xaml.Navigation;
 using Serilog;
 using System;
 using System.Collections.Generic;
@@ -110,6 +111,16 @@ public sealed partial class MessagesPage : Page
     private readonly HashSet<Guid> _renderedConversationBubbleIds = [];
     private readonly HashSet<Guid> _renderedBroadcastBubbleIds = [];
 
+    // Set by OnNavigatedTo when this page is reached via Frame.Navigate(typeof(MessagesPage),
+    // pilotId) -- e.g. from MapPage's pilot-detail panel's "Message" button. OnNavigatedTo fires
+    // before Loaded (the Frame invokes it synchronously right after setting this page as Content,
+    // while Loaded is queued by the layout pass), so at that point _viewModel.Friends is still
+    // whatever it was left at by the previous navigation (often empty for a fresh page instance --
+    // Frame.Navigate constructs a new MessagesPage each time, no NavigationCacheMode is set
+    // anywhere in this project). The pending id is stashed here and consumed once Loaded's own
+    // RefreshAllAsync has actually populated Friends, not before.
+    private string? _pendingSelectPilotId;
+
     public MessagesPage()
     {
         InitializeComponent();
@@ -143,6 +154,16 @@ public sealed partial class MessagesPage : Page
 
             await _viewModel.RefreshAllAsync();
             RebuildUi();
+
+            // Consume any pending auto-select navigation parameter now that Friends is actually
+            // populated -- see _pendingSelectPilotId's doc comment for why this can't run inside
+            // OnNavigatedTo itself.
+            if (_pendingSelectPilotId is { } pendingPilotId)
+            {
+                _pendingSelectPilotId = null;
+                if (_viewModel.Friends.Any(f => f.PilotId == pendingPilotId))
+                    await SelectFriendAndSwitchToInboxAsync(pendingPilotId);
+            }
         };
 
         Unloaded += (_, _) =>
@@ -150,6 +171,20 @@ public sealed partial class MessagesPage : Page
             _messaging.NewMessageReceived -= OnNewMessageReceived;
             _messaging.UnreadCountChanged -= OnUnreadCountChanged;
         };
+    }
+
+    // ── Navigation parameter (auto-select a friend, e.g. from MapPage's "Message" button) ──────
+
+    // e.Parameter carries the pilot id passed to Frame.Navigate(typeof(MessagesPage), pilotId).
+    // A normal navigation to Messages from the nav sidebar (no parameter) leaves e.Parameter null,
+    // so _pendingSelectPilotId simply stays null and the page behaves exactly as before this
+    // change -- Friends loads, RebuildUi() runs, nothing extra happens.
+    protected override void OnNavigatedTo(NavigationEventArgs e)
+    {
+        base.OnNavigatedTo(e);
+
+        if (e.Parameter is string pilotId && !string.IsNullOrEmpty(pilotId))
+            _pendingSelectPilotId = pilotId;
     }
 
     // ── Live-update subscriptions ────────────────────────────────────────────────────────────
@@ -609,15 +644,22 @@ public sealed partial class MessagesPage : Page
     {
         if (sender is not FrameworkElement { Tag: CrewDisplayRow row }) return;
 
-        // Matches SelectFriendAndSwitchToInbox: switch to Inbox, then reuse the exact same
-        // select-friend flow OnFriendTapped uses.
+        await SelectFriendAndSwitchToInboxAsync(row.PilotId);
+    }
+
+    // Matches Messages.razor's SelectFriendAndSwitchToInbox: switch to Inbox, then reuse the exact
+    // same select-friend flow OnFriendTapped uses. Shared by OnMessageFriendTapped (the Friends
+    // tab's own "Message" action) and OnNavigatedTo's pending-pilot-id auto-select (the new
+    // MapPage -> Messages navigation-parameter entry point) -- one flow, not duplicated.
+    private async Task SelectFriendAndSwitchToInboxAsync(string pilotId)
+    {
         _activeTab = "inbox";
         _dmSendError = null;
         UpdateTabVisuals();
         ShowActiveTabPanel();
         UpdateDmSendError();
 
-        await _viewModel.SelectFriendAsync(row.PilotId);
+        await _viewModel.SelectFriendAsync(pilotId);
         _renderedConversationBubbleIds.Clear(); // a freshly-opened conversation has nothing "already seen" yet
         RebuildFriendList();
         RebuildConversation();
