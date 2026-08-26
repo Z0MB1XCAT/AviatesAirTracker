@@ -20,9 +20,11 @@ reached today via `IJSRuntime` calls into `wwwroot/js/interop.js`'s `window.avia
 **Confirmed during research**: there is no native mapping code anywhere in this project to build
 on. `Mapsui.Tiling`/`Mapsui.Nts` are referenced in the `.csproj` but have **zero actual code
 usages** — fully vestigial, a leftover from a pre-Blazor WPF map that no longer exists. This phase
-adds the missing piece: `Mapsui.UI.WinUI` (the matching 4.1.7 WinUI control package, to line up
-with the already-pinned `Mapsui.Tiling`/`Mapsui.Nts` versions) plus a new native rendering layer
-that reimplements the parts of `window.aviatesMap`'s API this page actually uses.
+adds the missing piece: the `Mapsui.WinUI` package (its assembly/namespace is
+`Mapsui.UI.WinUI` — a naming mismatch confirmed and resolved during Task 1's implementation spike;
+the package id is `Mapsui.WinUI`, not `Mapsui.UI.WinUI`, which doesn't exist on nuget.org), pinned
+to the matching 4.1.7 version already used by `Mapsui.Tiling`/`Mapsui.Nts`, plus a new native
+rendering layer that reimplements the parts of `window.aviatesMap`'s API this page actually uses.
 
 **Decision (confirmed with the user)**: build a real native Mapsui map, not a scoped WebView2
 hosting Leaflet. This means reimplementing rendering natively rather than reusing `interop.js`.

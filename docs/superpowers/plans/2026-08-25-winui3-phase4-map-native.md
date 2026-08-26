@@ -7,12 +7,19 @@ this first — this plan assumes it, doesn't repeat it)
 
 ## Before you start — this plan carries more risk than any prior page, read this carefully
 
-- **This is the first task in the whole migration that adds a brand-new NuGet package
-  (`Mapsui.UI.WinUI`) whose compatibility with this exact SDK combination
-  (`net8.0-windows10.0.19041.0`, Windows App SDK 1.8.250906003/1.8.250907003) has never been
-  verified.** `Mapsui.Tiling`/`Mapsui.Nts` at version 4.1.7 are already referenced and presumably
-  already resolve (they're in the `.csproj` today), but the actual `Mapsui.UI.WinUI` control
-  package has never been added or built in this project. **Task 1's first real step is a
+- **UPDATE, resolved by Task 1's spike (commit `7db1929`): the NuGet package id is `Mapsui.WinUI`,
+  NOT `Mapsui.UI.WinUI`.** The latter is only the assembly/namespace
+  (`Mapsui.UI.WinUI.MapControl` is the correct fully-qualified type name to use in code/XAML) —
+  `Mapsui.UI.WinUI` does not exist as a package id on nuget.org and adding it fails with `NU1101`.
+  `<PackageReference Include="Mapsui.WinUI" Version="4.1.7" />` is already added to
+  `AviatesAirTracker.csproj` and confirmed building clean. Every task from here on should use the
+  correct package id if it needs to reference it; the type/namespace name in code is unaffected.
+- This was the first task in the whole migration that added a brand-new NuGet package whose
+  compatibility with this exact SDK combination (`net8.0-windows10.0.19041.0`, Windows App SDK
+  1.8.250906003/1.8.250907003) had never been verified — now confirmed working. `Mapsui.Tiling`/
+  `Mapsui.Nts` at version 4.1.7 were already referenced; `Mapsui.WinUI` 4.1.7 is now added
+  alongside them. The original "go/no-go spike" framing below is preserved for historical context
+  but the spike has already passed — no need to repeat it. **Task 1's first real step was a
   go/no-go spike**: add the package, build a trivial page with just a bare `MapControl` on it, and
   confirm it actually renders. If this fails in a way that looks like a genuine SDK
   incompatibility (not just a usage mistake), STOP, do not attempt increasingly creative
@@ -54,7 +61,7 @@ this first — this plan assumes it, doesn't repeat it)
 
 Files: `AviatesAirTracker/AviatesAirTracker.csproj` (modified), `AviatesAirTracker/Services/NativeMapRenderer.cs` (new), a throwaway test page if needed for the spike (delete it before committing — this task's real deliverable is the renderer class, not a page).
 
-1. **Spike first**: add `<PackageReference Include="Mapsui.UI.WinUI" Version="4.1.7" />` (matching the already-pinned `Mapsui.Tiling`/`Mapsui.Nts` version exactly — a version mismatch across Mapsui packages is a common source of runtime type-load failures). Restore, build. If it doesn't resolve or doesn't build, STOP per "Before you start" above and report back — do not proceed to write `NativeMapRenderer` against a package that doesn't actually work in this project.
+1. **DONE — spike passed.** `<PackageReference Include="Mapsui.WinUI" Version="4.1.7" />` (matching the already-pinned `Mapsui.Tiling`/`Mapsui.Nts` version exactly) is already added and building clean, commit `7db1929`. This step is preserved for historical record only.
 2. Once the package builds, do a minimal on-screen verification: a `Mapsui.UI.WinUI.MapControl` with a `Mapsui.Map` containing just a tile layer, shown somewhere reachable (a temporary throwaway test harness is fine — don't wire it into real navigation yet, that's Task 4). Confirm it actually paints tiles. This can be done via computer-use/live-app if the environment allows, or by careful code review + a clean build if not — note in your report which you did and why.
 3. Build `AviatesAirTracker/Services/NativeMapRenderer.cs`:
    - Constructor takes a `Mapsui.Map` (or wraps/owns one — implementer's call on exact shape, note which).
