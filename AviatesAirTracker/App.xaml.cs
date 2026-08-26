@@ -423,6 +423,7 @@ public partial class App : Application
         // EventsPage's Task 2 App.GetService<EventsViewModel>() call resolves.
         services.AddSingleton<EventsViewModel>();
         services.AddSingleton<MessagesViewModel>();
+        services.AddSingleton<AcarsViewModel>();
         services.AddSingleton<ShellWindow>();
     }
 
