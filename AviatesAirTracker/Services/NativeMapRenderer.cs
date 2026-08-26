@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
+using BruTile;
 using BruTile.Cache;
 using BruTile.Predefined;
 using BruTile.Web;
@@ -185,9 +187,9 @@ public sealed class NativeMapRenderer : IDisposable
             TileUrlTemplate,
             name: "Esri Dark Gray",
             persistentCache: tileCache,
-            attribution: new BruTile.Attribution(TileAttribution),
+            attribution: new Attribution(TileAttribution),
             userAgent: TileUserAgent);
-        Map.Layers.Add(new TileLayer(tileSource) { Name = "Base" });
+        Map.Layers.Add(new TileLayer(new BoundsCheckedTileSource(tileSource)) { Name = "Base" });
 
         _aircraftFeature = null;
         _aircraftLayer = new MemoryLayer
@@ -271,10 +273,37 @@ public sealed class NativeMapRenderer : IDisposable
         _otherPilotRouteFeatures.Clear();
 
         var (x, y) = SphericalMercator.FromLonLat(lon, lat);
-        var resolution = Map.Navigator.Resolutions.Count > InitialZoomLevel
-            ? Map.Navigator.Resolutions[InitialZoomLevel]
-            : Map.Navigator.Resolutions.Last();
-        Map.Navigator.CenterOnAndZoomTo(new MPoint(x, y), resolution);
+        Map.Navigator.CenterOnAndZoomTo(new MPoint(x, y), GetResolutionForLevel(InitialZoomLevel));
+    }
+
+    /// <summary>
+    /// <c>Map.Navigator.Resolutions</c> is built by merging every layer's own <c>Resolutions</c>
+    /// list (<see cref="Mapsui.Map.LayersChanged"/> -&gt; <c>DetermineResolutions</c>, confirmed by
+    /// decompiling Mapsui.dll) -- it is NOT a fixed 0-based "web mercator zoom level" table.
+    /// <c>TileLayer.Resolutions</c> only contains the levels the schema actually defines
+    /// (<see cref="MinZoomLevel"/>..<see cref="MaxZoomLevel"/>), so list index 0 corresponds to
+    /// level <see cref="MinZoomLevel"/>, not level 0. Indexing <c>Navigator.Resolutions</c>
+    /// directly by a real zoom level number (as the previous code did for
+    /// <see cref="InitialZoomLevel"/>/<see cref="FitBoundsMaxZoomLevel"/>) silently zoomed
+    /// <see cref="MinZoomLevel"/> levels deeper than intended -- confirmed with an isolated probe
+    /// that replicated this exact Map/TileLayer setup: <c>Navigator.Resolutions[7]</c> resolved to
+    /// the schema's level-10 resolution, not level 7, given <see cref="MinZoomLevel"/> = 3. This
+    /// helper converts an intended absolute level into the correct list index.
+    /// </summary>
+    private double GetResolutionForLevel(int level)
+    {
+        var index = level - MinZoomLevel;
+        var resolutions = Map.Navigator.Resolutions;
+        if (index < 0)
+        {
+            index = 0;
+        }
+        else if (index >= resolutions.Count)
+        {
+            index = resolutions.Count - 1;
+        }
+
+        return resolutions[index];
     }
 
     public void UpdatePosition(double lat, double lon, double heading)
@@ -727,13 +756,12 @@ public sealed class NativeMapRenderer : IDisposable
 
         var resolution = Math.Max(box.Width / availableWidth, box.Height / availableHeight);
 
-        if (Map.Navigator.Resolutions.Count > FitBoundsMaxZoomLevel)
+        // See GetResolutionForLevel's doc comment -- FitBoundsMaxZoomLevel is a real zoom level
+        // number (matching Leaflet's maxZoom: 10), not a Navigator.Resolutions list index.
+        var minResolutionAllowed = GetResolutionForLevel(FitBoundsMaxZoomLevel);
+        if (resolution < minResolutionAllowed)
         {
-            var minResolutionAllowed = Map.Navigator.Resolutions[FitBoundsMaxZoomLevel];
-            if (resolution < minResolutionAllowed)
-            {
-                resolution = minResolutionAllowed;
-            }
+            resolution = minResolutionAllowed;
         }
 
         Map.Navigator.CenterOnAndZoomTo(box.Centroid, resolution);
@@ -801,5 +829,43 @@ public sealed class NativeMapRenderer : IDisposable
         _airportMarkerLayer = null;
         _otherPilotLayer = null;
         _otherPilotRouteLayer = null;
+    }
+}
+
+/// <summary>
+/// Wraps an <see cref="ITileSource"/> and refuses (no network call, resolves to null so the tile
+/// just renders blank) any <see cref="TileInfo"/> whose Col/Row falls outside the valid
+/// 0..2^Level-1 range for that level. A well-formed viewport extent fed through
+/// <c>GlobalSphericalMercator.GetTileInfos</c> shouldn't mathematically produce an out-of-range
+/// index, but Esri's World Dark Gray Base tile server was directly observed (via curl, requesting
+/// a deliberately out-of-range index) to respond with an actual literal placeholder JPEG reading
+/// "Map data not yet available" -- still HTTP 200, so BruTile has no way to distinguish it from a
+/// real tile -- rather than a 404/error for out-of-range requests. This guard means that whatever
+/// upstream cause produces one (a stray pan/fit past the world edge, a corrupted lat/lon on some
+/// feature, etc.) renders as an empty gap instead of that placeholder text tiling the screen.
+/// </summary>
+internal sealed class BoundsCheckedTileSource : ITileSource
+{
+    private readonly ITileSource _inner;
+
+    public BoundsCheckedTileSource(ITileSource inner)
+    {
+        _inner = inner;
+    }
+
+    public ITileSchema Schema => _inner.Schema;
+    public string Name => _inner.Name;
+    public Attribution Attribution => _inner.Attribution;
+
+    public Task<byte[]?> GetTileAsync(TileInfo tileInfo)
+    {
+        var maxIndex = (1L << tileInfo.Index.Level) - 1;
+        if (tileInfo.Index.Col < 0 || tileInfo.Index.Col > maxIndex ||
+            tileInfo.Index.Row < 0 || tileInfo.Index.Row > maxIndex)
+        {
+            return Task.FromResult<byte[]?>(null);
+        }
+
+        return _inner.GetTileAsync(tileInfo);
     }
 }
