@@ -19,10 +19,17 @@
       this file free of any risk from an unfamiliar external control type tripping one of this
       SDK's silent XamlCompiler crash traps.
 
-      HUD z-order (back to front, matching the original's z-index 0 / 50 / 100): MapHost (tiles),
-      then the "no active flight" overlay (z-index 50 in the original — sits BEHIND the HUD
-      panels), then the six HUD panels/controls (identity, progress, map-controls, pilot-detail,
-      plan HUD — z-index 100), then the waypoint-name popup canvas (topmost, transient).
+      HUD z-order (back to front): MapHost (tiles), then the "no active flight" overlay (sits
+      BEHIND the HUD panels), then the map controls / pilot-detail panels, then the waypoint-name
+      popup canvas (topmost, transient).
+
+      The identity strip, progress strip, and SimBrief plan HUD (all draggable) were removed at
+      the user's explicit request after seeing them live — they'd originally been ported
+      faithfully from MapPage.razor, but were judged not worth keeping on reflection. Their
+      underlying data plumbing (MapViewModel's telemetry/route-tracking, the map's own planned-
+      route rendering via NativeMapRenderer.SetPlannedRoute/AddAirportMarker/FitRouteBounds) is
+      untouched — only the floating on-screen panels that displayed a subset of it as text are
+      gone. The pilot-detail panel and the map-controls (center/zoom) panel were explicitly kept.
     -->
 
     <Grid>
@@ -38,110 +45,6 @@
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    FontFamily="Consolas" FontSize="11" CharacterSpacing="140"
                    Foreground="#38FFFFFF" IsHitTestVisible="False" />
-
-        <!-- ── Top-left: flight identity + telemetry (draggable via IdentityDragHandle) ── -->
-        <Border x:Name="IdentityPanel"
-                Background="#E00A0D17" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="6"
-                HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12,12,0,0" MinWidth="160">
-            <Border.RenderTransform>
-                <TranslateTransform x:Name="IdentityPanelTransform" />
-            </Border.RenderTransform>
-            <StackPanel>
-                <Border x:Name="IdentityDragHandle" Height="4" Background="#263D7EEE" CornerRadius="6,6,0,0" />
-                <StackPanel Padding="13,8,13,10" Spacing="6">
-                    <Grid ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="RouteLabelText" Grid.Column="0" Text="---- → ----"
-                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold"
-                                   Foreground="#D9FFFFFF" CharacterSpacing="40" VerticalAlignment="Center" />
-                        <Border x:Name="PhaseBadgeBorder" Grid.Column="1" BorderThickness="1" CornerRadius="3"
-                                Padding="6,2" VerticalAlignment="Center">
-                            <TextBlock x:Name="PhaseBadgeText" Text="PARKED"
-                                       FontFamily="Consolas" FontSize="7" FontWeight="Bold" CharacterSpacing="120" />
-                        </Border>
-                    </Grid>
-                    <Border Height="1" Background="#263D7EEE" />
-                    <Grid ColumnSpacing="8" RowSpacing="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition />
-                            <RowDefinition />
-                            <RowDefinition />
-                        </Grid.RowDefinitions>
-
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="ALT"
-                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
-                        <TextBlock x:Name="AltValueText" Grid.Row="0" Grid.Column="1" Text="----"
-                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold" CharacterSpacing="-10" Foreground="#FFFFFF" />
-                        <TextBlock Grid.Row="0" Grid.Column="2" Text="VS" Margin="12,0,0,0"
-                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
-                        <TextBlock x:Name="VsValueText" Grid.Row="0" Grid.Column="3" Text="----"
-                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold" CharacterSpacing="-10" Foreground="#FFFFFF" />
-
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="IAS"
-                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
-                        <TextBlock x:Name="IasValueText" Grid.Row="1" Grid.Column="1" Text="----"
-                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold" CharacterSpacing="-10" Foreground="#FFFFFF" />
-                        <TextBlock Grid.Row="1" Grid.Column="2" Text="GS" Margin="12,0,0,0"
-                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
-                        <TextBlock x:Name="GsValueText" Grid.Row="1" Grid.Column="3" Text="----"
-                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold" CharacterSpacing="-10" Foreground="#FFFFFF" />
-
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="HDG"
-                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
-                        <TextBlock x:Name="HdgValueText" Grid.Row="2" Grid.Column="1" Text="----"
-                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold" CharacterSpacing="-10" Foreground="#FFFFFF" />
-                        <TextBlock Grid.Row="2" Grid.Column="2" Text="MACH" Margin="12,0,0,0"
-                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
-                        <TextBlock x:Name="MachValueText" Grid.Row="2" Grid.Column="3" Text="----"
-                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold" CharacterSpacing="-10" Foreground="#FFFFFF" />
-                    </Grid>
-                </StackPanel>
-            </StackPanel>
-        </Border>
-
-        <!-- ── Bottom-left: progress (draggable via ProgressDragHandle) ── -->
-        <Border x:Name="ProgressPanel"
-                Background="#E00A0D17" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="6"
-                HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12,0,0,12" MinWidth="160">
-            <Border.RenderTransform>
-                <TranslateTransform x:Name="ProgressPanelTransform" />
-            </Border.RenderTransform>
-            <StackPanel>
-                <Border x:Name="ProgressDragHandle" Height="4" Background="#263D7EEE" CornerRadius="6,6,0,0" />
-                <StackPanel Padding="13,8,13,10" Spacing="6">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Text="NEXT" VerticalAlignment="Center"
-                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
-                        <TextBlock x:Name="NextWaypointText" Text="----" VerticalAlignment="Center"
-                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold" CharacterSpacing="-10" Foreground="#3D7EEE" />
-                        <TextBlock Text="ETA" Margin="12,0,0,0" VerticalAlignment="Center"
-                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
-                        <TextBlock x:Name="EtaText" Text="----" VerticalAlignment="Center"
-                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold" CharacterSpacing="-10" Foreground="#3D7EEE" />
-                    </StackPanel>
-                    <Border Height="1" Background="#263D7EEE" />
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Text="DIST REM" VerticalAlignment="Center"
-                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
-                        <TextBlock x:Name="DistRemValueText" Text="----" VerticalAlignment="Center"
-                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold" CharacterSpacing="-10" Foreground="#FFFFFF" />
-                        <TextBlock Text="FUEL" Margin="12,0,0,0" VerticalAlignment="Center"
-                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
-                        <TextBlock x:Name="FuelRemValueText" Text="----" VerticalAlignment="Center"
-                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold" CharacterSpacing="-10" Foreground="#FFFFFF" />
-                    </StackPanel>
-                </StackPanel>
-            </StackPanel>
-        </Border>
 
         <!-- ── Bottom-right: map controls — deliberately NOT draggable (matching the original
              exactly: no drag handle, no RenderTransform, no ManipulationDelta wiring). ── -->
@@ -170,8 +73,9 @@
             </StackPanel>
         </Border>
 
-        <!-- ── Top-right: pilot-detail panel (offset left of the plan HUD, matching the
-             original's `right: 190px`), conditional on a selected other-pilot marker tap.
+        <!-- ── Top-right: pilot-detail panel, conditional on a selected other-pilot marker tap.
+             Was offset left of the plan HUD (`right: 190px`, matching the original) — now that the
+             plan HUD is gone, this sits in the plain top-right corner instead.
              Drag handle: the original's markup has one but never actually calls initDrag on it
              (a confirmed pre-existing bug — the panel looks draggable but isn't). This port WIRES
              real dragging here (reusing AttachDragHandle, same as every other draggable panel) —
@@ -180,7 +84,7 @@
              explicitly in the Task 5 commit message/report per the plan's instruction. ── -->
         <Border x:Name="PilotDetailPanel"
                 Background="#E00A0D17" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="6"
-                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,190,0" MinWidth="170"
+                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,12,0" MinWidth="170"
                 Visibility="Collapsed">
             <Border.RenderTransform>
                 <TranslateTransform x:Name="PilotDetailPanelTransform" />
@@ -251,77 +155,10 @@
             </StackPanel>
         </Border>
 
-        <!-- ── Top-right: SimBrief plan HUD (draggable via PlanDragHandle) — 4 states:
-             loading / loaded / error-and-no-username / no-plan, matching the original exactly. ── -->
-        <Border x:Name="PlanHudPanel"
-                Background="#E00A0D17" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="6"
-                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,12,0" MinWidth="160">
-            <Border.RenderTransform>
-                <TranslateTransform x:Name="PlanPanelTransform" />
-            </Border.RenderTransform>
-            <StackPanel>
-                <Border x:Name="PlanDragHandle" Height="4" Background="#263D7EEE" CornerRadius="6,6,0,0" />
-                <StackPanel Padding="13,8,13,10" Spacing="6">
-
-                    <!-- Loading state -->
-                    <StackPanel x:Name="PlanLoadingPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
-                        <ProgressRing IsActive="True" Width="12" Height="12" Foreground="#3D7EEE" />
-                        <TextBlock Text="FETCHING OFP…"
-                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
-                    </StackPanel>
-
-                    <!-- Loaded state -->
-                    <StackPanel x:Name="PlanLoadedPanel" Spacing="6" Visibility="Collapsed">
-                        <TextBlock x:Name="PlanRouteText" Text="---- → ----"
-                                   FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#D9FFFFFF" CharacterSpacing="40" />
-                        <Border Height="1" Background="#263D7EEE" />
-                        <TextBlock x:Name="PlanDetailText" Text="---- · 0 WPT"
-                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
-                        <Border Height="1" Background="#263D7EEE" />
-                        <Border Height="22" Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
-                                Tapped="OnRefreshOfpTapped">
-                            <TextBlock Text="REFRESH OFP" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       FontFamily="Consolas" FontSize="9" CharacterSpacing="60" Foreground="#A6FFFFFF" />
-                        </Border>
-                    </StackPanel>
-
-                    <!-- Empty state (error / no-username / no-plan) -->
-                    <StackPanel x:Name="PlanEmptyPanel" Spacing="6" Visibility="Collapsed">
-                        <TextBlock x:Name="PlanErrorText" Text="" Visibility="Collapsed"
-                                   FontFamily="Consolas" FontSize="8" CharacterSpacing="60" Foreground="#F97316" />
-                        <Border x:Name="PlanErrorDivider" Height="1" Background="#263D7EEE" Visibility="Collapsed" />
-
-                        <StackPanel x:Name="PlanNoUsernamePanel" Spacing="6" Visibility="Collapsed">
-                            <TextBlock Text="NO SIMBRIEF ID"
-                                       FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
-                            <Border Height="1" Background="#263D7EEE" />
-                            <Border Height="22" Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
-                                    Tapped="OnConfigureTapped">
-                                <TextBlock Text="CONFIGURE" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           FontFamily="Consolas" FontSize="9" CharacterSpacing="60" Foreground="#A6FFFFFF" />
-                            </Border>
-                        </StackPanel>
-
-                        <StackPanel x:Name="PlanNoPlanPanel" Spacing="6" Visibility="Collapsed">
-                            <TextBlock Text="NO FLIGHT PLAN"
-                                       FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
-                            <Border Height="1" Background="#263D7EEE" />
-                            <Border Height="22" Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
-                                    Tapped="OnImportOfpTapped">
-                                <TextBlock Text="IMPORT OFP" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           FontFamily="Consolas" FontSize="9" CharacterSpacing="60" Foreground="#A6FFFFFF" />
-                            </Border>
-                        </StackPanel>
-                    </StackPanel>
-
-                </StackPanel>
-            </StackPanel>
-        </Border>
-
-        <!-- ── Waypoint-name popup — shown on tap of a planned-route waypoint dot (see
-             MapPage.xaml.cs's OnMapInfo). Positioned imperatively via Canvas.SetLeft/SetTop from
-             the tapped feature's screen position, so it needs its own Canvas rather than the
-             Grid-alignment/Margin positioning every other panel above uses. ── -->
+        <!-- ── Waypoint-name popup — shown on HOVER over a planned-route waypoint dot (see
+             MapPage.xaml.cs's OnMapPointerMoved). Positioned imperatively via Canvas.SetLeft/
+             SetTop from the pointer's screen position, so it needs its own Canvas rather than the
+             Grid-alignment/Margin positioning the other panels above use. ── -->
         <Canvas x:Name="WaypointPopupCanvas" IsHitTestVisible="False">
             <Border x:Name="WaypointPopupBorder" Visibility="Collapsed"
                     Background="#E00A0D17" BorderBrush="#4D3D7EEE" BorderThickness="1" CornerRadius="4"

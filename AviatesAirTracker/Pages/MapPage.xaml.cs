@@ -12,28 +12,27 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
-using Windows.UI;
 
 namespace AviatesAirTracker.Pages;
 
 /// <summary>
 /// Native reproduction of AviatesAirTracker.LegacyWeb\Pages\MapPage.razor. Hosts a
 /// Mapsui.UI.WinUI.MapControl wrapping a NativeMapRenderer (the Tasks 1-3 rendering layer, the
-/// direct analogue of wwwroot/js/interop.js's window.aviatesMap) plus the identity/progress/
-/// map-controls HUD panels and the "no active flight" overlay. The plan HUD and pilot-detail
-/// panel (top-right) are Task 5's job -- this page only wires the plumbing (the OtherPilotClicked-
-/// equivalent hit-testing storage field, the SimBriefService.FlightPlanLoaded subscription) that
-/// Task 5 builds its UI on top of, per the plan's explicit "don't make Task 5 touch this task's
-/// Loaded handler" goal.
+/// direct analogue of wwwroot/js/interop.js's window.aviatesMap) plus the map-controls HUD panel,
+/// the pilot-detail panel, and the "no active flight" overlay.
+///
+/// The identity strip, progress strip, and SimBrief plan HUD (all originally ported faithfully
+/// from MapPage.razor, all draggable) were removed after the fact at the user's explicit request,
+/// once they were actually visible on screen -- not part of the original Phase 4 plan. Their
+/// underlying data plumbing (MapViewModel's own telemetry/route-tracking, the map's own planned-
+/// route rendering) is untouched; only the floating text panels that displayed a slice of it are
+/// gone. SimBriefService/FlightSessionManager injections were removed along with them since
+/// nothing else in this page used those two services.
 /// </summary>
 public sealed partial class MapPage : Page
 {
     private readonly MapViewModel _vm;
-    private readonly SimBriefService _simBriefSvc;
     private readonly OtherPilotsService _otherPilots;
-    private readonly SettingsService _settings;
-    private readonly FlightSessionManager _flightSession;
     private readonly MessagingService _messaging;
 
     private readonly NativeMapRenderer _renderer;
@@ -41,30 +40,23 @@ public sealed partial class MapPage : Page
 
     private HashSet<string> _renderedOtherPilotIds = new();
 
-    // Set by OnMapInfo when an other-pilot marker is tapped (see the "IMPORTANT" hit-testing
-    // wiring note in this task's brief). Exposed as a property (not a bare field) so this class's
-    // own build doesn't trip CS0414 ("assigned but never read"); the pilot-detail panel below is
-    // now the consumer.
+    // Set by OnMapInfo when an other-pilot marker is tapped. Exposed as a property (not a bare
+    // field) so this class's own build doesn't trip CS0414 ("assigned but never read"); the
+    // pilot-detail panel below is the consumer.
     private string? _selectedPilotId;
     public string? SelectedOtherPilotId => _selectedPilotId;
 
-    // ── Task 5 state: pilot-detail panel + plan HUD ─────────────────────────────────────────────
-    // Mirrors MapPage.razor's own @code fields (_selectedPilot / _planLoading / _planError /
-    // _currentPlan) exactly -- page-local UI state, not part of MapViewModel.
+    // ── Pilot-detail panel state ─────────────────────────────────────────────────────────────
+    // Mirrors MapPage.razor's own @code field (_selectedPilot) -- page-local UI state, not part
+    // of MapViewModel.
     private LivePilotPosition? _selectedPilot;
-    private bool _planLoading;
-    private string? _planError;
-    private SimBriefFlightPlan? _currentPlan;
 
     public MapPage()
     {
         InitializeComponent();
 
         _vm = App.GetService<MapViewModel>();
-        _simBriefSvc = App.GetService<SimBriefService>();
         _otherPilots = App.GetService<OtherPilotsService>();
-        _settings = App.GetService<SettingsService>();
-        _flightSession = App.GetService<FlightSessionManager>();
         _messaging = App.GetService<MessagingService>();
 
         // NativeMapRenderer(map: null) creates and owns its own Mapsui.Map (see its own doc
@@ -76,32 +68,31 @@ public sealed partial class MapPage : Page
         _mapControl = new Mapsui.UI.WinUI.MapControl { Map = _renderer.Map };
         MapHost.Children.Add(_mapControl);
 
-        // Single hit-testing handler for both waypoint-name and other-pilot-marker taps, per the
-        // "IMPORTANT" note: NativeMapRenderer only owns a Mapsui.Map (not a MapControl), so it
-        // cannot itself subscribe to pointer hit-testing -- that requires the actual MapControl
-        // instance, which only this page has. GetOtherPilotId is checked first, GetWaypointName
-        // second, exactly as directed -- one hit-testing path, not two redundant ones.
+        // NativeMapRenderer only owns a Mapsui.Map (not a MapControl), so it cannot itself
+        // subscribe to pointer hit-testing -- that requires the actual MapControl instance, which
+        // only this page has. Two separate handlers now, deliberately not one shared one: Info
+        // (a tap/click gesture) drives the other-pilot marker -> pilot-detail-panel flow;
+        // PointerMoved (continuous hover) drives the waypoint-name popup. These used to share one
+        // handler wired to Info alone (waypoint names showed on tap, not hover) -- split apart at
+        // the user's explicit request for hover-based waypoint names.
         _mapControl.Info += OnMapInfo;
+        _mapControl.PointerMoved += OnMapPointerMoved;
 
-        UpdateIdentityStrip();
-        UpdateProgressStrip();
         UpdateNoFlightOverlay();
-        UpdatePlanHud();
         UpdatePilotDetailPanel();
 
-        // Reusable drag helper (ManipulationDelta + TranslateTransform), shared across every
-        // draggable panel rather than reimplemented per panel.
-        AttachDragHandle(IdentityDragHandle, IdentityPanel);
-        AttachDragHandle(ProgressDragHandle, ProgressPanel);
-        AttachDragHandle(PlanDragHandle, PlanHudPanel);
-        // Pilot-detail panel: the original's markup has a drag handle but never actually calls
-        // initDrag on it (a confirmed pre-existing bug -- it looks draggable but isn't). This port
-        // wires real dragging here since the panel is structurally identical to the ones that
-        // already drag correctly -- a small, defensible fix, not a silent behavior change (called
-        // out in the Task 5 commit message/report).
+        // Reusable drag helper (ManipulationDelta + TranslateTransform). The identity/progress/
+        // plan-HUD panels this used to also apply to are gone (removed at the user's request);
+        // the pilot-detail panel is the only draggable panel left.
+        // The original's markup has a drag handle on the pilot-detail panel but never actually
+        // calls initDrag on it (a confirmed pre-existing bug -- it looks draggable but isn't).
+        // This port wires real dragging here since the panel is structurally identical to the
+        // ones that already drag correctly -- a small, defensible fix, not a silent behavior
+        // change (called out in the Task 5 commit message/report).
         AttachDragHandle(PilotDetailDragHandle, PilotDetailPanel);
-        // MapControlsPanel intentionally has no drag handle and no call to AttachDragHandle here --
-        // matching the original's hud--br panel exactly (bottom-right map controls do not drag).
+        // MapControlsPanel intentionally has no drag handle and no call to AttachDragHandle here,
+        // matching the original exactly (bottom-right map controls do not drag) -- and per the
+        // user's explicit choice to keep this panel as-is.
 
         Loaded += OnPageLoaded;
         Unloaded += OnPageUnloaded;
@@ -115,13 +106,15 @@ public sealed partial class MapPage : Page
 
         // MapViewModel.MapRenderRequested fires from the telemetry pump (confirmed off the UI
         // thread during this phase's research); OtherPilotsService.PositionsUpdated fires from its
-        // own background System.Threading.Timer poll; SimBriefService.FlightPlanLoaded fires from
-        // an async fetch continuation. All three are marshaled via DispatcherQueue.TryEnqueue in
-        // their handlers below, matching the Loaded/Unloaded subscribe-unsubscribe shape
-        // MessagesPage.xaml.cs/SettingsPage.xaml.cs already established.
+        // own background System.Threading.Timer poll. Both are marshaled via
+        // DispatcherQueue.TryEnqueue in their handlers below, matching the Loaded/Unloaded
+        // subscribe-unsubscribe shape MessagesPage.xaml.cs/SettingsPage.xaml.cs already
+        // established. (SimBriefService.FlightPlanLoaded was only subscribed here to feed the now-
+        // removed Plan HUD -- MapViewModel's own ConsumePlanSync()/MapRenderRequested already keeps
+        // the map's planned-route layer in sync independently of that subscription, so removing it
+        // doesn't affect the actual map rendering.)
         _vm.MapRenderRequested += OnMapRenderRequested;
         _otherPilots.PositionsUpdated += OnOtherPilotsUpdated;
-        _simBriefSvc.FlightPlanLoaded += OnFlightPlanLoaded;
 
         // Mirrors MapPage.razor's OnAfterRenderAsync(firstRender): render whatever other-pilot
         // positions and planned route already exist the moment this page opens, not just future
@@ -132,22 +125,13 @@ public sealed partial class MapPage : Page
         if (plan is not null)
             PushPlannedRoute(plan);
 
-        // Mirrors MapPage.razor's OnAfterRenderAsync(firstRender): pick up whatever SimBrief plan
-        // was already loaded (e.g. via ACARS) before this page was opened, so the Plan HUD doesn't
-        // show "NO FLIGHT PLAN" for a plan that already exists.
-        _currentPlan = _simBriefSvc.CurrentPlan;
-
-        UpdateIdentityStrip();
-        UpdateProgressStrip();
         UpdateNoFlightOverlay();
-        UpdatePlanHud();
     }
 
     private void OnPageUnloaded(object sender, RoutedEventArgs e)
     {
         _vm.MapRenderRequested -= OnMapRenderRequested;
         _otherPilots.PositionsUpdated -= OnOtherPilotsUpdated;
-        _simBriefSvc.FlightPlanLoaded -= OnFlightPlanLoaded;
     }
 
     // ── MapViewModel.MapRenderRequested -- the ~4 Hz decimated telemetry tick ───────────────────
@@ -172,8 +156,6 @@ public sealed partial class MapPage : Page
                 if (dirty && plan is not null)
                     PushPlannedRoute(plan);
 
-                UpdateIdentityStrip();
-                UpdateProgressStrip();
                 UpdateNoFlightOverlay();
             }
             catch (Exception ex)
@@ -287,54 +269,41 @@ public sealed partial class MapPage : Page
         }
     }
 
-    // ── SimBriefService.FlightPlanLoaded ────────────────────────────────────────────────────────
-
-    // MapViewModel.OnFlightPlanLoaded already sets its own dirty flag and raises
-    // MapRenderRequested (which OnMapRenderRequested above already handles via ConsumePlanSync --
-    // the map layers update regardless of this subscription). This handler drives the Plan HUD's
-    // own state, matching MapPage.razor's OnFlightPlanLoaded exactly (`_currentPlan = plan;
-    // _planError = null; StateHasChanged();`).
-    private void OnFlightPlanLoaded(object? sender, SimBriefFlightPlan plan)
-    {
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            _currentPlan = plan;
-            _planError = null;
-            UpdatePlanHud();
-        });
-    }
-
-    // ── Hit-testing: MapControl.Info (single handler for waypoint names + other-pilot taps) ────
+    // ── Hit-testing: tap (other-pilot markers) vs. hover (waypoint names) ──────────────────────
+    // Two separate MapControl handlers, not one shared one: Info is a tap/click gesture, used only
+    // to select an other-pilot marker and open the pilot-detail panel. PointerMoved is continuous
+    // hover, used only to show/hide the waypoint-name popup as the pointer crosses a waypoint dot
+    // -- per the user's explicit request for hover-based waypoint names (previously this was
+    // tap-only, sharing the Info handler above with the pilot-marker logic).
 
     private void OnMapInfo(object? sender, Mapsui.MapInfoEventArgs e)
     {
-        var feature = e.MapInfo?.Feature;
-        if (feature is null)
-        {
-            HideWaypointPopup();
-            return;
-        }
+        var pilotId = e.MapInfo?.Feature is { } feature ? NativeMapRenderer.GetOtherPilotId(feature) : null;
+        if (pilotId is null) return;
 
-        var pilotId = NativeMapRenderer.GetOtherPilotId(feature);
-        if (pilotId is not null)
-        {
-            HideWaypointPopup();
-            _selectedPilotId = pilotId;
-            // Matches MapPage.razor's [JSInvokable] OnOtherPilotClicked: resolve the tapped pilot
-            // from OtherPilotsService.LatestPositions and show the pilot-detail panel.
-            _selectedPilot = _otherPilots.LatestPositions.FirstOrDefault(p => p.PilotId == pilotId);
-            UpdatePilotDetailPanel();
-            return;
-        }
+        _selectedPilotId = pilotId;
+        // Matches MapPage.razor's [JSInvokable] OnOtherPilotClicked: resolve the tapped pilot
+        // from OtherPilotsService.LatestPositions and show the pilot-detail panel.
+        _selectedPilot = _otherPilots.LatestPositions.FirstOrDefault(p => p.PilotId == pilotId);
+        UpdatePilotDetailPanel();
+    }
 
-        var waypointName = NativeMapRenderer.GetWaypointName(feature);
-        if (waypointName is not null && e.MapInfo?.ScreenPosition is { } screenPosition)
-        {
+    // Pixel hit-test tolerance around the pointer for MapControl.GetMapInfo -- a small forgiving
+    // radius so hovering doesn't require pixel-perfect precision over a small waypoint dot,
+    // matching the original Leaflet page's own forgiving circle-marker hit target.
+    private const int HoverHitTestMargin = 8;
+
+    private void OnMapPointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        var position = e.GetCurrentPoint(_mapControl).Position;
+        var screenPosition = new MPoint(position.X, position.Y);
+        var mapInfo = _mapControl.GetMapInfo(screenPosition, HoverHitTestMargin);
+        var waypointName = mapInfo?.Feature is { } feature ? NativeMapRenderer.GetWaypointName(feature) : null;
+
+        if (waypointName is not null)
             ShowWaypointPopup(waypointName, screenPosition);
-            return;
-        }
-
-        HideWaypointPopup();
+        else
+            HideWaypointPopup();
     }
 
     private void ShowWaypointPopup(string name, MPoint screenPosition)
@@ -408,127 +377,7 @@ public sealed partial class MapPage : Page
             PilotRouteText.Text = $"{_selectedPilot.DepartureIcao ?? "----"} → {_selectedPilot.ArrivalIcao ?? "----"}";
     }
 
-    // ── Plan HUD (top-right, draggable) — loading / loaded / error-and-no-username / no-plan ───
-
-    private async void OnImportOfpTapped(object sender, TappedRoutedEventArgs e) => await ImportOfpAsync();
-
-    private async void OnRefreshOfpTapped(object sender, TappedRoutedEventArgs e) => await ImportOfpAsync();
-
-    private void OnConfigureTapped(object sender, TappedRoutedEventArgs e) =>
-        this.Frame.Navigate(typeof(SettingsPage));
-
-    // Matches MapPage.razor's ImportSimBriefAsync exactly, including the confirmed pre-existing
-    // inconsistency the design spec flagged: unlike ACARS's own OFP import, this does NOT call
-    // Settings.SaveSimBriefPlanAsync -- the fetched plan is handed to FlightSessionManager and
-    // broadcast via SimBriefService.NotifyPlanLoaded, but never persisted to disk from here. Left
-    // exactly as-is per the plan's explicit "don't fix this unilaterally" instruction.
-    private async Task ImportOfpAsync()
-    {
-        var username = _settings.Settings.SimBriefUsername;
-        if (string.IsNullOrWhiteSpace(username)) return;
-
-        _planLoading = true;
-        _planError = null;
-        UpdatePlanHud();
-
-        try
-        {
-            var plan = await _simBriefSvc.FetchLatestOFPAsync(username);
-            if (plan is not null)
-            {
-                _currentPlan = plan;
-                _flightSession.AssignSimBriefPlan(plan);
-                _simBriefSvc.NotifyPlanLoaded(plan);
-            }
-            else
-            {
-                _planError = "NO OFP FOUND";
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "[Map] SimBrief OFP fetch failed");
-            _planError = "FETCH FAILED";
-        }
-        finally
-        {
-            _planLoading = false;
-            UpdatePlanHud();
-        }
-    }
-
-    // Matches MapPage.razor's declarative plan-HUD @if/@else chain: loading takes priority, then
-    // loaded (a plan exists), then the empty branch which itself splits on whether a SimBrief
-    // username is configured (no-username shows "Configure", otherwise "Import OFP") -- with an
-    // optional error line shown above either empty sub-state when the last fetch failed.
-    private void UpdatePlanHud()
-    {
-        PlanLoadingPanel.Visibility = _planLoading ? Visibility.Visible : Visibility.Collapsed;
-
-        var showLoaded = !_planLoading && _currentPlan is not null;
-        PlanLoadedPanel.Visibility = showLoaded ? Visibility.Visible : Visibility.Collapsed;
-        if (showLoaded)
-        {
-            PlanRouteText.Text = $"{_currentPlan!.DepartureICAO} → {_currentPlan.ArrivalICAO}";
-            PlanDetailText.Text = $"{_currentPlan.AircraftType}  ·  {_currentPlan.Waypoints.Count} WPT";
-        }
-
-        var showEmpty = !_planLoading && _currentPlan is null;
-        PlanEmptyPanel.Visibility = showEmpty ? Visibility.Visible : Visibility.Collapsed;
-        if (showEmpty)
-        {
-            PlanErrorText.Visibility = _planError is not null ? Visibility.Visible : Visibility.Collapsed;
-            PlanErrorDivider.Visibility = _planError is not null ? Visibility.Visible : Visibility.Collapsed;
-            PlanErrorText.Text = _planError ?? "";
-
-            var noUsername = string.IsNullOrWhiteSpace(_settings.Settings.SimBriefUsername);
-            PlanNoUsernamePanel.Visibility = noUsername ? Visibility.Visible : Visibility.Collapsed;
-            PlanNoPlanPanel.Visibility = noUsername ? Visibility.Collapsed : Visibility.Visible;
-        }
-    }
-
     // ── HUD text refresh ─────────────────────────────────────────────────────────────────────────
-
-    private void UpdateIdentityStrip()
-    {
-        RouteLabelText.Text = _vm.RouteLabel;
-        UpdatePhaseBadge();
-        AltValueText.Text = _vm.AltText;
-        VsValueText.Text = _vm.VsText;
-        IasValueText.Text = _vm.IasText;
-        GsValueText.Text = _vm.GsText;
-        HdgValueText.Text = _vm.HdgText;
-        MachValueText.Text = _vm.MachText;
-    }
-
-    // Ported from MapPage.razor's inline style="background:@(VM.PhaseColor)22;border-color:@(VM.PhaseColor)66;color:@VM.PhaseColor;"
-    // -- CSS hex-with-alpha-suffix is RRGGBBAA (alpha appended after the base color), so 0x22/0x66
-    // become the alpha channel of a Color built from PhaseColor's own R/G/B.
-    private void UpdatePhaseBadge()
-    {
-        var baseColor = ParseHexColor(_vm.PhaseColor);
-        PhaseBadgeBorder.Background = new SolidColorBrush(Color.FromArgb(0x22, baseColor.R, baseColor.G, baseColor.B));
-        PhaseBadgeBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, baseColor.R, baseColor.G, baseColor.B));
-        PhaseBadgeText.Foreground = new SolidColorBrush(baseColor);
-        PhaseBadgeText.Text = _vm.PhaseText;
-    }
-
-    private static Color ParseHexColor(string hex)
-    {
-        hex = hex.TrimStart('#');
-        var r = byte.Parse(hex.Substring(0, 2), System.Globalization.NumberStyles.HexNumber);
-        var g = byte.Parse(hex.Substring(2, 2), System.Globalization.NumberStyles.HexNumber);
-        var b = byte.Parse(hex.Substring(4, 2), System.Globalization.NumberStyles.HexNumber);
-        return Color.FromArgb(0xFF, r, g, b);
-    }
-
-    private void UpdateProgressStrip()
-    {
-        NextWaypointText.Text = _vm.NextWaypoint;
-        EtaText.Text = _vm.EtaZ;
-        DistRemValueText.Text = _vm.DistRemText;
-        FuelRemValueText.Text = _vm.FuelRemText;
-    }
 
     // VM.HasActiveFlight/VM.NoFlightText re-read live on every call (from OnPageLoaded and every
     // OnMapRenderRequested tick), not cached once at construction -- matching the original's
