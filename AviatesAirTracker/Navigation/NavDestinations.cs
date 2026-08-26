@@ -27,7 +27,7 @@ public static class NavDestinations
         new("routes",    "Routes",    "/routes",    "Overview", NativePageType: typeof(Pages.RoutesPage)),
         new("fleet",     "Fleet",     "/fleet",     "Overview", NativePageType: typeof(Pages.FleetPage)),
         new("pilot-hub", "Pilot Hub", "/pilot-hub", "Pilot", NativePageType: typeof(Pages.PilotHubPage)),
-        new("acars",     "ACARS",     "/acars",     "Pilot"),
+        new("acars",     "ACARS",     "/acars",     "Pilot", NativePageType: typeof(Pages.AcarsPage)),
         new("map",       "Map",       "/map",       "Pilot", NativePageType: typeof(Pages.MapPage)),
         new("messages",  "Messages",  "/messages",  "Pilot", NativePageType: typeof(Pages.MessagesPage)),
         new("news",      "News",      "/news",      "Community", NativePageType: typeof(Pages.NewsPage)),
