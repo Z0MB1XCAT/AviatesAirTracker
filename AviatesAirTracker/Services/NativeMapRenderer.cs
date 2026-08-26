@@ -27,21 +27,20 @@ namespace AviatesAirTracker.Services;
 /// </summary>
 public sealed class NativeMapRenderer : IDisposable
 {
-    // Confirmed exact from wwwroot/js/interop.js's window.aviatesMap.init (lines ~34-49):
-    // L.map({ zoom: 7, minZoom: 3, maxZoom: 18 }) + L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { subdomains: 'abcd' }).
-    // The {r} retina-suffix token has no BruTile/Mapsui equivalent (no built-in DPI-aware tile
-    // source), so it is dropped here -- the native renderer always fetches @1x tiles. Simplification,
-    // noted in the Task 1 report.
-    private const string TileUrlTemplate = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png";
-    private static readonly string[] TileSubdomains = { "a", "b", "c", "d" };
+    // Originally ported exact from interop.js's CARTO Dark tile source (see git history), but
+    // CARTO's basemaps.cartocdn.com is an unauthenticated, no-SLA free/demo endpoint -- it serves
+    // a tiled "API KEY REQUIRED" watermark (still HTTP 200, fails silently) at its own discretion
+    // once it decides to throttle, independent of request headers (re-verified directly via curl:
+    // burst concurrency, empty User-Agent, and a real User-Agent all returned real tiles in
+    // isolation, yet the watermark still appeared live in the running app -- so the earlier
+    // "missing User-Agent" theory doesn't actually explain it). Swapped to Esri's World Dark Gray
+    // Base tile service instead: no API key, no signup, no per-IP throttling observed, similar
+    // dark/muted aesthetic. Confirmed via curl: real JPEG tiles at z0-16 (native), z17-18 return a
+    // valid (if softly upsampled/over-zoomed) tile rather than an error, so MaxZoomLevel below is
+    // left at 18 -- no crash or blank tiles at max native zoom.
+    private const string TileUrlTemplate = "https://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}";
+    private const string TileAttribution = "Esri, HERE, Garmin, FAO, NOAA, USGS, © OpenStreetMap contributors, GIS User Community";
 
-    // CARTO's edge serves a tiled "API KEY REQUIRED" watermark image (still HTTP 200, so this
-    // fails silently rather than throwing) to requests with no User-Agent header -- confirmed by
-    // direct curl testing: an empty User-Agent reproduces the watermark exactly, any non-empty one
-    // returns real tiles. .NET's HttpClient (which BruTile.Web.HttpTileSource uses internally)
-    // sends no User-Agent by default, unlike curl or a browser (which is why the original Leaflet/
-    // WebView2 page never hit this). HttpTileSource has a userAgent constructor parameter for
-    // exactly this.
     private const string TileUserAgent = "AviatesAirTracker-WinUI3/1.0";
 
     private const int MinZoomLevel = 3;
@@ -163,7 +162,12 @@ public sealed class NativeMapRenderer : IDisposable
         Map.Layers.Clear();
 
         var tileSchema = new GlobalSphericalMercator(MinZoomLevel, MaxZoomLevel);
-        var tileSource = new HttpTileSource(tileSchema, TileUrlTemplate, TileSubdomains, name: "CARTO Dark", userAgent: TileUserAgent);
+        var tileSource = new HttpTileSource(
+            tileSchema,
+            TileUrlTemplate,
+            name: "Esri Dark Gray",
+            attribution: new BruTile.Attribution(TileAttribution),
+            userAgent: TileUserAgent);
         Map.Layers.Add(new TileLayer(tileSource) { Name = "Base" });
 
         _aircraftFeature = null;
@@ -205,6 +209,12 @@ public sealed class NativeMapRenderer : IDisposable
             Name = "Waypoints",
             Features = Array.Empty<IFeature>(),
             Style = null,
+            // MapControl.GetMapInfo/Info hit-testing (Mapsui.Rendering.Skia.MapRenderer.GetMapInfo)
+            // filters candidate layers with `where l.IsMapInfoLayer` before doing any pixel-hit
+            // work -- it defaults to false, so without this, hovering/tapping a waypoint dot can
+            // never resolve a feature no matter how precise the hit is. Confirmed by decompiling
+            // Mapsui.Rendering.Skia.dll's MapRenderer.GetMapInfo.
+            IsMapInfoLayer = true,
         };
         Map.Layers.Add(_waypointLayer);
 
@@ -229,6 +239,9 @@ public sealed class NativeMapRenderer : IDisposable
             Name = "OtherPilots",
             Features = Array.Empty<IFeature>(),
             Style = null,
+            // Same reason as _waypointLayer above -- required for tap hit-testing to resolve a
+            // pilotId via MapControl.Info.
+            IsMapInfoLayer = true,
         };
         Map.Layers.Add(_otherPilotLayer);
 
