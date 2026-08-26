@@ -50,6 +50,7 @@ public partial class MapViewModel : ObservableObject
     private readonly SimBriefService    _simBriefSvc;
     private readonly SimConnectManager  _simConnect;
     private readonly IUiDispatcher      _ui;
+    private readonly FlightTrailService _flightTrail;
 
     // ── Page callback ─────────────────────────────────────────
     public event Action? MapRenderRequested;
@@ -58,12 +59,14 @@ public partial class MapViewModel : ObservableObject
         RouteTracker routeTracker,
         SimBriefService simBriefSvc,
         SimConnectManager simConnect,
-        IUiDispatcher ui)
+        IUiDispatcher ui,
+        FlightTrailService flightTrail)
     {
         _routeTracker = routeTracker;
         _simBriefSvc  = simBriefSvc;
         _simConnect   = simConnect;
         _ui           = ui;
+        _flightTrail  = flightTrail;
 
         _simBriefSvc.FlightPlanLoaded       += OnFlightPlanLoaded;
         _simConnect.ConnectionStatusChanged += OnConnectionStatusChanged;
@@ -125,12 +128,15 @@ public partial class MapViewModel : ObservableObject
 
     public IReadOnlyList<object>? GetPathIfChanged()
     {
-        var totalCount = _routeTracker.RecordedPathCount;
+        // Reads the shared, permanent FlightTrailService instead of RouteTracker's own
+        // 500-point rolling window, so the colored flown path never silently drops the start
+        // of a long flight. Both MapPage and AcarsPage's mini-map read from this same trail.
+        var totalCount = _flightTrail.RecordedPointCount;
         if (totalCount == _lastPathCount) return null;
         _lastPathCount = totalCount;
-        var path = _routeTracker.GetRecordedPathSnapshot();
+        var path = _flightTrail.GetTrailForRendering(2000);
         return path
-            .Select(p => (object)new { lat = p.Latitude, lon = p.Longitude, alt = p.AltitudeMSL })
+            .Select(p => (object)new { lat = p.Lat, lon = p.Lon, alt = p.AltFt })
             .ToList();
     }
 

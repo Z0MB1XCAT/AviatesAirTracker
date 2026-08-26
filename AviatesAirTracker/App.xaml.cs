@@ -389,6 +389,7 @@ public partial class App : Application
         services.AddSingleton<DispatchRadioService>();
         services.AddSingleton<MessagingService>();
         services.AddSingleton<RouteTracker>();
+        services.AddSingleton<FlightTrailService>();
         services.AddSingleton<FlightSessionManager>();
         services.AddSingleton<DiscordPresenceService>();
         services.AddSingleton<SimBriefService>();

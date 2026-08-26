@@ -139,6 +139,14 @@ public class SimBriefService
                 ArrivalRunway   = root["destination"]?["plan_rwy"]?.ToString() ?? "",
             };
 
+            // Flight number: general/icao_airline + general/flight_number (e.g. "BAW123").
+            // Deliberately NOT atc/callsign -- see FlightModels.cs's SimBriefFlightPlan.FlightNumber.
+            var icaoAirline = root["general"]?["icao_airline"]?.ToString() ?? "";
+            var flightNum   = root["general"]?["flight_number"]?.ToString() ?? "";
+            plan.FlightNumber = (!string.IsNullOrEmpty(icaoAirline) && !string.IsNullOrEmpty(flightNum))
+                ? icaoAirline + flightNum
+                : "";
+
             // Cruise altitude
             if (int.TryParse(root["general"]?["initial_altitude"]?.ToString(), out int cruiseAlt))
                 plan.CruiseAltitudeFt = cruiseAlt;
@@ -348,6 +356,14 @@ public class SimBriefService
                 DepartureMetar = root.Element("weather")?.Element("orig_metar")?.Value ?? "",
                 ArrivalMetar = root.Element("weather")?.Element("dest_metar")?.Value ?? ""
             };
+
+            // Flight number: general/icao_airline + general/flight_number (e.g. "BAW123").
+            // Deliberately NOT atc/callsign -- see FlightModels.cs's SimBriefFlightPlan.FlightNumber.
+            var xmlIcaoAirline = root.Element("general")?.Element("icao_airline")?.Value ?? "";
+            var xmlFlightNum   = root.Element("general")?.Element("flight_number")?.Value ?? "";
+            plan.FlightNumber = (!string.IsNullOrEmpty(xmlIcaoAirline) && !string.IsNullOrEmpty(xmlFlightNum))
+                ? xmlIcaoAirline + xmlFlightNum
+                : "";
 
             if (int.TryParse(root.Element("general")?.Element("initial_altitude")?.Value, out int alt))
                 plan.CruiseAltitudeFt = alt;

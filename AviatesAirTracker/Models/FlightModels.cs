@@ -218,6 +218,10 @@ public class SimBriefFlightPlan
     public string GeneratedBy { get; set; } = "";
     public DateTime GeneratedAt { get; set; }
     public string OFPNumber { get; set; } = "";
+    // Concatenation of general/icao_airline + general/flight_number (e.g. "BAW123"). Deliberately
+    // NOT atc/callsign, which can be virtual-airline/user-customized. Empty if either source field
+    // is missing on the OFP.
+    public string FlightNumber { get; set; } = "";
 
     // Route
     public string DepartureICAO { get; set; } = "";

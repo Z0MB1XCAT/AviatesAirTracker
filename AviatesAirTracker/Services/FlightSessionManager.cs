@@ -52,6 +52,7 @@ public class FlightSessionManager
     private readonly ApproachMonitor _approachMonitor;
     private readonly AviatesBackendClient _backend;
     private readonly BookingService _bookingService;
+    private readonly FlightTrailService _flightTrail;
 
     // =====================================================
     // STATE
@@ -87,7 +88,8 @@ public class FlightSessionManager
         RunwayDetector runwayDetector,
         ApproachMonitor approachMonitor,
         AviatesBackendClient backend,
-        BookingService bookingService)
+        BookingService bookingService,
+        FlightTrailService flightTrail)
     {
         _telemetry = telemetry;
         _phaseDetector = phaseDetector;
@@ -102,6 +104,7 @@ public class FlightSessionManager
         _approachMonitor = approachMonitor;
         _backend = backend;
         _bookingService = bookingService;
+        _flightTrail = flightTrail;
 
         // Wire up phase changes
         _phaseDetector.PhaseChanged += OnPhaseChanged;
@@ -433,6 +436,9 @@ public class FlightSessionManager
         };
 
         _routeTracker.AddPoint(point);
+        // Persistent, unbounded trail (independent of RouteTracker's per-flight lifecycle) --
+        // gated internally on SimConnect being Connected, never cleared by Reset()/end-flight.
+        _flightTrail.AddPoint(point);
         // MAJOR-02: FlightPath was receiving pre-takeoff (taxi/preflight) points because RecordPathPoint
         // was called from OnTelemetryReceived unconditionally. Only add to FlightPath after wheels-up
         // so FlightRecord.FlightPath and RouteTracker stay consistent.
