@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using BruTile.Cache;
 using BruTile.Predefined;
 using BruTile.Web;
 using Mapsui;
@@ -42,6 +44,21 @@ public sealed class NativeMapRenderer : IDisposable
     private const string TileAttribution = "Esri, HERE, Garmin, FAO, NOAA, USGS, © OpenStreetMap contributors, GIS User Community";
 
     private const string TileUserAgent = "AviatesAirTracker-WinUI3/1.0";
+
+    // Every tile fetch previously went over the network every time (including re-panning back to
+    // an area already viewed this session), which is the "takes a while to load" / "white boxes
+    // that get filled in" symptom -- the original Leaflet/WebView2 page never showed this because
+    // the browser's own HTTP disk cache absorbed repeat tile requests for free; Mapsui's
+    // HttpTileSource has no cache of its own beyond an in-memory one that resets every launch.
+    // BruTile ships a ready-made on-disk IPersistentCache implementation (BruTile.Cache.FileCache)
+    // for exactly this -- wiring it in means a tile fetched once is read from disk (near-instant)
+    // on every later view, including across app restarts. 90 days is a conservative compromise
+    // between "effectively permanent" (matching Esri's own observed Cache-Control: max-age=180
+    // days) and not letting a cached tile go stale forever if the basemap imagery is ever updated.
+    private static readonly TimeSpan TileCacheExpiry = TimeSpan.FromDays(90);
+    private static readonly string TileCacheDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "AviatesAirTracker", "map_tile_cache");
 
     private const int MinZoomLevel = 3;
     private const int MaxZoomLevel = 18;
@@ -162,10 +179,12 @@ public sealed class NativeMapRenderer : IDisposable
         Map.Layers.Clear();
 
         var tileSchema = new GlobalSphericalMercator(MinZoomLevel, MaxZoomLevel);
+        var tileCache = new FileCache(TileCacheDirectory, "jpg", TileCacheExpiry);
         var tileSource = new HttpTileSource(
             tileSchema,
             TileUrlTemplate,
             name: "Esri Dark Gray",
+            persistentCache: tileCache,
             attribution: new BruTile.Attribution(TileAttribution),
             userAgent: TileUserAgent);
         Map.Layers.Add(new TileLayer(tileSource) { Name = "Base" });
