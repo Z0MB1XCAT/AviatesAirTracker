@@ -63,7 +63,11 @@ public sealed class NativeMapRenderer : IDisposable
         "AviatesAirTracker", "map_tile_cache");
 
     private const int MinZoomLevel = 3;
-    private const int MaxZoomLevel = 18;
+    // Capped at the user's explicit request (14 was chosen directly, not derived) -- combined with
+    // the OverrideZoomBounds fix in Init(), this is now a hard ceiling: the tile schema itself
+    // never defines a level past 14, so there's no resolution the + button/scroll/pinch could
+    // reach that would ask for one.
+    private const int MaxZoomLevel = 14;
     private const int InitialZoomLevel = 7;
 
     // Matches the original's ring-buffer cap on the recorded flown path (RouteTracker /
