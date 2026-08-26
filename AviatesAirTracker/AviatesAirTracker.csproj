@@ -50,9 +50,14 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.250907003" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4654" />
 
-    <!-- Map — kept for legacy; Blazor map uses Leaflet.js via JS interop -->
+    <!-- Map — native WinUI 3 map engine (Phase 4). The WinUI control package's actual
+         NuGet id is "Mapsui.WinUI" (NOT "Mapsui.UI.WinUI" — that id does not exist on
+         nuget.org; confirmed via nuget search during the Task 1 spike), pinned to the
+         same 4.1.7 version as the already-referenced Mapsui.Tiling/Mapsui.Nts to avoid
+         cross-package version-mismatch type-load failures. -->
     <PackageReference Include="Mapsui.Tiling" Version="4.1.7" />
     <PackageReference Include="Mapsui.Nts" Version="4.1.7" />
+    <PackageReference Include="Mapsui.WinUI" Version="4.1.7" />
 
     <!-- JSON -->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
