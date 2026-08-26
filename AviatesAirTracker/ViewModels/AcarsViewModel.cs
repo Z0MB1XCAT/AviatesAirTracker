@@ -295,14 +295,16 @@ public partial class AcarsViewModel : ObservableObject
 
     private void HandleConnectionStatusChanged(object? sender, SimConnectionStatus status)
     {
-        // Async lambda inside Invoke is safe here: the synchronous prefix (up to the first
-        // await) runs on the UI thread via the dispatcher queue callback, which installs a
-        // DispatcherQueueSynchronizationContext -- so the awaited continuation (AutoImportAsync
-        // and everything it touches) resumes on that same UI thread automatically, same as any
-        // ordinary async void UI event handler. _ui.Invoke itself returns once the synchronous
-        // prefix completes (fire-and-forget past that point), matching the legacy page's own
-        // InvokeAsync(async () => ...) shape.
-        _ui.Invoke(async () =>
+        // IUiDispatcher.Invoke/BeginInvoke only accept a synchronous Action -- passing an async
+        // lambda directly makes it an async-void delegate whose exceptions can't be observed by
+        // Invoke's own try/catch (that only wraps the synchronous prefix up to the first await;
+        // see DispatcherQueueUiDispatcher.Invoke). BeginInvoke is used here (not Invoke) since
+        // this is genuinely fire-and-forget -- nothing awaits HandleConnectionStatusChanged's
+        // completion -- and the async continuation is wrapped in its own try/catch, matching the
+        // established, documented-safe pattern for exactly this shape elsewhere in the codebase
+        // (MessagesPage.xaml.cs's OnNewMessageReceived: "an unhandled exception inside an
+        // async-void TryEnqueue callback would otherwise crash the process -- log and swallow").
+        _ui.BeginInvoke(() =>
         {
             SimStatus = status;
             ConnectingInProgress = false;
@@ -314,9 +316,21 @@ public partial class AcarsViewModel : ObservableObject
                 && !string.IsNullOrWhiteSpace(_settings.Settings.SimBriefUsername))
             {
                 _autoImportDone = true;
-                await AutoImportAsync();
+                _ = AutoImportSafeAsync();
             }
         });
+    }
+
+    private async Task AutoImportSafeAsync()
+    {
+        try
+        {
+            await AutoImportAsync();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "[Acars] Auto-import of SimBrief OFP failed");
+        }
     }
 
     private void HandleAircraftIdentReceived(object? sender, AircraftIdentification ident)
@@ -838,5 +852,20 @@ public partial class AcarsViewModel : ObservableObject
     }
 }
 
-/// <summary>One entry in the ACARS page's flight event log (phase-change history).</summary>
-public record AcarsEventLogEntry(DateTime Time, string Description);
+/// <summary>
+/// One entry in the ACARS page's flight event log (phase-change history). A plain mutable class,
+/// not a positional record -- this SDK throws CS8852 when an init-only record's properties are
+/// bound in any XAML ItemsControl (a known, repeated gotcha in this migration), so every display-
+/// row type in this codebase uses `{ get; set; }` instead.
+/// </summary>
+public class AcarsEventLogEntry
+{
+    public DateTime Time { get; set; }
+    public string Description { get; set; } = "";
+
+    public AcarsEventLogEntry(DateTime time, string description)
+    {
+        Time = time;
+        Description = description;
+    }
+}
