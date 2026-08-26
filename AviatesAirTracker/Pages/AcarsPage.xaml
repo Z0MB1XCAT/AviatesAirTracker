@@ -1,0 +1,559 @@
+<Page
+    x:Class="AviatesAirTracker.Pages.AcarsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="#080B14">
+
+    <!--
+      Native reproduction of AviatesAirTracker.LegacyWeb\Pages\Acars.razor (dark theme values
+      from wwwroot\css\app.css's html[data-theme="dark"] block), following the same rules every
+      prior native page in this migration has followed: no Style element anywhere (silently
+      crashes XamlCompiler.exe on this SDK, zero diagnostics), no literal double-hyphen inside any
+      XAML comment (invalid XML, same silent crash — a single hyphen or the box-drawing "──"
+      character is used instead), no malformed hex color literal (anything other than 3/6/8 hex
+      digits after '#' builds clean but throws XamlParseException at runtime), and no Button
+      anywhere (Border + Tapped for every clickable element instead).
+
+      Task 3 of the ACARS native-page plan ("skeleton"): header, connection status banner, active
+      booking banner, aircraft identification strip, instrument row, progress/ETA strip, the
+      mini-map + sidebar grid (SimBrief/Flight-Plan card, Flight Phase card, ACARS Key card), and
+      the flight event log. The AcarsFmc floating "FMC datalink" window is deliberately NOT
+      ported — confirmed by the design spec's research to be purely decorative (hardcoded
+      placeholder text, not wired to any real data), dropped as a small, explicit scope cut.
+
+      Task 4 (not this file's job yet) adds: the OFP details strip (waypoint route, METAR cards,
+      NOTAMs, Hoppies ACARS log, OFP text viewer, PIREP panel), the End Flight confirmation
+      ContentDialog, the OFP-import wipe-warning ContentDialog, and the flight completion overlay.
+      The End Flight button below is wired to a stub handler for exactly this reason (see
+      AcarsPage.xaml.cs's OnEndFlightTapped) — the plan's own Task 3 step 3 explicitly allows
+      this: "wire the button here, the dialog itself is Task 4's job". Likewise "Import Latest
+      OFP"/"Refresh OFP" apply the fetched plan directly without the wipe-warning gate — Task 4's
+      job per the plan's own Task 3/4 split; noted again on OnImportOfpTapped/OnRefreshOfpTapped.
+
+      Mini-map: a second, independent Mapsui.UI.WinUI.MapControl + NativeMapRenderer instance
+      (constructed in code-behind, matching MapPage.xaml.cs's convention of never declaring the
+      third-party map control type in XAML) is inserted into MiniMapHost below. This map only ever
+      calls Init/UpdatePosition/UpdateFlightPathAltitude — no planned route, no airport markers,
+      no other-pilot markers, no pointer hit-testing, matching the legacy mini-map's own reduced
+      feature set exactly (design spec, "Mini-map: reuse NativeMapRenderer directly").
+
+      Decorative CSS animations (the connecting/connected status dot's spin/breathe keyframes) are
+      not reproduced — a static dot color is shown instead, the same simplification FleetPage.xaml
+      already made for its refresh icon ("Static icon, not spun on IsLoading").
+    -->
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
+        <StackPanel MaxWidth="1440" Spacing="20" HorizontalAlignment="Stretch">
+
+            <!-- ── Header (Acars.razor:21-28) ── -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="ACARS / Tracking" FontFamily="{StaticResource DisplayFontBold}"
+                           FontSize="26" Foreground="#F1F5F9" />
+                <TextBlock Text="Real-time flight tracking, telemetry, and ACARS communications. Connect MSFS to go live."
+                           FontSize="14" Foreground="#94A3B8" />
+            </StackPanel>
+
+            <!-- ── Connection status banner (Acars.razor:30-63) ── -->
+            <Border x:Name="ConnectionBannerBorder"
+                    Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1.5"
+                    CornerRadius="20" Padding="20,14">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Width="44" Height="44" CornerRadius="12" Background="#121A2A"
+                            VerticalAlignment="Center">
+                        <Ellipse x:Name="ConnectionDot" Width="10" Height="10" Fill="#64748B"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock x:Name="BannerTitleText" Text="ACARS Offline — MSFS Not Connected"
+                                   FontSize="14" FontWeight="Bold" Foreground="#F1F5F9" />
+                        <TextBlock x:Name="BannerDescText"
+                                   Text="Launch Microsoft Flight Simulator to begin automatic ACARS tracking. All flight data will be recorded in real-time."
+                                   FontSize="12.5" Foreground="#64748B" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <TextBlock x:Name="UtcClockText" Grid.Column="2" Text="--:--:--"
+                               FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#64748B"
+                               CharacterSpacing="40" VerticalAlignment="Center" />
+
+                    <!-- Exactly one of these three is visible at a time (see UpdateConnectionBanner). -->
+                    <Border x:Name="ConnectButtonBorder" Grid.Column="3" Tapped="OnConnectTapped"
+                            Background="#4D9BEC" CornerRadius="9999" Padding="16,7" VerticalAlignment="Center">
+                        <TextBlock x:Name="ConnectButtonText" Text="Connect" FontSize="12" FontWeight="Bold" Foreground="White" />
+                    </Border>
+
+                    <StackPanel x:Name="LiveGroupPanel" Grid.Column="3" Orientation="Horizontal" Spacing="10"
+                                Visibility="Collapsed" VerticalAlignment="Center">
+                        <Border Background="#1F3EC7AC" CornerRadius="9999" Padding="10,3">
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <Ellipse Width="6" Height="6" Fill="#3EC7AC" VerticalAlignment="Center" />
+                                <TextBlock Text="LIVE" FontSize="11" FontWeight="SemiBold" Foreground="#3EC7AC" />
+                            </StackPanel>
+                        </Border>
+                        <Border x:Name="EndFlightButtonBorder" Tapped="OnEndFlightTapped"
+                                Background="#1AEF4444" BorderBrush="#EF4444" BorderThickness="1.5"
+                                CornerRadius="9999" Padding="16,6">
+                            <TextBlock Text="End Flight" FontSize="12" FontWeight="Bold" Foreground="#EF4444" />
+                        </Border>
+                    </StackPanel>
+
+                    <Border x:Name="CompleteChipBorder" Grid.Column="3"
+                            Background="#1F4D9BEC" CornerRadius="9999" Padding="10,3"
+                            Visibility="Collapsed" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <Ellipse Width="6" Height="6" Fill="#4D9BEC" VerticalAlignment="Center" />
+                            <TextBlock Text="Complete" FontSize="11" FontWeight="SemiBold" Foreground="#4D9BEC" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- ── Active booking banner (Acars.razor:65-95) ── -->
+            <Border x:Name="BookingBannerBorder"
+                    Background="#0C111D" BorderBrush="#384D9BEC" BorderThickness="1"
+                    CornerRadius="20" Padding="20,12" Visibility="Collapsed">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="-6" VerticalAlignment="Center">
+                        <Image x:Name="BookingFlagDepImage" Width="20" Height="14" Visibility="Collapsed" />
+                        <Image x:Name="BookingFlagArrImage" Width="20" Height="14" Visibility="Collapsed" />
+                    </StackPanel>
+
+                    <TextBlock x:Name="BookingCallsignText" Grid.Column="1" Text=""
+                               FontFamily="Consolas" FontSize="15" FontWeight="Bold" Foreground="#4D9BEC"
+                               CharacterSpacing="30" VerticalAlignment="Center" />
+
+                    <TextBlock x:Name="BookingFltNumText" Grid.Column="2" Text=""
+                               FontSize="12" Foreground="#64748B" VerticalAlignment="Center" Visibility="Collapsed" />
+
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock x:Name="BookingOriginText" Text="----" FontFamily="{StaticResource DisplayFontBold}"
+                                   FontSize="16" Foreground="#F1F5F9" />
+                        <TextBlock Text="→" FontSize="13" Foreground="#5FFFFFFF" />
+                        <TextBlock x:Name="BookingDestText" Text="----" FontFamily="{StaticResource DisplayFontBold}"
+                                   FontSize="16" Foreground="#F1F5F9" />
+                    </StackPanel>
+
+                    <Border Grid.Column="4" Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1"
+                            CornerRadius="6" Padding="8,2" VerticalAlignment="Center">
+                        <TextBlock x:Name="BookingAircraftTypeText" Text="" FontFamily="Consolas"
+                                   FontSize="11.5" FontWeight="SemiBold" Foreground="#64748B" />
+                    </Border>
+
+                    <TextBlock Grid.Column="5" Text="SimBrief opened in browser — generate your plan, then click Fetch OFP below"
+                               FontSize="12" Foreground="#64748B" VerticalAlignment="Center" TextWrapping="Wrap" />
+
+                    <Border x:Name="BookingDismissBorder" Grid.Column="6" Tapped="OnBookingDismissTapped"
+                            Width="24" Height="24" Background="Transparent" BorderBrush="#14FFFFFF" BorderThickness="1"
+                            CornerRadius="9999" VerticalAlignment="Center">
+                        <TextBlock Text="×" FontSize="14" Foreground="#64748B"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- ── Aircraft identification strip (Acars.razor:97-133) ── -->
+            <Border x:Name="AircraftIdStripBorder"
+                    Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                    CornerRadius="20" Padding="20,10" Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" Spacing="20">
+                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <TextBlock Text="✈" FontSize="16" Foreground="#4D9BEC" />
+                        <TextBlock x:Name="AtcModelText" Text="" FontFamily="Consolas" FontSize="13"
+                                   FontWeight="Bold" Foreground="#F1F5F9" />
+                    </StackPanel>
+                    <StackPanel x:Name="CallsignGroup" Orientation="Horizontal" Spacing="8" Visibility="Collapsed"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="CALLSIGN" FontSize="11" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                        <TextBlock x:Name="AtcIdText" Text="" FontFamily="Consolas" FontSize="13" Foreground="#F1F5F9" />
+                    </StackPanel>
+                    <StackPanel x:Name="FlightNumGroup" Orientation="Horizontal" Spacing="8" Visibility="Collapsed"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="FLIGHT" FontSize="11" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                        <TextBlock x:Name="AtcFlightNumberText" Text="" FontFamily="Consolas" FontSize="13" Foreground="#F1F5F9" />
+                    </StackPanel>
+                    <StackPanel x:Name="ActiveLegGroup" Orientation="Horizontal" Spacing="8" Visibility="Collapsed"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="ACTIVE LEG" FontSize="11" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                        <TextBlock x:Name="GpsActiveLegText" Text="" FontFamily="Consolas" FontSize="13" Foreground="#4D9BEC" />
+                    </StackPanel>
+                    <TextBlock x:Name="AircraftCoordsText" Text="" FontFamily="Consolas" FontSize="11" Foreground="#64748B"
+                               HorizontalAlignment="Right" VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+
+            <!-- ── Instrument row (Acars.razor:135-167 / app.css:1270-1306) ── -->
+            <Grid ColumnSpacing="12" RowSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Grid.Column="0" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="ALTITUDE MSL" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="120" />
+                        <TextBlock x:Name="AltValueText" Text="—" FontFamily="{StaticResource DisplayFontBold}" FontSize="28" Foreground="#64748B" />
+                        <TextBlock Text="ft" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Row="0" Grid.Column="1" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="AIRSPEED IAS" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="120" />
+                        <TextBlock x:Name="IasValueText" Text="—" FontFamily="{StaticResource DisplayFontBold}" FontSize="28" Foreground="#64748B" />
+                        <TextBlock Text="kts" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Row="0" Grid.Column="2" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="VERTICAL SPEED" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="120" />
+                        <TextBlock x:Name="VsValueText" Text="—" FontFamily="{StaticResource DisplayFontBold}" FontSize="28" Foreground="#64748B" />
+                        <TextBlock Text="fpm" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Row="1" Grid.Column="0" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="HEADING" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="120" />
+                        <TextBlock x:Name="HdgValueText" Text="—" FontFamily="{StaticResource DisplayFontBold}" FontSize="28" Foreground="#64748B" />
+                        <TextBlock Text="°" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Row="1" Grid.Column="1" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="GROUND SPEED" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="120" />
+                        <TextBlock x:Name="GsValueText" Text="—" FontFamily="{StaticResource DisplayFontBold}" FontSize="28" Foreground="#64748B" />
+                        <TextBlock Text="kts" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Row="1" Grid.Column="2" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="MACH" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="120" />
+                        <TextBlock x:Name="MachValueText" Text="—" FontFamily="{StaticResource DisplayFontBold}" FontSize="28" Foreground="#64748B" />
+                        <TextBlock Text="M" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- ── Flight progress + ETA strip (Acars.razor:169-212) ── -->
+            <Border x:Name="ProgressStripBorder"
+                    Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                    CornerRadius="20" Padding="20,12" Visibility="Collapsed">
+                <StackPanel Spacing="8">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="ProgressDepText" Grid.Column="0" Text="----" FontFamily="Consolas"
+                                   FontSize="11" FontWeight="Bold" Foreground="#3EC7AC" MinWidth="36" VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Height="6" Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                CornerRadius="9999" VerticalAlignment="Center">
+                            <Grid x:Name="ProgressBarTrack" HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition x:Name="ProgressFillColumn" Width="0*" />
+                                    <ColumnDefinition x:Name="ProgressRemainderColumn" Width="100*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" CornerRadius="9999" Background="#4D9BEC" />
+                            </Grid>
+                        </Border>
+                        <TextBlock x:Name="ProgressArrText" Grid.Column="2" Text="----" FontFamily="Consolas"
+                                   FontSize="11" FontWeight="Bold" Foreground="#F59E0B" MinWidth="36" TextAlignment="Right"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="EN ROUTE" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                            <TextBlock x:Name="EnRouteText" Text="—:——" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
+                        </StackPanel>
+                        <Border Width="1" Height="12" Background="#14FFFFFF" />
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="FLOWN" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                            <TextBlock x:Name="DistFlownText" Text="0 nm" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
+                        </StackPanel>
+                        <Border Width="1" Height="12" Background="#14FFFFFF" />
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="REMAINING" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                            <TextBlock x:Name="DistRemainingText" Text="—" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
+                        </StackPanel>
+                        <Border Width="1" Height="12" Background="#14FFFFFF" />
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="ETA" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                            <TextBlock x:Name="EtaText" Text="—" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
+                        </StackPanel>
+                        <StackPanel x:Name="XtkGroup" Orientation="Horizontal" Spacing="16" Visibility="Collapsed">
+                            <Border Width="1" Height="12" Background="#14FFFFFF" />
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <TextBlock Text="DEVIATION" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
+                                <TextBlock x:Name="XtkLabelValueText" Text="—" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#64748B" />
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ── Mini-map + sidebar (Acars.razor:214-372) ── -->
+            <Grid ColumnSpacing="20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="300" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Left: mini map. MapControl is added to MiniMapHost's Children in code-behind,
+                     same reasoning as MapPage.xaml's own MapHost — avoids a brand-new third-party
+                     xmlns import into this project's XAML. -->
+                <Border Grid.Column="0" CornerRadius="20" BorderBrush="#14FFFFFF" BorderThickness="1"
+                        Background="#0C111D" MinHeight="380">
+                    <Grid>
+                        <Grid x:Name="MiniMapHost" Height="380" />
+                        <Border x:Name="FullMapLinkBorder" Tapped="OnFullMapTapped"
+                                HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,12,12"
+                                Background="#D20A0D17" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                CornerRadius="12" Padding="14,6">
+                            <TextBlock Text="Full Map ↗" FontSize="11" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- Right: sidebar -->
+                <StackPanel Grid.Column="1" Spacing="16">
+
+                    <!-- SimBrief / Flight Plan card -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20">
+                        <StackPanel Spacing="0">
+                            <Grid Margin="0,0,0,12">
+                                <TextBlock Text="Flight Plan" FontFamily="{StaticResource DisplayFontBold}"
+                                           FontSize="15" Foreground="#F1F5F9" HorizontalAlignment="Left" />
+                                <Border x:Name="ClearPlanButtonBorder" Tapped="OnClearPlanTapped"
+                                        HorizontalAlignment="Right" Padding="6,2" Visibility="Collapsed">
+                                    <TextBlock Text="Clear" FontSize="11" Foreground="#64748B" />
+                                </Border>
+                            </Grid>
+
+                            <!-- State 1: plan loaded -->
+                            <StackPanel x:Name="SimBriefPlanPanel" Visibility="Collapsed" Spacing="12">
+                                <StackPanel Spacing="3">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock x:Name="SimBriefRouteDepText" Text="----" FontFamily="Consolas"
+                                                   FontSize="22" FontWeight="Black" Foreground="#F1F5F9" />
+                                        <TextBlock Text="→" FontSize="16" Foreground="#4D9BEC" />
+                                        <TextBlock x:Name="SimBriefRouteArrText" Text="----" FontFamily="Consolas"
+                                                   FontSize="22" FontWeight="Black" Foreground="#F1F5F9" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="SimBriefAircraftText" Text="" FontSize="12" Foreground="#64748B"
+                                               Visibility="Collapsed" />
+                                </StackPanel>
+                                <StackPanel Spacing="6">
+                                    <Grid x:Name="SimBriefCruiseRow" Visibility="Collapsed">
+                                        <TextBlock Text="Cruise" FontSize="11" Foreground="#64748B" HorizontalAlignment="Left" />
+                                        <TextBlock x:Name="SimBriefCruiseValueText" Text="" FontFamily="Consolas" FontSize="12"
+                                                   FontWeight="SemiBold" Foreground="#F1F5F9" HorizontalAlignment="Right" />
+                                    </Grid>
+                                    <Grid x:Name="SimBriefDistanceRow" Visibility="Collapsed">
+                                        <TextBlock Text="Distance" FontSize="11" Foreground="#64748B" HorizontalAlignment="Left" />
+                                        <TextBlock x:Name="SimBriefDistanceValueText" Text="" FontFamily="Consolas" FontSize="12"
+                                                   FontWeight="SemiBold" Foreground="#F1F5F9" HorizontalAlignment="Right" />
+                                    </Grid>
+                                    <Grid x:Name="SimBriefEteRow" Visibility="Collapsed">
+                                        <TextBlock Text="ETE" FontSize="11" Foreground="#64748B" HorizontalAlignment="Left" />
+                                        <TextBlock x:Name="SimBriefEteValueText" Text="" FontFamily="Consolas" FontSize="12"
+                                                   FontWeight="SemiBold" Foreground="#F1F5F9" HorizontalAlignment="Right" />
+                                    </Grid>
+                                    <Grid x:Name="SimBriefFuelRow" Visibility="Collapsed">
+                                        <TextBlock Text="TOW Fuel" FontSize="11" Foreground="#64748B" HorizontalAlignment="Left" />
+                                        <TextBlock x:Name="SimBriefFuelValueText" Text="" FontFamily="Consolas" FontSize="12"
+                                                   FontWeight="SemiBold" Foreground="#F1F5F9" HorizontalAlignment="Right" />
+                                    </Grid>
+                                    <Grid x:Name="SimBriefFixesRow" Visibility="Collapsed">
+                                        <TextBlock Text="Fixes" FontSize="11" Foreground="#64748B" HorizontalAlignment="Left" />
+                                        <TextBlock x:Name="SimBriefFixesValueText" Text="" FontFamily="Consolas" FontSize="12"
+                                                   FontWeight="SemiBold" Foreground="#F1F5F9" HorizontalAlignment="Right" />
+                                    </Grid>
+                                </StackPanel>
+                                <Border x:Name="RefreshOfpButtonBorder" Tapped="OnRefreshOfpTapped"
+                                        Background="Transparent" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                        CornerRadius="9999" Padding="0,8" HorizontalAlignment="Stretch">
+                                    <TextBlock Text="Refresh OFP" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1"
+                                               HorizontalAlignment="Center" />
+                                </Border>
+                            </StackPanel>
+
+                            <!-- State 2: loading -->
+                            <StackPanel x:Name="SimBriefLoadingPanel" Visibility="Collapsed" HorizontalAlignment="Center"
+                                        Padding="0,16" Spacing="8">
+                                <ProgressRing IsActive="True" Width="20" Height="20" Foreground="#4D9BEC" />
+                                <TextBlock Text="Fetching from SimBrief..." FontSize="12" Foreground="#64748B" />
+                            </StackPanel>
+
+                            <!-- State 3: no plan yet -->
+                            <StackPanel x:Name="SimBriefEmptyPanel" Visibility="Visible" Spacing="12">
+                                <Border x:Name="SimBriefErrorBorder" Visibility="Collapsed"
+                                        Background="#1AEF4444" BorderBrush="#EF4444" BorderThickness="1"
+                                        CornerRadius="12" Padding="10,8">
+                                    <TextBlock x:Name="SimBriefErrorText" Text="" FontSize="11.5" Foreground="#EF4444"
+                                               TextWrapping="Wrap" />
+                                </Border>
+
+                                <StackPanel x:Name="SimBriefNoUsernamePanel" Visibility="Collapsed" Spacing="10">
+                                    <TextBlock Text="No SimBrief username configured." FontSize="12" Foreground="#64748B"
+                                               TextWrapping="Wrap" />
+                                    <Border Tapped="OnConfigureSimBriefTapped"
+                                            Background="Transparent" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                            CornerRadius="9999" Padding="0,8" HorizontalAlignment="Stretch">
+                                        <TextBlock Text="Configure SimBrief" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1"
+                                                   HorizontalAlignment="Center" />
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel x:Name="SimBriefHasUsernamePanel" Visibility="Collapsed" Spacing="10">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="Pilot ID:" FontSize="11" Foreground="#64748B" />
+                                        <TextBlock x:Name="SimBriefUsernameText" Text="" FontFamily="Consolas" FontSize="11"
+                                                   Foreground="#CBD5E1" />
+                                    </StackPanel>
+                                    <Border x:Name="ImportOfpButtonBorder" Tapped="OnImportOfpTapped"
+                                            Background="#4D9BEC" CornerRadius="9999" Padding="0,8" HorizontalAlignment="Stretch">
+                                        <TextBlock Text="Import Latest OFP" FontSize="12" FontWeight="Bold" Foreground="White"
+                                                   HorizontalAlignment="Center" />
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Flight Phase card -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Flight Phase" FontFamily="{StaticResource DisplayFontBold}"
+                                       FontSize="15" Foreground="#F1F5F9" />
+                            <StackPanel Spacing="8">
+                                <Border x:Name="PhaseParkedRow" Background="#161D2E" CornerRadius="10" Padding="12,8">
+                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                        <Ellipse x:Name="PhaseParkedDot" Width="8" Height="8" Fill="#64748B" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="PhaseParkedText" Text="Parked" FontSize="13" FontWeight="Medium" Foreground="#64748B" />
+                                    </StackPanel>
+                                </Border>
+                                <Border x:Name="PhaseTaxiRow" Background="#161D2E" CornerRadius="10" Padding="12,8">
+                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                        <Ellipse x:Name="PhaseTaxiDot" Width="8" Height="8" Fill="#64748B" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="PhaseTaxiText" Text="Taxi" FontSize="13" FontWeight="Medium" Foreground="#64748B" />
+                                    </StackPanel>
+                                </Border>
+                                <Border x:Name="PhaseClimbRow" Background="#161D2E" CornerRadius="10" Padding="12,8">
+                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                        <Ellipse x:Name="PhaseClimbDot" Width="8" Height="8" Fill="#64748B" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="PhaseClimbText" Text="Climb" FontSize="13" FontWeight="Medium" Foreground="#64748B" />
+                                    </StackPanel>
+                                </Border>
+                                <Border x:Name="PhaseCruiseRow" Background="#161D2E" CornerRadius="10" Padding="12,8">
+                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                        <Ellipse x:Name="PhaseCruiseDot" Width="8" Height="8" Fill="#64748B" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="PhaseCruiseText" Text="Cruise" FontSize="13" FontWeight="Medium" Foreground="#64748B" />
+                                    </StackPanel>
+                                </Border>
+                                <Border x:Name="PhaseDescentRow" Background="#161D2E" CornerRadius="10" Padding="12,8">
+                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                        <Ellipse x:Name="PhaseDescentDot" Width="8" Height="8" Fill="#64748B" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="PhaseDescentText" Text="Descent" FontSize="13" FontWeight="Medium" Foreground="#64748B" />
+                                    </StackPanel>
+                                </Border>
+                                <Border x:Name="PhaseApproachRow" Background="#161D2E" CornerRadius="10" Padding="12,8">
+                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                        <Ellipse x:Name="PhaseApproachDot" Width="8" Height="8" Fill="#64748B" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="PhaseApproachText" Text="Approach" FontSize="13" FontWeight="Medium" Foreground="#64748B" />
+                                    </StackPanel>
+                                </Border>
+                                <Border x:Name="PhaseLandingRow" Background="#161D2E" CornerRadius="10" Padding="12,8">
+                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                        <Ellipse x:Name="PhaseLandingDot" Width="8" Height="8" Fill="#64748B" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="PhaseLandingText" Text="Landing" FontSize="13" FontWeight="Medium" Foreground="#64748B" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ACARS Key card -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="ACARS Key" FontFamily="{StaticResource DisplayFontBold}"
+                                       FontSize="15" Foreground="#F1F5F9" />
+
+                            <Border x:Name="AcarsKeyValueBorder" Background="#121A2A" CornerRadius="10" Padding="12,10" Visibility="Collapsed">
+                                <TextBlock x:Name="AcarsKeyMaskedText" Text="" FontFamily="Consolas" FontSize="12"
+                                           Foreground="#64748B" CharacterSpacing="60" TextTrimming="CharacterEllipsis" />
+                            </Border>
+                            <Border x:Name="AcarsKeyEmptyBorder" Background="#121A2A" CornerRadius="10" Padding="12,10" Visibility="Collapsed">
+                                <TextBlock Text="Not configured" FontFamily="Consolas" FontSize="12" Foreground="#64748B" />
+                            </Border>
+
+                            <Grid x:Name="FriendCodeRow" Visibility="Collapsed">
+                                <TextBlock Text="Friend Code" FontSize="11" Foreground="#64748B" HorizontalAlignment="Left" />
+                                <TextBlock x:Name="FriendCodeText" Text="" FontFamily="Consolas" FontSize="12"
+                                           FontWeight="Bold" Foreground="#4D9BEC" CharacterSpacing="100" HorizontalAlignment="Right" />
+                            </Grid>
+
+                            <Border Tapped="OnConfigureAcarsTapped"
+                                    Background="Transparent" BorderBrush="#14FFFFFF" BorderThickness="1"
+                                    CornerRadius="9999" Padding="0,8" HorizontalAlignment="Stretch">
+                                <TextBlock Text="Configure ACARS" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1"
+                                           HorizontalAlignment="Center" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </Grid>
+
+            <!-- ── Flight event log (Acars.razor:374-393) ── -->
+            <Border x:Name="EventLogSectionBorder"
+                    Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20"
+                    Visibility="Collapsed">
+                <StackPanel Spacing="0">
+                    <Grid Margin="0,0,0,12">
+                        <TextBlock Text="Flight Events" FontFamily="{StaticResource DisplayFontBold}"
+                                   FontSize="15" Foreground="#F1F5F9" HorizontalAlignment="Left" />
+                        <Border Tapped="OnClearEventLogTapped" HorizontalAlignment="Right" Padding="6,2">
+                            <TextBlock Text="Clear" FontSize="11" Foreground="#64748B" />
+                        </Border>
+                    </Grid>
+                    <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="EventLogItemsControl">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,0,0,6">
+                                        <TextBlock Text="{Binding TimeText}" FontFamily="Consolas" FontSize="11"
+                                                   Foreground="#64748B" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Description}" FontSize="12" Foreground="#CBD5E1"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>
