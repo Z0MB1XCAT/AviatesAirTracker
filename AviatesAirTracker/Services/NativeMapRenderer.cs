@@ -35,6 +35,15 @@ public sealed class NativeMapRenderer : IDisposable
     private const string TileUrlTemplate = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png";
     private static readonly string[] TileSubdomains = { "a", "b", "c", "d" };
 
+    // CARTO's edge serves a tiled "API KEY REQUIRED" watermark image (still HTTP 200, so this
+    // fails silently rather than throwing) to requests with no User-Agent header -- confirmed by
+    // direct curl testing: an empty User-Agent reproduces the watermark exactly, any non-empty one
+    // returns real tiles. .NET's HttpClient (which BruTile.Web.HttpTileSource uses internally)
+    // sends no User-Agent by default, unlike curl or a browser (which is why the original Leaflet/
+    // WebView2 page never hit this). HttpTileSource has a userAgent constructor parameter for
+    // exactly this.
+    private const string TileUserAgent = "AviatesAirTracker-WinUI3/1.0";
+
     private const int MinZoomLevel = 3;
     private const int MaxZoomLevel = 18;
     private const int InitialZoomLevel = 7;
@@ -154,7 +163,7 @@ public sealed class NativeMapRenderer : IDisposable
         Map.Layers.Clear();
 
         var tileSchema = new GlobalSphericalMercator(MinZoomLevel, MaxZoomLevel);
-        var tileSource = new HttpTileSource(tileSchema, TileUrlTemplate, TileSubdomains, name: "CARTO Dark");
+        var tileSource = new HttpTileSource(tileSchema, TileUrlTemplate, TileSubdomains, name: "CARTO Dark", userAgent: TileUserAgent);
         Map.Layers.Add(new TileLayer(tileSource) { Name = "Base" });
 
         _aircraftFeature = null;
