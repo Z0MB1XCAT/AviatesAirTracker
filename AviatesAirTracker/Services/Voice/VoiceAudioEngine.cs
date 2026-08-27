@@ -554,5 +554,20 @@ public sealed class VoiceAudioEngine : IDisposable
     }
 }
 
-/// <summary>A capture or render device as returned by VoiceAudioEngine.GetCaptureDevices/GetRenderDevices.</summary>
-public sealed record VoiceAudioDevice(string Id, string Name);
+/// <summary>
+/// A capture or render device as returned by VoiceAudioEngine.GetCaptureDevices/GetRenderDevices.
+/// A plain mutable class, not a positional record -- this SDK throws CS8852 when an init-only
+/// record's properties are bound in any XAML ItemsControl (a known, repeated gotcha in this
+/// project), so every display-row type in this codebase uses `{ get; set; }` instead.
+/// </summary>
+public sealed class VoiceAudioDevice
+{
+    public string Id { get; set; }
+    public string Name { get; set; }
+
+    public VoiceAudioDevice(string id, string name)
+    {
+        Id = id;
+        Name = name;
+    }
+}
