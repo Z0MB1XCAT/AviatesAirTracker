@@ -36,6 +36,7 @@
     <Compile Include="../../AviatesAirTracker/Services/Voice/OpusCodec.cs" Link="Services/Voice/OpusCodec.cs" />
     <Compile Include="../../AviatesAirTracker/Services/Voice/WebmMuxer.cs" Link="Services/Voice/WebmMuxer.cs" />
     <Compile Include="../../AviatesAirTracker/Services/Voice/WebmDemuxer.cs" Link="Services/Voice/WebmDemuxer.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/Voice/RadioDegradationEffect.cs" Link="Services/Voice/RadioDegradationEffect.cs" />
   </ItemGroup>
 
 </Project>
