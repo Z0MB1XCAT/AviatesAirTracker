@@ -12,6 +12,11 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+
+    <!-- Native voice pipeline round-trip test (Task 1) — same exact package versions
+         pinned in AviatesAirTracker.csproj; see that file's comment for why. -->
+    <PackageReference Include="Concentus" Version="2.2.2" />
+    <PackageReference Include="NEbml" Version="1.1.0.5" />
   </ItemGroup>
 
   <ItemGroup>
@@ -28,6 +33,9 @@
     <Compile Include="../../AviatesAirTracker/Shell/ShellBadgeLogic.cs" Link="Shell/ShellBadgeLogic.cs" />
     <Compile Include="../../AviatesAirTracker/Services/PilotStatsLogic.cs" Link="Services/PilotStatsLogic.cs" />
     <Compile Include="../../AviatesAirTracker/Services/FlightsFilterLogic.cs" Link="Services/FlightsFilterLogic.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/Voice/OpusCodec.cs" Link="Services/Voice/OpusCodec.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/Voice/WebmMuxer.cs" Link="Services/Voice/WebmMuxer.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/Voice/WebmDemuxer.cs" Link="Services/Voice/WebmDemuxer.cs" />
   </ItemGroup>
 
 </Project>

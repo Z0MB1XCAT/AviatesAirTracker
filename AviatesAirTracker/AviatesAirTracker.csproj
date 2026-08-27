@@ -71,6 +71,14 @@
     <!-- Joystick/HOTAS input for dispatch radio PTT binding -->
     <PackageReference Include="SharpDX.DirectInput" Version="4.2.0" />
 
+    <!-- Native voice pipeline (Phase: native voice) — Opus encode/decode (pure managed,
+         no P/Invoke) and a generic EBML reader/writer used to mux/demux the WebM/Opus
+         container that voice.js used to produce via MediaRecorder. Exact versions pinned
+         per the design spec's hands-on spike; do not bump without re-verifying against
+         net8.0-windows10.0.19041.0. -->
+    <PackageReference Include="Concentus" Version="2.2.2" />
+    <PackageReference Include="NEbml" Version="1.1.0.5" />
+
     <!-- Logging -->
     <PackageReference Include="Serilog" Version="3.1.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
