@@ -9,8 +9,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AviatesAirTracker.Tests", "tests\AviatesAirTracker.Tests\AviatesAirTracker.Tests.csproj", "{D292F0AC-95F6-4DF8-B90A-FE7A5779663A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AviatesAirTracker.LegacyWeb", "AviatesAirTracker.LegacyWeb\AviatesAirTracker.LegacyWeb.csproj", "{437242AA-F4D7-4073-A68A-56F652807147}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -45,18 +43,6 @@ Global
 		{D292F0AC-95F6-4DF8-B90A-FE7A5779663A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D292F0AC-95F6-4DF8-B90A-FE7A5779663A}.Release|x86.ActiveCfg = Release|Any CPU
 		{D292F0AC-95F6-4DF8-B90A-FE7A5779663A}.Release|x86.Build.0 = Release|Any CPU
-		{437242AA-F4D7-4073-A68A-56F652807147}.Debug|x64.ActiveCfg = Debug|x64
-		{437242AA-F4D7-4073-A68A-56F652807147}.Debug|x64.Build.0 = Debug|x64
-		{437242AA-F4D7-4073-A68A-56F652807147}.Debug|Any CPU.ActiveCfg = Debug|x64
-		{437242AA-F4D7-4073-A68A-56F652807147}.Debug|Any CPU.Build.0 = Debug|x64
-		{437242AA-F4D7-4073-A68A-56F652807147}.Debug|x86.ActiveCfg = Debug|x64
-		{437242AA-F4D7-4073-A68A-56F652807147}.Debug|x86.Build.0 = Debug|x64
-		{437242AA-F4D7-4073-A68A-56F652807147}.Release|x64.ActiveCfg = Release|x64
-		{437242AA-F4D7-4073-A68A-56F652807147}.Release|x64.Build.0 = Release|x64
-		{437242AA-F4D7-4073-A68A-56F652807147}.Release|Any CPU.ActiveCfg = Release|x64
-		{437242AA-F4D7-4073-A68A-56F652807147}.Release|Any CPU.Build.0 = Release|x64
-		{437242AA-F4D7-4073-A68A-56F652807147}.Release|x86.ActiveCfg = Release|x64
-		{437242AA-F4D7-4073-A68A-56F652807147}.Release|x86.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
