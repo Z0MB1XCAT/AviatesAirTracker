@@ -2,6 +2,7 @@ using AviatesAirTracker.Core.Backend;
 using AviatesAirTracker.Core.Efb;
 using AviatesAirTracker.Services;
 using AviatesAirTracker.Services.Efb;
+using AviatesAirTracker.Services.Voice;
 using Microsoft.UI.Input;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -16,7 +17,6 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
-using Windows.Devices.Enumeration;
 using Windows.System;
 using Windows.UI;
 using Windows.UI.Core;
@@ -68,6 +68,7 @@ public sealed partial class SettingsPage : Page
     private readonly PttInputService _pttInput;
     private readonly UpdateService _updateService;
     private readonly EfbServer _efbServer;
+    private readonly VoiceAudioEngine _voiceAudioEngine;
 
     // Page-local UI state, same placement decision every prior page has made for its own
     // _activeTab/_statusMessage-style fields (Settings.razor keeps these on the component too,
@@ -119,6 +120,7 @@ public sealed partial class SettingsPage : Page
         _pttInput = App.GetService<PttInputService>();
         _updateService = App.GetService<UpdateService>();
         _efbServer = App.GetService<EfbServer>();
+        _voiceAudioEngine = App.GetService<VoiceAudioEngine>();
 
         // Initial field values. Setting .Text here also fires each TextChanged handler once,
         // which harmlessly re-writes the same value back to Settings -- not worth guarding
@@ -152,8 +154,10 @@ public sealed partial class SettingsPage : Page
         // Task 4: Dispatch Radio initial field values. The joystick list is populated once here
         // (GetConnectedJoysticks() is synchronous, plain C#) -- matching Settings.razor's
         // OnInitialized(), which also only loads this list once, not on every render. Audio
-        // devices are enumerated asynchronously below (Loaded), since DeviceInformation.FindAllAsync
-        // is a WinRT async call and the constructor can't await.
+        // devices are populated below (Loaded) via VoiceAudioEngine.GetCaptureDevices/
+        // GetRenderDevices (Task 5) -- both synchronous, unlike the WinRT
+        // DeviceInformation.FindAllAsync call they replaced, but still deferred to Loaded to match
+        // this page's existing initialization shape.
         DispatchBackendUrlTextBox.Text = _settings.Settings.DispatchBackendUrl;
         PopulateJoystickComboBox();
 
@@ -215,9 +219,10 @@ public sealed partial class SettingsPage : Page
         };
 
         // Per the design spec's explicit scope decision: enumerate REAL native Windows audio
-        // devices via Windows.Devices.Enumeration.DeviceInformation.FindAllAsync -- there is no JS
-        // runtime on this page to call "aviatesVoice.getAudioDevices" into, unlike Settings.razor.
-        Loaded += async (_, _) => await LoadAudioDevicesAsync();
+        // devices, now via VoiceAudioEngine.GetCaptureDevices/GetRenderDevices (Task 5) instead of
+        // the WinRT Windows.Devices.Enumeration.DeviceInformation.FindAllAsync this used before --
+        // see LoadAudioDevices's own remarks for why that swap was necessary, not optional.
+        Loaded += (_, _) => LoadAudioDevices();
     }
 
     // ── Pilot Profile ────────────────────────────────────────────────────────────────────────
@@ -791,23 +796,31 @@ public sealed partial class SettingsPage : Page
 
     // ── Microphone / Speaker ──
     //
-    // Per the design spec's explicit scope decision (#2): this enumerates REAL native Windows
-    // audio devices via Windows.Devices.Enumeration.DeviceInformation.FindAllAsync -- there is no
-    // JS runtime on this native page to call "aviatesVoice.getAudioDevices" into, unlike
-    // Settings.razor. Selecting a device here only persists PttMicrophoneDeviceId/
-    // PttSpeakerDeviceId to SettingsService -- it deliberately does NOT call anything shaped like
-    // "aviatesVoice.setMicrophone"/"setSpeaker", because there is no native audio pipeline to
-    // receive that call yet. The voice pipeline actually lives in Shared/MainLayout.razor (the
-    // global Blazor layout, bridging DispatchRadioService C# events to aviatesVoice.* JS), not on
-    // the ACARS page itself -- it's active on every still-Blazor route today, and stays that way
-    // regardless of which Settings UI wrote the device id, until MainLayout itself is converted.
+    // Per the design spec's explicit scope decision (#2), this enumerates REAL native Windows
+    // audio devices -- there is no JS runtime on this native page to call
+    // "aviatesVoice.getAudioDevices" into, unlike Settings.razor.
+    //
+    // Task 5 update: this used to enumerate via Windows.Devices.Enumeration.
+    // DeviceInformation.FindAllAsync (a WinRT API) and persist that collection's own
+    // DeviceInformation.Id strings to PttMicrophoneDeviceId/PttSpeakerDeviceId, deliberately
+    // calling nothing else -- there was no native audio pipeline yet to receive a
+    // SetMicrophone/SetSpeaker-shaped call. Now that VoiceAudioEngine (Task 3) exists, its own
+    // SetMicrophone(string?)/SetSpeaker(string?) expect NAudio MMDevice.ID strings via
+    // MMDeviceEnumerator.GetDevice(deviceId) -- a DIFFERENT API family from WinRT's
+    // DeviceInformation.Id, and the two ID formats were never confirmed interchangeable (Task 3's
+    // own report flagged this explicitly). Rather than risk feeding VoiceAudioEngine an ID string
+    // from a namespace it was never built to resolve, the picker's enumeration source is REPLACED
+    // outright: VoiceAudioEngine.GetCaptureDevices()/GetRenderDevices() (both synchronous, backed
+    // by the same MMDeviceEnumerator VoiceAudioEngine itself resolves device ids against) is now
+    // the ONLY source of both the persisted PttMicrophoneDeviceId/PttSpeakerDeviceId values AND
+    // the ids later passed to SetMicrophone/SetSpeaker -- one ID namespace throughout, not two.
 
-    private async Task LoadAudioDevicesAsync()
+    private void LoadAudioDevices()
     {
         try
         {
-            var microphones = await DeviceInformation.FindAllAsync(DeviceClass.AudioCapture);
-            var speakers = await DeviceInformation.FindAllAsync(DeviceClass.AudioRender);
+            var microphones = _voiceAudioEngine.GetCaptureDevices();
+            var speakers = _voiceAudioEngine.GetRenderDevices();
 
             PopulateAudioDeviceComboBox(MicrophoneComboBox, microphones, _settings.Settings.PttMicrophoneDeviceId);
             PopulateAudioDeviceComboBox(SpeakerComboBox, speakers, _settings.Settings.PttSpeakerDeviceId);
@@ -818,7 +831,7 @@ public sealed partial class SettingsPage : Page
         }
     }
 
-    private static void PopulateAudioDeviceComboBox(ComboBox comboBox, DeviceInformationCollection devices, string savedDeviceId)
+    private static void PopulateAudioDeviceComboBox(ComboBox comboBox, IReadOnlyList<VoiceAudioDevice> devices, string savedDeviceId)
     {
         comboBox.Items.Clear();
         comboBox.Items.Add(new ComboBoxItem { Content = "System default", Tag = "" });
@@ -841,6 +854,7 @@ public sealed partial class SettingsPage : Page
         {
             _settings.Settings.PttMicrophoneDeviceId = deviceId;
             _settings.Save();
+            _voiceAudioEngine.SetMicrophone(deviceId);
         }
     }
 
@@ -850,6 +864,7 @@ public sealed partial class SettingsPage : Page
         {
             _settings.Settings.PttSpeakerDeviceId = deviceId;
             _settings.Save();
+            _voiceAudioEngine.SetSpeaker(deviceId);
         }
     }
 
@@ -1305,10 +1320,11 @@ public sealed partial class SettingsPage : Page
         UpdateEfbPanel();
 
         // Microphone/Speaker selection also needs to re-sync (PttMicrophoneDeviceId/
-        // PttSpeakerDeviceId are now blank) -- re-running the same async enumeration+select this
-        // page already uses on load re-selects "System default" for both, since no device will
-        // match an empty saved id.
-        _ = LoadAudioDevicesAsync();
+        // PttSpeakerDeviceId are now blank) -- re-running the same enumeration+select this page
+        // already uses on load re-selects "System default" for both, since no device will match an
+        // empty saved id. Also re-applies "System default" to VoiceAudioEngine via
+        // SetMicrophone(null)/SetSpeaker(null).
+        LoadAudioDevices();
 
         _statusMessage = "Settings reset to defaults.";
         _isError = false;

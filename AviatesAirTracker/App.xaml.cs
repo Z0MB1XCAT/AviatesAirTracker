@@ -7,6 +7,7 @@ using AviatesAirTracker.Models;
 using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
 using AviatesAirTracker.Services.Efb;
+using AviatesAirTracker.Services.Voice;
 using AviatesAirTracker.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Dispatching;
@@ -113,6 +114,12 @@ public partial class App : Application
 
             // Resolve to subscribe to TelemetryUpdated and PttStateChanged (constructor wires both events)
             _serviceProvider.GetRequiredService<DispatchRadioService>();
+
+            // Resolve to subscribe to DispatchRadioService's voice events (constructor wires all
+            // five: VoiceChannelConnectRequested/Disconnected/DistanceUpdated/PttPressed/Released) --
+            // must happen after DispatchRadioService above so those subscriptions are live before
+            // any telemetry/PTT events can fire.
+            _serviceProvider.GetRequiredService<VoiceOrchestrator>();
 
             // Retry any PIREPs that failed or couldn't submit last session
             _ = RetryPendingPirepsAsync(_serviceProvider);
@@ -387,6 +394,13 @@ public partial class App : Application
         services.AddSingleton<OtherPilotsService>();
         services.AddSingleton<PttInputService>();
         services.AddSingleton<DispatchRadioService>();
+        // Native voice pipeline -- VoiceOrchestrator is the replacement for
+        // MainLayout.razor's JS-interop voice bridge, wiring DispatchRadioService's
+        // voice events into VoiceAudioEngine/VoiceChannelClient (eagerly constructed
+        // at startup below, near DispatchRadioService's own eager resolve).
+        services.AddSingleton<VoiceAudioEngine>();
+        services.AddSingleton<VoiceChannelClient>();
+        services.AddSingleton<VoiceOrchestrator>();
         services.AddSingleton<MessagingService>();
         services.AddSingleton<RouteTracker>();
         services.AddSingleton<FlightTrailService>();
@@ -518,6 +532,9 @@ public partial class App : Application
         Step("Hoppies", () => _serviceProvider.GetService<HoppiesAcarsOrchestrator>()?.Dispose());
         Step("PttInput", () => _serviceProvider.GetService<PttInputService>()?.Dispose());
         Step("DispatchRadio", () => _serviceProvider.GetService<DispatchRadioService>()?.Dispose());
+        Step("VoiceOrchestrator", () => _serviceProvider.GetService<VoiceOrchestrator>()?.Dispose());
+        Step("VoiceChannelClient", () => _serviceProvider.GetService<VoiceChannelClient>()?.Dispose());
+        Step("VoiceAudioEngine", () => _serviceProvider.GetService<VoiceAudioEngine>()?.Dispose());
         Step("UpdateService", () => _serviceProvider.GetService<UpdateService>()?.Dispose());
         Step("TakeoffPerf", () => _serviceProvider.GetService<TakeoffPerformanceService>()?.Dispose());
         // Safety net only. ShellWindow's Closing handler normally tears the host down while the
