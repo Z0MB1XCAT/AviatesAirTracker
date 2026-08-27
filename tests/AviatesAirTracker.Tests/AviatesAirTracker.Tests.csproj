@@ -27,6 +27,13 @@
          linked into this test project, since it cannot be meaningfully unit-tested
          without real audio hardware. Same 2.2.1 pin as AviatesAirTracker.csproj. -->
     <PackageReference Include="NAudio" Version="2.2.1" />
+
+    <!-- Native voice pipeline /voice wire-protocol test (Task 4): VoiceChannelClient.cs
+         logs via Serilog (matching DispatchRadioService's own logging, the file it
+         mirrors), pulled in here only for that static Log.* usage to compile; no
+         sink is configured, so calls are inert no-ops in the test process. Same
+         version pinned in AviatesAirTracker.csproj. -->
+    <PackageReference Include="Serilog" Version="3.1.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -49,6 +56,13 @@
     <Compile Include="../../AviatesAirTracker/Services/Voice/RadioDegradationEffect.cs" Link="Services/Voice/RadioDegradationEffect.cs" />
     <Compile Include="../../AviatesAirTracker/Services/Voice/VoiceSampleProviders.cs" Link="Services/Voice/VoiceSampleProviders.cs" />
     <Compile Include="../../AviatesAirTracker/Services/Voice/CaptureConverter.cs" Link="Services/Voice/CaptureConverter.cs" />
+
+    <!-- Native voice pipeline /voice wire-protocol test (Task 4): VoiceChannelClient's
+         envelope encode/decode and JSON marker build/parse are pure static methods,
+         testable without a live backend socket. VoiceChannelClient.cs itself doesn't
+         reference System.Net.WebSockets types that need extra packages beyond the
+         BCL, so no new PackageReference is needed for this link. -->
+    <Compile Include="../../AviatesAirTracker/Services/Voice/VoiceChannelClient.cs" Link="Services/Voice/VoiceChannelClient.cs" />
   </ItemGroup>
 
 </Project>
