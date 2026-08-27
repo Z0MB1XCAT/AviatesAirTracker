@@ -1,5 +1,6 @@
 using AviatesAirTracker.Core.Backend;
 using AviatesAirTracker.Core.Efb;
+using AviatesAirTracker.Dialogs;
 using AviatesAirTracker.Services;
 using AviatesAirTracker.Services.Efb;
 using AviatesAirTracker.Services.Voice;
@@ -277,6 +278,26 @@ public sealed partial class SettingsPage : Page
         var showEmail = _isVerified && !string.IsNullOrEmpty(_verifiedEmail);
         VerifiedEmailRow.Visibility = showEmail ? Visibility.Visible : Visibility.Collapsed;
         VerifiedEmailText.Text = _verifiedEmail;
+    }
+
+    // Logout: same ConfirmDialog.ShowAsync gating pattern AcarsPage's OnEndFlightTapped already
+    // established (true only on an explicit primary-button confirm). On confirm, clears identity
+    // via SettingsService.LogOut() -- deliberately narrower than Reset(), leaves PTT/EFB/appearance
+    // untouched -- then navigates to the native LoginPage. Rail visibility is handled centrally by
+    // ShellWindow's NativeHost.Navigated subscription, not here.
+    private async void OnLogOutTapped(object sender, TappedRoutedEventArgs e)
+    {
+        var confirmed = await ConfirmDialog.ShowAsync(
+            XamlRoot,
+            "Log Out?",
+            "You'll be signed out of AviatesAir and returned to the login screen. Your keybinds, EFB setup, and other app settings will stay exactly as they are.",
+            "Log Out",
+            "Cancel");
+
+        if (!confirmed) return;
+
+        _settings.LogOut();
+        Frame.Navigate(typeof(LoginPage));
     }
 
     // ── Appearance ───────────────────────────────────────────────────────────────────────────

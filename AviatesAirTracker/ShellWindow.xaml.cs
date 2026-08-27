@@ -172,6 +172,23 @@ public sealed partial class ShellWindow : Window
                     : NavigationViewBackButtonVisible.Visible;
             };
 
+            // Native-side analogue of the WebView2 handler directly above: covers both the
+            // startup login-gate (OnFirstActivated's else branch, native LoginPage) and any
+            // future logout-triggered return to login (SettingsPage's OnLogOutTapped navigating
+            // Frame back to LoginPage) with one central handler, so neither call site needs to
+            // know anything about rail visibility itself. Fires after every successful
+            // NativeHost.Navigate — including a Navigate triggered from inside a hosted page's
+            // own Frame.Navigate call, per Frame.Navigated's normal bubbling behavior.
+            NativeHost.Navigated += (_, e) =>
+            {
+                var onLogin = e.SourcePageType == typeof(Pages.LoginPage);
+
+                Nav.IsPaneVisible = !onLogin;
+                Nav.IsBackButtonVisible = onLogin
+                    ? NavigationViewBackButtonVisible.Collapsed
+                    : NavigationViewBackButtonVisible.Visible;
+            };
+
             if (IsLoggedIn())
             {
                 // The rail defaults to hidden in XAML (see the comment there) so a
@@ -185,10 +202,19 @@ public sealed partial class ShellWindow : Window
             {
                 // Login owns the whole window: no rail, no back button, until it completes.
                 // Deliberately ignores _pendingDestination — a click during the startup gap
-                // must never let a signed-out pilot skip the login gate.
+                // must never let a signed-out pilot skip the login gate. These two lines are
+                // redundant with the NativeHost.Navigated handler above (which will also set
+                // them once Navigate below completes) — kept anyway as belt-and-suspenders
+                // against a one-frame flash of the rail before that handler fires.
                 Nav.IsPaneVisible = false;
                 Nav.IsBackButtonVisible = NavigationViewBackButtonVisible.Collapsed;
-                UiHost.CoreWebView2.Navigate($"{App.LegacyUiUrl}/login?shell=native");
+
+                // The final page conversion in this migration: login now goes through the
+                // native LoginPage via NativeHost, the exact same mechanism Navigate(NavDestination)
+                // already uses for every other native page, instead of the legacy WebView2 route.
+                NativeHost.Navigate(typeof(Pages.LoginPage));
+                NativeHost.Visibility = Visibility.Visible;
+                UiHost.Visibility = Visibility.Collapsed;
             }
         }
         catch (Exception ex)

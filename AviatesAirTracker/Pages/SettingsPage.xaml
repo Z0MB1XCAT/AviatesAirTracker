@@ -167,6 +167,15 @@
                                     </Border>
                                 </StackPanel>
                             </Grid>
+
+                            <!-- Log Out: same danger-tinted Border+Tapped treatment as AcarsPage's
+                                 End Flight action (Background #1AEF4444 / BorderBrush #EF4444 /
+                                 Foreground #EF4444), gated behind ConfirmDialog per the design spec. -->
+                            <Border x:Name="LogOutButtonBorder" Tapped="OnLogOutTapped"
+                                    Background="#1AEF4444" BorderBrush="#EF4444" BorderThickness="1.5"
+                                    CornerRadius="12" Padding="14,10" HorizontalAlignment="Left">
+                                <TextBlock Text="Log Out" FontSize="13" FontWeight="SemiBold" Foreground="#EF4444" />
+                            </Border>
                         </StackPanel>
                     </Border>
 

@@ -272,6 +272,22 @@ public class SettingsService
     public void Reset() { _settings = new AppSettings(); Save(); /* SettingsChanged fired inside Save() */ }
 
     /// <summary>
+    /// Clears only the signed-in pilot's identity fields -- AcarsKey, PilotName, PilotId,
+    /// SimBriefUsername, FriendCode -- then persists. Deliberately narrower than Reset(), which
+    /// wipes the entire settings object (PTT binds, dispatch backend URL, EFB config, appearance,
+    /// etc.); a pilot logging out to switch profiles should not lose those.
+    /// </summary>
+    public void LogOut()
+    {
+        _settings.AcarsKey = "";
+        _settings.PilotName = "";
+        _settings.PilotId = "";
+        _settings.SimBriefUsername = "";
+        _settings.FriendCode = "";
+        Save(); // SettingsChanged fired inside Save()
+    }
+
+    /// <summary>
     /// Derives a shareable 9-char friend code (XXXX-XXXX) from the pilot's ACARS key.
     /// Deterministic — same ACARS key always produces the same code.
     /// Uses an unambiguous character set (no 0, O, I, 1).
