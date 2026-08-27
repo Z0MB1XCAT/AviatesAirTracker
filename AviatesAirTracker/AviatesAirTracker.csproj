@@ -92,11 +92,13 @@
     <PackageReference Include="Serilog.Sinks.Console" Version="5.0.0" />
   </ItemGroup>
 
-  <!-- The loopback Blazor Server host (AviatesAirTracker.LegacyWeb\Hosting\BlazorHostServer.cs,
-       moved there in Task 8 of the WinUI 3 migration) serves wwwroot from DISK via a
-       PhysicalFileProvider rooted at AppContext.BaseDirectory, so these files must sit next
-       to the exe. The Razor static-web-assets pipeline alone does not put them there in a
-       plain build. Transitional, like the rest of the legacy UI host.
+  <!-- The Blazor Hybrid host that used to serve these files is gone (deleted along with
+       AviatesAirTracker.LegacyWeb in the final WinUI 3 migration cleanup); wwwroot now ships
+       purely as loose native-app assets. A handful of native pages/dialogs still load real
+       images from here at runtime (brand logo, hero photo, fleet photos, ~190 country-flag
+       SVGs, news photos, and the login page's optional background video) via
+       Path.Combine(AppContext.BaseDirectory, "wwwroot", ...), so these files must sit next to
+       the exe; hence Content + CopyToOutputDirectory rather than an embedded resource.
 
        This project's Sdk is plain "Microsoft.NET.Sdk" (see the top of this file), not
        "Microsoft.NET.Sdk.Razor" or "Microsoft.NET.Sdk.Web"; that switch happened earlier in

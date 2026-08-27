@@ -132,7 +132,7 @@ A **new, self-contained module** that hosts a local web server on the LAN so a t
 | `AviatesAirTracker/App.xaml.cs` | DI container setup, crash handlers, Serilog config |
 | `AviatesAirTracker/ShellWindow.xaml.cs` | Root native window — `NavigationView` rail + `Frame` navigation, unread message badge |
 | `AviatesAirTracker/Navigation/NavDestinations.cs` | Single source of truth for the nav rail (tag/label/group/native page type) |
-| `AviatesAirTracker/Theme/Tokens.xaml` | Shared nav-rail color resources (sidebar bg, accent brushes) ported from the old `app.css` `:root` block. The `#0A0D17`/`#3D7EEE` brand colors themselves are applied inline per-page in XAML/ViewModels — no single global brand resource dictionary yet |
+| `AviatesAirTracker/Theme/Tokens.xaml` | Shared nav-rail color resources (sidebar bg, accent brushes) ported from the old `app.css` `:root` block. The `#0A0D17`/`#4D9BEC` brand colors themselves are applied inline per-page in XAML/ViewModels — no single global brand resource dictionary yet |
 | `AviatesAirTracker/Services/NativeMapRenderer.cs` | Native Mapsui map rendering layer (analogue of the old Leaflet interop) |
 | `Core/SimConnect/SimConnectManager.cs` | Runtime SDK loading, 20Hz polling, HWND hook |
 | `Core/SimConnect/SimConnectDefinitions.cs` | 70-variable `AircraftState` struct |
@@ -168,7 +168,7 @@ A **new, self-contained module** that hosts a local web server on the LAN so a t
 
 **Always invoke the `frontend-design` skill before writing any XAML.** These rules apply to all UI work:
 
-- **Brand colors:** `#0A0D17` background, `#3D7EEE` accent. Never use default Tailwind palette.
+- **Brand colors:** `#0A0D17` background, `#4D9BEC` accent (the accent hex was updated app-wide during the migration — `#3D7EEE` is the retired previous value, don't reuse it). Never use default Tailwind palette.
 - **Typography:** Pair a display/serif with a clean sans. Tight tracking (`-0.03em`) on large headings, generous line-height (`1.7`) on body.
 - **Shadows:** Layered, color-tinted shadows with low opacity — never flat `shadow-md`.
 - **Gradients:** Layer multiple radial gradients. Add grain/texture via SVG noise filter for depth.
