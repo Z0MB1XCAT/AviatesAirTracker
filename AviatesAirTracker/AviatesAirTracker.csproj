@@ -79,6 +79,13 @@
     <PackageReference Include="Concentus" Version="2.2.2" />
     <PackageReference Include="NEbml" Version="1.1.0.5" />
 
+    <!-- NAudio pinned to 2.2.1 EXACTLY — the latest (3.0.1) dropped net8.0 support
+         entirely and fails to restore against this app's net8.0-windows10.0.19041.0
+         TFM. Confirmed against this exact TFM by the design spec's hands-on spike;
+         do not bump without re-verifying. Used for WASAPI capture/render
+         (VoiceAudioEngine) — MMDeviceEnumerator/WasapiCapture/WasapiOut. -->
+    <PackageReference Include="NAudio" Version="2.2.1" />
+
     <!-- Logging -->
     <PackageReference Include="Serilog" Version="3.1.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />

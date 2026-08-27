@@ -17,6 +17,16 @@
          pinned in AviatesAirTracker.csproj; see that file's comment for why. -->
     <PackageReference Include="Concentus" Version="2.2.2" />
     <PackageReference Include="NEbml" Version="1.1.0.5" />
+
+    <!-- Native voice pipeline format-conversion test (Task 3): pulls in NAudio.Core
+         (BufferedWaveProvider/ISampleProvider/WdlResamplingSampleProvider) for
+         CaptureConverter.cs/VoiceSampleProviders.cs below. Neither of those files
+         references NAudio.Wasapi/CoreAudioApi (device/COM types), so the plain
+         "NAudio" meta-package is sufficient here; VoiceAudioEngine.cs itself
+         (the actual WasapiCapture/WasapiOut device wiring) is deliberately NOT
+         linked into this test project, since it cannot be meaningfully unit-tested
+         without real audio hardware. Same 2.2.1 pin as AviatesAirTracker.csproj. -->
+    <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -37,6 +47,8 @@
     <Compile Include="../../AviatesAirTracker/Services/Voice/WebmMuxer.cs" Link="Services/Voice/WebmMuxer.cs" />
     <Compile Include="../../AviatesAirTracker/Services/Voice/WebmDemuxer.cs" Link="Services/Voice/WebmDemuxer.cs" />
     <Compile Include="../../AviatesAirTracker/Services/Voice/RadioDegradationEffect.cs" Link="Services/Voice/RadioDegradationEffect.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/Voice/VoiceSampleProviders.cs" Link="Services/Voice/VoiceSampleProviders.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/Voice/CaptureConverter.cs" Link="Services/Voice/CaptureConverter.cs" />
   </ItemGroup>
 
 </Project>
