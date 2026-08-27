@@ -28,15 +28,13 @@ $ErrorActionPreference = 'Stop'
 $RootDir       = $PSScriptRoot
 $ProjectDir    = Join-Path $RootDir  "AviatesAirTracker"
 $ProjectFile   = Join-Path $ProjectDir "AviatesAirTracker.csproj"
-# AviatesAirTracker.LegacyWeb (the Razor UI library, Task 8) references the app project,
-# not the other way around, so building the app csproj alone no longer produces a runnable
-# app — the library's CopyToAppOutput target is what places AviatesAirTracker.LegacyWeb.dll
-# and its scoped-CSS bundle next to the app's executable, and that target only runs when
-# the library builds. Restore/clean/build/publish all target the solution from here on.
-# `dotnet run` is the one exception: it does not accept a .sln, so it still names the app
-# project directly — by the time -Run reaches it, the unconditional solution build above
-# has already placed the library's output next to the app's build output.
-$SolutionFile  = Join-Path $RootDir  "AviatesAirTracker.sln"
+# The app is the only thing this script builds/publishes/runs — it targets
+# AviatesAirTracker.csproj directly rather than the .sln. (The .sln also lists the test
+# project; that's exercised via `dotnet test`, not this script.) This used to build the
+# .sln instead, because the now-deleted AviatesAirTracker.LegacyWeb project had a reversed
+# project reference (it referenced the app, not the other way around) whose
+# CopyToAppOutput MSBuild target only ran as part of a solution build — that project is
+# gone, so nothing forces a .sln build anymore.
 $LibsDir       = Join-Path $ProjectDir "Libs"
 $OutputDir     = Join-Path $RootDir  "dist"
 $InstallerDir  = Join-Path $RootDir  "installer"
@@ -48,7 +46,7 @@ Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "  Aviates Air Flight Tracker  -  Build    " -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "  Config   : $Configuration"
-Write-Host "  Solution : $SolutionFile"
+Write-Host "  Project  : $ProjectFile"
 Write-Host ""
 
 # ---------------------------------------------------------------------------
@@ -89,7 +87,7 @@ Write-Host ""
 # ---------------------------------------------------------------------------
 if ($Clean) {
     Write-Host ">> Cleaning..." -ForegroundColor Yellow
-    & dotnet clean "$SolutionFile" -c $Configuration | Out-Null
+    & dotnet clean "$ProjectFile" -c $Configuration | Out-Null
     if (Test-Path $OutputDir) {
         Remove-Item -Recurse -Force $OutputDir
         Write-Host "   Removed dist" -ForegroundColor Gray
@@ -102,7 +100,7 @@ if ($Clean) {
 # Restore
 # ---------------------------------------------------------------------------
 Write-Host ">> Restoring NuGet packages..." -ForegroundColor Yellow
-& dotnet restore "$SolutionFile"
+& dotnet restore "$ProjectFile"
 if ($LASTEXITCODE -ne 0) {
     Write-Error "NuGet restore failed (exit $LASTEXITCODE)."
     exit 1
@@ -114,7 +112,7 @@ Write-Host ""
 # Build
 # ---------------------------------------------------------------------------
 Write-Host ">> Building ($Configuration)..." -ForegroundColor Yellow
-& dotnet build "$SolutionFile" -c $Configuration --no-restore
+& dotnet build "$ProjectFile" -c $Configuration --no-restore
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Build failed (exit $LASTEXITCODE)."
     exit 1
@@ -133,7 +131,7 @@ if ($Release) {
     }
 
     $publishArgs = @(
-        "publish", "$SolutionFile",
+        "publish", "$ProjectFile",
         "-c", "Release",
         "-r", "win-x64",
         "--self-contained", "true",

@@ -59,15 +59,16 @@ Source: "{#SourceDir}\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 ; Everything else the publish produced. This became necessary with the WinUI 3 migration:
 ; PublishSingleFile is unsupported by the Windows App SDK, so unlike the old WPF build,
 ; dist\ is a genuine multi-hundred-file folder tree (the self-contained .NET runtime,
-; WindowsAppSDK runtime incl. its .winmd/.pri resource files, ASP.NET Core assemblies,
-; AviatesAirTracker.LegacyWeb.dll, wwwroot assets, the SimConnect DLLs under Libs\ and
-; Libs\MSFS2020\) rather than one self-extracting EXE. The narrow, hand-picked entries this
-; replaced (a specific staticwebassets json, wwwroot\*, a literal "SimConnect.dll" path that
-; no longer exists post-migration, and a flattening *.dll wildcard) silently dropped
-; AviatesAirTracker.deps.json, .runtimeconfig.json and .pri — the .NET/WinUI runtime
-; bootstrap and resource-lookup files — from every installed build. createallsubdirs
-; preserves the real directory structure (Libs\ vs Libs\MSFS2020\ specifically matters:
-; SimConnectManager.cs distinguishes the two SDK versions by that exact path).
+; WindowsAppSDK runtime incl. its .winmd/.pri resource files, ASP.NET Core assemblies for
+; the embedded EFB companion server, remaining wwwroot\images\ assets, the SimConnect DLLs
+; under Libs\ and Libs\MSFS2020\) rather than one self-extracting EXE. The narrow,
+; hand-picked entries this replaced (a specific staticwebassets json, wwwroot\*, a literal
+; "SimConnect.dll" path that no longer exists post-migration, and a flattening *.dll
+; wildcard) silently dropped AviatesAirTracker.deps.json, .runtimeconfig.json and .pri —
+; the .NET/WinUI runtime bootstrap and resource-lookup files — from every installed build.
+; createallsubdirs preserves the real directory structure (Libs\ vs Libs\MSFS2020\
+; specifically matters: SimConnectManager.cs distinguishes the two SDK versions by that
+; exact path).
 Source: "{#SourceDir}\*"; Excludes: "{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; Documentation

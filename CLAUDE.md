@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Aviates Air Tracker** is a Windows desktop application for Microsoft Flight Simulator (MSFS). It connects to MSFS via SimConnect at 20Hz, records flights in real-time, analyzes landings, and provides charts, maps, and career statistics for virtual airline pilots. The UI is **Blazor Hybrid** (Razor pages hosted in a WPF `BlazorWebView`), keeping WPF only as a thin shell for the Win32 HWND that SimConnect requires.
+**Aviates Air Tracker** is a Windows desktop application for Microsoft Flight Simulator (MSFS). It connects to MSFS via SimConnect at 20Hz, records flights in real-time, analyzes landings, and provides charts, maps, and career statistics for virtual airline pilots. The UI is **native WinUI 3** (`AviatesAirTracker.csproj` targets `net8.0-windows10.0.19041.0` with `UseWinUI=true`, plain `Microsoft.NET.Sdk`) — there is no WPF, no Blazor, and no Razor anywhere in the app; XAML pages navigate inside a native `Frame` hosted by `ShellWindow`.
 
 ## Build Commands
 
@@ -23,11 +23,12 @@ Direct dotnet commands:
 ```bash
 dotnet restore AviatesAirTracker/AviatesAirTracker.csproj
 dotnet build AviatesAirTracker/AviatesAirTracker.csproj -c Debug
-dotnet publish AviatesAirTracker/AviatesAirTracker.csproj -c Release -r win-x64 \
-  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist/
+dotnet publish AviatesAirTracker/AviatesAirTracker.csproj -c Release -r win-x64 --self-contained true -o dist/
 ```
 
-There are no automated tests. CI is handled by `.github/workflows/build.yml` (build → installer → release on version tags).
+Note: `PublishSingleFile` is **not** used — the Windows App SDK doesn't support it, so `dist/` is a multi-file folder tree (runtime, WindowsAppSDK, SimConnect DLLs, etc.), not one self-extracting EXE. `AviatesAirTracker.sln` has two projects — the app and `tests/AviatesAirTracker.Tests` — `build.ps1` targets the app `.csproj` directly (tests run separately via `dotnet test`).
+
+Automated tests exist: `tests/AviatesAirTracker.Tests` is a real xUnit project (`dotnet test tests/AviatesAirTracker.Tests/AviatesAirTracker.Tests.csproj`) with dozens of `[Fact]`/`[Theory]` tests covering things like the native voice pipeline's Opus codec round-trip and radio-degradation DSP, the `VoiceChannelClient` `/voice` wire protocol, flights/pilot-stats filtering logic, `ShellWindow`'s unread-badge logic, and the `IUiDispatcher`/`WindowSubclass` platform plumbing. CI is handled by `.github/workflows/build.yml` (build → installer → release on version tags).
 
 ## Architecture
 
@@ -44,47 +45,45 @@ MSFS (SimConnect)
       ├─ RouteTracker (2Hz GPS path recording)
       ├─ FuelAnalyzer
       └─ DataRepository (in-memory, swappable via interfaces)
-  → ViewModels → Blazor Razor Pages
+  → ViewModels → native WinUI 3 pages, via `ShellWindow`'s `Frame` navigation
 ```
 
 ### UI Navigation
 
-`MainWindow.xaml` hosts a `BlazorWebView`. `BlazorApp.razor` is the Blazor root; `Shared/MainLayout.razor` is the sidebar navigation shell. Pages are in `Pages/` and route via standard `@page` directives:
+`ShellWindow.xaml` hosts a `NavigationView` (its rail items built from `NavDestinations.All`) and a `Frame` (`NativeHost`) that navigates directly between native `Page` types — there is no web host, routing table, or URL scheme involved. `AviatesAirTracker/Navigation/NavDestinations.cs` is the single source of truth for the rail: each `NavDestination` carries a `NativePageType` that `ShellWindow.Navigate` passes straight to `NativeHost.Navigate(...)`. The current destinations:
 
-| Page | Route |
-|------|-------|
-| Dashboard.razor | `/` |
-| Flights.razor | `/flights` |
-| Routes.razor | `/routes` |
-| Fleet.razor | `/fleet` |
-| PilotHub.razor | `/pilot-hub` |
-| Acars.razor | `/acars` |
-| Messages.razor | `/messages` |
-| News.razor | `/news` |
-| Events.razor | `/events` |
-| Support.razor | `/support` |
-| LiveFlight.razor | `/live-flight` |
-| MapPage.razor | `/map` |
-| LandingAnalysis.razor | `/landings` |
-| Statistics.razor | `/statistics` |
-| Replay.razor | `/replay` |
-| TelemetryPage.razor | `/telemetry` |
-| Settings.razor | `/settings` |
+| Tag | Label | Group | Native Page |
+|-----|-------|-------|-------------|
+| dashboard | Dashboard | Overview | `Pages.DashboardPage` |
+| flights | Flights | Overview | `Pages.FlightsPage` |
+| routes | Routes | Overview | `Pages.RoutesPage` |
+| fleet | Fleet | Overview | `Pages.FleetPage` |
+| pilot-hub | Pilot Hub | Pilot | `Pages.PilotHubPage` |
+| acars | ACARS | Pilot | `Pages.AcarsPage` |
+| map | Map | Pilot | `Pages.MapPage` |
+| messages | Messages | Pilot | `Pages.MessagesPage` |
+| news | News | Community | `Pages.NewsPage` |
+| events | Events | Community | `Pages.EventsPage` |
+| support | Support | Community | `Pages.SupportPage` |
+| settings | Settings | *(footer, no group)* | `Pages.SettingsPage` |
 
-### MVVM + Blazor
+`LoginPage` is also native (navigated to directly by `ShellWindow` outside the rail, before the user is authenticated) but isn't a `NavDestination` entry since it isn't a rail item.
 
-ViewModels use CommunityToolkit.Mvvm (`[ObservableProperty]`, `[RelayCommand]`). In Razor pages, inject the ViewModel and call `await InvokeAsync(() => { Property = value; StateHasChanged(); })` for cross-thread updates from the SimConnect pump. **Do not call `StateHasChanged()` on every 20Hz tick** — batch every 3–5 samples (see docs/superpowers/notes/20hz-batching-reference.md for the preserved every-5-samples pattern).
+### MVVM + native threading
+
+ViewModels use CommunityToolkit.Mvvm (`[ObservableProperty]`, `[RelayCommand]`) and take `Platform.IUiDispatcher` via constructor DI instead of touching WinUI's `DispatcherQueue` directly — this keeps the ViewModel layer free of any UI-framework type and testable (see `Platform/ImmediateUiDispatcher.cs`, used in unit tests). From a background thread (e.g. the SimConnect pump), marshal onto the UI thread with `_ui.Invoke(() => { Property = value; })` (synchronous, waits) or `_ui.BeginInvoke(...)` (fire-and-forget) — `DispatcherQueueUiDispatcher` is the production implementation, resolved once at startup from `DispatcherQueue.GetForCurrentThread()`. **Do not marshal on every 20Hz tick** — decimate first (e.g. `AcarsViewModel.UpdateTelemetry` only applies every 5th sample, 20Hz → 4Hz) and only then dispatch (see docs/superpowers/notes/20hz-batching-reference.md for the preserved original every-5-samples pattern from the Blazor era).
 
 ### Dependency Injection
 
-All services are singletons registered in `App.xaml.cs`:
-- **Data:** `IFlightRepository`, `IPilotRepository`, `ILandingRepository`, `IMessageRepository`, `IFriendRepository` → InMemory implementations
-- **SimConnect:** `SimConnectManager`, `TelemetryProcessor`, `FlightPhaseDetector`
+All services are singletons registered in `App.xaml.cs`'s `ConfigureServices`:
+- **Data:** `IFlightRepository`, `IPilotRepository`, `ILandingRepository`, `IFlightDeletionRepository`, `IMessageRepository`, `IFriendRepository` → JSON-persisted (or InMemory for pilots) implementations
+- **Infrastructure:** `IUiDispatcher` → `DispatcherQueueUiDispatcher`, `FilePickerService`, `SettingsService`, `AlertService`
+- **SimConnect:** `SimConnectManager`, `FlightPhaseDetector`, `TelemetryProcessor`
 - **Analytics:** `LandingAnalyzer`, `ApproachMonitor`, `FuelAnalyzer`, `RunwayDetector`
-- **Business:** `FlightSessionManager`, `RouteTracker`, `SimBriefService`, `ExportService`, `DiscordPresenceService`
-- **Social:** `MessagingService`, `EventsService`, `RoutesService`, `SupportServices`
-- **Backend:** `AviatesBackendClient`, `IApiService` → `NullApiService` (swap when backend is ready)
-- **UI:** All 9 ViewModels + `MainWindow`
+- **Business:** `AviatesBackendClient`, `AcarsPositionService`, `HoppiesAcarsClient`, `HazardZoneService`, `WeatherAdvisoryService`, `HoppiesAcarsOrchestrator`, `OtherPilotsService`, `PttInputService`, `DispatchRadioService`, `MessagingService`, `RouteTracker`, `FlightTrailService`, `FlightSessionManager`, `DiscordPresenceService`, `SimBriefService`, `TakeoffPerformanceService`, `ExportService`, `PilotStatsService`, `EventsService`, `RoutesService`, `BookingService`, `FleetService`, `UpdateService`, `FlightRecoveryService`
+- **Native voice pipeline:** `VoiceAudioEngine`, `VoiceChannelClient`, `VoiceOrchestrator` (wires `DispatchRadioService`'s PTT/radio events into NAudio WASAPI capture/render + the Opus/WebM wire protocol)
+- **EFB companion:** `EfbStateService`, `EfbChecklistService`, `EfbManualsService`, `EfbAtisService`, `EfbServer`
+- **UI:** 13 ViewModels (`DashboardViewModel`, `MapViewModel`, `LandingAnalysisViewModel`, `PilotHubViewModel`, `SettingsViewModel`, `ReplayViewModel`, `MainViewModel`, `FleetViewModel`, `FlightsViewModel`, `RoutesViewModel`, `EventsViewModel`, `MessagesViewModel`, `AcarsViewModel`) + `ShellWindow` (not `MainWindow` — that name is gone)
 
 ### SimConnect SDK Loading
 
@@ -94,7 +93,7 @@ All services are singletons registered in `App.xaml.cs`:
 
 | Thread | Role |
 |--------|------|
-| UI Thread | WPF/Blazor rendering, ViewModel property updates |
+| UI Thread | Native WinUI 3 rendering (`DispatcherQueue`), ViewModel property updates |
 | SimConnect Pump | Win32 WndProc message dispatch (HWND hook) |
 | 20Hz DispatcherTimer | `RequestDataOnSimObjectType` calls |
 | Reconnect Timer | 5-second retry when MSFS not detected |
@@ -102,14 +101,9 @@ All services are singletons registered in `App.xaml.cs`:
 | Messaging Poll | 30-second interval for new messages from backend |
 | Discord Presence | 10-second update interval |
 
-### Map (Leaflet.js)
+### Map (native, Mapsui)
 
-The map page uses Leaflet.js via JS interop. The full JS API lives in `wwwroot/js/interop.js` as `window.aviatesMap`. Call it from Razor via `IJSRuntime`:
-```csharp
-await JS.InvokeVoidAsync("aviatesMap.init", lat, lon);
-await JS.InvokeVoidAsync("aviatesMap.updateAircraft", lat, lon, heading);
-```
-Always call `aviatesMap.init` on `OnAfterRenderAsync(firstRender)` and `aviatesMap.destroy` on `IAsyncDisposable.DisposeAsync`.
+`Services/NativeMapRenderer.cs` is a native Mapsui-backed rendering layer — the direct analogue of the old `window.aviatesMap` JS interop object, now owning one `Mapsui.Map` (tile layer via `Mapsui.Tiling`, vector/route layers via `Mapsui.Nts`) rendered by a `Mapsui.WinUI` `MapControl` on `MapPage`. It exposes the same conceptual API surface as the old interop object as plain C# methods (init/center/zoom, update-aircraft, draw route/waypoints, hit-testing) instead of JS calls — no `IJSRuntime`, no `wwwroot/js`, no JS at all. `MapViewModel` calls into it directly and marshals results back via `IUiDispatcher` like any other ViewModel.
 
 ### Backend Integration
 
@@ -136,10 +130,10 @@ A **new, self-contained module** that hosts a local web server on the LAN so a t
 | File | Purpose |
 |------|---------|
 | `AviatesAirTracker/App.xaml.cs` | DI container setup, crash handlers, Serilog config |
-| `AviatesAirTracker/BlazorApp.razor` | Blazor root / router |
-| `AviatesAirTracker/Shared/MainLayout.razor` | Sidebar nav shell, unread message badge |
-| `AviatesAirTracker/wwwroot/css/app.css` | All styles — brand colors `#0A0D17` bg, `#3D7EEE` accent |
-| `AviatesAirTracker/wwwroot/js/interop.js` | Leaflet.js map JS interop (`window.aviatesMap`) |
+| `AviatesAirTracker/ShellWindow.xaml.cs` | Root native window — `NavigationView` rail + `Frame` navigation, unread message badge |
+| `AviatesAirTracker/Navigation/NavDestinations.cs` | Single source of truth for the nav rail (tag/label/group/native page type) |
+| `AviatesAirTracker/Theme/Tokens.xaml` | Shared nav-rail color resources (sidebar bg, accent brushes) ported from the old `app.css` `:root` block. The `#0A0D17`/`#3D7EEE` brand colors themselves are applied inline per-page in XAML/ViewModels — no single global brand resource dictionary yet |
+| `AviatesAirTracker/Services/NativeMapRenderer.cs` | Native Mapsui map rendering layer (analogue of the old Leaflet interop) |
 | `Core/SimConnect/SimConnectManager.cs` | Runtime SDK loading, 20Hz polling, HWND hook |
 | `Core/SimConnect/SimConnectDefinitions.cs` | 70-variable `AircraftState` struct |
 | `Core/SimConnect/TelemetryProcessor.cs` | EMA filtering, history buffer |
@@ -159,18 +153,20 @@ A **new, self-contained module** that hosts a local web server on the LAN so a t
 
 ## Technology Stack
 
-- **.NET 8, `Microsoft.NET.Sdk.Razor`** (x64 Windows only), C# 12, nullable reference types enabled
-- **WPF** retained only as HWND shell hosting `BlazorWebView`
+- **.NET 8** (`net8.0-windows10.0.19041.0`), plain **`Microsoft.NET.Sdk`** with `UseWinUI=true` (x64 Windows only, self-contained, `win-x64`), C# 12, nullable reference types enabled — no WPF anywhere in this project
+- **Windows App SDK / WinUI 3** — `Microsoft.WindowsAppSDK` (pinned; 1.6/1.7 fail to build without Visual Studio) + `Microsoft.Windows.SDK.BuildTools`
 - **CommunityToolkit.Mvvm** — `[ObservableProperty]`, `[RelayCommand]`
-- **Leaflet.js** (CDN via `index.html`) — interactive map via JS interop
-- **Mapsui.Wpf** — kept for legacy WPF MapView
+- **Mapsui.WinUI** (+ `Mapsui.Tiling`, `Mapsui.Nts`) — native map rendering, no Leaflet/JS interop at all
 - **RestSharp + Newtonsoft.Json** — SimBrief OFP import, backend HTTP
 - **DiscordRichPresence** — Discord game presence
+- **NAudio** (WASAPI capture/render) + **Concentus** (Opus) + **NEbml** (WebM mux/demux) — native voice pipeline
+- **SharpDX.DirectInput** — HOTAS/joystick PTT binding
+- **`FrameworkReference Microsoft.AspNetCore.App`** — embedded Kestrel host for the EFB companion server only (not a UI framework dependency)
 - **Serilog** — rolling daily logs in `logs/` (7-day retention)
 
 ## Frontend Design Rules
 
-**Always invoke the `frontend-design` skill before writing any Razor/CSS/HTML.** These rules apply to all UI work:
+**Always invoke the `frontend-design` skill before writing any XAML.** These rules apply to all UI work:
 
 - **Brand colors:** `#0A0D17` background, `#3D7EEE` accent. Never use default Tailwind palette.
 - **Typography:** Pair a display/serif with a clean sans. Tight tracking (`-0.03em`) on large headings, generous line-height (`1.7`) on body.
