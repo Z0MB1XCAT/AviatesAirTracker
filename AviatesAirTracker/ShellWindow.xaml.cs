@@ -22,8 +22,7 @@ using WinRT.Interop;
 namespace AviatesAirTracker;
 
 /// <summary>
-/// The application window. Owns the SimConnect message pump, the navigation rail and the
-/// WebView2 that hosts not-yet-migrated pages.
+/// The application window. Owns the SimConnect message pump and the navigation rail.
 /// </summary>
 public sealed partial class ShellWindow : Window
 {
@@ -122,14 +121,14 @@ public sealed partial class ShellWindow : Window
     private bool _initialised;
 
     // The rail is interactive (BuildNavItems runs in the constructor) before
-    // EnsureCoreWebView2Async completes in OnFirstActivated below, so a click in that gap
-    // would otherwise be silently dropped by Navigate's not-ready guard, and then overridden
-    // once the host WAS ready — the rail would show what the user clicked while the content
-    // area showed Dashboard regardless. Recording the latest request here and navigating to
-    // it (not always All[0]) once the WebView2 is ready closes that gap.
+    // OnFirstActivated below finishes its login check, so a click in that gap
+    // would otherwise be silently dropped and then overridden once the check completes —
+    // the rail would show what the user clicked while the content area showed Dashboard
+    // regardless. Recording the latest request here and navigating to it (not always All[0])
+    // once the check is done closes that gap.
     private NavDestination _pendingDestination = NavDestinations.All[0];
 
-    private async void OnFirstActivated(object sender, WindowActivatedEventArgs args)
+    private void OnFirstActivated(object sender, WindowActivatedEventArgs args)
     {
         if (_initialised) return;
         _initialised = true;
@@ -144,82 +143,44 @@ public sealed partial class ShellWindow : Window
         var appWindow = AppWindow.GetFromWindowId(Win32Interop.GetWindowIdFromWindow(hwnd));
         appWindow.Resize(new SizeInt32(1440, 900));
 
-        try
+        // Covers both the startup login-gate (this method's else branch, native LoginPage) and
+        // any future logout-triggered return to login (SettingsPage's OnLogOutTapped navigating
+        // Frame back to LoginPage) with one central handler, so neither call site needs to know
+        // anything about rail visibility itself. Fires after every successful NativeHost.Navigate
+        // — including a Navigate triggered from inside a hosted page's own Frame.Navigate call,
+        // per Frame.Navigated's normal bubbling behavior. Attached before the first Navigate call
+        // below so it catches every completion, including the very first one.
+        NativeHost.Navigated += (_, e) =>
         {
-            await UiHost.EnsureCoreWebView2Async();
+            var onLogin = e.SourcePageType == typeof(Pages.LoginPage);
 
-            // Voice PTT needs getUserMedia() inside the page's WebView2 context. WebView2
-            // blocks microphone access by default; without this handler getUserMedia()
-            // hangs on a prompt the user has no way to answer.
-            UiHost.CoreWebView2.PermissionRequested += (_, e) =>
-            {
-                if (e.PermissionKind == Microsoft.Web.WebView2.Core.CoreWebView2PermissionKind.Microphone)
-                    e.State = Microsoft.Web.WebView2.Core.CoreWebView2PermissionState.Allow;
-            };
+            Nav.IsPaneVisible = !onLogin;
+            Nav.IsBackButtonVisible = onLogin
+                ? NavigationViewBackButtonVisible.Collapsed
+                : NavigationViewBackButtonVisible.Visible;
+        };
 
-            // Reveals the rail once the WebView2 navigates away from /login (e.g. after a
-            // successful sign-in) and hides it again if it ever navigates back to /login.
-            // Attached before the first Navigate/CoreWebView2.Navigate call below so it
-            // catches every completion, including the very first one.
-            UiHost.CoreWebView2.NavigationCompleted += (_, _) =>
-            {
-                var url = UiHost.CoreWebView2.Source ?? string.Empty;
-                var onLogin = url.Contains("/login", StringComparison.OrdinalIgnoreCase);
-
-                Nav.IsPaneVisible = !onLogin;
-                Nav.IsBackButtonVisible = onLogin
-                    ? NavigationViewBackButtonVisible.Collapsed
-                    : NavigationViewBackButtonVisible.Visible;
-            };
-
-            // Native-side analogue of the WebView2 handler directly above: covers both the
-            // startup login-gate (OnFirstActivated's else branch, native LoginPage) and any
-            // future logout-triggered return to login (SettingsPage's OnLogOutTapped navigating
-            // Frame back to LoginPage) with one central handler, so neither call site needs to
-            // know anything about rail visibility itself. Fires after every successful
-            // NativeHost.Navigate — including a Navigate triggered from inside a hosted page's
-            // own Frame.Navigate call, per Frame.Navigated's normal bubbling behavior.
-            NativeHost.Navigated += (_, e) =>
-            {
-                var onLogin = e.SourcePageType == typeof(Pages.LoginPage);
-
-                Nav.IsPaneVisible = !onLogin;
-                Nav.IsBackButtonVisible = onLogin
-                    ? NavigationViewBackButtonVisible.Collapsed
-                    : NavigationViewBackButtonVisible.Visible;
-            };
-
-            if (IsLoggedIn())
-            {
-                // The rail defaults to hidden in XAML (see the comment there) so a
-                // signed-out pilot never sees it during this async gap — reveal it here now
-                // that a stored ACARS key has actually been confirmed.
-                Nav.IsPaneVisible = true;
-                Nav.IsBackButtonVisible = NavigationViewBackButtonVisible.Visible;
-                Navigate(_pendingDestination);
-            }
-            else
-            {
-                // Login owns the whole window: no rail, no back button, until it completes.
-                // Deliberately ignores _pendingDestination — a click during the startup gap
-                // must never let a signed-out pilot skip the login gate. These two lines are
-                // redundant with the NativeHost.Navigated handler above (which will also set
-                // them once Navigate below completes) — kept anyway as belt-and-suspenders
-                // against a one-frame flash of the rail before that handler fires.
-                Nav.IsPaneVisible = false;
-                Nav.IsBackButtonVisible = NavigationViewBackButtonVisible.Collapsed;
-
-                // The final page conversion in this migration: login now goes through the
-                // native LoginPage via NativeHost, the exact same mechanism Navigate(NavDestination)
-                // already uses for every other native page, instead of the legacy WebView2 route.
-                NativeHost.Navigate(typeof(Pages.LoginPage));
-                NativeHost.Visibility = Visibility.Visible;
-                UiHost.Visibility = Visibility.Collapsed;
-            }
+        if (IsLoggedIn())
+        {
+            // The rail defaults to hidden in XAML (see the comment there) so a
+            // signed-out pilot never sees it during this async gap — reveal it here now
+            // that a stored ACARS key has actually been confirmed.
+            Nav.IsPaneVisible = true;
+            Nav.IsBackButtonVisible = NavigationViewBackButtonVisible.Visible;
+            Navigate(_pendingDestination);
         }
-        catch (Exception ex)
+        else
         {
-            Log.Error(ex, "[Shell] Failed to initialise the legacy UI host");
+            // Login owns the whole window: no rail, no back button, until it completes.
+            // Deliberately ignores _pendingDestination — a click during the startup gap
+            // must never let a signed-out pilot skip the login gate. These two lines are
+            // redundant with the NativeHost.Navigated handler above (which will also set
+            // them once Navigate below completes) — kept anyway as belt-and-suspenders
+            // against a one-frame flash of the rail before that handler fires.
+            Nav.IsPaneVisible = false;
+            Nav.IsBackButtonVisible = NavigationViewBackButtonVisible.Collapsed;
+
+            NativeHost.Navigate(typeof(Pages.LoginPage));
         }
     }
 
@@ -570,47 +531,23 @@ public sealed partial class ShellWindow : Window
         var destination = NavDestinations.All.FirstOrDefault(d => d.Tag == tag);
         if (destination == null) return;
 
-        // Recorded even if Navigate below no-ops (WebView2 not ready yet) — see the field's
-        // doc comment. Once the host becomes ready, OnFirstActivated navigates to whatever
-        // this was last set to, not always the first destination.
+        // Recorded even before OnFirstActivated's login check has run — see the field's doc
+        // comment. Once that check completes, OnFirstActivated navigates to whatever this was
+        // last set to, not always the first destination.
         _pendingDestination = destination;
         Navigate(destination);
     }
 
     /// <summary>
-    /// Sends the rail's selection to whichever host owns that destination: a native Page via
-    /// <see cref="NativeHost"/> if the destination has migrated, otherwise the legacy Blazor
-    /// host via <see cref="UiHost"/> as before. Only one of the two is ever visible at a time.
+    /// Sends the rail's selection to the destination's native <see cref="NativeHost"/> Page.
+    /// Every <see cref="NavDestination"/> in <see cref="NavDestinations.All"/> sets
+    /// <c>NativePageType</c> now, so the null-forgiving operator below is safe.
     /// </summary>
-    private void Navigate(NavDestination destination)
-    {
-        if (destination.NativePageType != null)
-        {
-            NativeHost.Navigate(destination.NativePageType);
-            NativeHost.Visibility = Visibility.Visible;
-            UiHost.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        NativeHost.Visibility = Visibility.Collapsed;
-        UiHost.Visibility = Visibility.Visible;
-
-        if (UiHost.CoreWebView2 == null) return;
-
-        var baseUrl = App.LegacyUiUrl;
-        if (baseUrl == null)
-        {
-            Log.Error("[Shell] Legacy UI host is not running; cannot navigate");
-            return;
-        }
-
-        UiHost.CoreWebView2.Navigate($"{baseUrl}{destination.Route}?shell=native");
-    }
+    private void Navigate(NavDestination destination) => NativeHost.Navigate(destination.NativePageType!);
 
     private void OnBackRequested(NavigationView sender, NavigationViewBackRequestedEventArgs args)
     {
-        if (NativeHost.Visibility == Visibility.Visible && NativeHost.CanGoBack) { NativeHost.GoBack(); return; }
-        if (UiHost.CoreWebView2?.CanGoBack == true) UiHost.CoreWebView2.GoBack();
+        if (NativeHost.CanGoBack) NativeHost.GoBack();
     }
 
     private void OnClosed(object sender, WindowEventArgs args)

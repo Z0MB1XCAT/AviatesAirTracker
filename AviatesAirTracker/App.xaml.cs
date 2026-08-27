@@ -2,7 +2,6 @@
 using AviatesAirTracker.Core.Backend;
 using AviatesAirTracker.Core.Data;
 using AviatesAirTracker.Core.SimConnect;
-using AviatesAirTracker.Hosting;
 using AviatesAirTracker.Models;
 using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
@@ -21,16 +20,12 @@ namespace AviatesAirTracker;
 public partial class App : Application
 {
     private ServiceProvider _serviceProvider = null!;
-    private ILegacyUiHost? _blazorHost;
     private bool _shutdownRan;
 
     public App()
     {
         InitializeComponent();
     }
-
-    /// <summary>Root URL of the loopback Blazor Server host, once started. ShellWindow navigates to this.</summary>
-    public static string? LegacyUiUrl { get; private set; }
 
     /// <summary>
     /// The one and only place a native page reaches into DI from outside constructor
@@ -42,14 +37,6 @@ public partial class App : Application
     /// </summary>
     public static T GetService<T>() where T : class =>
         ((App)Application.Current)._serviceProvider.GetRequiredService<T>();
-
-    /// <summary>
-    /// Tears down the loopback UI host. Called from <c>ShellWindow</c>'s Closing handler so
-    /// teardown runs while the dispatcher is still pumping; <see cref="Shutdown"/> repeats the call
-    /// as a safety net and <c>BlazorHostServer.DisposeAsync</c> makes the second one a no-op.
-    /// </summary>
-    internal static ValueTask ShutdownUiHostAsync() =>
-        (Current as App)?._blazorHost?.DisposeAsync() ?? ValueTask.CompletedTask;
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern int MessageBoxW(nint hWnd, string text, string caption, uint type);
@@ -154,36 +141,6 @@ public partial class App : Application
             var efbServer = _serviceProvider.GetRequiredService<EfbServer>();
             if (settingsSvc.Settings.EfbEnabled && settingsSvc.Settings.EfbAutoStart)
                 _ = efbServer.StartAsync();
-
-            // Legacy Razor UI host — serves the not-yet-migrated pages to ShellWindow's WebView2
-            // over loopback. Transitional; deleted when the last page becomes native XAML.
-            //
-            // LOAD-BEARING. The WebView2 renders nothing but this host's output, so a failure
-            // here is not survivable: continuing would leave the pilot staring at an empty
-            // window with the reason buried in a log file. Say so and stop instead.
-            try
-            {
-                var blazorHost = LegacyUiHostLoader.Load();
-                LegacyUiUrl = blazorHost.StartAsync(_serviceProvider).GetAwaiter().GetResult();
-                Log.Information("[Startup] UI host ready at {Url}", LegacyUiUrl);
-                _blazorHost = blazorHost;
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "[Startup] UI host failed to start — cannot continue");
-                ShowFatalStartupMessage(
-                    "Aviates Air Tracker could not start the local host that renders its user " +
-                    "interface, so there is nothing to display.\n\n" +
-                    $"{ex.GetType().Name}: {ex.Message}\n\n" +
-                    $"Details were written to:\n{logDir}\n\nThe application will now close.",
-                    "Aviates Air Tracker — startup failed");
-                // Unlike WPF's Shutdown(), WinUI has no dispatcher-deferred shutdown that runs
-                // OnExit for us — so cleanup is run explicitly before exiting, and returning
-                // here is what actually prevents ShellWindow from being created/activated.
-                Shutdown();
-                Exit();
-                return;
-            }
 
             var shell = _serviceProvider.GetRequiredService<ShellWindow>();
             shell.Activate();
@@ -444,7 +401,7 @@ public partial class App : Application
     /// <summary>
     /// Hard ceiling on how long the process may take to disappear once <see cref="Shutdown"/>
     /// starts. Comfortably above the sum of the individual disposal timeouts below (EFB 5 s,
-    /// PTT 2 s, Blazor host 5 s), which in practice all complete in milliseconds.
+    /// PTT 2 s), which in practice all complete in milliseconds.
     /// </summary>
     private static readonly TimeSpan ShutdownBudget = TimeSpan.FromSeconds(4);
 
@@ -537,12 +494,6 @@ public partial class App : Application
         Step("VoiceAudioEngine", () => _serviceProvider.GetService<VoiceAudioEngine>()?.Dispose());
         Step("UpdateService", () => _serviceProvider.GetService<UpdateService>()?.Dispose());
         Step("TakeoffPerf", () => _serviceProvider.GetService<TakeoffPerformanceService>()?.Dispose());
-        // Safety net only. ShellWindow's Closing handler normally tears the host down while the
-        // dispatcher is still pumping; by here it has stopped, so a circuit teardown marshalling
-        // through IUiDispatcher could not complete and would ride the 5 s timeout inside
-        // DisposeAsync. Reached when the window close path is bypassed (e.g. a forced exit, or a
-        // startup failure before ShellWindow appears). No-op if teardown already happened.
-        Step("BlazorHost", () => _blazorHost?.DisposeAsync().AsTask().GetAwaiter().GetResult());
 
         Log.Information("[Shutdown] All services disposed in {Ms} ms — exiting", sw.ElapsedMilliseconds);
         Log.CloseAndFlush();
