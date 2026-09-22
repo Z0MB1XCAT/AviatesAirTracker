@@ -180,7 +180,6 @@ All data flows through interfaces:
 
 ```csharp
 IFlightRepository   // Save/load FlightRecord
-IPilotRepository    // Pilot profile + statistics  
 ILandingRepository  // LandingResult history
 ```
 

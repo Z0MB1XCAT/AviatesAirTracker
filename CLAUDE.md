@@ -76,7 +76,7 @@ ViewModels use CommunityToolkit.Mvvm (`[ObservableProperty]`, `[RelayCommand]`) 
 ### Dependency Injection
 
 All services are singletons registered in `App.xaml.cs`'s `ConfigureServices`:
-- **Data:** `IFlightRepository`, `IPilotRepository`, `ILandingRepository`, `IFlightDeletionRepository`, `IMessageRepository`, `IFriendRepository` → JSON-persisted (or InMemory for pilots) implementations
+- **Data:** `IFlightRepository`, `ILandingRepository`, `IFlightDeletionRepository`, `IMessageRepository`, `IFriendRepository` → JSON-persisted implementations
 - **Infrastructure:** `IUiDispatcher` → `DispatcherQueueUiDispatcher`, `FilePickerService`, `SettingsService`, `AlertService`
 - **SimConnect:** `SimConnectManager`, `FlightPhaseDetector`, `TelemetryProcessor`
 - **Analytics:** `LandingAnalyzer`, `ApproachMonitor`, `FuelAnalyzer`, `RunwayDetector`

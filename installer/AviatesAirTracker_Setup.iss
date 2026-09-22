@@ -9,7 +9,7 @@
 ; ============================================================
 
 #define AppName      "Aviates Air Flight Tracker"
-#define AppVersion   "1.0.0"
+#define AppVersion   "2.0.0"
 #define AppPublisher "Aviates Air"
 #define AppURL       "https://z0mb1xcat.github.io/avaitesairlol"
 #define AppExeName   "AviatesAirTracker.exe"
@@ -26,6 +26,23 @@ AppUpdatesURL             = {#AppURL}
 DefaultDirName            = {autopf}\AviatesAir\FlightTracker
 DefaultGroupName          = Aviates Air
 AllowNoIcons              = yes
+; App-is-running detection: must match the exact mutex name App.xaml.cs's OnLaunched() creates
+; ("AviatesAirTracker-AppMutex"), held for the app's whole lifetime. Without this, a silent
+; update install (UpdateService.DownloadAndInstallAsync, launched with /VERYSILENT
+; /SUPPRESSMSGBOXES) had nothing telling Setup the old process was still holding the app's DLLs
+; open -- it would race a fixed 500ms shutdown delay against Setup's own file copy, silently lose
+; that race often enough to matter (self-contained .NET ships dozens of loose runtime/SDK DLLs,
+; not just the one EXE), and /SUPPRESSMSGBOXES swallowed the resulting file-in-use failures
+; entirely -- the update appeared to run but silently never actually replaced the files.
+; CloseApplications (default yes, made explicit here) makes Setup use the Windows Restart
+; Manager to close whatever process is holding this mutex before it starts copying -- the
+; correct fix for this whole race, rather than trying to out-guess it with a longer delay.
+AppMutex                  = AviatesAirTracker-AppMutex
+CloseApplications         = yes
+; The app already relaunches itself via [Run] below post-install; RestartApplications would be
+; Restart Manager's OWN "reopen whatever Setup closed" mechanism, which would just be a second,
+; redundant relaunch racing the one in [Run].
+RestartApplications       = no
 ; License
 LicenseFile               = LICENSE.txt
 ; Compression
@@ -76,11 +93,16 @@ Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesn
 
 [Icons]
 ; Start menu
-Name: "{group}\{#AppName}";           Filename: "{app}\{#AppExeName}"
+; IconFilename is explicit here (not just relying on {#AppExeName}'s own embedded icon) so the
+; shortcuts still look right even if a stripped/trimmed build of the exe ever lost its icon
+; resource for some reason -- belt-and-suspenders alongside AviatesAirTracker.csproj's own
+; <ApplicationIcon>, which is what actually gives the exe (and therefore its taskbar/window
+; icon) a real icon in the first place.
+Name: "{group}\{#AppName}";           Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\{#AppExeName}"
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 
 ; Desktop (optional task)
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Registry]
 ; Startup entry (optional task)

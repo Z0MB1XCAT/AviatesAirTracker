@@ -1,6 +1,6 @@
 AviatesAir Internal Use License
 
-Copyright (c) 2026 Dexter Rees. All rights reserved.
+Copyright (c) 2026 AviatesAir. All rights reserved.
 
 This software and associated documentation files (the "Software") are the
 exclusive property of AviatesAir and its owner(s).
