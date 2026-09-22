@@ -1,4 +1,5 @@
 using AviatesAirTracker.Models;
+using AviatesAirTracker.Platform;
 using AviatesAirTracker.ViewModels;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
@@ -156,11 +157,24 @@ public sealed partial class FleetPage : Page
     // no-ops today).
     private static readonly Dictionary<string, string> FleetPhotoFiles = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["A319"] = "fleet-a319.webp",
         ["A320neo"] = "fleet-a320neo.webp",
         ["A380"] = "fleet-a380.webp",
         ["A380-800"] = "fleet-a380.webp",
         ["A388"] = "fleet-a380.webp",
+        ["A350"] = "fleet-a350.webp",
+        ["A350-900"] = "fleet-a350.webp",
+        ["A359"] = "fleet-a350.webp",
+        // Matches aircraft_types.type_code exactly (confirmed via Supabase) -- "B737-800" has a
+        // hyphen, "ATR 72" has a literal space, neither of which the website's own catalog slug
+        // uses, so both need to be keyed here as the DB actually spells them.
+        ["B737-800"] = "fleet-b738.webp",
+        ["B738"] = "fleet-b738.webp",
+        ["B739ER"] = "fleet-b739er.webp",
+        ["B739"] = "fleet-b739er.webp",
+        ["B77F"] = "fleet-b77f.webp",
+        ["B38M"] = "fleet-b38m.webp",
+        ["ATR 72"] = "fleet-atr72.webp",
+        ["ATR72"] = "fleet-atr72.webp",
     };
 
     private readonly FleetViewModel _viewModel;
@@ -176,6 +190,8 @@ public sealed partial class FleetPage : Page
     public FleetPage()
     {
         InitializeComponent();
+
+        InteractiveEffects.Attach(TabAllBorder, TabMainlineBorder, TabRegionalBorder, TabCargoBorder);
 
         _viewModel = App.GetService<FleetViewModel>();
         DataContext = _viewModel;
@@ -440,7 +456,7 @@ public sealed partial class FleetPage : Page
     }
 
     // Reproduces Fleet.razor lines 209-319: visible only when VM.SelectedType != null, its own
-    // header (type emoji, "{Name} — Registrations", then a sub-line with aircraft count /
+    // header (type emoji, "{Name} Registrations", then a sub-line with aircraft count /
     // category / subsidiary and the two optional cruise-speed/service-ceiling additions), then
     // one of three mutually-exclusive states -- loading / empty / populated grid -- exactly like
     // the page-level loading/error/main-content split above.
@@ -452,7 +468,7 @@ public sealed partial class FleetPage : Page
         if (!showPanel) return;
 
         RegPanelEmoji.Text = type!.Emoji;
-        RegPanelTitle.Text = $"{type.Name} — Registrations";
+        RegPanelTitle.Text = $"{type.Name} Registrations";
 
         var subLine = $"{type.TotalAircraft} aircraft · {type.Category} · {type.Subsidiary}";
         if (type.CruiseSpeedKts.HasValue) subLine += $" · Cruise {type.CruiseSpeedKts} kts";

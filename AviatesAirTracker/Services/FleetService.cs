@@ -74,6 +74,15 @@ public class FleetService
             var json = await _supabase.GetStringAsync(
                 $"/rest/v1/aircraft_registrations?type_code=eq.{encoded}&select=*&order=registration.asc");
             var regs = JsonConvert.DeserializeObject<List<AircraftRegistration>>(json) ?? [];
+
+            // This call bypasses worker.js entirely (direct Supabase REST, see class comment),
+            // so it needs its own copy of the same "inspection" grounding filter worker.js's
+            // GET /api/fleet/types/:typeCode/registrations applies -- otherwise a hard-landing
+            // grounded tail would still show up in this app's own booking dropdown even though
+            // the backend already rejects a booking made against it.
+            var now = DateTime.UtcNow;
+            regs = regs.Where(r => r.Status != "inspection" || (r.GroundedUntil.HasValue && r.GroundedUntil.Value <= now)).ToList();
+
             _regCache[typeCode] = regs;
             Log.Information("[FleetService] Loaded {Count} registrations for {TypeCode} from Supabase", regs.Count, typeCode);
             return regs;

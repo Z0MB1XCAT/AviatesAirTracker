@@ -187,22 +187,22 @@
                      solid accent, so this reproduces that instead). -->
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <Border x:Name="TabAllBorder" Tag="All" Tapped="OnFilterTapped"
-                            BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="999" Padding="16,6">
+                            BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="10" Padding="16,6">
                         <TextBlock x:Name="TabAllText" Text="All" FontFamily="{StaticResource DisplayFontBold}"
                                    FontSize="12" FontWeight="SemiBold" />
                     </Border>
                     <Border x:Name="TabMainlineBorder" Tag="Mainline" Tapped="OnFilterTapped"
-                            BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="999" Padding="16,6">
+                            BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="10" Padding="16,6">
                         <TextBlock x:Name="TabMainlineText" Text="Mainline" FontFamily="{StaticResource DisplayFontBold}"
                                    FontSize="12" FontWeight="SemiBold" />
                     </Border>
                     <Border x:Name="TabRegionalBorder" Tag="Regional" Tapped="OnFilterTapped"
-                            BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="999" Padding="16,6">
+                            BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="10" Padding="16,6">
                         <TextBlock x:Name="TabRegionalText" Text="Regional" FontFamily="{StaticResource DisplayFontBold}"
                                    FontSize="12" FontWeight="SemiBold" />
                     </Border>
                     <Border x:Name="TabCargoBorder" Tag="Cargo" Tapped="OnFilterTapped"
-                            BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="999" Padding="16,6">
+                            BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="10" Padding="16,6">
                         <TextBlock x:Name="TabCargoText" Text="Cargo" FontFamily="{StaticResource DisplayFontBold}"
                                    FontSize="12" FontWeight="SemiBold" />
                     </Border>
@@ -236,7 +236,7 @@
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <Border Grid.Column="0" Background="{Binding StatusChipBackground}"
-                                                    CornerRadius="999" Padding="9,4" HorizontalAlignment="Left">
+                                                    CornerRadius="10" Padding="9,4" HorizontalAlignment="Left">
                                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                                     <Ellipse Width="6" Height="6" Fill="{Binding StatusChipColor}" VerticalAlignment="Center" />
                                                     <TextBlock Text="{Binding StatusLabel}" FontSize="11" FontWeight="SemiBold"
@@ -349,7 +349,7 @@
                         BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="24">
                     <StackPanel Spacing="0">
 
-                        <!-- Header: emoji, "{Name} — Registrations", sub-line, close button -->
+                        <!-- Header: emoji, "{Name} Registrations", sub-line, close button -->
                         <Grid Margin="0,0,0,20" Padding="0,0,0,20" BorderBrush="#14FFFFFF" BorderThickness="0,0,0,1">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -422,7 +422,7 @@
                                                            FontFamily="Consolas" FontSize="14" FontWeight="Bold"
                                                            Foreground="#F1F5F9" VerticalAlignment="Center" />
                                                 <Border Grid.Column="1" Background="{Binding StatusChipBackground}"
-                                                        CornerRadius="999" Padding="8,2">
+                                                        CornerRadius="10" Padding="8,2">
                                                     <StackPanel Orientation="Horizontal" Spacing="5">
                                                         <Ellipse Width="6" Height="6" Fill="{Binding StatusChipColor}" VerticalAlignment="Center" />
                                                         <TextBlock Text="{Binding StatusLabel}" FontSize="10" FontWeight="SemiBold"

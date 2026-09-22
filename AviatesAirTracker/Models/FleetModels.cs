@@ -48,6 +48,10 @@ public class AircraftRegistration
     [JsonProperty("total_flights")]      public int    TotalFlights    { get; set; }
     [JsonProperty("total_hours_tenths")] public int    TotalHoursTenths { get; set; }
     [JsonProperty("notes")]              public string? Notes          { get; set; }
+    // Set when a hard landing (>1000fpm) puts this tail into "inspection" -- null for every
+    // other status. See FleetService.GetRegistrationsAsync for the availability filter this
+    // drives (also enforced server-side in worker.js's own registrations/booking endpoints).
+    [JsonProperty("grounded_until")]     public DateTime? GroundedUntil { get; set; }
 
     [JsonIgnore] public double TotalHours => TotalHoursTenths / 10.0;
     [JsonIgnore] public string DisplayDate =>
