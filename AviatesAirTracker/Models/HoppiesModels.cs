@@ -14,6 +14,7 @@ public class HazardZoneEntry
 /// persisted to disk so a mid-flight app restart doesn't duplicate sends.</summary>
 public class HoppiesFlightState
 {
+    public bool GateInitSent { get; set; }
     public bool LoadsheetSent { get; set; }
     public bool PushbackReminderSent { get; set; }
     public bool AirborneSent { get; set; }

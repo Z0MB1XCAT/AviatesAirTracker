@@ -93,9 +93,43 @@ public class AviatesBackendClient
             SimBrief = raw.SimBrief,
             Email    = raw.Email,
             IsValid  = true,
+            Subsidiary = raw.Subsidiary,
         };
         Log.Information("[BackendClient] Auth OK: {Name}", result.Name);
         return result;
+    }
+
+    // =====================================================
+    // SUBSIDIARY
+    // =====================================================
+
+    /// <summary>
+    /// Live read of GET /api/portal/subsidiary -- used instead of the locally-cached
+    /// SettingsService.Settings.Subsidiary (only ever refreshed by SyncProfileAsync's manual
+    /// "Verify &amp; Sync") right before a booking is confirmed, so a pilot who chose/changed
+    /// subsidiary on the website without ever re-syncing in the app still gets an accurate
+    /// answer. Success=false means the call itself failed (network/parse) -- distinct from a
+    /// successful call that returned null (no subsidiary chosen yet) -- so the caller can fail
+    /// open on connectivity issues while still enforcing an explicit "not chosen" result.
+    /// </summary>
+    public async Task<(string? Subsidiary, bool Success)> GetSubsidiaryAsync(string acarsKey)
+    {
+        try
+        {
+            var request = new RestRequest("/api/portal/subsidiary", Method.Get)
+                .AddHeader("Authorization", $"Bearer {acarsKey}");
+            var response = await _client.ExecuteAsync(request);
+            if (!response.IsSuccessful || string.IsNullOrEmpty(response.Content))
+                return (null, false);
+
+            var raw = JsonConvert.DeserializeObject<SubsidiaryInfoResponse>(response.Content);
+            return (raw?.Subsidiary, true);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[BackendClient] Failed to fetch subsidiary info");
+            return (null, false);
+        }
     }
 
     // =====================================================
@@ -122,6 +156,7 @@ public class AviatesBackendClient
                 departure_icao  = flight.DepartureICAO,
                 arrival_icao    = flight.ArrivalICAO,
                 aircraft_type   = flight.AircraftType,
+                registration    = flight.AircraftRegistration,
                 block_out_time  = flight.BlockOutTime.ToString("o"),
                 block_in_time   = flight.BlockInTime.ToString("o"),
                 block_minutes   = (int)flight.BlockTime.TotalMinutes,
@@ -133,6 +168,40 @@ public class AviatesBackendClient
                 landing_score   = flight.PrimaryLanding?.LandingScore ?? 0,
                 route           = flight.PlannedRoute,
                 planned_ofp     = flight.PlannedFlight?.OFPNumber ?? "",
+                // Full per-touchdown detail (every landing, not just the primary one -- a
+                // flight can bounce/go-around) so Pilot Hub's landing history and score
+                // breakdown survive an account switch, not just the coarse VS/score above.
+                landings        = flight.AllLandings.Select(l => new
+                {
+                    touchdown_at           = l.Timestamp.ToString("o"),
+                    airport_icao           = l.AirportICAO,
+                    runway_identifier      = l.RunwayIdentifier,
+                    touchdown_lat          = l.TouchdownLatitude,
+                    touchdown_lon          = l.TouchdownLongitude,
+                    vs_fpm                 = l.VerticalSpeedFPM,
+                    ias_kts                = l.IASKts,
+                    gs_kts                 = l.GroundSpeedKts,
+                    pitch_deg              = l.TouchdownPitchDeg,
+                    bank_deg               = l.TouchdownBankDeg,
+                    headwind_kt            = l.HeadwindComponent,
+                    crosswind_kt           = l.CrosswindComponent,
+                    wind_speed_kt          = l.WindSpeedKts,
+                    wind_dir_deg           = l.WindDirectionDeg,
+                    approach_stable        = l.ApproachWasStable,
+                    flare_detected         = l.FlareDetected,
+                    bounce_count           = l.BounceCount,
+                    rollout_distance_ft    = l.RolloutDistanceFt,
+                    avg_deceleration       = l.AverageDecelerationKtPerSec,
+                    threshold_distance_ft  = l.ThresholdDistanceFt,
+                    fuel_on_touchdown_lbs  = l.FuelOnTouchdownLbs,
+                    score                  = l.LandingScore,
+                    score_vs               = l.ScoreBreakdown?.VerticalSpeedScore ?? 0,
+                    score_pitch            = l.ScoreBreakdown?.PitchScore ?? 0,
+                    score_bank             = l.ScoreBreakdown?.BankScore ?? 0,
+                    score_speed            = l.ScoreBreakdown?.SpeedScore ?? 0,
+                    score_crosswind        = l.ScoreBreakdown?.CrosswindScore ?? 0,
+                    score_stability        = l.ScoreBreakdown?.StabilityScore ?? 0,
+                }).ToList(),
             };
 
             var request = new RestRequest("/api/v1/pireps", Method.Post)
@@ -155,35 +224,6 @@ public class AviatesBackendClient
         {
             Log.Error(ex, "[BackendClient] PIREP submission error");
             return false;
-        }
-    }
-
-    // =====================================================
-    // PILOT STATISTICS SYNC
-    // =====================================================
-
-    /// <summary>
-    /// Fetches pilot statistics from the backend.
-    /// </summary>
-    public async Task<RemotePilotStats?> FetchStatsAsync(string pilotId, string acarsKey)
-    {
-        try
-        {
-            // TODO: GET /api/v1/pilots/{pilot_id}/stats
-            var request = new RestRequest($"/api/v1/pilots/{pilotId}/stats")
-                .AddHeader("Authorization", $"Bearer {acarsKey}");
-
-            var response = await _client.ExecuteAsync(request);
-
-            if (response.IsSuccessful && !string.IsNullOrEmpty(response.Content))
-                return JsonConvert.DeserializeObject<RemotePilotStats>(response.Content);
-
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "[BackendClient] Stats fetch error");
-            return null;
         }
     }
 
@@ -245,6 +285,36 @@ public class AviatesBackendClient
         catch (Exception ex)
         {
             Log.Warning(ex, "[BackendClient] FetchMyPireps error");
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Fetches the caller's full per-touchdown landing history (every landing, not just each
+    /// flight's primary one), for reconstructing Pilot Hub's landing detail on a new device.
+    /// </summary>
+    internal async Task<List<RemoteLandingRecord>> FetchMyLandingsAsync(string acarsKey)
+    {
+        try
+        {
+            var request = new RestRequest("/api/v1/landings")
+                .AddQueryParameter("limit", "200")
+                .AddHeader("Authorization", $"Bearer {acarsKey}");
+
+            var response = await _client.ExecuteAsync(request);
+
+            if (!response.IsSuccessful || string.IsNullOrEmpty(response.Content))
+            {
+                Log.Debug("[BackendClient] FetchMyLandings non-success: {Status}", response.StatusCode);
+                return [];
+            }
+
+            var wrapper = JsonConvert.DeserializeObject<LandingListResponse>(response.Content);
+            return wrapper?.Landings ?? [];
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[BackendClient] FetchMyLandings error");
             return [];
         }
     }
@@ -394,6 +464,176 @@ public class AviatesBackendClient
         }
     }
 
+    /// <summary>
+    /// Persists a newly-added friend server-side (upsert, so re-adding is harmless), so the
+    /// friend list survives an account switch instead of living only in the local JSON cache.
+    /// </summary>
+    public async Task AddFriendAsync(FriendEntry entry, string acarsKey)
+    {
+        try
+        {
+            var request = new RestRequest("/api/v1/friends", Method.Post)
+                .AddHeader("Authorization", $"Bearer {acarsKey}")
+                .AddJsonBody(new
+                {
+                    pilot_id    = entry.PilotId,
+                    friend_name = entry.PilotName,
+                    friend_code = entry.FriendCode,
+                });
+
+            var response = await _client.ExecuteAsync(request);
+            if (!response.IsSuccessful)
+                Log.Warning("[BackendClient] AddFriend failed: {Status}", response.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "[BackendClient] AddFriend error (non-critical)");
+        }
+    }
+
+    /// <summary>
+    /// Logs a flight the app's own compliance checks flagged (hard landing, unstabilized
+    /// approach, off-centerline/touchdown-zone, excessive VS, dangerous cruise speed, or a late
+    /// departure) for manual review, along with the pilot's own explanation. Returns true only
+    /// on a confirmed 2xx from the backend -- the caller uses this to decide whether to show the
+    /// dialog's "Submitted" state or let the pilot retry.
+    /// </summary>
+    public async Task<bool> SubmitFlightReviewAsync(
+        string acarsKey, string? flightId, string? landingId, List<string> violations, string? pilotReason)
+    {
+        try
+        {
+            var request = new RestRequest("/api/v1/flight-review", Method.Post)
+                .AddHeader("Authorization", $"Bearer {acarsKey}")
+                .AddJsonBody(new
+                {
+                    flight_id    = flightId,
+                    landing_id   = landingId,
+                    violations,
+                    pilot_reason = pilotReason,
+                });
+
+            var response = await _client.ExecuteAsync(request);
+            if (!response.IsSuccessful)
+                Log.Warning("[BackendClient] SubmitFlightReview failed: {Status}", response.StatusCode);
+            return response.IsSuccessful;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[BackendClient] SubmitFlightReview error");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks whether the signed-in pilot's account email matches an entry in admin_users --
+    /// used to decide whether Flights' Pending Review (deletion-request) tab should even be
+    /// shown. Fails closed: any error, timeout, or non-success response returns false, since
+    /// showing an admin-only panel to a non-admin is the wrong failure direction here.
+    /// </summary>
+    public async Task<bool> CheckIsAdminAsync(string acarsKey)
+    {
+        try
+        {
+            var request = new RestRequest("/api/v1/is-admin")
+                .AddHeader("Authorization", $"Bearer {acarsKey}");
+
+            var response = await _client.ExecuteAsync(request);
+            if (!response.IsSuccessful || string.IsNullOrEmpty(response.Content))
+                return false;
+
+            var result = JsonConvert.DeserializeObject<IsAdminResponse>(response.Content);
+            return result?.IsAdmin ?? false;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "[BackendClient] CheckIsAdmin error (non-critical, fails closed)");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Fetches the News page's articles from the same news_articles table the AviatesAir
+    /// website itself reads (public endpoint, no ACARS key needed -- matches News.razor's
+    /// original "no service dependency" simplicity, just backed by real data instead of 6
+    /// hardcoded cards now).
+    /// </summary>
+    public async Task<List<RemoteNewsArticle>> FetchNewsAsync()
+    {
+        try
+        {
+            var request = new RestRequest("/api/news");
+            var response = await _client.ExecuteAsync(request);
+            if (!response.IsSuccessful || string.IsNullOrEmpty(response.Content))
+                return [];
+
+            var wrapper = JsonConvert.DeserializeObject<NewsApiResponse>(response.Content);
+            return wrapper?.Success == true ? wrapper.Data : [];
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[BackendClient] FetchNews error");
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Fetches the caller's friends' most recent flights (newest first), for the Dashboard's
+    /// activity feed. The server resolves each friend's ACARS key internally to look up their
+    /// PIREPs -- it is never returned to this client.
+    /// </summary>
+    public async Task<List<RemoteFriendActivity>> FetchFriendsActivityAsync(string acarsKey, int limit = 3)
+    {
+        try
+        {
+            var request = new RestRequest("/api/v1/friends/activity")
+                .AddQueryParameter("limit", limit.ToString())
+                .AddHeader("Authorization", $"Bearer {acarsKey}");
+
+            var response = await _client.ExecuteAsync(request);
+            if (!response.IsSuccessful || string.IsNullOrEmpty(response.Content))
+                return [];
+
+            var wrapper = JsonConvert.DeserializeObject<FriendActivityResponse>(response.Content);
+            return wrapper?.Activity ?? [];
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "[BackendClient] FetchFriendsActivity error (non-critical)");
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Fetches the caller's saved friend list, for reconstructing it on a new device.
+    /// </summary>
+    public async Task<List<FriendEntry>> FetchMyFriendsAsync(string acarsKey)
+    {
+        try
+        {
+            var request = new RestRequest("/api/v1/friends")
+                .AddHeader("Authorization", $"Bearer {acarsKey}");
+
+            var response = await _client.ExecuteAsync(request);
+            if (!response.IsSuccessful || string.IsNullOrEmpty(response.Content))
+                return [];
+
+            var wrapper = JsonConvert.DeserializeObject<FriendListResponse>(response.Content);
+            return (wrapper?.Friends ?? []).Select(r => new FriendEntry
+            {
+                PilotId    = r.FriendPilotId,
+                PilotName  = r.FriendName,
+                FriendCode = r.FriendCode,
+                AddedAt    = r.CreatedAt,
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[BackendClient] FetchMyFriends error");
+            return [];
+        }
+    }
+
     private DateTime _lastPositionReport = DateTime.MinValue;
 
     /// <summary>
@@ -513,6 +753,71 @@ public class AviatesBackendClient
             return new List<LivePilotPosition>();
         }
     }
+
+    // =====================================================
+    // SUPPORT LIVE CHAT
+    // Public endpoints, no ACARS key required (a chat can start before a pilot signs in) — the
+    // same /api/support/chat* endpoints the website's /support live chat widget calls. Auth is
+    // just the visitorToken returned once at chat creation, persisted in
+    // SettingsService.Settings.SupportChatVisitorToken so the conversation survives an app restart.
+    // =====================================================
+
+    /// <summary>Starts a new support chat with its first message. Returns null (with the reason
+    /// logged) on any failure — the caller shows a generic retry message either way.</summary>
+    public async Task<SupportChatStartResult> StartSupportChatAsync(string name, string message)
+    {
+        var request = new RestRequest("/api/support/chat", Method.Post)
+            .AddJsonBody(new { name, message });
+        var response = await _client.ExecuteAsync(request);
+
+        if (string.IsNullOrEmpty(response.Content))
+            return new SupportChatStartResult { Success = false, Error = "Could not reach the support server." };
+
+        var raw = JsonConvert.DeserializeObject<SupportChatStartResponse>(response.Content);
+        if (raw?.Success != true || raw.Data is null)
+            return new SupportChatStartResult { Success = false, Error = raw?.Error ?? "Could not start chat. Please try again." };
+
+        return new SupportChatStartResult { Success = true, ChatId = raw.Data.ChatId, VisitorToken = raw.Data.VisitorToken };
+    }
+
+    /// <summary>Sends a follow-up message on an existing chat.</summary>
+    public async Task<SupportChatSendResult> SendSupportChatMessageAsync(int chatId, string visitorToken, string content)
+    {
+        var request = new RestRequest($"/api/support/chat/{chatId}/messages", Method.Post)
+            .AddJsonBody(new { visitorToken, content });
+        var response = await _client.ExecuteAsync(request);
+
+        if (string.IsNullOrEmpty(response.Content))
+            return new SupportChatSendResult { Success = false, Error = "Could not reach the support server." };
+
+        var raw = JsonConvert.DeserializeObject<SupportChatGenericResponse>(response.Content);
+        return raw?.Success == true
+            ? new SupportChatSendResult { Success = true }
+            : new SupportChatSendResult { Success = false, Error = raw?.Error ?? "Failed to send message." };
+    }
+
+    /// <summary>Polls for messages after <paramref name="afterId"/> (or the full history if null).
+    /// Returns null on a network/parse failure — the caller just skips that poll tick.</summary>
+    public async Task<SupportChatPollData?> PollSupportChatMessagesAsync(int chatId, string visitorToken, int? afterId)
+    {
+        try
+        {
+            var request = new RestRequest($"/api/support/chat/{chatId}/messages", Method.Get)
+                .AddQueryParameter("visitorToken", visitorToken);
+            if (afterId.HasValue) request.AddQueryParameter("after", afterId.Value.ToString());
+
+            var response = await _client.ExecuteAsync(request);
+            if (!response.IsSuccessful || string.IsNullOrEmpty(response.Content)) return null;
+
+            var raw = JsonConvert.DeserializeObject<SupportChatPollResponse>(response.Content);
+            return raw?.Success == true ? raw.Data : null;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "[BackendClient] Support chat poll failed (non-critical)");
+            return null;
+        }
+    }
 }
 
 internal class LivePositionsResponse
@@ -534,6 +839,15 @@ internal class AcarsAuthResponse
     [JsonProperty("simbrief")]  public string SimBrief  { get; set; } = "";
     // Backend may return the pilot's stable ID under either casing
     [JsonProperty("pilotId")]   public string PilotId   { get; set; } = "";
+    [JsonProperty("subsidiary")] public string? Subsidiary { get; set; }
+}
+
+// Raw shape returned by GET /api/portal/subsidiary
+internal class SubsidiaryInfoResponse
+{
+    [JsonProperty("subsidiary")] public string? Subsidiary { get; set; }
+    [JsonProperty("moves_used_this_month")] public int MovesUsedThisMonth { get; set; }
+    [JsonProperty("moves_remaining_this_month")] public int MovesRemainingThisMonth { get; set; }
 }
 
 public class PilotAuthResult
@@ -545,16 +859,7 @@ public class PilotAuthResult
     [JsonProperty("rank")]        public string Rank      { get; set; } = "";
     [JsonProperty("total_hours")] public double TotalHours { get; set; }
     [JsonProperty("valid")]       public bool   IsValid   { get; set; }
-}
-
-public class RemotePilotStats
-{
-    [JsonProperty("total_flights")] public int    TotalFlights  { get; set; }
-    [JsonProperty("total_hours")]   public double TotalHours    { get; set; }
-    [JsonProperty("total_nm")]      public double TotalNm       { get; set; }
-    [JsonProperty("avg_score")]     public double AvgScore      { get; set; }
-    [JsonProperty("rank")]          public string Rank          { get; set; } = "";
-    [JsonProperty("rank_pct")]      public double RankProgress  { get; set; }
+    [JsonProperty("subsidiary")]  public string? Subsidiary { get; set; }
 }
 
 public class RouteValidationResult
@@ -588,4 +893,154 @@ internal class RemotePirepRecord
 internal class PirepListResponse
 {
     [JsonProperty("pireps")] public List<RemotePirepRecord> Pireps { get; set; } = [];
+}
+
+public class RemoteNewsArticle
+{
+    [JsonProperty("id")]           public string  Id           { get; set; } = "";
+    [JsonProperty("title")]        public string  Title        { get; set; } = "";
+    [JsonProperty("category")]     public string? Category     { get; set; }
+    [JsonProperty("date")]         public string  Date         { get; set; } = "";
+    [JsonProperty("summary")]      public string  Summary      { get; set; } = "";
+    [JsonProperty("content")]      public string  Content      { get; set; } = "";
+    [JsonProperty("thumbnail")]    public string? Thumbnail    { get; set; }
+    [JsonProperty("thumbnailAlt")] public string? ThumbnailAlt { get; set; }
+    [JsonProperty("heroImage")]    public string? HeroImage    { get; set; }
+}
+
+internal class NewsApiResponse
+{
+    [JsonProperty("success")] public bool Success { get; set; }
+    [JsonProperty("data")]    public List<RemoteNewsArticle> Data { get; set; } = [];
+}
+
+internal class IsAdminResponse
+{
+    [JsonProperty("is_admin")] public bool IsAdmin { get; set; }
+}
+
+internal class RemoteLandingRecord
+{
+    [JsonProperty("id")]                     public long      Id                   { get; set; }
+    [JsonProperty("pirep_id")]               public long?     PirepId              { get; set; }
+    [JsonProperty("touchdown_at")]           public DateTime  TouchdownAt          { get; set; }
+    [JsonProperty("airport_icao")]           public string    AirportIcao          { get; set; } = "";
+    [JsonProperty("runway_identifier")]      public string    RunwayIdentifier     { get; set; } = "";
+    [JsonProperty("touchdown_lat")]          public double?   TouchdownLat         { get; set; }
+    [JsonProperty("touchdown_lon")]          public double?   TouchdownLon         { get; set; }
+    [JsonProperty("vs_fpm")]                 public double    VsFpm                { get; set; }
+    [JsonProperty("ias_kts")]                public double    IasKts               { get; set; }
+    [JsonProperty("gs_kts")]                 public double    GsKts                { get; set; }
+    [JsonProperty("pitch_deg")]              public double    PitchDeg             { get; set; }
+    [JsonProperty("bank_deg")]               public double    BankDeg              { get; set; }
+    [JsonProperty("headwind_kt")]            public double    HeadwindKt           { get; set; }
+    [JsonProperty("crosswind_kt")]           public double    CrosswindKt          { get; set; }
+    [JsonProperty("wind_speed_kt")]          public double    WindSpeedKt          { get; set; }
+    [JsonProperty("wind_dir_deg")]           public double    WindDirDeg           { get; set; }
+    [JsonProperty("approach_stable")]        public bool      ApproachStable       { get; set; }
+    [JsonProperty("flare_detected")]         public bool      FlareDetected        { get; set; }
+    [JsonProperty("bounce_count")]           public int       BounceCount          { get; set; }
+    [JsonProperty("rollout_distance_ft")]    public double    RolloutDistanceFt    { get; set; }
+    [JsonProperty("avg_deceleration")]       public double    AvgDeceleration      { get; set; }
+    [JsonProperty("threshold_distance_ft")]  public double    ThresholdDistanceFt  { get; set; }
+    [JsonProperty("fuel_on_touchdown_lbs")]  public double    FuelOnTouchdownLbs   { get; set; }
+    [JsonProperty("score")]                  public int       Score                { get; set; }
+    [JsonProperty("score_vs")]               public int       ScoreVs              { get; set; }
+    [JsonProperty("score_pitch")]            public int       ScorePitch           { get; set; }
+    [JsonProperty("score_bank")]             public int       ScoreBank            { get; set; }
+    [JsonProperty("score_speed")]            public int       ScoreSpeed           { get; set; }
+    [JsonProperty("score_crosswind")]        public int       ScoreCrosswind       { get; set; }
+    [JsonProperty("score_stability")]        public int       ScoreStability       { get; set; }
+}
+
+internal class LandingListResponse
+{
+    [JsonProperty("landings")] public List<RemoteLandingRecord> Landings { get; set; } = [];
+}
+
+internal class RemoteFriendRecord
+{
+    [JsonProperty("friend_pilot_id")] public string   FriendPilotId { get; set; } = "";
+    [JsonProperty("friend_name")]     public string   FriendName    { get; set; } = "";
+    [JsonProperty("friend_code")]     public string   FriendCode    { get; set; } = "";
+    [JsonProperty("created_at")]      public DateTime CreatedAt     { get; set; }
+}
+
+internal class FriendListResponse
+{
+    [JsonProperty("friends")] public List<RemoteFriendRecord> Friends { get; set; } = [];
+}
+
+public class RemoteFriendActivity
+{
+    [JsonProperty("friend_name")]     public string   FriendName    { get; set; } = "";
+    [JsonProperty("flight_number")]   public string   FlightNumber  { get; set; } = "";
+    [JsonProperty("departure_icao")]  public string   DepartureICAO { get; set; } = "";
+    [JsonProperty("arrival_icao")]    public string   ArrivalICAO   { get; set; } = "";
+    [JsonProperty("aircraft_type")]   public string   AircraftType  { get; set; } = "";
+    [JsonProperty("distance_nm")]     public int      DistanceNm    { get; set; }
+    [JsonProperty("landing_score")]   public double   LandingScore  { get; set; }
+    [JsonProperty("submitted_at")]    public DateTime SubmittedAt   { get; set; }
+}
+
+internal class FriendActivityResponse
+{
+    [JsonProperty("activity")] public List<RemoteFriendActivity> Activity { get; set; } = [];
+}
+
+// ── Support live chat ──────────────────────────────────────────────────────
+
+public class SupportChatStartResult
+{
+    public bool Success { get; set; }
+    public int ChatId { get; set; }
+    public string VisitorToken { get; set; } = "";
+    public string? Error { get; set; }
+}
+
+public class SupportChatSendResult
+{
+    public bool Success { get; set; }
+    public string? Error { get; set; }
+}
+
+public class SupportChatMessage
+{
+    [JsonProperty("id")]         public int Id { get; set; }
+    [JsonProperty("senderType")] public string SenderType { get; set; } = "";
+    [JsonProperty("senderName")] public string SenderName { get; set; } = "";
+    [JsonProperty("content")]    public string Content { get; set; } = "";
+    [JsonProperty("createdAt")]  public DateTime CreatedAt { get; set; }
+}
+
+public class SupportChatPollData
+{
+    [JsonProperty("status")]   public string Status { get; set; } = "open";
+    [JsonProperty("messages")] public List<SupportChatMessage> Messages { get; set; } = [];
+}
+
+internal class SupportChatStartData
+{
+    [JsonProperty("chatId")]       public int ChatId { get; set; }
+    [JsonProperty("visitorToken")] public string VisitorToken { get; set; } = "";
+}
+
+internal class SupportChatStartResponse
+{
+    [JsonProperty("success")] public bool Success { get; set; }
+    [JsonProperty("error")]   public string? Error { get; set; }
+    [JsonProperty("data")]    public SupportChatStartData? Data { get; set; }
+}
+
+internal class SupportChatGenericResponse
+{
+    [JsonProperty("success")] public bool Success { get; set; }
+    [JsonProperty("error")]   public string? Error { get; set; }
+}
+
+internal class SupportChatPollResponse
+{
+    [JsonProperty("success")] public bool Success { get; set; }
+    [JsonProperty("error")]   public string? Error { get; set; }
+    [JsonProperty("data")]    public SupportChatPollData? Data { get; set; }
 }

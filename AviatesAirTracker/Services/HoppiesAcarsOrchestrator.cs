@@ -10,6 +10,8 @@ namespace AviatesAirTracker.Services;
 
 /// <summary>
 /// Schedules and sends every automated Hoppies ACARS telex for the current flight:
+/// a one-time gate-init poll under the pilot's own Hoppies code (so their in-sim
+/// ACARS client starts receiving telexes without them polling manually first),
 /// loadsheet (via TakeoffPerformanceService's existing -15min timer), pushback
 /// reminder (-5min, own timer), airborne/landing calls, post-flight summary, and
 /// departure/arrival weather + hazard advisories. No-ops entirely when
@@ -82,6 +84,7 @@ public class HoppiesAcarsOrchestrator : IDisposable
         _phaseDetector.PhaseChanged += OnPhaseChanged;
         _landingAnalyzer.LandingDetected += OnLandingDetected;
         _session.FlightCompleted += OnFlightCompleted;
+        _session.TelemetryUpdated += OnTelemetryUpdated;
 
         Serilog.Log.Information("[HoppiesAcars] Orchestrator initialized");
     }
@@ -167,6 +170,30 @@ public class HoppiesAcarsOrchestrator : IDisposable
             _state.PushbackReminderSent = true;
             SaveState();
         }
+    }
+
+    // ── Trigger: aircraft detected parked at the gate → wake up the pilot's own Hoppies
+    // logon so company telexes sent later in the flight actually reach them ──
+
+    private void OnTelemetryUpdated(object? sender, TelemetrySnapshot snap)
+    {
+        if (_state.GateInitSent || snap.Phase != FlightPhase.Parked) return;
+        if (!Enabled || string.IsNullOrWhiteSpace(_settings.Settings.HoppiesPilotCode)) return;
+
+        var callsign = _booking.ActiveBooking?.Callsign;
+        if (string.IsNullOrEmpty(callsign)) return;
+
+        // Mark sent immediately (not after the async call resolves) so a burst of
+        // telemetry samples at 20Hz can't fire this more than once per flight.
+        _state.GateInitSent = true;
+        SaveState();
+        _ = SendGateInitPollAsync(callsign);
+    }
+
+    private async Task SendGateInitPollAsync(string callsign)
+    {
+        var success = await _client.PollAsync(_settings.Settings.HoppiesPilotCode, callsign);
+        Log(success, "Gate Init Poll", $"Poll under pilot's own Hoppies code for {callsign}");
     }
 
     // ── Trigger: flight phase changes → airborne call + arrival advisories ──
@@ -348,5 +375,6 @@ public class HoppiesAcarsOrchestrator : IDisposable
         _phaseDetector.PhaseChanged -= OnPhaseChanged;
         _landingAnalyzer.LandingDetected -= OnLandingDetected;
         _session.FlightCompleted -= OnFlightCompleted;
+        _session.TelemetryUpdated -= OnTelemetryUpdated;
     }
 }

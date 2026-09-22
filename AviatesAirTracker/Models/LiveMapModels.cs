@@ -8,7 +8,7 @@ namespace AviatesAirTracker.Models;
 // ============================================================
 
 // Every other Newtonsoft-deserialized model talking to this exact backend
-// (AviatesBackendClient.cs -- PilotAuthResult, RemotePilotStats, RemotePirepRecord, etc.) maps
+// (AviatesBackendClient.cs -- PilotAuthResult, RemotePirepRecord, etc.) maps
 // snake_case JSON keys via [JsonProperty], including the identical "pilot_id"/"departure_icao"/
 // "arrival_icao" fields this class also needs. This class had no [JsonProperty] mappings at all,
 // so every field silently deserialized to its C# default (PilotId="", Lat/Lon=0, ...) against a

@@ -47,6 +47,10 @@ public class AviatesEvent
     [JsonIgnore] public string DisplayMonth => ParsedDate?.ToString("MMM", CultureInfo.InvariantCulture) ?? "---";
 }
 
+// RankRestriction/MaxParticipants removed -- pilots can no longer set either when creating an
+// event (see worker.js's POST /api/events, which now always inserts rank_restriction="" and
+// max_participants=0). AviatesEvent above keeps reading both fields (existing rows may still
+// carry old values), just nothing writes them anymore.
 public class CreateEventRequest
 {
     public string Title               { get; set; } = "";
@@ -55,8 +59,12 @@ public class CreateEventRequest
     public string TimeUtc             { get; set; } = "";
     public string Route               { get; set; } = "";
     public string AircraftRestriction { get; set; } = "";
-    public string RankRestriction     { get; set; } = "";
-    public int    MaxParticipants     { get; set; }
+}
+
+public class EventAttendee
+{
+    [JsonPropertyName("pilot_name")]   public string PilotName    { get; set; } = "";
+    [JsonPropertyName("registered_at")] public string RegisteredAt { get; set; } = "";
 }
 
 public class EventsService : IDisposable
@@ -103,6 +111,22 @@ public class EventsService : IDisposable
         }
     }
 
+    public async Task<List<EventAttendee>> GetAttendeesAsync(int eventId)
+    {
+        try
+        {
+            var response = await _http.GetAsync($"/api/events/{eventId}/attendees");
+            if (!response.IsSuccessStatusCode) return [];
+            var result = await response.Content.ReadFromJsonAsync<EventAttendeesResponse>();
+            return result?.Attendees ?? [];
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[EventsService] Failed to fetch attendees for event {Id}", eventId);
+            return [];
+        }
+    }
+
     public async Task<(bool Success, string Error)> RegisterForEventAsync(int eventId, string acarsKey)
     {
         try
@@ -119,7 +143,7 @@ public class EventsService : IDisposable
         catch (Exception ex)
         {
             Log.Warning(ex, "[EventsService] Register for event {Id} failed", eventId);
-            return (false, "Network error — please try again");
+            return (false, "Network error. Please try again");
         }
     }
 
@@ -139,7 +163,7 @@ public class EventsService : IDisposable
         catch (Exception ex)
         {
             Log.Warning(ex, "[EventsService] Unregister from event {Id} failed", eventId);
-            return (false, "Network error — please try again");
+            return (false, "Network error. Please try again");
         }
     }
 
@@ -161,8 +185,6 @@ public class EventsService : IDisposable
                 time_utc             = req.TimeUtc,
                 route                = req.Route,
                 aircraft_restriction = req.AircraftRestriction,
-                rank_restriction     = req.RankRestriction,
-                max_participants     = req.MaxParticipants,
             };
             using var httpReq = new HttpRequestMessage(HttpMethod.Post, "/api/events");
             httpReq.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", acarsKey);
@@ -176,7 +198,7 @@ public class EventsService : IDisposable
         catch (Exception ex)
         {
             Log.Warning(ex, "[EventsService] Create event failed");
-            return (false, "Network error — please try again");
+            return (false, "Network error. Please try again");
         }
     }
 
@@ -197,6 +219,11 @@ public class EventsService : IDisposable
 public class EventsListResponse
 {
     [JsonPropertyName("data")] public List<AviatesEvent> Data { get; set; } = [];
+}
+
+public class EventAttendeesResponse
+{
+    [JsonPropertyName("attendees")] public List<EventAttendee> Attendees { get; set; } = [];
 }
 
 public class EventsApiResult

@@ -178,7 +178,7 @@ public class AlertService
     public void ShowLandingResult(LandingResult result)
     {
         LandingResultReady?.Invoke(this, result);
-        ShowAlert($"LANDED — Score: {result.LandingScore}/100 | {result.VerticalSpeedFPM:F0}fpm",
+        ShowAlert($"LANDED: Score {result.LandingScore}/100 | {result.VerticalSpeedFPM:F0}fpm",
             result.LandingScore >= 70 ? AlertLevel.Success : AlertLevel.Warning,
             TimeSpan.FromSeconds(10));
     }
@@ -373,6 +373,13 @@ public class AppSettings
 {
     public string PilotName { get; set; } = "";
     public string PilotId { get; set; } = "";
+    // Local cache of users.subsidiary, refreshed by SyncProfileAsync's ACARS sync (same as
+    // PilotId). "mainline" | "cityhopper" | "cargo" | null (not yet chosen -- website gates the
+    // pilot into choosing one after signup/verification). Used client-side only to filter which
+    // routes RoutesViewModel offers for booking (RoutesViewModel.CreateBookingAsync) -- the
+    // backend enforces the same rule server-side in POST /api/bookings regardless, so a stale
+    // local copy can only ever be overly permissive for one request, never a security boundary.
+    public string? Subsidiary { get; set; }
     public string AcarsKey { get; set; } = "";
     public string SimBriefUsername { get; set; } = "";
     public bool AutoConnectSimConnect { get; set; } = true;
@@ -408,13 +415,24 @@ public class AppSettings
     // Updated automatically when a booked flight completes.
     // Empty = no restriction (show all routes).
     public string CurrentAirportIata { get; set; } = "";
-    // UI theme preference. "system" follows OS dark/light mode automatically.
-    public string Theme { get; set; } = "system"; // "system" | "light" | "dark"
+    // Last time the pilot manually cleared their position via Routes' "Reposition" action
+    // (RoutesViewModel.ClearPositionAsync). Rate-limited to once every 7 days -- see
+    // BookingService.CanManuallyRepositionAsync. DateTime.MinValue = never used.
+    // An automatic expiry-driven reposition (a missed booking) does NOT update this, by design.
+    public DateTime LastManualRepositionUtc { get; set; } = DateTime.MinValue;
     // Interval (minutes) between automatic ACARS position reports. 0 = off.
     public int AutoPirepIntervalMinutes { get; set; } = 5;
 
-    // Hoppies ACARS integration. HoppiesPilotCode is stored/validated but not used
-    // for sending in this build — reserved for a future two-way messaging feature.
+    // Support live-chat session — same conversation the website's /support live chat widget
+    // creates, resumed here across app restarts so a pilot doesn't lose their thread with the
+    // support team. Null until the pilot starts their first in-app chat.
+    public int? SupportChatId { get; set; }
+    public string? SupportChatVisitorToken { get; set; }
+
+    // Hoppies ACARS integration. HoppiesPilotCode is the pilot's own personal logon
+    // code (distinct from HoppiesAcarsClient's hardcoded company logon) — used once
+    // per flight by HoppiesAcarsOrchestrator's gate-init poll so the pilot's in-sim
+    // ACARS client starts receiving company telexes without polling manually first.
     public string HoppiesPilotCode { get; set; } = "";
     public bool HoppiesEnabled { get; set; } = false;
     public bool HoppiesSendLoadsheet { get; set; } = true;
@@ -449,15 +467,13 @@ public class PilotStatsService
 {
     private readonly IFlightRepository _flightRepo;
     private readonly ILandingRepository _landingRepo;
-    private readonly IPilotRepository _pilotRepo;
     private readonly SettingsService _settings;
 
     public PilotStatsService(IFlightRepository flightRepo, ILandingRepository landingRepo,
-        IPilotRepository pilotRepo, SettingsService settings)
+        SettingsService settings)
     {
         _flightRepo = flightRepo;
         _landingRepo = landingRepo;
-        _pilotRepo = pilotRepo;
         _settings = settings;
     }
 
@@ -466,28 +482,56 @@ public class PilotStatsService
         var flights = await _flightRepo.GetAllAsync();
         var landings = await _landingRepo.GetAllAsync();
 
-        var completed = flights.Where(f => f.Status == FlightStatus.Completed).ToList();
+        // A flight/landing LandingComplianceChecker or FlightComplianceMonitor flagged (hard
+        // landing, unstabilized approach, excessive VS, dangerous cruise speed, late departure,
+        // etc.) is excluded from every stat below until it's been reviewed -- it still shows up
+        // in the Flights/Logbook/Landing History lists (with a review badge), just doesn't count
+        // toward totals/averages/rank progress while pending. There's no "mark reviewed" flow
+        // yet (see FlightReviewDialog's own doc comment), so today this exclusion is effectively
+        // permanent until that's built.
+        var completed = flights.Where(f => f.Status == FlightStatus.Completed && !f.RequiresReview).ToList();
+        var countedLandings = landings.Where(l => !l.RequiresReview).ToList();
 
         var stats = new PilotStatistics
         {
             PilotId = _settings.Settings.PilotId,
             PilotName = _settings.Settings.PilotName,
             TotalFlights = completed.Count,
-            TotalHoursBlock = completed.Sum(f => f.BlockTime.TotalHours),
-            TotalHoursAir = completed.Sum(f => f.AirTime.TotalHours),
+            // HoursMultiplier applies event-flight bonus hours (1.5x participating / 2x an
+            // official event -- see FlightRecord.HoursMultiplier/EventReminderService); an
+            // ordinary flight's multiplier is 1.0, so this is a no-op sum for the common case.
+            TotalHoursBlock = completed.Sum(f => f.BlockTime.TotalHours * f.HoursMultiplier),
+            TotalHoursAir = completed.Sum(f => f.AirTime.TotalHours * f.HoursMultiplier),
             TotalDistanceNm = completed.Sum(f => f.ActualDistanceNm),
             TotalFuelUsedLbs = completed.Sum(f => f.FuelUsedLbs),
-            TotalLandings = landings.Count,
-            AverageLandingScore = landings.Any() ? landings.Average(l => l.LandingScore) : 0,
-            BestLandingScore = landings.Any() ? landings.Max(l => l.LandingScore) : 0,
-            AverageLandingVSFPM = landings.Any() ? landings.Average(l => l.VerticalSpeedFPM) : 0,
-            BestLandingVSFPM = landings.Any() ? landings.Max(l => l.VerticalSpeedFPM) : 0,
+            TotalLandings = countedLandings.Count,
+            AverageLandingScore = countedLandings.Any() ? countedLandings.Average(l => l.LandingScore) : 0,
+            BestLandingScore = countedLandings.Any() ? countedLandings.Max(l => l.LandingScore) : 0,
+            AverageLandingVSFPM = countedLandings.Any() ? countedLandings.Average(l => l.VerticalSpeedFPM) : 0,
+            BestLandingVSFPM = countedLandings.Any() ? countedLandings.Max(l => l.VerticalSpeedFPM) : 0,
             LastFlight = completed.Any() ? completed.Max(f => f.CreatedAt) : DateTime.MinValue,
             LastUpdated = DateTime.UtcNow
         };
 
-        // Rank logic
-        stats.Rank = stats.TotalHoursAir switch
+        // On-time %: only flights with a real scheduled departure (a booking) can be "on time"
+        // at all -- a charter/free flight has nothing to compare against, so it's excluded from
+        // both the numerator and denominator rather than silently counting as neither on-time
+        // nor late. On-time = within OnTimeToleranceMinutes of ScheduledDepUtc either way (early
+        // is still "on time" -- a pilot pushing back 20 minutes early is not the failure mode
+        // this stat exists to catch).
+        const int onTimeToleranceMinutes = 15;
+        var scheduled = completed.Where(f => f.ScheduledDepUtc.HasValue).ToList();
+        stats.ScheduledFlightsCount = scheduled.Count;
+        stats.OnTimePercent = scheduled.Count > 0
+            ? 100.0 * scheduled.Count(f => Math.Abs((f.BlockOutTime - f.ScheduledDepUtc!.Value).TotalMinutes) <= onTimeToleranceMinutes) / scheduled.Count
+            : null;
+
+        // Rank logic. Must use TotalHoursBlock, not TotalHoursAir -- PilotStatsLogic.ComputeRankProgress
+        // (the progress-bar %) is computed from block hours, and the backend's own computeRank()
+        // (BACKEND-API/worker.js) uses block hours too. Using air hours here let the rank badge and
+        // the progress bar disagree (e.g. block hours already crossing into the next tier while air
+        // hours -- always <= block -- kept the badge on the previous one).
+        stats.Rank = stats.TotalHoursBlock switch
         {
             < 25   => "Cadet",
             < 75   => "Junior First Officer",
@@ -504,7 +548,7 @@ public class PilotStatsService
     public async Task<IReadOnlyList<PilotStatsLogic.MonthlyActivityPoint>> GetMonthlyActivityAsync(int months = 7)
     {
         var flights = await _flightRepo.GetAllAsync();
-        var completed = flights.Where(f => f.Status == FlightStatus.Completed);
+        var completed = flights.Where(f => f.Status == FlightStatus.Completed && !f.RequiresReview);
         return PilotStatsLogic.ComputeMonthlyActivity(completed, DateTime.UtcNow, months);
     }
 }

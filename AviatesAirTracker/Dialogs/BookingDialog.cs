@@ -157,7 +157,7 @@ public static class BookingDialog
                 BuildRegistrationField(registrationCombo, registrationLoading, registrationNone),
                 callsignRow,
                 errorBorder,
-                BuildInfoLine($"You can hold up to {BookingService.MaxBookings} active bookings. Cancel anytime from Pilot Hub."),
+                BuildInfoLine($"You can hold up to {BookingService.MaxBookings} active bookings. Activate it from Pilot Hub when you're ready to fly, which opens SimBrief dispatch pre-filled for this flight; activating locks the booking, so you can only cancel before then."),
             },
         };
 
@@ -236,9 +236,13 @@ public static class BookingDialog
 
                 if (booking != null)
                 {
-                    // Matches SubmitBooking()'s exact post-success sequencing: advance position to
-                    // the route's destination before the modal closes.
-                    await viewModel.SetPositionAsync(route.DestIata);
+                    // Position is deliberately NOT advanced here. It used to jump to the route's
+                    // destination the instant the booking was created, before the flight was ever
+                    // flown -- since MaxBookings is 1, that never actually enabled booking a second
+                    // future leg from here, it only left Routes filtering from the wrong airport
+                    // if the pilot cancelled instead of flying (cancel had nothing to revert to,
+                    // because nothing should have moved yet). BookingService.CompleteActiveBookingAsync
+                    // already advances position on real completion, which is the only place it should.
                     ShowSuccessToast(xamlRoot, booking.Callsign);
                     // args.Cancel left false -- the dialog closes normally.
                 }
@@ -445,7 +449,7 @@ public static class BookingDialog
         {
             var reg = registrations[i];
             var label = reg.Registration
-                + (reg.HubIcao != null ? $"  —  {reg.HubIcao}" : "")
+                + (reg.HubIcao != null ? $"  ({reg.HubIcao})" : "")
                 + (reg.Status != "active" ? $"  ({reg.Status})" : "");
             combo.Items.Add(new ComboBoxItem { Content = label, Tag = reg.Registration });
             if (defaultIndex < 0 && reg.Status == "active") defaultIndex = i;
@@ -479,7 +483,7 @@ public static class BookingDialog
         var subText = new TextBlock { FontSize = 12, Foreground = TextMutedBrush, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
         subText.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "Callsign " });
         subText.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = callsign, FontFamily = new FontFamily("Consolas"), FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = AccentBrush });
-        subText.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = " — check My Bookings in Pilot Hub." });
+        subText.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = ". Check your booking in Pilot Hub." });
 
         var checkGlyph = new TextBlock { Text = "✓", FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.Bold, Foreground = GreenBrush, VerticalAlignment = VerticalAlignment.Top };
 

@@ -418,7 +418,13 @@ public class MessagingService : IDisposable
 
         var alreadyAdded = await _friendRepo.ExistsAsync(entry.PilotId);
         if (!alreadyAdded)
+        {
             await _friendRepo.AddAsync(entry);
+            // Persist server-side too (upsert, so this is safe to call even if a prior sync
+            // already saved it) -- otherwise the friend list only ever lived in the local
+            // JSON cache and never survived a reinstall or a switch to another PC.
+            await _backend.AddFriendAsync(entry, acarsKey);
+        }
 
         return entry;
     }

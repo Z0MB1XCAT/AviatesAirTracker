@@ -32,15 +32,7 @@ public interface IFlightRepository
     void SetCurrentFlight(FlightRecord? flight);
     Task<List<FlightRecord>> GetInProgressAsync();
     Task<int> PruneWithoutLandingAsync(Guid? exceptId);
-}
-
-// ---- Pilot Profile ----
-public interface IPilotRepository
-{
-    Task<PilotStatistics?> GetStatisticsAsync(string pilotId);
-    Task SaveStatisticsAsync(PilotStatistics stats);
-    Task<PilotProfile?> GetProfileAsync();
-    Task SaveProfileAsync(PilotProfile profile);
+    Task ClearAllAsync();
 }
 
 // ---- Landings ----
@@ -50,7 +42,9 @@ public interface ILandingRepository
     Task<List<LandingResult>> GetForFlightAsync(Guid flightId);
     Task<LandingResult?> GetBestAsync();
     Task SaveAsync(LandingResult landing);
+    Task DeleteAsync(Guid landingId);
     Task<double> GetAverageScoreAsync();
+    Task ClearAllAsync();
 }
 
 // ---- Messages ----
@@ -61,6 +55,7 @@ public interface IMessageRepository
     Task SaveAsync(PilotMessage message);
     Task MarkReadAsync(Guid messageId);
     Task<int> GetUnreadCountAsync(string pilotId);
+    Task ClearAllAsync();
 }
 
 // ---- Friends ----
@@ -70,6 +65,7 @@ public interface IFriendRepository
     Task AddAsync(FriendEntry friend);
     Task RemoveAsync(string pilotId);
     Task<bool> ExistsAsync(string pilotId);
+    Task ClearAllAsync();
 }
 
 // ---- Flight Deletion Requests ----
@@ -169,45 +165,16 @@ public class InMemoryFlightRepository : IFlightRepository
             return Task.FromResult(removed);
         }
     }
-}
 
-// ============================================================
-// IN-MEMORY PILOT REPOSITORY
-// TODO: Connect to Aviates Air pilot account API
-// ============================================================
-
-public class InMemoryPilotRepository : IPilotRepository
-{
-    // MINOR-19: Added lock — was the only repository with zero thread safety.
-    private readonly object _lock = new();
-    private PilotStatistics? _stats;
-    private PilotProfile? _profile;
-
-    public Task<PilotStatistics?> GetStatisticsAsync(string pilotId)
+    public Task ClearAllAsync()
     {
-        lock (_lock) return Task.FromResult(_stats);
-    }
-
-    public Task SaveStatisticsAsync(PilotStatistics stats)
-    {
-        lock (_lock) _stats = stats;
-        return Task.CompletedTask;
-    }
-
-    public Task<PilotProfile?> GetProfileAsync()
-    {
-        lock (_lock) return Task.FromResult(_profile);
-    }
-
-    public Task SaveProfileAsync(PilotProfile profile)
-    {
-        lock (_lock) _profile = profile;
+        lock (_lock) { _flights.Clear(); _currentFlight = null; }
         return Task.CompletedTask;
     }
 }
 
 // ============================================================
-// IN-MEMORY LANDING REPOSITORY  
+// IN-MEMORY LANDING REPOSITORY
 // TODO: Connect to Aviates Air backend landings table
 // ============================================================
 
@@ -254,6 +221,12 @@ public class InMemoryLandingRepository : ILandingRepository
         return Task.CompletedTask;
     }
 
+    public Task DeleteAsync(Guid landingId)
+    {
+        lock (_lock) { _landings.RemoveAll(l => l.Id == landingId); }
+        return Task.CompletedTask;
+    }
+
     public Task<double> GetAverageScoreAsync()
     {
         lock (_lock)
@@ -261,6 +234,12 @@ public class InMemoryLandingRepository : ILandingRepository
             if (!_landings.Any()) return Task.FromResult(0.0);
             return Task.FromResult(_landings.Average(l => l.LandingScore));
         }
+    }
+
+    public Task ClearAllAsync()
+    {
+        lock (_lock) { _landings.Clear(); }
+        return Task.CompletedTask;
     }
 }
 
@@ -322,6 +301,12 @@ public class InMemoryMessageRepository : IMessageRepository
                 m => m.RecipientId == pilotId && m.ReadAt == null && !m.IsModerated));
         }
     }
+
+    public Task ClearAllAsync()
+    {
+        lock (_lock) { _messages.Clear(); }
+        return Task.CompletedTask;
+    }
 }
 
 // ============================================================
@@ -358,6 +343,12 @@ public class InMemoryFriendRepository : IFriendRepository
     public Task<bool> ExistsAsync(string pilotId)
     {
         lock (_lock) { return Task.FromResult(_friends.Any(f => f.PilotId == pilotId)); }
+    }
+
+    public Task ClearAllAsync()
+    {
+        lock (_lock) { _friends.Clear(); }
+        return Task.CompletedTask;
     }
 }
 
@@ -437,6 +428,13 @@ public class JsonFriendRepository : IFriendRepository
     public Task<bool> ExistsAsync(string pilotId)
     {
         lock (_lock) return Task.FromResult(_friends.Any(f => f.PilotId == pilotId));
+    }
+
+    public Task ClearAllAsync()
+    {
+        lock (_lock) { _friends.Clear(); }
+        SaveSnapshot([]);
+        return Task.CompletedTask;
     }
 }
 
@@ -587,6 +585,15 @@ public class JsonMessageRepository : IMessageRepository
             return Task.FromResult(_direct.Count(
                 m => m.RecipientId == pilotId && m.ReadAt == null && !m.IsModerated));
         }
+    }
+
+    public Task ClearAllAsync()
+    {
+        // Broadcasts are session-only (see class doc comment) so there's nothing on disk for
+        // them to begin with; only _direct needs clearing + a snapshot write.
+        lock (_lock) { _direct.Clear(); _broadcasts.Clear(); }
+        SaveSnapshot([]);
+        return Task.CompletedTask;
     }
 }
 
@@ -876,6 +883,13 @@ public class JsonFlightRepository : IFlightRepository
         if (removed > 0) SaveSnapshot(snapshot);
         return Task.FromResult(removed);
     }
+
+    public Task ClearAllAsync()
+    {
+        lock (_lock) { _flights.Clear(); _currentFlight = null; }
+        SaveSnapshot([]);
+        return Task.CompletedTask;
+    }
 }
 
 // ============================================================
@@ -959,6 +973,16 @@ public class JsonLandingRepository : ILandingRepository
         return Task.CompletedTask;
     }
 
+    public Task DeleteAsync(Guid landingId)
+    {
+        lock (_lock)
+        {
+            _landings.RemoveAll(l => l.Id == landingId);
+            Save();
+        }
+        return Task.CompletedTask;
+    }
+
     public Task<double> GetAverageScoreAsync()
     {
         lock (_lock)
@@ -966,6 +990,13 @@ public class JsonLandingRepository : ILandingRepository
             if (!_landings.Any()) return Task.FromResult(0.0);
             return Task.FromResult(_landings.Average(l => l.LandingScore));
         }
+    }
+
+    public Task ClearAllAsync()
+    {
+        lock (_lock) { _landings.Clear(); }
+        Save();
+        return Task.CompletedTask;
     }
 }
 

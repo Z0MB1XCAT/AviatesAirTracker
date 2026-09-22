@@ -5,7 +5,9 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace AviatesAirTracker.Dialogs;
@@ -90,31 +92,38 @@ public static class CreateEventDialog
             Height = 72,
         };
 
-        // No explicit Width on these four -- they live inside BuildTwoColumnRow's Star-sized Grid
+        // No explicit Width on these -- they live inside BuildTwoColumnRow's Star-sized Grid
         // columns (each ~half of FieldWidth) and stretch to fill via the default HorizontalAlignment;
         // a fixed FieldWidth here would overflow the column.
+        //
+        // MinDate blocks picking a past date outright; a same-day-but-past-time combination still
+        // needs the separate check at submit time below, since MinDate can't see the time field.
         var datePicker = new CalendarDatePicker
         {
             PlaceholderText = "Select date",
+            MinDate = DateTimeOffset.UtcNow.Date,
         };
         var timeUtcBox = new TextBox { PlaceholderText = "18:00", MaxLength = 10 };
 
-        var routeBox = new TextBox { PlaceholderText = "e.g. EGLL → KJFK", MaxLength = 100, Width = FieldWidth };
-
-        var aircraftRestrictionBox = new TextBox { PlaceholderText = "e.g. A320 family", MaxLength = 100 };
-        var rankRestrictionBox = new TextBox { PlaceholderText = "e.g. Captain+ only", MaxLength = 100 };
-
-        // Plain numeric TextBox (0 = unlimited, matching the original's min="0" max="9999") rather
-        // than NumberBox -- this field never validates a range beyond that in the original either,
-        // so a numeric InputScope hint for the on-screen keyboard is enough.
-        var maxParticipantsBox = new TextBox
+        // Route search: pilots pick one of the airline's own already-defined routes instead of
+        // typing free text, so an event's route can never reference something that doesn't
+        // actually exist in Routes. All routes are loaded once when the dialog opens (RoutesService
+        // has no per-keystroke search cost worth paying against ~a few hundred rows) and filtered
+        // client-side as the pilot types.
+        var routeBox = new AutoSuggestBox
         {
-            PlaceholderText = "0",
-            Text = "0",
-            MaxLength = 4,
+            PlaceholderText = "Search a route (e.g. EGLL, KJFK, VAV103)",
             Width = FieldWidth,
-            InputScope = new InputScope { Names = { new InputScopeName(InputScopeNameValue.Number) } },
         };
+        List<AviatesRoute> allRoutes = [];
+        AviatesRoute? selectedRoute = null;
+
+        // Aircraft dropdown: sourced from the fleet, replacing the old free-text "e.g. A320
+        // family" box -- an event's aircraft is now always a real type from AircraftPerformanceProfiles'
+        // FleetService list rather than an arbitrary string a pilot could mistype.
+        var aircraftCombo = new ComboBox { PlaceholderText = "Any aircraft" };
+        aircraftCombo.Items.Add(new ComboBoxItem { Content = "Any aircraft", Tag = "" });
+        aircraftCombo.SelectedIndex = 0;
 
         // ── Inline validation / server error -- hidden until a failure. ───────────────────────
         var errorText = new TextBlock
@@ -147,10 +156,42 @@ public static class CreateEventDialog
                 BuildField("Description", descriptionBox),
                 BuildTwoColumnRow(BuildField("Date *", datePicker), BuildField("Time (UTC)", timeUtcBox)),
                 BuildField("Route", routeBox),
-                BuildTwoColumnRow(BuildField("Aircraft Restriction", aircraftRestrictionBox), BuildField("Rank Restriction", rankRestrictionBox)),
-                BuildField("Max Participants (0 = unlimited)", maxParticipantsBox),
+                BuildField("Aircraft", aircraftCombo),
                 errorBorder,
             },
+        };
+
+        // Loaded once when the dialog opens -- RoutesService/FleetService are resolved here
+        // rather than threaded through ShowAsync's signature, matching the inline
+        // App.GetService<T>() pattern other pages already use for a one-off dependency a
+        // constructor-injected field would be overkill for.
+        var routesService = App.GetService<RoutesService>();
+        var fleetService  = App.GetService<FleetService>();
+
+        _ = LoadRoutesAsync(routesService, routeBox, r => allRoutes = r);
+        _ = LoadFleetAsync(fleetService, aircraftCombo);
+
+        routeBox.TextChanged += (sender, args) =>
+        {
+            if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+            var query = sender.Text?.Trim() ?? "";
+            selectedRoute = null;
+            sender.ItemsSource = string.IsNullOrEmpty(query)
+                ? []
+                : allRoutes
+                    .Where(r =>
+                        r.OriginIata.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                        r.DestIata.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                        r.Callsign.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                        r.FlightNumber.Contains(query, StringComparison.OrdinalIgnoreCase))
+                    .Take(20)
+                    .Select(r => $"{r.OriginIata} → {r.DestIata} · {r.FlightNumber}")
+                    .ToList();
+        };
+        routeBox.SuggestionChosen += (sender, args) =>
+        {
+            var label = args.SelectedItem as string;
+            selectedRoute = allRoutes.FirstOrDefault(r => $"{r.OriginIata} → {r.DestIata} · {r.FlightNumber}" == label);
         };
 
         var dialog = new ContentDialog
@@ -190,8 +231,8 @@ public static class CreateEventDialog
 
             errorBorder.Visibility = Visibility.Collapsed;
 
-            // Matches CreateEvent()'s exact 3 guard checks, in order -- no more, no less (no
-            // max-participants range check, no time-format check; neither exists in the original).
+            // ACARS key, title, date presence, then (below, once the date is known) that the
+            // combined date+time isn't already in the past.
             var key = settings.Settings.AcarsKey;
             if (string.IsNullOrEmpty(key))
             {
@@ -212,19 +253,29 @@ public static class CreateEventDialog
                 return;
             }
 
+            var d = datePicker.Date.Value;
+            var eventDateOnly = new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc);
+            var timeOfDay = TimeSpan.TryParseExact(timeUtcBox.Text.Trim(), @"hh\:mm", CultureInfo.InvariantCulture, out var t)
+                ? t : TimeSpan.Zero;
+            // MinDate above already blocks a past DATE; this catches the one case it can't see --
+            // today's date with a time that's already passed.
+            if (eventDateOnly + timeOfDay <= DateTime.UtcNow)
+            {
+                ShowError(errorBorder, errorText, "Event date/time must be in the future.");
+                args.Cancel = true;
+                return;
+            }
+
             var deferral = args.GetDeferral();
             try
             {
                 isCreating = true;
 
-                var d = datePicker.Date.Value;
-                var eventDate = new DateTime(d.Year, d.Month, d.Day).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-                // Non-numeric input just falls back to 0 (unlimited), no error shown -- matches
-                // the original's lack of format validation on this field. (Return value
-                // intentionally unused -- not discarded via "_" since the enclosing lambda's own
-                // first parameter is already named "_" and is a real ContentDialog parameter, not
-                // a true discard, since it's the only "_" in its parameter list.)
-                int.TryParse(maxParticipantsBox.Text.Trim(), out var maxParticipants);
+                var eventDate = eventDateOnly.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                var aircraftCode = (aircraftCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
+                var routeLabel = selectedRoute != null
+                    ? $"{selectedRoute.OriginIata} → {selectedRoute.DestIata}"
+                    : "";
 
                 var req = new CreateEventRequest
                 {
@@ -232,10 +283,8 @@ public static class CreateEventDialog
                     Description = descriptionBox.Text.Trim(),
                     EventDate = eventDate,
                     TimeUtc = timeUtcBox.Text.Trim(),
-                    Route = routeBox.Text.Trim(),
-                    AircraftRestriction = aircraftRestrictionBox.Text.Trim(),
-                    RankRestriction = rankRestrictionBox.Text.Trim(),
-                    MaxParticipants = maxParticipants,
+                    Route = routeLabel,
+                    AircraftRestriction = aircraftCode,
                 };
 
                 var (ok, err) = await viewModel.CreateEventAsync(req);
@@ -290,6 +339,25 @@ public static class CreateEventDialog
             if (FindDescendant<T>(child, name) is { } found) return found;
         }
         return null;
+    }
+
+    private static async Task LoadRoutesAsync(RoutesService routesService, AutoSuggestBox routeBox, Action<List<AviatesRoute>> onLoaded)
+    {
+        var (routes, _) = await routesService.GetRoutesAsync(limit: 500);
+        onLoaded(routes);
+    }
+
+    private static async Task LoadFleetAsync(FleetService fleetService, ComboBox aircraftCombo)
+    {
+        var data = await fleetService.GetFleetDataAsync();
+        foreach (var type in data.Types)
+        {
+            aircraftCombo.Items.Add(new ComboBoxItem
+            {
+                Content = $"{type.Name} ({type.TypeCode})",
+                Tag = type.TypeCode,
+            });
+        }
     }
 
     private static void ShowError(Border errorBorder, TextBlock errorText, string message)

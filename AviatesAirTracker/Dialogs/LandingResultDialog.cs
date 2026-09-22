@@ -436,7 +436,70 @@ public static class LandingResultDialog
                 $"{report.RankAmongLandings} of {report.TotalLandings} · avg {report.AverageScore}"));
         }
 
+        // ── Compliance rows (LandingComplianceChecker) ──────────────────────────────────────
+        flags.Children.Add(BuildFlagRow(
+            report.FlapsConfiguredBy1000Ft ? "✓" : "✗",
+            report.FlapsConfiguredBy1000Ft ? FlagOkPipBg : FlagFailPipBg,
+            report.FlapsConfiguredBy1000Ft ? FlagOkPipText : FlagFailPipText,
+            "Flaps by 1,000 ft"));
+
+        flags.Children.Add(BuildFlagRow(
+            report.GearDownBy1000Ft ? "✓" : "✗",
+            report.GearDownBy1000Ft ? FlagOkPipBg : FlagFailPipBg,
+            report.GearDownBy1000Ft ? FlagOkPipText : FlagFailPipText,
+            "Gear by 1,000 ft"));
+
+        flags.Children.Add(BuildFlagRow(
+            report.SpeedStabilizedBy1000Ft ? "✓" : "✗",
+            report.SpeedStabilizedBy1000Ft ? FlagOkPipBg : FlagFailPipBg,
+            report.SpeedStabilizedBy1000Ft ? FlagOkPipText : FlagFailPipText,
+            "Speed by 1,000 ft"));
+
+        if (report.RequiresReview)
+        {
+            flags.Children.Add(BuildReviewBanner(report));
+        }
+
         return flags;
+    }
+
+    // "Held for review" banner: the full LandingComplianceChecker.Evaluate reason list, shown
+    // directly in the report so the pilot never has to guess why -- the separate
+    // FlightReviewDialog (shown once the whole flight completes, not just this landing) is where
+    // they can actually respond with a reason or go to Discord.
+    private static Border BuildReviewBanner(LandingReport report)
+    {
+        var reasons = new StackPanel { Spacing = 3, Margin = new Thickness(0, 4, 0, 0) };
+        foreach (var v in report.ComplianceViolations)
+        {
+            reasons.Children.Add(new TextBlock
+            {
+                Text = "• " + v, FontSize = 11, Foreground = ParamWarnValueBrush, TextWrapping = TextWrapping.Wrap,
+            });
+        }
+
+        return new Border
+        {
+            Background = ParamWarnBrush,
+            BorderBrush = ParamWarnValueBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(10, 8, 10, 8),
+            Margin = new Thickness(0, 4, 0, 0),
+            Child = new StackPanel
+            {
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = "HELD FOR REVIEW", FontSize = 10.5,
+                        FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                        Foreground = ParamWarnValueBrush, CharacterSpacing = 60,
+                    },
+                    reasons,
+                },
+            },
+        };
     }
 
     private static StackPanel BuildFlagRow(string pip, Brush pipBackground, Brush pipForeground, string label)

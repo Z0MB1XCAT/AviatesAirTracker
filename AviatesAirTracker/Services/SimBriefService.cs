@@ -45,13 +45,18 @@ public class SimBriefService
     private static readonly Dictionary<string, string> _simBriefTypeMap =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["A320neo"]    = "A20N",
-            ["A321XLR"]    = "A21X",
-            ["A350F"]      = "A35F",
-            ["ATR 72"]     = "AT76",
-            ["B737-800"]   = "B738",
-            ["B777-300ER"] = "B77W",
-            ["B787-9"]     = "B789",
+            ["A319"]     = "A319",
+            ["A320neo"]  = "A20N",
+            ["A350"]     = "A359",
+            ["A380"]     = "A388",
+            ["ATR 72"]   = "AT76",
+            ["ATR 42"]   = "AT45",
+            ["B736"]     = "B736",
+            ["B737-800"] = "B738",
+            ["B38M"]     = "B38M",
+            ["B739ER"]   = "B739",
+            ["B748"]     = "B748",
+            ["B77F"]     = "B77F",
         };
 
     /// <summary>Converts an internal fleet type code to the SimBrief ICAO designator.</summary>
@@ -154,6 +159,11 @@ public class SimBriefService
             // Mach
             if (double.TryParse(root["general"]?["cruise_mach"]?.ToString(), out double mach))
                 plan.CruiseMach = mach;
+
+            // Cost index -- "AUTO" and similarly non-numeric values are left as null rather than 0,
+            // since 0 is itself a valid (if unusual) cost index and shouldn't be confused with "unset".
+            if (int.TryParse(root["general"]?["costindex"]?.ToString(), out int ci))
+                plan.CostIndex = ci;
 
             // Distance
             if (double.TryParse(root["general"]?["route_distance"]?.ToString(), out double dist))
@@ -369,6 +379,8 @@ public class SimBriefService
                 plan.CruiseAltitudeFt = alt;
             if (double.TryParse(root.Element("general")?.Element("route_distance")?.Value, out double dist))
                 plan.PlannedDistanceNm = dist;
+            if (int.TryParse(root.Element("general")?.Element("costindex")?.Value, out int ci))
+                plan.CostIndex = ci;
 
             // Parse waypoints from navlog
             var navlog = root.Element("navlog");
@@ -430,6 +442,20 @@ public class SimBriefService
     // all SimBrief-integrated desktop tools (Navigraph Charts, vPilot, etc.)
     // =====================================================
 
+    // Long-haul cost index vs. short-haul, keyed by aircraft type rather than route distance:
+    // the aircraft is known for every booking, including a charter, which has no scheduled route
+    // (and so no distance) to classify by at all. Widebody/Freighter types fly the long-haul
+    // network (see aircraft_types.category in Supabase); every Narrowbody/Regional type is
+    // short-haul. Contingency fuel and reserve time are fixed regardless of haul length.
+    private static readonly HashSet<string> LongHaulAircraftTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "A350", "A380", "B748", "B77F",
+    };
+    private const int LongHaulCostIndex = 110;
+    private const int ShortHaulCostIndex = 12;
+    private const string ContingencyFuelPct = "0.05";
+    private const string ReserveFuelMinutes = "45";
+
     public void OpenDispatch(FlightBooking booking)
     {
         // ATC callsign = the pilot's generated booking callsign, e.g. "VAV64E"
@@ -469,6 +495,9 @@ public class SimBriefService
 
         const string remarks = "TCAS CS=AVIATESAIR=FLYAVIATESAIR=FLYAVIATESAIR.UK";
 
+        var isLongHaul = LongHaulAircraftTypes.Contains(booking.AircraftType.Trim());
+        var costIndex  = isLongHaul ? LongHaulCostIndex : ShortHaulCostIndex;
+
         var url = "https://dispatch.simbrief.com/options/custom" +
                   // ── Route ────────────────────────────────────────────
                   $"?orig={Uri.EscapeDataString(booking.OriginIata)}" +
@@ -486,6 +515,14 @@ public class SimBriefService
                   (!string.IsNullOrWhiteSpace(booking.Registration)
                       ? $"&reg={Uri.EscapeDataString(booking.Registration)}"
                       : "") +
+                  // ── Fuel / cost profile ────────────────────────────────
+                  // civalue/contpct/resvrule are the real SimBrief custom-dispatch query keys
+                  // (confirmed against Navigraph's own SimBrief API docs, not guessed) --
+                  // civalue=110 long-haul/12 short-haul, contpct=0.05 (5% contingency),
+                  // resvrule=45 (45 min reserve), all fixed by AviatesAir ops policy.
+                  $"&civalue={costIndex}" +
+                  $"&contpct={ContingencyFuelPct}" +
+                  $"&resvrule={ReserveFuelMinutes}" +
                   // ── Plan options ─────────────────────────────────────
                   "&flightrules=i" +        // IFR
                   "&flighttype=s" +         // Scheduled service

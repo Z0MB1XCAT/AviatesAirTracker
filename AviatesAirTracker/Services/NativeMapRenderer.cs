@@ -136,6 +136,24 @@ public sealed class NativeMapRenderer : IDisposable
     private const float OtherPilotRouteOpacity = 0.45f;
     private static readonly float[] OtherPilotRouteDashArray = { 4f, 5f };
 
+    // Weather radar: RainViewer's public tile API (no key required), same source the EFB web map
+    // uses. This renderer only ever receives an already-resolved tile URL template (the frame path
+    // changes over time) -- it does no HTTP metadata fetching itself, matching every other method
+    // on this class taking already-resolved primitives rather than owning network calls.
+    private const float WeatherRadarOpacity = 0.55f;
+
+    // VATSIM + IVAO online traffic/ATC. Same color convention as the EFB web map's own layer
+    // toggles (efb.css/app.js) so a pilot switching between the desktop app and the EFB tablet
+    // sees the same two colors mean the same two networks.
+    private const string VatsimColorHex = "#3B82F6";
+    private const string IvaoColorHex = "#A855F7";
+    // Distinct from OtherPilotSymbolScale/AircraftColorHex above -- this app's OWN traffic
+    // (OtherPilotsService) and the aircraft marker use their own established colors/shapes;
+    // network traffic gets its own triangle (heading-rotated, like the aircraft marker) so it
+    // reads as "another aircraft" rather than the plain dot OtherPilotsService's traffic uses.
+    private const double NetworkTrafficSymbolScale = 0.55;
+    private const double NetworkAtcSymbolScale = 10.0 / 32.0; // ~10px circle, see WaypointSymbolScale's own note on this approximation
+
     // Confirmed exact from interop.js's panTo(): this._map.panTo([lat, lon], { animate: true,
     // duration: 0.5 }) -- 0.5s == 500ms, which Mapsui's Navigator takes directly.
     private const long PanAnimationDurationMs = 500;
@@ -155,6 +173,12 @@ public sealed class NativeMapRenderer : IDisposable
     private MemoryLayer? _airportMarkerLayer;
     private MemoryLayer? _otherPilotLayer;
     private MemoryLayer? _otherPilotRouteLayer;
+
+    private TileLayer? _weatherLayer;
+    private MemoryLayer? _vatsimTrafficLayer;
+    private MemoryLayer? _vatsimAtcLayer;
+    private MemoryLayer? _ivaoTrafficLayer;
+    private MemoryLayer? _ivaoAtcLayer;
 
     private PointFeature? _aircraftFeature;
     private readonly List<Coordinate> _flownPathPoints = new();
@@ -282,6 +306,47 @@ public sealed class NativeMapRenderer : IDisposable
             IsMapInfoLayer = true,
         };
         Map.Layers.Add(_otherPilotLayer);
+
+        // Weather radar has no layer yet -- SetWeatherRadarTile() creates it lazily (and inserts
+        // it directly above "Base", index 1, so vector overlays still render above it) the first
+        // time the page has a tile URL to give it; there's nothing to add here at Init() time.
+        _weatherLayer = null;
+
+        _vatsimTrafficLayer = new MemoryLayer
+        {
+            Name = "VatsimTraffic",
+            Features = Array.Empty<IFeature>(),
+            Style = null,
+            IsMapInfoLayer = true, // same reason as _waypointLayer above -- needed for hover labels
+        };
+        Map.Layers.Add(_vatsimTrafficLayer);
+
+        _vatsimAtcLayer = new MemoryLayer
+        {
+            Name = "VatsimAtc",
+            Features = Array.Empty<IFeature>(),
+            Style = null,
+            IsMapInfoLayer = true,
+        };
+        Map.Layers.Add(_vatsimAtcLayer);
+
+        _ivaoTrafficLayer = new MemoryLayer
+        {
+            Name = "IvaoTraffic",
+            Features = Array.Empty<IFeature>(),
+            Style = null,
+            IsMapInfoLayer = true,
+        };
+        Map.Layers.Add(_ivaoTrafficLayer);
+
+        _ivaoAtcLayer = new MemoryLayer
+        {
+            Name = "IvaoAtc",
+            Features = Array.Empty<IFeature>(),
+            Style = null,
+            IsMapInfoLayer = true,
+        };
+        Map.Layers.Add(_ivaoAtcLayer);
 
         _plannedRoutePoints.Clear();
         _airportMarkerPoints.Clear();
@@ -828,6 +893,157 @@ public sealed class NativeMapRenderer : IDisposable
         Map.Navigator.CenterOn(x, y, PanAnimationDurationMs);
     }
 
+    /// <summary>
+    /// Sets (or replaces) the weather radar tile layer. <paramref name="tileUrlTemplate"/> is an
+    /// already-resolved XYZ tile URL template (RainViewer's frame path changes over time, so the
+    /// caller re-resolves and passes a fresh one periodically) -- pass null/empty to remove the
+    /// layer entirely (used on page teardown; toggling visibility on/off while keeping the current
+    /// frame loaded is <see cref="SetWeatherRadarVisible"/> instead, since re-creating the tile
+    /// source on every toggle would needlessly re-fetch every tile already on screen).
+    /// </summary>
+    public void SetWeatherRadarTile(string? tileUrlTemplate)
+    {
+        var wasEnabled = _weatherLayer?.Enabled ?? true;
+        if (_weatherLayer != null)
+        {
+            Map.Layers.Remove(_weatherLayer);
+            _weatherLayer = null;
+        }
+
+        if (string.IsNullOrEmpty(tileUrlTemplate))
+        {
+            return;
+        }
+
+        var tileSchema = new GlobalSphericalMercator(MinZoomLevel, MaxZoomLevel);
+        var tileSource = new HttpTileSource(
+            tileSchema,
+            tileUrlTemplate,
+            name: "Weather Radar",
+            attribution: new Attribution("RainViewer"),
+            userAgent: TileUserAgent);
+        _weatherLayer = new TileLayer(new BoundsCheckedTileSource(tileSource))
+        {
+            Name = "WeatherRadar",
+            Opacity = WeatherRadarOpacity,
+            Enabled = wasEnabled,
+        };
+
+        // "Base" is always the first layer Init() adds, so index 1 reliably sits directly above
+        // it -- below every vector overlay (route, aircraft, traffic), matching the EFB web map's
+        // own z-order (radar under markers, over the basemap).
+        Map.Layers.Insert(1, _weatherLayer);
+    }
+
+    public void SetWeatherRadarVisible(bool visible)
+    {
+        if (_weatherLayer != null)
+        {
+            _weatherLayer.Enabled = visible;
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds one network's traffic markers from scratch (Task: online network layers). Shared
+    /// by <see cref="UpdateVatsimTraffic"/>/<see cref="UpdateIvaoTraffic"/> -- both networks render
+    /// identically (heading-rotated triangle, same shape as the own-aircraft marker) and differ
+    /// only by color, so there's one implementation rather than two near-duplicates.
+    /// <paramref name="label"/> per pilot is stored under the same "Name" feature key
+    /// <see cref="SetPlannedRoute"/>'s waypoint dots use, so the page's existing hover-popup
+    /// hit-testing (<c>GetWaypointName</c>) picks these up for free with no page-side changes.
+    /// </summary>
+    private static void UpdateNetworkTrafficLayer(
+        MemoryLayer? layer,
+        IReadOnlyList<(double Lat, double Lon, double HeadingDeg, string Label)> pilots,
+        string colorHex)
+    {
+        if (layer == null)
+        {
+            return;
+        }
+
+        var features = new List<IFeature>(pilots.Count);
+        foreach (var p in pilots)
+        {
+            var (x, y) = SphericalMercator.FromLonLat(p.Lon, p.Lat);
+            var feature = new PointFeature(new MPoint(x, y));
+            feature["Name"] = p.Label;
+            feature.Styles.Add(new SymbolStyle
+            {
+                SymbolScale = NetworkTrafficSymbolScale,
+                SymbolType = SymbolType.Triangle,
+                RotateWithMap = true,
+                SymbolRotation = p.HeadingDeg,
+                Fill = new Brush(Color.FromString(colorHex)),
+                Outline = new Pen(Color.White, 1),
+            });
+            features.Add(feature);
+        }
+
+        layer.Features = features;
+        layer.DataHasChanged();
+    }
+
+    /// <summary>Shared ATC-dot rebuild -- see <see cref="UpdateNetworkTrafficLayer"/>'s doc comment; same reasoning, ATC instead of pilots.</summary>
+    private static void UpdateNetworkAtcLayer(
+        MemoryLayer? layer,
+        IReadOnlyList<(double Lat, double Lon, string Label)> atcs,
+        string colorHex)
+    {
+        if (layer == null)
+        {
+            return;
+        }
+
+        var features = new List<IFeature>(atcs.Count);
+        foreach (var a in atcs)
+        {
+            var (x, y) = SphericalMercator.FromLonLat(a.Lon, a.Lat);
+            var feature = new PointFeature(new MPoint(x, y));
+            feature["Name"] = a.Label;
+            feature.Styles.Add(new SymbolStyle
+            {
+                SymbolType = SymbolType.Ellipse,
+                SymbolScale = NetworkAtcSymbolScale,
+                Fill = new Brush(Color.FromString(colorHex)),
+                Outline = new Pen(Color.White, 1.5),
+            });
+            features.Add(feature);
+        }
+
+        layer.Features = features;
+        layer.DataHasChanged();
+    }
+
+    public void UpdateVatsimTraffic(IReadOnlyList<(double Lat, double Lon, double HeadingDeg, string Label)> pilots) =>
+        UpdateNetworkTrafficLayer(_vatsimTrafficLayer, pilots, VatsimColorHex);
+
+    public void UpdateIvaoTraffic(IReadOnlyList<(double Lat, double Lon, double HeadingDeg, string Label)> pilots) =>
+        UpdateNetworkTrafficLayer(_ivaoTrafficLayer, pilots, IvaoColorHex);
+
+    // ATC entries with no resolvable position (VATSIM controllers carry none of their own -- see
+    // EfbNetworkTrafficService's own doc comment on the transceivers-feed join) are filtered out by
+    // the caller before reaching here, same boundary as EfbNetworkTrafficService/app.js already use.
+    public void UpdateVatsimAtc(IReadOnlyList<(double Lat, double Lon, string Label)> atcs) =>
+        UpdateNetworkAtcLayer(_vatsimAtcLayer, atcs, VatsimColorHex);
+
+    public void UpdateIvaoAtc(IReadOnlyList<(double Lat, double Lon, string Label)> atcs) =>
+        UpdateNetworkAtcLayer(_ivaoAtcLayer, atcs, IvaoColorHex);
+
+    /// <summary>Toggles both of VATSIM's layers (traffic + ATC) together -- one on-screen toggle per network, matching the EFB web map's own single VATSIM rail button.</summary>
+    public void SetVatsimVisible(bool visible)
+    {
+        if (_vatsimTrafficLayer != null) _vatsimTrafficLayer.Enabled = visible;
+        if (_vatsimAtcLayer != null) _vatsimAtcLayer.Enabled = visible;
+    }
+
+    /// <summary>Toggles both of IVAO's layers (traffic + ATC) together -- see <see cref="SetVatsimVisible"/>.</summary>
+    public void SetIvaoVisible(bool visible)
+    {
+        if (_ivaoTrafficLayer != null) _ivaoTrafficLayer.Enabled = visible;
+        if (_ivaoAtcLayer != null) _ivaoAtcLayer.Enabled = visible;
+    }
+
     public void Dispose()
     {
         Map.Layers.Clear();
@@ -846,6 +1062,11 @@ public sealed class NativeMapRenderer : IDisposable
         _airportMarkerLayer = null;
         _otherPilotLayer = null;
         _otherPilotRouteLayer = null;
+        _weatherLayer = null;
+        _vatsimTrafficLayer = null;
+        _vatsimAtcLayer = null;
+        _ivaoTrafficLayer = null;
+        _ivaoAtcLayer = null;
     }
 }
 
