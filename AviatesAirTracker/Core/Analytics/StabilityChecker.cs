@@ -117,7 +117,7 @@ public class StabilityChecker
             else
             {
                 _calledUnstable = true;
-                Fire("UNSTABLE_CALL", "UNSTABLE — GO AROUND", snap, AlertSeverity.Critical);
+                Fire("UNSTABLE_CALL", "UNSTABLE, GO AROUND", snap, AlertSeverity.Critical);
                 Log.Warning("[Stability] UNSTABLE APPROACH at {AGL:F0}ft AGL: {Flags}",
                     snap.AltitudeAGL, string.Join(", ", report.Flags));
             }

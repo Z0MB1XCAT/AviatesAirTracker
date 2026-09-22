@@ -60,6 +60,15 @@ public sealed class LandingReport
     public bool FlareDetected { get; set; }
     public int BounceCount { get; set; }
 
+    // Compliance -- see LandingComplianceChecker. RequiresReview drives the "held for review"
+    // banner; ComplianceViolations are the human-readable reasons shown under it.
+    public bool RequiresReview { get; set; }
+    public List<string> ComplianceViolations { get; set; } = [];
+    public bool FlapsConfiguredBy1000Ft { get; set; } = true;
+    public bool GearDownBy1000Ft { get; set; } = true;
+    public bool SpeedStabilizedBy1000Ft { get; set; } = true;
+    public double CenterlineDeviationFt { get; set; }
+
     // Rollout / misc
     public double RolloutFt { get; set; }
     public double ThresholdFt { get; set; }
@@ -134,6 +143,13 @@ public static class LandingReportBuilder
             StableApproach = r.ApproachWasStable,
             FlareDetected = r.FlareDetected,
             BounceCount = r.BounceCount,
+
+            RequiresReview = r.RequiresReview,
+            ComplianceViolations = r.ComplianceViolations,
+            FlapsConfiguredBy1000Ft = r.FlapsConfiguredBy1000Ft,
+            GearDownBy1000Ft = r.GearDownBy1000Ft,
+            SpeedStabilizedBy1000Ft = r.SpeedStabilizedBy1000Ft,
+            CenterlineDeviationFt = r.CenterlineDeviationFt,
 
             RolloutFt = r.RolloutDistanceFt,
             ThresholdFt = r.ThresholdDistanceFt,

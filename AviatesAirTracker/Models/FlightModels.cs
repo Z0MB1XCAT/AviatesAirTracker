@@ -41,6 +41,12 @@ public class FlightRecord
     public DateTime BlockInTime { get; set; }
     public DateTime TakeoffTime { get; set; }
     public DateTime LandingTime { get; set; }
+
+    // Backfilled from BookingService.ActiveBooking at engine start (FlightSessionManager.
+    // OnEnginesStarted), same as FlightNumber/Callsign -- null for a charter/free flight with no
+    // booking behind it. Drives PilotStatsService's on-time percentage: BlockOutTime compared
+    // against this, within OnTimeToleranceMinutes.
+    public DateTime? ScheduledDepUtc { get; set; }
     // MAJOR-08: Was BlockInTime - BlockOutTime with no guard. DateTime.MinValue - UtcNow = deeply negative.
     // Return zero for in-progress flights where the end time hasn't been set yet.
     public TimeSpan BlockTime => BlockInTime > BlockOutTime ? BlockInTime - BlockOutTime : TimeSpan.Zero;
@@ -103,6 +109,32 @@ public class FlightRecord
     public bool SyncedToBackend { get; set; } = false;
     public string? BackendRecordId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // =====================================================
+    // COMPLIANCE (general, flight-wide checks -- see LandingResult below for the
+    // landing-specific ones). Populated once at flight completion by
+    // FlightComplianceMonitor + FlightSessionManager.OnFlightComplete's late-departure check.
+    // Never blocks or rejects PIREP submission -- purely a "flag for review" surface.
+    // =====================================================
+    public List<string> FlightComplianceViolations { get; set; } = [];
+    public bool RequiresReview => FlightComplianceViolations.Count > 0 || AllLandings.Any(l => l.RequiresReview);
+
+    // =====================================================
+    // EVENT FLIGHT (see EventReminderService)
+    // Set when the pilot confirms attendance at the 10-minutes-before popup for an event they're
+    // registered for; null for an ordinary flight. HoursMultiplier is applied only in local stat
+    // calculations (PilotStatsService.ComputeAsync, DashboardViewModel) -- it never touches the
+    // raw BlockTime/AirTime themselves or anything submitted in the PIREP.
+    // =====================================================
+    public int? EventId { get; set; }
+    public bool IsOfficialEvent { get; set; }
+
+    // Charter flight (RoutesPage's Charter button/CharterBookingDialog -- pilot picks both route
+    // and aircraft themselves) earns 0.5x hours. Mutually exclusive with EventId in practice
+    // (FlightSessionManager.OnEnginesStarted checks the event flag first and only falls back to
+    // charter if no event was armed), but both read HoursMultiplier the same way.
+    public bool IsCharterFlight { get; set; }
+    public double HoursMultiplier { get; set; } = 1.0;
 }
 
 public enum FlightStatus
@@ -159,6 +191,31 @@ public class LandingResult
 
     // Fuel
     public double FuelOnTouchdownLbs { get; set; }
+
+    // =====================================================
+    // COMPLIANCE — populated by LandingComplianceChecker at rollout completion, right before
+    // LandingAnalyzer fires LandingDetected. Never blocks the landing/PIREP itself -- these
+    // just decide whether ComplianceViolations ends up non-empty (which flags the flight for
+    // review via FlightRecord.RequiresReview).
+    // =====================================================
+
+    // Signed lateral distance from the extended runway centerline at touchdown, in feet.
+    // Positive = right of centerline, negative = left (same sign convention as
+    // CrosswindComponent's own "positive = from the right"). Only meaningful when a runway was
+    // actually detected -- stays 0 otherwise.
+    public double CenterlineDeviationFt { get; set; }
+
+    // Whether flaps/gear/speed were in the landing configuration by 1000ft AGL. Default true
+    // (not false) when there's no approach-history sample at/below 1000ft to check against
+    // (e.g. a very short/steep approach) -- missing data should not read as a violation.
+    public bool FlapsConfiguredBy1000Ft { get; set; } = true;
+    public bool GearDownBy1000Ft { get; set; } = true;
+    public bool SpeedStabilizedBy1000Ft { get; set; } = true;
+
+    // Human-readable reasons a pilot/reviewer can read directly -- e.g. "Hard landing: touchdown
+    // vertical speed was 912 fpm (limit 800 fpm)." Empty when the landing violated nothing.
+    public List<string> ComplianceViolations { get; set; } = [];
+    public bool RequiresReview => ComplianceViolations.Count > 0;
 
     // ---- Derived ----
     public string LandingGrade => LandingScore switch
@@ -247,6 +304,7 @@ public class SimBriefFlightPlan
     // Performance
     public int CruiseAltitudeFt { get; set; }
     public double CruiseMach { get; set; }
+    public int? CostIndex { get; set; }
     public int PlannedFlightTimeMin { get; set; }
     public double PlannedDistanceNm { get; set; }
 
@@ -411,4 +469,11 @@ public class PilotStatistics
     // Last updated
     public DateTime LastFlight { get; set; }
     public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+
+    // On-time performance -- only meaningful for flights that actually had a scheduled
+    // departure (a real booking), so ScheduledFlightsCount can be less than TotalFlights (a
+    // charter/free flight has nothing to be "on time" against). Null when ScheduledFlightsCount
+    // is 0, so the UI can show "--" instead of a fabricated percentage with no flights behind it.
+    public int ScheduledFlightsCount { get; set; }
+    public double? OnTimePercent { get; set; }
 }

@@ -1,3 +1,4 @@
+using AviatesAirTracker.Core.Efb;
 using AviatesAirTracker.Core.SimConnect;
 using AviatesAirTracker.Models;
 using Serilog;
@@ -71,6 +72,11 @@ public class LandingAnalyzer
     // Runway info (populated by RunwayDetector)
     private RunwayInfo? _detectedRunway;
 
+    // Aircraft type (SimBrief ICAO designator, e.g. "B738") -- fed in by FlightSessionManager on
+    // every tick (cheap: just a string field write) so LandingComplianceChecker's Vref-based
+    // speed-stabilization check can resolve an EfbAircraftProfile at finalization time.
+    private string? _aircraftTypeCode;
+
     // =====================================================
     // FLARE DETECTION
     // =====================================================
@@ -86,6 +92,7 @@ public class LandingAnalyzer
     private const double ROLLOUT_END_SPEED = 30.0;           // Below this = vacating
 
     public void SetRunwayInfo(RunwayInfo? runway) => _detectedRunway = runway;
+    public void SetAircraftType(string? code) => _aircraftTypeCode = code;
 
     // =====================================================
     // MAIN PROCESSING — called at 20Hz
@@ -341,9 +348,15 @@ public class LandingAnalyzer
             RolloutDistanceFt = rolloutDistance,
             AverageDecelerationKtPerSec = avgDeceleration,
 
-            // Runway
-            RunwayIdentifier = _detectedRunway?.Identifier ?? "RWY??",
-            AirportICAO = _detectedRunway?.AirportICAO ?? "????",
+            // Runway. RunwayDetector only recognises the small built-in database (major hubs) --
+            // for everywhere else it returns null, so fall back to a heading-derived designator
+            // (the same convention real runway numbers use: nearest 10 degrees of true heading)
+            // instead of the placeholder "RWY??". AirportICAO is left blank rather than "????"
+            // when undetected; FlightSessionManager.OnLandingDetected backfills it from the
+            // active flight's arrival ICAO (known from the booking/SimBrief plan), which covers
+            // the vast majority of landings even when the runway itself isn't in the database.
+            RunwayIdentifier = _detectedRunway?.Identifier ?? GuessRunwayFromHeading(tdSnap.Raw.HeadingTrue),
+            AirportICAO = _detectedRunway?.AirportICAO ?? "",
             ThresholdDistanceFt = thresholdDistance,
 
             // Score
@@ -356,6 +369,16 @@ public class LandingAnalyzer
 
         Log.Information("[LandingAnalyzer] Landing complete. Score: {Score}/100 | VS: {VS:F0}fpm | GS: {GS:F0}kt",
             result.LandingScore, result.VerticalSpeedFPM, result.GroundSpeedKts);
+
+        // Compliance evaluation must happen here, before ResetForNextLanding() below clears
+        // _approachHistory -- it's the only source for the flaps/gear/speed-by-1000ft checks.
+        var profile = AircraftPerformanceProfiles.Find(_aircraftTypeCode);
+        LandingComplianceChecker.Evaluate(result, _approachHistory, profile, _detectedRunway);
+        if (result.RequiresReview)
+        {
+            Log.Warning("[LandingAnalyzer] Landing flagged for review: {Reasons}",
+                string.Join(" | ", result.ComplianceViolations));
+        }
 
         LandingDetected?.Invoke(this, result);
 
@@ -490,6 +513,18 @@ public class LandingAnalyzer
         double deltaV = first.GroundSpeedKts - last.GroundSpeedKts;
         double deltaT = (last.Timestamp - first.Timestamp).TotalSeconds;
         return deltaT > 0 ? deltaV / deltaT : 0;
+    }
+
+    // Real-world runway numbers ARE the nearest 10 degrees of the runway's magnetic/true heading
+    // (e.g. a runway aligned to 093° is "09"), so deriving a designator from the aircraft's own
+    // touchdown heading is a legitimate identification, not a guess at position -- it just can't
+    // know the L/C/R suffix for parallel runways, which the built-in database match (when it hits)
+    // still provides.
+    private static string GuessRunwayFromHeading(double headingTrue)
+    {
+        int rwy = (int)Math.Round(headingTrue / 10.0) % 36;
+        if (rwy <= 0) rwy += 36;
+        return rwy.ToString("00");
     }
 
     private static double CalculateThresholdDistance(TelemetrySnapshot snap, RunwayInfo runway)
