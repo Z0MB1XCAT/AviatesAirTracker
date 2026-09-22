@@ -40,9 +40,34 @@ const LIMITS = {
   resolve:      { count: 10,  window: 60 },
   manualPirep:  { count: 5,   window: 86400 },
   eventCreate:  { count: 5,   window: 600 },
+  friendAdd:    { count: 10,  window: 60 },
+  flightReview: { count: 10,  window: 60 },
+  chatStart:    { count: 5,   window: 600 },
+  chatMessage:  { count: 30,  window: 60 },
+  aiDispatchReply: { count: 20, window: 86400 },
 };
 
 const RESET_RATE_LIMIT_TTL_S = 2592000; // 30 days
+
+// ── Pilot subsidiary selection ────────────────────────────────────────────────
+// Same lowercase vocabulary as routes.fleet_group and aircraft_types.subsidiary
+// (lowercased) — see the "add_pilot_subsidiary_selection" migration.
+const SUBSIDIARIES = ["mainline", "cityhopper", "cargo"];
+// Only a move TO cityhopper/cargo counts against this cap -- moving back to
+// mainline is always free (see POST /api/portal/subsidiary's own comment).
+const SUBSIDIARY_MONTHLY_MOVE_LIMIT = 2;
+
+// Counts this pilot's moves to a non-mainline subsidiary so far in the current
+// UTC calendar month, by querying subsidiary_change_log directly rather than
+// maintaining a separate counter column -- always self-correcting across month
+// boundaries with no reset job needed.
+async function subsidiaryMovesThisMonth(env, acarsKey) {
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  return sbCount(env, "subsidiary_change_log",
+    `acars_key=eq.${encodeURIComponent(acarsKey)}&to_subsidiary=neq.mainline&changed_at=gte.${encodeURIComponent(monthStart.toISOString())}`);
+}
 
 // ============================================================
 //  LIVE MAP — Durable Object (LiveMapRoom)
@@ -483,6 +508,25 @@ async function sbInsert(env, table, data) {
   return res.json();
 }
 
+// Insert-or-update-on-conflict via PostgREST's merge-duplicates upsert. `onConflict` is a
+// comma-separated column list matching an existing unique constraint (e.g. friendships'
+// `unique (acars_key, friend_pilot_id)`).
+async function sbUpsert(env, table, data, onConflict) {
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`, {
+    method:  "POST",
+    headers: { ...sbHeaders(env), "Prefer": "resolution=merge-duplicates,return=representation" },
+    body:    JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const err  = new Error(`Supabase UPSERT ${table} → ${res.status}`);
+    err.pgCode = body.code;
+    err.detail = body.message;
+    throw err;
+  }
+  return res.json();
+}
+
 async function sbUpdate(env, table, filter, data) {
   const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${table}?${filter}`, {
     method:  "PATCH",
@@ -781,6 +825,18 @@ export default {
       const positions = res ? await res.json().catch(() => []) : [];
       return json({ positions }, 200, corsHeaders);
     }
+    // ── SUPPORT CHAT (public — no ACARS key, a website visitor may not be a pilot) ──
+    // A chat is identified by its numeric id plus a random visitor_token (returned
+    // once, on creation) that the browser keeps in localStorage — this is the only
+    // "auth" a visitor has, matching the low-stakes, no-login nature of a support
+    // widget. Admin replies go through the separate JWT-gated /admin/support/* block
+    // further down. Lives here (top level, before the /api/v1/ dispatch below) rather
+    // than inside handleV1Api, since these paths are /api/support/... not /api/v1/... —
+    // handleV1Api is only ever reached for pathnames that actually start with /api/v1/.
+    if (pathname === "/api/support/chat" || pathname.match(/^\/api\/support\/chat\/\d+\/messages$/)) {
+      return handleSupportChatApi(request, env, ctx, url, pathname, corsHeaders);
+    }
+
     if (pathname.startsWith("/api/v1/")) {
       return handleV1Api(request, env, ctx, url, pathname, corsHeaders);
     }
@@ -835,6 +891,7 @@ export default {
             pw_derived: uint8ArrayToB64(derived),
             acars_key:  acarsKey,
             friend_code: newFriendCode,
+            pilot_id:   await computePilotId(email),
             verified:   false,
             disabled:   false,
             created_at: new Date().toISOString(),
@@ -894,7 +951,7 @@ export default {
         if (!password)                return json({ success: false, error: "Missing password"  }, 400, corsHeaders);
         if (password.length > 128)    return json({ success: false, error: "Password too long" }, 400, corsHeaders);
 
-        const rows = await sbGet(env, `users?email=eq.${encodeURIComponent(email)}&select=id,email,first_name,last_name,pw_salt,pw_derived,acars_key,verified,disabled&limit=1`);
+        const rows = await sbGet(env, `users?email=eq.${encodeURIComponent(email)}&select=id,email,first_name,last_name,pw_salt,pw_derived,acars_key,verified,disabled,subsidiary&limit=1`);
         const user = (rows && rows.length > 0) ? rows[0] : null;
 
         // Always run PBKDF2 to prevent timing-based user enumeration.
@@ -932,6 +989,7 @@ export default {
         return new Response(JSON.stringify({
           success: true, session: token, acarsKey: user.acars_key,
           email: user.email, firstName: user.first_name, lastName: user.last_name,
+          subsidiary: user.subsidiary || null,
         }), {
           status: 200,
           headers: Object.assign({ "Content-Type": "application/json", "Set-Cookie": setCookie }, corsHeaders),
@@ -1366,6 +1424,127 @@ export default {
         }
       }
 
+      // ── ADMIN SUPPORT CHAT ───────────────────────────────────────────────────
+      if (pathname.startsWith("/admin/support")) {
+        const payload = await validateAdminAuth(request, env);
+        if (!payload) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
+
+        // GET /admin/support/chats?status=open|closed|all — list chats, newest activity first
+        if (request.method === "GET" && pathname === "/admin/support/chats") {
+          const status = (url.searchParams.get("status") || "open").toLowerCase();
+          const statusFilter = status === "all" ? "" : `&status=eq.${status === "closed" ? "closed" : "open"}`;
+          const rows = await sbGet(env,
+            `support_chats?order=last_message_at.desc&select=*${statusFilter}`
+          ).catch(() => []);
+          return json({
+            success: true,
+            data: (rows || []).map(c => ({
+              id: c.id, visitorName: c.visitor_name, visitorEmail: c.visitor_email,
+              status: c.status, lastMessageAt: c.last_message_at, lastMessagePreview: c.last_message_preview,
+              lastSenderType: c.last_sender_type, adminUnreadCount: c.admin_unread_count,
+              assignedAdminEmail: c.assigned_admin_email, createdAt: c.created_at,
+            })),
+          }, 200, corsHeaders);
+        }
+
+        // GET /admin/support/chats/:id/messages — full thread, marks it read by admin
+        const adminChatMsgsMatch = pathname.match(/^\/admin\/support\/chats\/(\d+)\/messages$/);
+        if (request.method === "GET" && adminChatMsgsMatch) {
+          const chatId = parseInt(adminChatMsgsMatch[1], 10);
+          try {
+            const chatRows = await sbGet(env, `support_chats?id=eq.${chatId}&select=*&limit=1`);
+            const chat = chatRows && chatRows[0];
+            if (!chat) return json({ success: false, error: "Chat not found" }, 404, corsHeaders);
+
+            const messages = await sbGet(env,
+              `support_chat_messages?chat_id=eq.${chatId}&order=id.asc&select=id,sender_type,sender_name,content,created_at`
+            );
+            if (chat.admin_unread_count > 0)
+              ctx.waitUntil(sbUpdate(env, "support_chats", `id=eq.${chatId}`, { admin_unread_count: 0 }).catch(() => {}));
+
+            return json({
+              success: true,
+              data: {
+                chat: {
+                  id: chat.id, visitorName: chat.visitor_name, visitorEmail: chat.visitor_email,
+                  status: chat.status, assignedAdminEmail: chat.assigned_admin_email, createdAt: chat.created_at,
+                },
+                messages: (messages || []).map(m => ({
+                  id: m.id, senderType: m.sender_type, senderName: m.sender_name,
+                  content: m.content, createdAt: m.created_at,
+                })),
+              },
+            }, 200, corsHeaders);
+          } catch (e) {
+            console.error("Admin support chat thread error:", e);
+            return json({ success: false, error: "Failed to load chat" }, 500, corsHeaders);
+          }
+        }
+
+        // POST /admin/support/chats/:id/messages — admin reply
+        const adminChatReplyMatch = pathname.match(/^\/admin\/support\/chats\/(\d+)\/messages$/);
+        if (request.method === "POST" && adminChatReplyMatch) {
+          const chatId = parseInt(adminChatReplyMatch[1], 10);
+          const body = await safeJson(request);
+          if (!body) return json({ success: false, error: "Invalid JSON" }, 400, corsHeaders);
+
+          const content = (body.content || "").trim().substring(0, 4000);
+          if (!content) return json({ success: false, error: "content required" }, 400, corsHeaders);
+
+          try {
+            const chatRows = await sbGet(env, `support_chats?id=eq.${chatId}&select=id,visitor_unread_count&limit=1`);
+            const chat = chatRows && chatRows[0];
+            if (!chat) return json({ success: false, error: "Chat not found" }, 404, corsHeaders);
+
+            await sbInsert(env, "support_chat_messages", {
+              chat_id:     chatId,
+              sender_type: "admin",
+              sender_name: "AviatesAir Support",
+              content,
+            });
+            await sbUpdate(env, "support_chats", `id=eq.${chatId}`, {
+              status:                "open",
+              last_message_at:       new Date().toISOString(),
+              last_message_preview:  content.substring(0, 140),
+              last_sender_type:      "admin",
+              visitor_unread_count:  (chat.visitor_unread_count || 0) + 1,
+              admin_unread_count:    0,
+              assigned_admin_email:  payload.email,
+            });
+            return json({ success: true }, 200, corsHeaders);
+          } catch (e) {
+            console.error("Admin support chat reply error:", e);
+            return json({ success: false, error: "Failed to send reply" }, 500, corsHeaders);
+          }
+        }
+
+        // POST /admin/support/chats/:id/close — mark resolved
+        const adminChatCloseMatch = pathname.match(/^\/admin\/support\/chats\/(\d+)\/close$/);
+        if (request.method === "POST" && adminChatCloseMatch) {
+          const chatId = parseInt(adminChatCloseMatch[1], 10);
+          try {
+            await sbUpdate(env, "support_chats", `id=eq.${chatId}`, { status: "closed", closed_at: new Date().toISOString() });
+            return json({ success: true }, 200, corsHeaders);
+          } catch (e) {
+            console.error("Admin support chat close error:", e);
+            return json({ success: false, error: "Failed to close chat" }, 500, corsHeaders);
+          }
+        }
+
+        // POST /admin/support/chats/:id/reopen
+        const adminChatReopenMatch = pathname.match(/^\/admin\/support\/chats\/(\d+)\/reopen$/);
+        if (request.method === "POST" && adminChatReopenMatch) {
+          const chatId = parseInt(adminChatReopenMatch[1], 10);
+          try {
+            await sbUpdate(env, "support_chats", `id=eq.${chatId}`, { status: "open", closed_at: null });
+            return json({ success: true }, 200, corsHeaders);
+          } catch (e) {
+            console.error("Admin support chat reopen error:", e);
+            return json({ success: false, error: "Failed to reopen chat" }, 500, corsHeaders);
+          }
+        }
+      }
+
       // ── ADMIN EVENTS ────────────────────────────────────────────────────────
       if (pathname.startsWith("/admin/events")) {
         const payload = await validateAdminAuth(request, env);
@@ -1442,7 +1621,7 @@ export default {
           if (!registration) return json({ success: false, error: "registration is required" }, 400, corsHeaders);
           if (!typeCode)      return json({ success: false, error: "type_code is required" }, 400, corsHeaders);
 
-          const validStatuses = ["active", "ordered", "maintenance", "stored", "retired"];
+          const validStatuses = ["active", "ordered", "maintenance", "stored", "retired", "inspection"];
           if (!validStatuses.includes(status)) return json({ success: false, error: "Invalid status" }, 400, corsHeaders);
 
           try {
@@ -1472,7 +1651,7 @@ export default {
           const body = await safeJson(request);
           if (!body) return json({ success: false, error: "Invalid JSON" }, 400, corsHeaders);
 
-          const validStatuses = ["active", "ordered", "maintenance", "stored", "retired"];
+          const validStatuses = ["active", "ordered", "maintenance", "stored", "retired", "inspection"];
           const updates = {};
           if (body.type_code !== undefined) updates.type_code = body.type_code.trim();
           if (body.status !== undefined) {
@@ -1560,6 +1739,14 @@ export default {
           if (action === "decline" && !note)
             return json({ success: false, error: "A note is required when declining a PIREP" }, 400, corsHeaders);
 
+          // Fetch the full row (not just acars_key) before updating, so a real logbook entry
+          // can be built from it below, and so re-approving an already-approved report can't
+          // insert a second duplicate flight.
+          const existingRows = await sbGet(env, `manual_pireps?id=eq.${pirepId}&select=*&limit=1`);
+          const existing = existingRows?.[0];
+          if (!existing) return json({ success: false, error: "Manual PIREP not found" }, 404, corsHeaders);
+          const wasAlreadyApproved = existing.status === "approved";
+
           await sbUpdate(env, "manual_pireps", `id=eq.${pirepId}`, {
             status:      action === "approve" ? "approved" : "declined",
             admin_note:  note || null,
@@ -1570,11 +1757,56 @@ export default {
           if (action === 'approve') {
             ctx.waitUntil((async () => {
               try {
-                const pirepRows = await sbGet(env,
-                  `manual_pireps?id=eq.${pirepId}&select=acars_key&limit=1`
-                );
-                const pilotKey = pirepRows?.[0]?.acars_key;
+                const pilotKey = existing.acars_key;
                 if (!pilotKey) return;
+
+                // Land it in the real logbook (the `pireps` table) so an approved manual report
+                // shows up as a normal flight in Flights/Pilot Hub on both the app and the
+                // website, not just in the separate Manual Logbook review list. Guarded by
+                // wasAlreadyApproved above so re-hitting this endpoint never double-inserts.
+                if (!wasAlreadyApproved) {
+                  try {
+                    // Best-effort distance lookup — routes.origin_iata/dest_iata actually hold
+                    // ICAO codes in this schema, so this matches directly on the ICAO pair.
+                    let distanceNm = 0;
+                    try {
+                      const routeRows = await sbGet(env,
+                        `routes?origin_iata=eq.${encodeURIComponent(existing.departure_icao)}&dest_iata=eq.${encodeURIComponent(existing.arrival_icao)}&select=distance_km&limit=1`
+                      );
+                      if (routeRows?.[0]?.distance_km) distanceNm = Math.round(routeRows[0].distance_km * 0.539957);
+                    } catch { /* non-fatal — falls back to 0 */ }
+
+                    await sbInsert(env, "pireps", {
+                      acars_key:       pilotKey,
+                      flight_number:   existing.flight_number || "",
+                      callsign:        existing.flight_number || existing.aircraft_reg || "",
+                      departure_icao:  existing.departure_icao,
+                      arrival_icao:    existing.arrival_icao,
+                      aircraft_type:   existing.aircraft_type,
+                      block_out_time:  null,
+                      block_in_time:   null,
+                      block_minutes:   existing.block_minutes || 0,
+                      air_minutes:     existing.block_minutes || 0,
+                      distance_nm:     distanceNm,
+                      fuel_used_lbs:   0,
+                      max_altitude_ft: 0,
+                      landing_vs_fpm:  0,
+                      landing_score:   0,
+                      route:           existing.route || "",
+                      planned_ofp:     "",
+                      submitted_at:    existing.submitted_at,
+                      status:          "accepted",
+                    });
+                    // Flag it so get_manual_pirep_stats stops counting these hours — the row
+                    // above now IS its hours contribution via get_pilot_stats, and without this
+                    // every approval would double-count toward total_hours/rank everywhere that
+                    // adds "pireps stats + manual pirep stats" together (portal profile, PIREP
+                    // submission rank sync, and this same handler's own rank sync below).
+                    await sbUpdate(env, "manual_pireps", `id=eq.${pirepId}`, { migrated_to_pireps: true });
+                  } catch (e) {
+                    console.error("Manual PIREP -> logbook insert failed (non-fatal):", e);
+                  }
+                }
 
                 const discordRows = await sbGet(env,
                   `users?acars_key=eq.${encodeURIComponent(pilotKey)}&select=discord_id,discord_rank,first_name&limit=1`
@@ -1722,7 +1954,7 @@ export default {
         const key  = body?.acarsKey;
         if (!key) return json({ success: false, error: "Missing acarsKey" }, 400, corsHeaders);
 
-        const rows = await sbGet(env, `users?acars_key=eq.${encodeURIComponent(key)}&select=email,first_name,last_name,simbrief,disabled&limit=1`);
+        const rows = await sbGet(env, `users?acars_key=eq.${encodeURIComponent(key)}&select=email,first_name,last_name,simbrief,disabled,subsidiary&limit=1`);
         if (!rows || rows.length === 0)
           return json({ success: false, error: "Invalid ACARS key" }, 401, corsHeaders);
 
@@ -1730,7 +1962,7 @@ export default {
         if (user.disabled) return json({ success: false, error: "ACARS key suspended" }, 403, corsHeaders);
 
         const pilotId = await computePilotId(user.email);
-        return json({ success: true, pilotId, email: user.email, firstName: user.first_name, lastName: user.last_name, simbrief: user.simbrief || "" }, 200, corsHeaders);
+        return json({ success: true, pilotId, email: user.email, firstName: user.first_name, lastName: user.last_name, simbrief: user.simbrief || "", subsidiary: user.subsidiary || null }, 200, corsHeaders);
       }
 
       // ── FRIEND CODE RESOLVE ─────────────────────────────────────────────────
@@ -1891,7 +2123,7 @@ export default {
         if (!portalKey) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
 
         const [authRows, statsRows, manualRows] = await Promise.all([
-          sbGet(env, `users?acars_key=eq.${encodeURIComponent(portalKey)}&select=email,first_name,last_name,simbrief,created_at,disabled,discord_username&limit=1`),
+          sbGet(env, `users?acars_key=eq.${encodeURIComponent(portalKey)}&select=email,first_name,last_name,simbrief,created_at,disabled,discord_username,subsidiary&limit=1`),
           sbRpc(env, "get_pilot_stats",        { p_acars_key: portalKey }),
           sbRpc(env, "get_manual_pirep_stats", { p_acars_key: portalKey }),
         ]);
@@ -1922,7 +2154,77 @@ export default {
           rank,
           rank_pct,
           discord_username: u.discord_username || null,
+          subsidiary: u.subsidiary || null,
         }, 200, corsHeaders);
+      }
+
+      // ── PORTAL: SUBSIDIARY INFO (current pick + moves used/remaining this month) ──
+      if (request.method === "GET" && pathname === "/api/portal/subsidiary") {
+        const authH     = request.headers.get("Authorization") || "";
+        const portalKey = authH.startsWith("Bearer ") ? authH.slice(7).trim() : "";
+        if (!portalKey) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
+
+        const principal = await verifyAcarsKey(env, portalKey);
+        if (!principal) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
+
+        const userRows = await sbGet(env, `users?acars_key=eq.${encodeURIComponent(portalKey)}&select=subsidiary&limit=1`);
+        const subsidiary = userRows?.[0]?.subsidiary || null;
+        const movesUsed = await subsidiaryMovesThisMonth(env, portalKey);
+
+        return json({
+          subsidiary,
+          moves_used_this_month: movesUsed,
+          moves_remaining_this_month: Math.max(0, SUBSIDIARY_MONTHLY_MOVE_LIMIT - movesUsed),
+        }, 200, corsHeaders);
+      }
+
+      // ── PORTAL: SUBSIDIARY CHOOSE/CHANGE ────────────────────────────────────
+      // First-ever pick (current subsidiary is null, right after signup) is always free and
+      // uncounted. After that, only a move TO cityhopper or cargo counts against the
+      // twice-a-month cap -- moving back to mainline is always free/unlimited, per the user's
+      // explicit spec ("mainline is excluded from this limit").
+      if (request.method === "POST" && pathname === "/api/portal/subsidiary") {
+        const authH     = request.headers.get("Authorization") || "";
+        const portalKey = authH.startsWith("Bearer ") ? authH.slice(7).trim() : "";
+        if (!portalKey) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
+
+        const principal = await verifyAcarsKey(env, portalKey);
+        if (!principal) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
+
+        const body = await safeJson(request);
+        if (!body) return json({ success: false, error: "Invalid JSON" }, 400, corsHeaders);
+
+        const target = (body.subsidiary || "").trim().toLowerCase();
+        if (!SUBSIDIARIES.includes(target))
+          return json({ success: false, error: `subsidiary must be one of: ${SUBSIDIARIES.join(", ")}` }, 400, corsHeaders);
+
+        const userRows = await sbGet(env, `users?acars_key=eq.${encodeURIComponent(portalKey)}&select=id,subsidiary&limit=1`);
+        const user = userRows?.[0];
+        if (!user) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
+
+        const current = user.subsidiary || null;
+        if (current === target)
+          return json({ success: false, error: `You are already assigned to ${target}.` }, 400, corsHeaders);
+
+        if (current !== null && target !== "mainline") {
+          const movesUsed = await subsidiaryMovesThisMonth(env, portalKey);
+          if (movesUsed >= SUBSIDIARY_MONTHLY_MOVE_LIMIT) {
+            return json({
+              success: false,
+              error: "You've already used both subsidiary changes this month. You can still move back to Mainline for free, or wait until next month.",
+            }, 429, corsHeaders);
+          }
+        }
+
+        await sbUpdate(env, "users", `id=eq.${user.id}`, { subsidiary: target });
+        await sbInsert(env, "subsidiary_change_log", {
+          acars_key: portalKey,
+          from_subsidiary: current,
+          to_subsidiary: target,
+          changed_at: new Date().toISOString(),
+        });
+
+        return json({ success: true, subsidiary: target }, 200, corsHeaders);
       }
 
       // ── PORTAL: PIREPS ─────────────────────────────────────────────────────
@@ -2062,6 +2364,7 @@ export default {
   // Cron triggers (add in Cloudflare Dashboard → Workers → your worker → Triggers):
   //   "0 3 * * *"   — daily cleanup
   //   "*/5 * * * *" — Discord status bot
+  //   "*/1 * * * *" — AI flight dispatcher (poll Hoppies VAOPS inbox, reply over telex)
   async scheduled(event, env, ctx) {
     if (event.cron === '0 3 * * *') {
       if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_KEY) return;
@@ -2092,8 +2395,233 @@ export default {
           .catch(e => console.error('Discord status cron failed:', e))
       );
     }
+
+    if (event.cron === '*/1 * * * *') {
+      ctx.waitUntil(
+        runAiDispatchCycle(env, ctx).catch(e => console.error('AI dispatch cron failed:', e))
+      );
+    }
   },
 };
+
+// ============================================================
+//  AI FLIGHT DISPATCHER — inbound Hoppies ACARS telex → OpenRouter → reply telex
+//
+//  Runs entirely server-side on a cron trigger, deliberately NOT from the desktop
+//  app: the Hoppies inbound queue for the company station (VAOPS) is shared across
+//  every pilot running AviatesAirTracker. A client-side poller would see every
+//  pilot's messages and could send duplicate replies to the same one — this has to
+//  be a single centralized poller, so it lives here next to the other cron jobs.
+//
+//  Persona: company flight DISPATCH, not ATC. Never issues clearances, headings,
+//  altitudes, PDC, or oceanic clearance — those get an in-character decline. No
+//  NOTAM feed either — declines those too rather than inventing one.
+// ============================================================
+
+const HOPPIE_ENDPOINT = "https://www.hoppie.nl/acars/system/connect.html";
+// Same VA operations logon HoppiesAcarsClient.cs uses client-side
+// (Core/Backend/HoppiesAcarsClient.cs). Duplicated here because this poll/reply loop
+// has to run centrally rather than per-pilot — keep both in sync if this ever rotates.
+const DISPATCH_COMPANY_LOGON = "ykWrqTsbepVQAaj";
+const DISPATCH_STATION = "VAOPS";
+// Same format bookings are validated against at creation time (see POST /api/bookings
+// below) — reused here to filter out anything that isn't one of our own pilots before
+// spending an LLM call on it.
+const DISPATCH_CALLSIGN_RE = /^(VAV|VAC|VAH)\d{1,4}[A-Z]{0,2}$/;
+const TELEX_MAX_CHARS = 210; // Hoppies' practical telex limit is ~220 — leave margin.
+
+// Parses Hoppie's poll response format: bare "ok" when the queue is empty, or
+// "ok {FACILITY type {packet}} {FACILITY type {packet}} ..." when there are
+// messages waiting (confirmed against Hoppie's own connect.html protocol docs).
+// Written as a manual brace-depth scanner rather than one regex because packet text
+// is free-form pilot input and can itself contain stray braces — a pilot typing a
+// literal "{" or "}" in their message can still throw off entry boundaries here;
+// worth sending a real test message during setup to confirm this holds up in
+// practice rather than trusting the docs alone (this codebase has been bitten
+// before by an external API's documented format not matching reality).
+function parseHoppiePollResponse(body) {
+  const text = (body || "").trim();
+  if (!text.startsWith("ok")) return [];
+  const rest = text.slice(2).trim();
+  const entries = [];
+  let i = 0;
+  while (i < rest.length) {
+    if (rest[i] !== "{") { i++; continue; }
+    let depth = 0, start = i;
+    for (; i < rest.length; i++) {
+      if (rest[i] === "{") depth++;
+      else if (rest[i] === "}") { depth--; if (depth === 0) { i++; break; } }
+    }
+    const inner = rest.slice(start + 1, i - 1);
+    const m = inner.match(/^(\S+)\s+(\S+)\s+\{([\s\S]*)\}$/);
+    if (m) entries.push({ facility: m[1], type: m[2], packet: m[3] });
+  }
+  return entries;
+}
+
+async function pollHoppieInbound() {
+  const url = `${HOPPIE_ENDPOINT}?logon=${encodeURIComponent(DISPATCH_COMPANY_LOGON)}` +
+    `&from=${DISPATCH_STATION}&to=${DISPATCH_STATION}&type=poll`;
+  const res = await fetch(url);
+  const body = await res.text();
+  return parseHoppiePollResponse(body);
+}
+
+async function sendHoppieTelex(toCallsign, message) {
+  const url = `${HOPPIE_ENDPOINT}?logon=${encodeURIComponent(DISPATCH_COMPANY_LOGON)}` +
+    `&from=${DISPATCH_STATION}&to=${encodeURIComponent(toCallsign)}&type=telex&packet=${encodeURIComponent(message)}`;
+  const res = await fetch(url);
+  const body = (await res.text()).trim();
+  return res.ok && body.toLowerCase().startsWith("ok");
+}
+
+// Splits a reply into <= TELEX_MAX_CHARS chunks on word boundaries (never mid-word —
+// this is going out as real ACARS telex text). Hard-capped at 3 telexes per reply so
+// a verbose model output can never turn into a spam burst.
+function splitTelexChunks(text) {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (clean.length <= TELEX_MAX_CHARS) return [clean];
+  const words = clean.split(" ");
+  const chunks = [];
+  let cur = "";
+  for (const w of words) {
+    if ((cur + " " + w).trim().length > TELEX_MAX_CHARS) {
+      if (cur) chunks.push(cur.trim());
+      cur = w;
+    } else {
+      cur = (cur + " " + w).trim();
+    }
+  }
+  if (cur) chunks.push(cur.trim());
+  return chunks.slice(0, 3);
+}
+
+// Looks up a pilot's live position/route by callsign in the LiveMapRoom Durable
+// Object, already fed by the desktop app's existing position/flight-start pushes
+// (POST /api/v1/acars/position, /api/v1/acars/flight-start below) — no new
+// client-side plumbing needed. Returns null if the callsign isn't currently
+// tracked (pilot not flying right now, or the app isn't running).
+async function findLiveFlightByCallsign(env, callsign) {
+  if (!env.LIVE_MAP_ROOM) return null;
+  try {
+    const res = await liveMapRoomFetch(env, "/list", { method: "GET" });
+    const list = await res.json();
+    return list.find(p => (p.callsign || "").toUpperCase() === callsign.toUpperCase()) || null;
+  } catch (e) {
+    console.error("[AiDispatch] live map lookup failed:", e);
+    return null;
+  }
+}
+
+function buildDispatcherSystemPrompt(flight) {
+  const persona = [
+    "You are AVIATES OPS, the company flight dispatcher for the AviatesAir virtual airline,",
+    "replying to a pilot over the real Hoppies ACARS network as a plain-text telex.",
+    "Voice: a real airline dispatcher — terse, professional, standard dispatch phraseology",
+    "and abbreviations (RTE, DEP, ARR, WX, ADVS, CONFIRM, FLT, ETA). No greetings, no",
+    "sign-off, no pleasantries, no markdown, no emoji.",
+    `Keep the ENTIRE reply under ${TELEX_MAX_CHARS} characters — one short telex.`,
+    "",
+    "You are DISPATCH, not ATC. Never issue or invent a clearance, PDC, oceanic",
+    "clearance, heading, squawk, or altitude assignment. If asked for one, decline in",
+    "character and tell the pilot to contact ATC / clearance delivery directly.",
+    "You have no NOTAM feed — if asked for NOTAMs, tell them to check the OFP.",
+  ].join(" ");
+
+  const context = flight
+    ? `Live flight data for ${flight.callsign}: departure ${flight.departureIcao || "?"}, ` +
+      `arrival ${flight.arrivalIcao || "?"}, position ${flight.lat != null ? flight.lat.toFixed(2) : "?"},` +
+      `${flight.lon != null ? flight.lon.toFixed(2) : "?"}, altitude ${flight.alt || 0}ft, ` +
+      `ground speed ${flight.speed || 0}kt, phase ${flight.phase || "unknown"}.`
+    : "No live telemetry is available for this aircraft right now — answer generally, " +
+      "and say so plainly if a precise figure was asked for.";
+
+  return `${persona}\n\n${context}`;
+}
+
+async function callOpenRouter(env, systemPrompt, userMessage) {
+  // Free-tier OpenRouter model names rotate — confirm this string against
+  // OpenRouter's current model list before relying on the default, or set
+  // OPENROUTER_MODEL in the dashboard to override it without a redeploy.
+  const model = env.OPENROUTER_MODEL || "meta-llama/llama-3.1-8b-instruct:free";
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      max_tokens: 120,
+      temperature: 0.4,
+    }),
+  });
+  if (!res.ok) throw new Error(`OpenRouter → ${res.status} ${await res.text().catch(() => "")}`);
+  const data = await res.json();
+  return (data.choices?.[0]?.message?.content || "").trim();
+}
+
+// One inbound message → one grounded (or ungrounded) dispatcher reply. Never throws —
+// any failure is logged and swallowed so one bad message can't break the whole cycle.
+async function handleInboundDispatchMessage(env, ctx, entry) {
+  const callsign = (entry.facility || "").toUpperCase();
+  if (!DISPATCH_CALLSIGN_RE.test(callsign)) return; // not one of our pilots — skip, no LLM spent
+
+  const requestText = (entry.packet || "").trim().slice(0, 500);
+  if (!requestText) return;
+
+  if (!(await rateLimit(env, ctx, `ai_dispatch:${callsign}`, LIMITS.aiDispatchReply))) return;
+
+  try {
+    const flight = await findLiveFlightByCallsign(env, callsign);
+    const systemPrompt = buildDispatcherSystemPrompt(flight);
+    const reply = await callOpenRouter(env, systemPrompt, requestText);
+    if (!reply) return;
+
+    for (const chunk of splitTelexChunks(reply)) {
+      await sendHoppieTelex(callsign, chunk);
+    }
+
+    if (env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY) {
+      ctx.waitUntil(
+        sbInsert(env, "dispatch_ai_log", {
+          callsign,
+          request_text: requestText,
+          reply_text: reply,
+          matched_live_flight: !!flight,
+          sent_at: new Date().toISOString(),
+        }).catch(e => console.error("[AiDispatch] log insert failed:", e))
+      );
+    }
+  } catch (e) {
+    console.error(`[AiDispatch] failed for ${callsign}:`, e);
+  }
+}
+
+async function runAiDispatchCycle(env, ctx) {
+  if (env.AI_DISPATCH_ENABLED === "false") return;
+  if (!env.OPENROUTER_API_KEY) {
+    console.error("[AiDispatch] OPENROUTER_API_KEY not configured — skipping cycle");
+    return;
+  }
+
+  let entries;
+  try {
+    entries = await pollHoppieInbound();
+  } catch (e) {
+    console.error("[AiDispatch] Hoppies poll failed:", e);
+    return;
+  }
+
+  const telexes = entries.filter(e => e.type === "telex" && e.packet);
+  for (const entry of telexes) {
+    await handleInboundDispatchMessage(env, ctx, entry);
+  }
+}
 
 // ============================================================
 //  ROUTES API — backed by Supabase (was Cloudflare D1)
@@ -2258,6 +2786,16 @@ async function handleEventsApi(request, env, corsHeaders, ctx) {
       if (!(await rateLimit(env, ctx, `eventcreate:${acarsKey}`, LIMITS.eventCreate)))
         return rateLimitResponse(corsHeaders);
 
+      // One pilot-created event per rolling 30 days. Checked against the DB directly (not the
+      // in-memory rate limiter above, which only covers short bursts and resets on isolate
+      // recycle) since this window is long enough that it must survive across requests/isolates.
+      const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const recentCount = await sbCount(env, "events",
+        `created_by=eq.${encodeURIComponent(acarsKey)}&created_at=gt.${encodeURIComponent(monthAgo)}`);
+      if (recentCount >= 1) {
+        return json({ error: "You can only create 1 event per month" }, 429, corsHeaders);
+      }
+
       const body = await safeJson(request);
       if (!body) return json({ error: "Invalid JSON" }, 400, corsHeaders);
 
@@ -2267,12 +2805,17 @@ async function handleEventsApi(request, env, corsHeaders, ctx) {
       const timeUtc             = (body.timeUtc             || "").trim().substring(0, 10);
       const route               = (body.route               || "").trim().substring(0, 100);
       const aircraftRestriction = (body.aircraftRestriction || "").trim().substring(0, 100);
-      const rankRestriction     = (body.rankRestriction     || "").trim().substring(0, 100);
-      const maxParticipants     = Math.max(0, Math.min(9999, parseInt(body.maxParticipants || "0", 10) || 0));
 
       if (!title) return json({ error: "Title is required" }, 400, corsHeaders);
       if (!eventDate || !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
         return json({ error: "Valid event date (YYYY-MM-DD) required" }, 400, corsHeaders);
+      }
+      // Reject any date/time already in the past -- server-side backstop for the client's own
+      // CalendarDatePicker.MinDate/time check (CreateEventDialog.cs), since a client check alone
+      // can always be bypassed by calling this endpoint directly.
+      const eventDateTime = new Date(`${eventDate}T${/^\d{2}:\d{2}$/.test(timeUtc) ? timeUtc : "00:00"}:00Z`);
+      if (isNaN(eventDateTime.getTime()) || eventDateTime <= new Date()) {
+        return json({ error: "Event date/time must be in the future" }, 400, corsHeaders);
       }
       if (containsBlockedContent(title) || containsBlockedContent(description))
         return json({ error: "Event contains inappropriate content" }, 422, corsHeaders);
@@ -2281,15 +2824,31 @@ async function handleEventsApi(request, env, corsHeaders, ctx) {
       const createdByName = `${user.first_name} ${user.last_name}`.trim();
       const createdAt     = new Date().toISOString();
 
+      // rank_restriction/max_participants are no longer settable by pilots -- every event is
+      // open to any rank and unlimited participants now (both columns stay in the table for any
+      // existing rows, just never written from here again).
       const rows = await sbInsert(env, "events", {
         title, description, event_date: eventDate, time_utc: timeUtc,
         route, aircraft_restriction: aircraftRestriction,
-        rank_restriction: rankRestriction, created_by: acarsKey,
+        rank_restriction: "", created_by: acarsKey,
         created_by_name: createdByName, created_at: createdAt,
-        max_participants: maxParticipants, status: "upcoming",
+        max_participants: 0, status: "upcoming",
       });
 
       return json({ success: true, id: rows[0]?.id }, 200, corsHeaders);
+    }
+
+    // ── GET /api/events/:id/attendees ────────────────────────────────────────
+    // Attendee names for the "who's attending" list on an event's card/detail view. Public (no
+    // auth) -- matches GET /api/events/:id's own no-auth-required visibility.
+    const attendeesMatch = pathname.match(/^\/api\/events\/(\d+)\/attendees$/);
+    if (method === "GET" && attendeesMatch) {
+      const eventId = parseInt(attendeesMatch[1], 10);
+      if (isNaN(eventId) || eventId < 1) return json({ error: "Invalid event id" }, 400, corsHeaders);
+
+      const rows = await sbGet(env,
+        `event_registrations?event_id=eq.${eventId}&select=pilot_name,registered_at&order=registered_at.asc`);
+      return json({ attendees: rows || [] }, 200, corsHeaders);
     }
 
     // POST /api/events/:id/register|unregister
@@ -2384,16 +2943,27 @@ async function handleBookingsApi(request, env, corsHeaders) {
       const body = await safeJson(request);
       if (!body) return json({ error: "Invalid JSON" }, 400, corsHeaders);
 
-      const routeId      = parseInt(body.route_id, 10);
+      const isCharter    = !!body.is_charter;
       const callsign     = (body.callsign      || "").trim().toUpperCase().substring(0, 10);
       const aircraftType = (body.aircraft_type || "").trim().substring(0, 20);
       const registration = (body.registration  || "").trim().substring(0, 20) || null;
       const scheduledDep = (body.scheduled_dep || "").trim();
 
-      if (!routeId || isNaN(routeId)) return json({ error: "Valid route_id required"            }, 400, corsHeaders);
-      if (!callsign)                  return json({ error: "callsign required"                  }, 400, corsHeaders);
-      if (!aircraftType)              return json({ error: "aircraft_type required"              }, 400, corsHeaders);
-      if (!scheduledDep)              return json({ error: "scheduled_dep required"              }, 400, corsHeaders);
+      if (!callsign)                  return json({ error: "callsign required"     }, 400, corsHeaders);
+      if (!aircraftType)              return json({ error: "aircraft_type required" }, 400, corsHeaders);
+      if (!scheduledDep)              return json({ error: "scheduled_dep required" }, 400, corsHeaders);
+
+      // Server-side re-check of the grounding the app's own registration dropdown already
+      // filters -- the dropdown just hides a grounded tail number, it doesn't stop a request
+      // built directly against this endpoint from naming one.
+      if (registration) {
+        const regRows = await sbGet(env,
+          `aircraft_registrations?registration=eq.${encodeURIComponent(registration)}&select=status,grounded_until&limit=1`);
+        const reg = regRows?.[0];
+        if (reg && reg.status === "inspection" && (!reg.grounded_until || reg.grounded_until > new Date().toISOString())) {
+          return json({ error: `${registration} is grounded for inspection${reg.grounded_until ? ` until ${reg.grounded_until}` : ""}` }, 409, corsHeaders);
+        }
+      }
 
       if (!/^(VAV|VAC|VAH)\d{1,4}[A-Z]{0,2}$/.test(callsign) || callsign.length > 7) {
         return json({ error: "Invalid callsign format" }, 400, corsHeaders);
@@ -2410,10 +2980,59 @@ async function handleBookingsApi(request, env, corsHeaders) {
         return json({ error: "Bookings cannot be made more than 90 days in advance" }, 400, corsHeaders);
       }
 
-      // Check route exists
-      const routeRows = await sbGet(env, `routes?id=eq.${routeId}&select=id&limit=1`);
-      if (!routeRows || routeRows.length === 0) {
-        return json({ error: "Route not found" }, 404, corsHeaders);
+      // A charter must still fly one of our real aircraft (server-side, not just the app's
+      // dropdown) — but it can go anywhere, so there's no route-network check for it at all.
+      // A normal booking keeps the route-network check it always had.
+      let routeId = null;
+      let charterOriginIcao = null;
+      let charterDestIcao = null;
+
+      if (isCharter) {
+        charterOriginIcao = (body.charter_origin_icao || "").trim().toUpperCase().substring(0, 4);
+        charterDestIcao   = (body.charter_dest_icao   || "").trim().toUpperCase().substring(0, 4);
+
+        if (!/^[A-Z0-9]{4}$/.test(charterOriginIcao) || !/^[A-Z0-9]{4}$/.test(charterDestIcao)) {
+          return json({ error: "Valid 4-letter departure and arrival ICAO codes required" }, 400, corsHeaders);
+        }
+        if (charterOriginIcao === charterDestIcao) {
+          return json({ error: "Departure and arrival must be different airports" }, 400, corsHeaders);
+        }
+
+        const typeRows = await sbGet(env, `aircraft_types?type_code=eq.${encodeURIComponent(aircraftType)}&select=type_code&limit=1`);
+        if (!typeRows || typeRows.length === 0) {
+          return json({ error: "Aircraft type is not part of the AviatesAir fleet" }, 400, corsHeaders);
+        }
+      } else {
+        routeId = parseInt(body.route_id, 10);
+        if (!routeId || isNaN(routeId)) return json({ error: "Valid route_id required" }, 400, corsHeaders);
+
+        const routeRows = await sbGet(env, `routes?id=eq.${routeId}&select=id,fleet_group&limit=1`);
+        if (!routeRows || routeRows.length === 0) {
+          return json({ error: "Route not found" }, 404, corsHeaders);
+        }
+
+        // Subsidiary lock: a normal (non-charter) booking must be for the pilot's own
+        // subsidiary's routes. Charter (the `if` branch above) deliberately has no equivalent
+        // check -- per spec, charter always bypasses the subsidiary restriction. A pilot who
+        // hasn't chosen a subsidiary yet (subsidiary is null) is blocked from scheduled
+        // bookings entirely rather than left unrestricted -- an unrestricted null was this
+        // gate's original behavior, but it meant an app-only pilot who never visits the
+        // website (the only place the subsidiary picker lives) could book across every
+        // subsidiary forever. Charter still works with no subsidiary chosen.
+        const pilotRows = await sbGet(env,
+          `users?acars_key=eq.${encodeURIComponent(principal.acarsKey)}&select=subsidiary&limit=1`);
+        const pilotSubsidiary = pilotRows?.[0]?.subsidiary || null;
+        const routeSubsidiary = routeRows[0].fleet_group;
+        if (!pilotSubsidiary) {
+          return json({
+            error: "Choose a subsidiary (Mainline, Cityhopper, or Sky Cargo) at flyaviatesair.uk/portal/profile before booking a scheduled route -- or use Charter, which has no subsidiary restriction.",
+          }, 403, corsHeaders);
+        }
+        if (routeSubsidiary && pilotSubsidiary !== routeSubsidiary) {
+          return json({
+            error: `This route belongs to a different subsidiary (${routeSubsidiary}). You're currently assigned to ${pilotSubsidiary} -- switch subsidiary in your portal profile, or use Charter to bypass this.`,
+          }, 403, corsHeaders);
+        }
       }
 
       // Enforce max active bookings
@@ -2427,14 +3046,40 @@ async function handleBookingsApi(request, env, corsHeaders) {
 
       const createdAt = new Date().toISOString();
       const inserted  = await sbInsert(env, "bookings", {
-        acars_key: principal.acarsKey, route_id: routeId, callsign,
-        aircraft_type: aircraftType, registration, scheduled_dep: scheduledDep,
+        acars_key: principal.acarsKey, route_id: routeId,
+        charter_origin_icao: charterOriginIcao, charter_dest_icao: charterDestIcao,
+        callsign, aircraft_type: aircraftType, registration, scheduled_dep: scheduledDep,
         status: "confirmed", created_at: createdAt,
       });
       const newId = inserted[0]?.id;
 
       const created = await sbRpc(env, "get_booking_by_id", { p_id: newId });
       return json(created?.[0] ?? inserted[0], 200, Object.assign({ "Cache-Control": "no-store" }, corsHeaders));
+    }
+
+    // POST /api/bookings/:id/activate — one-way: opens the pilot's SimBrief dispatch (client-side)
+    // and locks the booking so it can no longer be cancelled. Idempotency is deliberately NOT
+    // offered here (a second call 409s) — there is no "deactivate".
+    const activateMatch = pathname.match(/^\/api\/bookings\/(\d+)\/activate$/);
+    if (method === "POST" && activateMatch) {
+      const principal = await authenticate();
+      if (!principal) return json({ error: "Invalid or missing ACARS key" }, 401, corsHeaders);
+
+      const bookingId = parseInt(activateMatch[1], 10);
+      if (isNaN(bookingId) || bookingId < 1) return json({ error: "Invalid booking id" }, 400, corsHeaders);
+
+      const rows = await sbGet(env, `bookings?id=eq.${bookingId}&select=id,acars_key,status,activated_at&limit=1`);
+      if (!rows || rows.length === 0) return json({ error: "Booking not found" }, 404, corsHeaders);
+
+      const booking = rows[0];
+      if (booking.acars_key !== principal.acarsKey) return json({ error: "Forbidden" }, 403, corsHeaders);
+      if (booking.status !== "confirmed") return json({ error: "Only a confirmed booking can be activated" }, 409, corsHeaders);
+      if (booking.activated_at)           return json({ error: "Booking is already activated" }, 409, corsHeaders);
+
+      await sbUpdate(env, "bookings", `id=eq.${bookingId}`, { activated_at: new Date().toISOString() });
+
+      const updated = await sbRpc(env, "get_booking_by_id", { p_id: bookingId });
+      return json(updated?.[0] ?? { success: true }, 200, corsHeaders);
     }
 
     // DELETE /api/bookings/:id
@@ -2446,12 +3091,13 @@ async function handleBookingsApi(request, env, corsHeaders) {
       const bookingId = parseInt(deleteMatch[1], 10);
       if (isNaN(bookingId) || bookingId < 1) return json({ error: "Invalid booking id" }, 400, corsHeaders);
 
-      const rows = await sbGet(env, `bookings?id=eq.${bookingId}&select=id,acars_key,status&limit=1`);
+      const rows = await sbGet(env, `bookings?id=eq.${bookingId}&select=id,acars_key,status,activated_at&limit=1`);
       if (!rows || rows.length === 0) return json({ error: "Booking not found" }, 404, corsHeaders);
 
       const booking = rows[0];
       if (booking.acars_key !== principal.acarsKey) return json({ error: "Forbidden" }, 403, corsHeaders);
       if (booking.status === "cancelled")           return json({ error: "Booking is already cancelled" }, 409, corsHeaders);
+      if (booking.activated_at)                     return json({ error: "Booking is activated and can no longer be cancelled" }, 409, corsHeaders);
 
       await sbUpdate(env, "bookings", `id=eq.${bookingId}`, { status: "cancelled" });
       return json({ success: true }, 200, corsHeaders);
@@ -2574,9 +3220,18 @@ async function handleFleetApi(request, env, corsHeaders, ctx) {
 
       const typeCode = decodeURIComponent(regMatch[1]);
       const rows     = await sbGet(env,
-        `aircraft_registrations?type_code=eq.${encodeURIComponent(typeCode)}&select=registration,type_code,status,msn,delivery_date,expected_delivery,hub_icao,total_flights,total_hours_tenths,notes&order=status.asc,registration.asc`
+        `aircraft_registrations?type_code=eq.${encodeURIComponent(typeCode)}&select=registration,type_code,status,msn,delivery_date,expected_delivery,hub_icao,total_flights,total_hours_tenths,notes,grounded_until&order=status.asc,registration.asc`
       );
-      return cachedJsonResponse(ctx, request, rows || [], 600, corsHeaders);
+      // A hard landing (see POST /api/v1/pireps) puts a registration into "inspection" with
+      // grounded_until set ~7 days out. It stays excluded from the bookable list until that
+      // timestamp passes -- there's no cron to flip status back to "active" automatically, so
+      // this is a live check on every read rather than a one-time write. An admin-set
+      // "inspection" with no grounded_until (manual, via /admin/aircraft-registrations) stays
+      // excluded indefinitely until manually reverted, which is the intended fallback.
+      const nowIso = new Date().toISOString();
+      const visible = (rows || []).filter(r =>
+        r.status !== "inspection" || (r.grounded_until && r.grounded_until <= nowIso));
+      return cachedJsonResponse(ctx, request, visible, 600, corsHeaders);
     }
 
     // GET /api/fleet/types
@@ -2637,9 +3292,10 @@ async function handlePublicApi(request, env, corsHeaders, ctx) {
       const cached = await fromCache(request, corsHeaders);
       if (cached) return cached;
 
-      const [totalPilots, routeSummaryRows] = await Promise.all([
+      const [totalPilots, routeSummaryRows, subsidiaryStatsRows] = await Promise.all([
         sbCount(env, "users", "verified=eq.true&disabled=eq.false"),
         sbRpc(env, "get_routes_summary"),
+        sbRpc(env, "get_subsidiary_stats"),
       ]);
 
       const summary = { total: 0, mainline: 0, cargo: 0, cityhopper: 0 };
@@ -2647,6 +3303,19 @@ async function handlePublicApi(request, env, corsHeaders, ctx) {
         const n = Number(row.count);
         summary[row.fleet_group] = n;
         summary.total += n;
+      }
+
+      // Per-subsidiary route/fleet/pilot-signed-up counts, for the signup subsidiary-choice
+      // screen and the portal's "switch subsidiary" page (see get_subsidiary_stats() migration
+      // "add_pilot_subsidiary_selection"). Distinct from `routes`/`fleetActivity` above (existing
+      // fields, left untouched) — fleetActivity there means "currently flying", not fleet size.
+      const subsidiaries = {};
+      for (const row of (subsidiaryStatsRows || [])) {
+        subsidiaries[row.subsidiary] = {
+          routeCount: Number(row.route_count) || 0,
+          fleetCount: Number(row.fleet_count) || 0,
+          pilotCount: Number(row.pilot_count) || 0,
+        };
       }
 
       return cachedJsonResponse(ctx, request, {
@@ -2664,6 +3333,7 @@ async function handlePublicApi(request, env, corsHeaders, ctx) {
           cargo:      0,
           cityhopper: 0,
         },
+        subsidiaries,
       }, 600, corsHeaders);
     }
 
@@ -2678,13 +3348,25 @@ async function handlePublicApi(request, env, corsHeaders, ctx) {
 // ============================================================
 //  V1 API — ACARS client endpoints (auth via Bearer ACARS key)
 //
-//  POST   /api/v1/pireps                  — submit a completed PIREP
+//  POST   /api/v1/pireps                  — submit a completed PIREP (with an optional
+//                                            "landings" array, stored in landings, one row
+//                                            per touchdown -- see below)
 //  GET    /api/v1/pireps                  — fetch caller's PIREP history (limit=100)
+//  GET    /api/v1/landings                — fetch caller's full landing history (limit=200),
+//                                            for account-portability: reconstructs local
+//                                            Pilot Hub landing detail on a new device
 //  GET    /api/v1/pilots/:id/stats        — aggregate stats for a pilot
 //  GET    /api/v1/routes/validate         — check dep/arr against route network
 //  POST   /api/v1/messages               — send a direct or broadcast message
 //  GET    /api/v1/messages/inbox          — fetch DMs addressed to calling pilot
 //  GET    /api/v1/messages/broadcast      — fetch latest broadcast messages
+//  GET    /api/v1/is-admin                 — whether the caller's email matches admin_users
+//  POST   /api/v1/friends                 — add a friend (upsert into friendships)
+//  GET    /api/v1/friends                 — fetch caller's friend list, for
+//                                            account-portability
+//  GET    /api/v1/friends/activity        — caller's friends' most recent flights
+//                                            (Dashboard activity feed)
+//  DELETE /api/v1/friends/:pilotId        — remove a friend
 // ============================================================
 
 // Derive a stable 32-hex-char pilot ID from an email address.
@@ -2692,6 +3374,182 @@ async function handlePublicApi(request, env, corsHeaders, ctx) {
 async function computePilotId(email) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("AVIATES_ID:" + email));
   return Array.from(new Uint8Array(buf)).slice(0, 16).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Clamps/coerces one client-submitted landing into a safe `landings` row. Mirrors the same
+// defensive parseInt/parseFloat-with-fallback style already used for the pireps payload above.
+function sanitizeLandingRow(l, acarsKey, pirepId) {
+  const num = (v, max) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return 0;
+    return max !== undefined ? Math.min(Math.max(n, -max), max) : n;
+  };
+  const int = (v, max) => Math.round(num(v, max));
+  return {
+    acars_key:             acarsKey,
+    pirep_id:              pirepId,
+    touchdown_at:          l.touchdown_at || new Date().toISOString(),
+    airport_icao:          (l.airport_icao      || "").trim().toUpperCase().substring(0, 4),
+    runway_identifier:     (l.runway_identifier || "").trim().toUpperCase().substring(0, 4),
+    touchdown_lat:         l.touchdown_lat != null ? num(l.touchdown_lat, 90)  : null,
+    touchdown_lon:         l.touchdown_lon != null ? num(l.touchdown_lon, 180) : null,
+    vs_fpm:                num(l.vs_fpm, 20000),
+    ias_kts:               num(l.ias_kts, 2000),
+    gs_kts:                num(l.gs_kts, 2000),
+    pitch_deg:             num(l.pitch_deg, 90),
+    bank_deg:              num(l.bank_deg, 180),
+    headwind_kt:           num(l.headwind_kt, 500),
+    crosswind_kt:          num(l.crosswind_kt, 500),
+    wind_speed_kt:         num(l.wind_speed_kt, 500),
+    wind_dir_deg:          num(l.wind_dir_deg, 360),
+    approach_stable:       !!l.approach_stable,
+    flare_detected:        !!l.flare_detected,
+    bounce_count:          int(l.bounce_count, 100),
+    rollout_distance_ft:   num(l.rollout_distance_ft, 100000),
+    avg_deceleration:      num(l.avg_deceleration, 1000),
+    threshold_distance_ft: num(l.threshold_distance_ft, 100000),
+    fuel_on_touchdown_lbs: num(l.fuel_on_touchdown_lbs, 1000000),
+    score:                 int(l.score, 100),
+    score_vs:              int(l.score_vs, 100),
+    score_pitch:           int(l.score_pitch, 100),
+    score_bank:            int(l.score_bank, 100),
+    score_speed:           int(l.score_speed, 100),
+    score_crosswind:       int(l.score_crosswind, 100),
+    score_stability:       int(l.score_stability, 100),
+  };
+}
+
+// Public visitor-facing support-chat endpoints — /api/support/chat and
+// /api/support/chat/:id/messages (POST + GET). Not nested under /api/v1/, so this is
+// dispatched directly from fetch() rather than through handleV1Api.
+async function handleSupportChatApi(request, env, ctx, url, pathname, corsHeaders) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+
+  // POST /api/support/chat — start a new chat with its first message
+  if (request.method === "POST" && pathname === "/api/support/chat") {
+    if (!(await rateLimit(env, ctx, `chatstart:${ip}`, LIMITS.chatStart)))
+      return rateLimitResponse(corsHeaders);
+
+    const body = await safeJson(request);
+    if (!body) return json({ success: false, error: "Invalid JSON" }, 400, corsHeaders);
+
+    const name = (body.name || "").trim().substring(0, 80);
+    if (!name) return json({ success: false, error: "name required" }, 400, corsHeaders);
+
+    const email = (body.email || "").trim().substring(0, 200);
+    if (email && !isValidEmail(email))
+      return json({ success: false, error: "Invalid email" }, 400, corsHeaders);
+
+    const message = (body.message || "").trim().substring(0, 2000);
+    if (!message) return json({ success: false, error: "message required" }, 400, corsHeaders);
+    if (containsBlockedContent(message))
+      return json({ success: false, error: "Message contains inappropriate content" }, 422, corsHeaders);
+
+    try {
+      const [chat] = await sbInsert(env, "support_chats", {
+        visitor_name:          name,
+        visitor_email:         email || null,
+        last_message_preview:  message.substring(0, 140),
+        last_sender_type:      "visitor",
+        admin_unread_count:    1,
+      });
+      await sbInsert(env, "support_chat_messages", {
+        chat_id:     chat.id,
+        sender_type: "visitor",
+        sender_name: name,
+        content:     message,
+      });
+      return json({ success: true, data: { chatId: chat.id, visitorToken: chat.visitor_token } }, 201, corsHeaders);
+    } catch (e) {
+      console.error("Support chat create error:", e);
+      return json({ success: false, error: "Failed to start chat" }, 500, corsHeaders);
+    }
+  }
+
+  // POST /api/support/chat/:id/messages — visitor sends a follow-up message
+  const chatMsgMatch = pathname.match(/^\/api\/support\/chat\/(\d+)\/messages$/);
+  if (request.method === "POST" && chatMsgMatch) {
+    const chatId = parseInt(chatMsgMatch[1], 10);
+    const body = await safeJson(request);
+    if (!body) return json({ success: false, error: "Invalid JSON" }, 400, corsHeaders);
+
+    const visitorToken = (body.visitorToken || "").trim();
+    if (!visitorToken) return json({ success: false, error: "visitorToken required" }, 400, corsHeaders);
+
+    if (!(await rateLimit(env, ctx, `chatmsg:${visitorToken}`, LIMITS.chatMessage)))
+      return rateLimitResponse(corsHeaders);
+
+    const content = (body.content || "").trim().substring(0, 2000);
+    if (!content) return json({ success: false, error: "content required" }, 400, corsHeaders);
+    if (containsBlockedContent(content))
+      return json({ success: false, error: "Message contains inappropriate content" }, 422, corsHeaders);
+
+    try {
+      const rows = await sbGet(env, `support_chats?id=eq.${chatId}&select=id,visitor_token,visitor_name,status,admin_unread_count&limit=1`);
+      const chat = rows && rows[0];
+      if (!chat || chat.visitor_token !== visitorToken)
+        return json({ success: false, error: "Chat not found" }, 404, corsHeaders);
+      if (chat.status === "closed")
+        return json({ success: false, error: "This chat has been closed" }, 409, corsHeaders);
+
+      await sbInsert(env, "support_chat_messages", {
+        chat_id:     chatId,
+        sender_type: "visitor",
+        sender_name: chat.visitor_name,
+        content,
+      });
+      await sbUpdate(env, "support_chats", `id=eq.${chatId}`, {
+        last_message_at:      new Date().toISOString(),
+        last_message_preview: content.substring(0, 140),
+        last_sender_type:     "visitor",
+        admin_unread_count:   (chat.admin_unread_count || 0) + 1,
+      });
+      return json({ success: true }, 200, corsHeaders);
+    } catch (e) {
+      console.error("Support chat message error:", e);
+      return json({ success: false, error: "Failed to send message" }, 500, corsHeaders);
+    }
+  }
+
+  // GET /api/support/chat/:id/messages?visitorToken=...&after=<messageId> — visitor polls
+  const chatPollMatch = pathname.match(/^\/api\/support\/chat\/(\d+)\/messages$/);
+  if (request.method === "GET" && chatPollMatch) {
+    const chatId = parseInt(chatPollMatch[1], 10);
+    const visitorToken = (url.searchParams.get("visitorToken") || "").trim();
+    if (!visitorToken) return json({ success: false, error: "visitorToken required" }, 400, corsHeaders);
+
+    try {
+      const rows = await sbGet(env, `support_chats?id=eq.${chatId}&select=id,visitor_token,status&limit=1`);
+      const chat = rows && rows[0];
+      if (!chat || chat.visitor_token !== visitorToken)
+        return json({ success: false, error: "Chat not found" }, 404, corsHeaders);
+
+      const after = parseInt(url.searchParams.get("after"), 10);
+      const filter = Number.isFinite(after)
+        ? `chat_id=eq.${chatId}&id=gt.${after}&order=id.asc&select=id,sender_type,sender_name,content,created_at`
+        : `chat_id=eq.${chatId}&order=id.asc&select=id,sender_type,sender_name,content,created_at`;
+      const messages = await sbGet(env, `support_chat_messages?${filter}`);
+
+      // Visitor has now seen everything up to this point — clear their unread badge.
+      ctx.waitUntil(sbUpdate(env, "support_chats", `id=eq.${chatId}`, { visitor_unread_count: 0 }).catch(() => {}));
+
+      return json({
+        success: true,
+        data: {
+          status: chat.status,
+          messages: (messages || []).map(m => ({
+            id: m.id, senderType: m.sender_type, senderName: m.sender_name,
+            content: m.content, createdAt: m.created_at,
+          })),
+        },
+      }, 200, corsHeaders);
+    } catch (e) {
+      console.error("Support chat poll error:", e);
+      return json({ success: false, error: "Failed to load messages" }, 500, corsHeaders);
+    }
+  }
+
+  return json({ error: "Not found" }, 404, corsHeaders);
 }
 
 async function handleV1Api(request, env, ctx, url, pathname, corsHeaders) {
@@ -2725,8 +3583,9 @@ async function handleV1Api(request, env, ctx, url, pathname, corsHeaders) {
     const distNm    = Math.max(0, parseInt(body.distance_nm,     10) || 0);
     const fuelLbs   = Math.max(0, parseInt(body.fuel_used_lbs,   10) || 0);
     const maxAlt    = Math.max(0, parseInt(body.max_altitude_ft, 10) || 0);
-    const landingVs = parseInt(body.landing_vs_fpm, 10) || 0;
-    const score     = Math.min(100, Math.max(0, parseFloat(body.landing_score) || 0));
+    const landingVs   = parseInt(body.landing_vs_fpm, 10) || 0;
+    const score       = Math.min(100, Math.max(0, parseFloat(body.landing_score) || 0));
+    const registration = (body.registration || "").trim().toUpperCase().substring(0, 20) || null;
 
     const inserted = await sbInsert(env, "pireps", {
       acars_key:       acarsKey,
@@ -2735,6 +3594,7 @@ async function handleV1Api(request, env, ctx, url, pathname, corsHeaders) {
       departure_icao:  depIcao,
       arrival_icao:    arrIcao,
       aircraft_type:   (body.aircraft_type   || "").trim().substring(0, 50),
+      registration:    registration,
       block_out_time:  body.block_out_time   || null,
       block_in_time:   body.block_in_time    || null,
       block_minutes:   blockMins,
@@ -2749,6 +3609,39 @@ async function handleV1Api(request, env, ctx, url, pathname, corsHeaders) {
       submitted_at:    new Date().toISOString(),
       status:          "accepted",
     });
+
+    const pirepId = inserted[0]?.id ?? null;
+
+    // Hard landing (>1000fpm) grounds the specific tail for a week -- no one can book it again
+    // until grounded_until passes (enforced by GET /api/fleet/types/:typeCode/registrations and
+    // re-checked server-side in POST /api/bookings; FleetService.GetRegistrationsAsync applies
+    // the identical filter on its own direct-to-Supabase read since it bypasses this worker
+    // entirely). Best-effort: must never fail the PIREP submission itself.
+    if (registration && Math.abs(landingVs) > 1000) {
+      try {
+        const groundedUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        await sbUpdate(env, "aircraft_registrations", `registration=eq.${encodeURIComponent(registration)}`, {
+          status: "inspection",
+          grounded_until: groundedUntil,
+        });
+        console.log(`Grounded ${registration} for inspection until ${groundedUntil} (hard landing ${landingVs}fpm)`);
+      } catch (e) {
+        console.error("Aircraft grounding update failed (non-fatal):", e);
+      }
+    }
+
+    // Optional per-touchdown detail (bounces/go-arounds get their own row, not just the
+    // flight's primary landing) -- see sanitizeLandingRow for field clamping. Best-effort:
+    // a landings failure must not fail the PIREP submission itself, since the coarse
+    // landing_vs_fpm/landing_score columns above already captured the primary landing.
+    if (Array.isArray(body.landings) && body.landings.length > 0) {
+      try {
+        const rows = body.landings.slice(0, 20).map(l => sanitizeLandingRow(l, acarsKey, pirepId));
+        await sbInsert(env, "landings", rows);
+      } catch (e) {
+        console.error("Landings insert failed (non-fatal):", e);
+      }
+    }
 
     // Fire-and-forget post-PIREP notifications — never blocks the response
     ctx.waitUntil((async () => {
@@ -2800,6 +3693,28 @@ async function handleV1Api(request, env, ctx, url, pathname, corsHeaders) {
     );
 
     return json({ pireps: rows || [] }, 200, corsHeaders);
+  }
+
+  // ── GET /api/v1/landings ──────────────────────────────────────────────────
+  // Full per-touchdown history, for reconstructing Pilot Hub's landing detail on a new
+  // device -- mirrors GET /api/v1/pireps' shape/auth exactly.
+  if (request.method === "GET" && pathname === "/api/v1/landings") {
+    const principal = await verifyAcarsKey(env, acarsKey);
+    if (!principal) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
+
+    const limitParam = parseInt(url.searchParams.get("limit") || "200", 10);
+    const limit = Math.min(200, Math.max(1, isNaN(limitParam) ? 200 : limitParam));
+
+    const rows = await sbGet(env,
+      `landings?acars_key=eq.${encodeURIComponent(acarsKey)}&order=touchdown_at.desc&limit=${limit}` +
+      `&select=id,pirep_id,touchdown_at,airport_icao,runway_identifier,touchdown_lat,touchdown_lon,` +
+      `vs_fpm,ias_kts,gs_kts,pitch_deg,bank_deg,headwind_kt,crosswind_kt,wind_speed_kt,wind_dir_deg,` +
+      `approach_stable,flare_detected,bounce_count,rollout_distance_ft,avg_deceleration,` +
+      `threshold_distance_ft,fuel_on_touchdown_lbs,score,score_vs,score_pitch,score_bank,` +
+      `score_speed,score_crosswind,score_stability`
+    );
+
+    return json({ landings: rows || [] }, 200, corsHeaders);
   }
 
   // ── GET /api/v1/pilots/:id/stats ─────────────────────────────────────────
@@ -3085,6 +4000,80 @@ async function handleV1Api(request, env, ctx, url, pathname, corsHeaders) {
     return json({ success: true }, 200, corsHeaders);
   }
 
+  // ── GET /api/v1/is-admin ─────────────────────────────────────────────────
+  // The client uses this to decide whether to show the Flights page's Pending Review tab
+  // (flight-deletion request queue) at all -- matching the caller's own email against
+  // admin_users, the same table the separate admin portal login already checks against.
+  if (request.method === "GET" && pathname === "/api/v1/is-admin") {
+    const principal = await verifyAcarsKey(env, acarsKey);
+    if (!principal) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
+
+    const rows = await sbGet(env,
+      `admin_users?email=eq.${encodeURIComponent(principal.email)}&select=id&limit=1`);
+    return json({ is_admin: !!(rows && rows.length > 0) }, 200, corsHeaders);
+  }
+
+  // ── POST /api/v1/friends ─────────────────────────────────────────────────
+  // Adds a friend (the client resolves the friend code to a pilot via /api/friends/resolve
+  // first, then calls this with the resolved identity). Upsert-on-conflict so re-adding an
+  // existing friend is a harmless no-op rather than a 409/500.
+  if (request.method === "POST" && pathname === "/api/v1/friends") {
+    const principal = await verifyAcarsKey(env, acarsKey);
+    if (!principal) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
+
+    if (!(await rateLimit(env, ctx, `friendadd:${acarsKey}`, LIMITS.friendAdd)))
+      return rateLimitResponse(corsHeaders);
+
+    const body = await safeJson(request);
+    if (!body) return json({ success: false, error: "Invalid JSON" }, 400, corsHeaders);
+
+    const friendPilotId = (body.pilot_id || "").trim().substring(0, 64);
+    if (!friendPilotId) return json({ success: false, error: "pilot_id required" }, 400, corsHeaders);
+
+    try {
+      await sbUpsert(env, "friendships", {
+        acars_key:       acarsKey,
+        friend_pilot_id: friendPilotId,
+        friend_name:     (body.friend_name || "").trim().substring(0, 100),
+        friend_code:     (body.friend_code || "").trim().toUpperCase().substring(0, 9),
+      }, "acars_key,friend_pilot_id");
+    } catch (e) {
+      console.error("Friendship insert failed:", e);
+      return json({ success: false, error: "Could not save friend" }, 500, corsHeaders);
+    }
+
+    return json({ success: true }, 200, corsHeaders);
+  }
+
+  // ── GET /api/v1/friends ───────────────────────────────────────────────────
+  // Fetches the caller's saved friend list, for reconstructing it on a new device.
+  if (request.method === "GET" && pathname === "/api/v1/friends") {
+    const principal = await verifyAcarsKey(env, acarsKey);
+    if (!principal) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
+
+    const rows = await sbGet(env,
+      `friendships?acars_key=eq.${encodeURIComponent(acarsKey)}&order=created_at.desc&limit=200` +
+      `&select=friend_pilot_id,friend_name,friend_code,created_at`
+    );
+
+    return json({ friends: rows || [] }, 200, corsHeaders);
+  }
+
+  // ── GET /api/v1/friends/activity ─────────────────────────────────────────
+  // Dashboard's activity feed: the caller's friends' most recent flights, newest first.
+  // get_friends_activity resolves friend_pilot_id -> acars_key server-side (via users.pilot_id)
+  // so a friend's ACARS key is never seen by the client.
+  if (request.method === "GET" && pathname === "/api/v1/friends/activity") {
+    const principal = await verifyAcarsKey(env, acarsKey);
+    if (!principal) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
+
+    const limitParam = parseInt(url.searchParams.get("limit") || "3", 10);
+    const limit = Math.min(10, Math.max(1, isNaN(limitParam) ? 3 : limitParam));
+
+    const rows = await sbRpc(env, "get_friends_activity", { p_acars_key: acarsKey, p_limit: limit });
+    return json({ activity: rows || [] }, 200, corsHeaders);
+  }
+
   // ── DELETE /api/v1/friends/:pilotId ──────────────────────────────────────
   const friendsDeleteMatch = pathname.match(/^\/api\/v1\/friends\/([^/]+)$/);
   if (request.method === "DELETE" && friendsDeleteMatch) {
@@ -3098,6 +4087,44 @@ async function handleV1Api(request, env, ctx, url, pathname, corsHeaders) {
     if (!existing || existing.length === 0)
       return json({ success: false, error: "Friendship not found" }, 404, corsHeaders);
     await sbDelete(env, `friendships?acars_key=eq.${encodeURIComponent(acarsKey)}&friend_pilot_id=eq.${encodeURIComponent(targetPilotId)}`);
+    return json({ success: true }, 200, corsHeaders);
+  }
+
+  // ── POST /api/v1/flight-review ───────────────────────────────────────────
+  // A flight the app's own client-side compliance checks flagged (hard landing, gear/flaps/
+  // speed not stabilized by 1000ft, off-centerline or outside the touchdown zone, excessive
+  // climb/descent rate, dangerous cruise speed, or a late departure) gets logged here for
+  // manual review, along with the pilot's own explanation. This is a logging surface only for
+  // now (see the app's own "held for review" dialog) -- nothing here blocks or rejects the
+  // PIREP itself.
+  if (request.method === "POST" && pathname === "/api/v1/flight-review") {
+    const principal = await verifyAcarsKey(env, acarsKey);
+    if (!principal) return json({ success: false, error: "Unauthorized" }, 401, corsHeaders);
+
+    if (!(await rateLimit(env, ctx, `flightreview:${acarsKey}`, LIMITS.flightReview)))
+      return rateLimitResponse(corsHeaders);
+
+    const body = await safeJson(request);
+    if (!body) return json({ success: false, error: "Invalid JSON" }, 400, corsHeaders);
+
+    const violations = Array.isArray(body.violations) ? body.violations.map(v => String(v).substring(0, 300)).slice(0, 20) : [];
+    if (violations.length === 0) return json({ success: false, error: "violations required" }, 400, corsHeaders);
+
+    try {
+      await sbInsert(env, "flight_reviews", {
+        acars_key:    acarsKey,
+        flight_id:    (body.flight_id || "").trim().substring(0, 64) || null,
+        landing_id:   (body.landing_id || "").trim().substring(0, 64) || null,
+        violations:   JSON.stringify(violations),
+        pilot_reason: (body.pilot_reason || "").trim().substring(0, 2000) || null,
+        status:       "pending",
+        created_at:   new Date().toISOString(),
+      });
+    } catch (e) {
+      console.error("Flight review insert failed:", e);
+      return json({ success: false, error: "Could not save review" }, 500, corsHeaders);
+    }
+
     return json({ success: true }, 200, corsHeaders);
   }
 
