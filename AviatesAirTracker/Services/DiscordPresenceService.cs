@@ -15,6 +15,13 @@ public class DiscordPresenceService : IDisposable
     private DateTime _lastPresenceUpdate = DateTime.MinValue;
     private const int UPDATE_INTERVAL_SECONDS = 10;
 
+    // Shown on every presence state (idle and in-flight) so anyone viewing the pilot's Discord
+    // activity can join the VA directly. Discord allows at most 2 buttons per activity.
+    private static readonly Button[] JoinButtons =
+    [
+        new Button { Label = "Join AviatesAir", Url = "https://flyaviatesair.uk/signup" }
+    ];
+
     public DiscordPresenceService(FlightSessionManager session, SettingsService settings, SimConnectManager simConnect)
     {
         _session = session;
@@ -105,7 +112,8 @@ public class DiscordPresenceService : IDisposable
                 LargeImageText = "Aviates Air Tracker",
                 SmallImageKey = PhaseImageKey(snap?.Phase),
                 SmallImageText = BuildSmallImageText(snap),
-            }
+            },
+            Buttons = JoinButtons
         });
     }
 
@@ -121,7 +129,8 @@ public class DiscordPresenceService : IDisposable
             {
                 LargeImageKey = "aviates_logo",
                 LargeImageText = "Aviates Air Tracker",
-            }
+            },
+            Buttons = JoinButtons
         });
     }
 

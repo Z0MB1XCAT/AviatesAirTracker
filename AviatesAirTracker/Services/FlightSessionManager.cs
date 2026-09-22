@@ -1,6 +1,7 @@
 using AviatesAirTracker.Core.Analytics;
 using AviatesAirTracker.Core.Backend;
 using AviatesAirTracker.Core.Data;
+using AviatesAirTracker.Core.Efb;
 using AviatesAirTracker.Core.SimConnect;
 using AviatesAirTracker.Models;
 using AviatesAirTracker.Services;
@@ -34,6 +35,11 @@ public class FlightSessionManager
     public event EventHandler<FlightSessionState>? SessionStateChanged;
     public event EventHandler<FlightRecord>? FlightCompleted;
     public event EventHandler<TelemetrySnapshot>? TelemetryUpdated;
+    // Fired once, right after FlightCompleted, only when the completed flight tripped one or
+    // more compliance checks (landing-level via LandingComplianceChecker, or flight-wide via
+    // FlightComplianceMonitor/the late-departure check below). Never blocks PIREP submission --
+    // ShellWindow subscribes to this purely to show the pilot the "held for review" dialog.
+    public event EventHandler<FlightRecord>? FlightHeldForReview;
 
     // =====================================================
     // DEPENDENCIES
@@ -53,6 +59,8 @@ public class FlightSessionManager
     private readonly AviatesBackendClient _backend;
     private readonly BookingService _bookingService;
     private readonly FlightTrailService _flightTrail;
+    private readonly FlightComplianceMonitor _complianceMonitor;
+    private readonly EventReminderService _eventReminder;
 
     // =====================================================
     // STATE
@@ -89,7 +97,9 @@ public class FlightSessionManager
         ApproachMonitor approachMonitor,
         AviatesBackendClient backend,
         BookingService bookingService,
-        FlightTrailService flightTrail)
+        FlightTrailService flightTrail,
+        FlightComplianceMonitor complianceMonitor,
+        EventReminderService eventReminder)
     {
         _telemetry = telemetry;
         _phaseDetector = phaseDetector;
@@ -105,6 +115,8 @@ public class FlightSessionManager
         _backend = backend;
         _bookingService = bookingService;
         _flightTrail = flightTrail;
+        _complianceMonitor = complianceMonitor;
+        _eventReminder = eventReminder;
 
         // Wire up phase changes
         _phaseDetector.PhaseChanged += OnPhaseChanged;
@@ -132,7 +144,11 @@ public class FlightSessionManager
         // MAJOR-12: Only run landing analysis when a flight is actually in progress.
         // Previously called at 20Hz even when Idle, filling the pre-touchdown buffer with taxi telemetry.
         if (State != FlightSessionState.Idle)
+        {
+            _landingAnalyzer.SetAircraftType(CurrentFlight?.AircraftType);
             _landingAnalyzer.Process(snap);
+            _complianceMonitor.Process(snap);
+        }
 
         // Fuel tracking
         _fuelAnalyzer.Process(snap);
@@ -256,8 +272,23 @@ public class FlightSessionManager
 
     private void OnEnginesStarted(TelemetrySnapshot snap)
     {
-        // Do not start a fresh record if a flight is already active (e.g. resumed from recovery).
+        // Do not start a fresh record if a flight is already active (e.g. resumed from recovery)
+        // -- checked first and unconditionally, so an already-legitimate in-progress flight is
+        // never interrupted by the activation gate below regardless of its current state.
         if (CurrentFlight != null) return;
+
+        // No tracking begins until the pilot has activated a booking (Pilot Hub's Activate
+        // button) -- AcarsPage shows a matching "activate to access" gate so this is never a
+        // surprise, but the real enforcement lives here: MSFS keeps running normally either way,
+        // this app just never creates a flight record for it. Synchronous, no network call --
+        // ActiveBooking is kept current by App.xaml.cs's startup hydration (survives a restart
+        // between activating and flying) and by every place that creates/activates a booking, so
+        // this is safe to read directly on the telemetry thread.
+        if (_bookingService.ActiveBooking is not { IsActivated: true })
+        {
+            Log.Information("[FlightSession] Engines started with no activated booking -- not tracking");
+            return;
+        }
 
         Log.Information("[FlightSession] Engines started, creating flight record");
 
@@ -281,6 +312,46 @@ public class FlightSessionManager
                 CurrentFlight.FlightNumber = booking.RouteCallsign;
             if (!string.IsNullOrEmpty(booking.Callsign))
                 CurrentFlight.Callsign = booking.Callsign;
+            if (!string.IsNullOrEmpty(booking.Registration))
+                CurrentFlight.AircraftRegistration = booking.Registration;
+            CurrentFlight.ScheduledDepUtc = booking.ScheduledDepUtc;
+
+            // Also pre-populate route ICAOs from the booking (OriginIata/DestIata are named
+            // "iata" but actually hold ICAO codes -- see route-iata-columns-hold-icao memory).
+            // Without this, DepartureICAO/ArrivalICAO stayed empty until AssignSimBriefPlan ran,
+            // which never happens for a pilot who starts engines before importing a SimBrief
+            // plan -- the exact cause of Discord Rich Presence showing "????" for the whole
+            // flight instead of the real route (DiscordPresenceService.BuildDetailsLine reads
+            // these same fields). AssignSimBriefPlan still overwrites these later if a plan
+            // does get loaded, so this is purely a fallback, not a conflicting source of truth.
+            if (!string.IsNullOrEmpty(booking.OriginIata))
+                CurrentFlight.DepartureICAO = booking.OriginIata;
+            if (!string.IsNullOrEmpty(booking.DestIata))
+                CurrentFlight.ArrivalICAO = booking.DestIata;
+            if (!string.IsNullOrEmpty(booking.AircraftType))
+                CurrentFlight.AircraftType = booking.AircraftType;
+        }
+
+        // Event hours multiplier: only armed if the pilot confirmed attendance at
+        // EventReminderService's 10-minutes-before popup for a registered event, and only
+        // consumed once -- a second flight later the same day starts with no multiplier again.
+        // Falls back to the charter multiplier only if no event was armed -- a flight is never
+        // both (a charter is booking-driven, an event flight is reminder-driven; checking event
+        // first just resolves the near-impossible case where both happen to be set).
+        var pendingEvent = _eventReminder.ConsumePendingEventFlight();
+        if (pendingEvent != null)
+        {
+            CurrentFlight.EventId = pendingEvent.EventId;
+            CurrentFlight.IsOfficialEvent = pendingEvent.IsOfficial;
+            CurrentFlight.HoursMultiplier = pendingEvent.Multiplier;
+            Log.Information("[FlightSession] Flight tagged for event {EventId} ({Multiplier}x hours)",
+                pendingEvent.EventId, pendingEvent.Multiplier);
+        }
+        else if (_bookingService.IsActiveBookingCharter)
+        {
+            CurrentFlight.IsCharterFlight = true;
+            CurrentFlight.HoursMultiplier = 0.5;
+            Log.Information("[FlightSession] Flight tagged as charter (0.5x hours)");
         }
 
         _fuelAtDeparture = snap.Raw.FuelTotalLbs;
@@ -316,6 +387,14 @@ public class FlightSessionManager
         if (CurrentFlight != null)
         {
             landing.FlightId = CurrentFlight.Id.ToString();
+
+            // RunwayDetector only matches its small built-in database of major hubs, so most
+            // landings leave LandingAnalyzer's AirportICAO blank. Backfill from the active
+            // flight's arrival ICAO (known from the booking/SimBrief plan) so the airport shown
+            // in Pilot Hub/landing history is the real one instead of a placeholder.
+            if (string.IsNullOrWhiteSpace(landing.AirportICAO))
+                landing.AirportICAO = CurrentFlight.ArrivalICAO;
+
             CurrentFlight.LandingTime = landing.Timestamp;
             CurrentFlight.AllLandings.Add(landing);
             if (CurrentFlight.PrimaryLanding == null)
@@ -363,6 +442,25 @@ public class FlightSessionManager
         CurrentFlight.ActualDistanceNm = _routeTracker.TotalDistanceNm;
         CurrentFlight.Status = FlightStatus.Completed;
 
+        // Flight-wide compliance: cruise speed / excessive climb-descent rate (FlightComplianceMonitor,
+        // tracked live all flight since TelemetryProcessor's own history buffer only covers the last
+        // 30 minutes -- not enough for a long-haul flight) plus a late-departure check here, using the
+        // booking snapshot captured BEFORE CompleteActiveBookingAsync() below clears it. Landing-level
+        // violations (hard landing, flaps/gear/speed by 1000ft, centerline, touchdown zone, bounce)
+        // were already evaluated per-landing by LandingComplianceChecker inside LandingAnalyzer and are
+        // already sitting on each LandingResult.ComplianceViolations -- FlightRecord.RequiresReview
+        // reads those directly, nothing further to merge here.
+        var activeBookingForLateCheck = _bookingService.ActiveBooking;
+        var profile = AircraftPerformanceProfiles.Find(CurrentFlight.AircraftType);
+        var flightViolations = _complianceMonitor.Finalize(profile?.Category);
+        if (activeBookingForLateCheck != null &&
+            CurrentFlight.BlockOutTime > activeBookingForLateCheck.ScheduledDepUtc.AddMinutes(20))
+        {
+            var lateBy = CurrentFlight.BlockOutTime - activeBookingForLateCheck.ScheduledDepUtc;
+            flightViolations.Add($"Departed {lateBy.TotalMinutes:F0} minutes after the scheduled departure time.");
+        }
+        CurrentFlight.FlightComplianceViolations = flightViolations;
+
         _ = _flightRepo.UpdateAsync(CurrentFlight);
 
         Log.Information("[FlightSession] FLIGHT COMPLETE: {Dep}→{Arr} | Block: {Block} | Score: {Score}",
@@ -372,6 +470,14 @@ public class FlightSessionManager
             CurrentFlight.PrimaryLanding?.LandingScore ?? 0);
 
         FlightCompleted?.Invoke(this, CurrentFlight);
+
+        if (CurrentFlight.RequiresReview)
+        {
+            Log.Warning("[FlightSession] Flight held for review: {Reasons}",
+                string.Join(" | ", CurrentFlight.FlightComplianceViolations
+                    .Concat(CurrentFlight.AllLandings.SelectMany(l => l.ComplianceViolations))));
+            FlightHeldForReview?.Invoke(this, CurrentFlight);
+        }
 
         // Capture reference before Reset() nulls CurrentFlight, then submit PIREP async
         var completedFlight = CurrentFlight;
@@ -524,6 +630,7 @@ public class FlightSessionManager
         _phaseDetector.Reset();
         _fuelAnalyzer.Reset();
         _routeTracker.Reset();
+        _complianceMonitor.Reset();
         _flightRepo.SetCurrentFlight(null);
     }
 }
