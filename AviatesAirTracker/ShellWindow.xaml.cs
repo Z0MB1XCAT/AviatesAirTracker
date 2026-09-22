@@ -35,6 +35,7 @@ public sealed partial class ShellWindow : Window
     private readonly IFlightRepository _flightRepository;
     private readonly ILandingRepository _landingRepository;
     private readonly AlertService _alertService;
+    private readonly EventReminderService _eventReminder;
 
     // Named references into Nav.MenuItems for the four items that carry a live badge.
     // BuildNavItems assigns these by matching NavDestination.Tag; every handler below
@@ -74,7 +75,8 @@ public sealed partial class ShellWindow : Window
         MessagingService messagingService,
         IFlightRepository flightRepository,
         ILandingRepository landingRepository,
-        AlertService alertService)
+        AlertService alertService,
+        EventReminderService eventReminder)
     {
         InitializeComponent();
 
@@ -86,6 +88,7 @@ public sealed partial class ShellWindow : Window
         _flightRepository = flightRepository;
         _landingRepository = landingRepository;
         _alertService = alertService;
+        _eventReminder = eventReminder;
 
         // The second argument is not optional in practice. OnSubclassProc is a reverse
         // P/Invoke from comctl32: an exception escaping the callback unwinds across the
@@ -111,7 +114,9 @@ public sealed partial class ShellWindow : Window
         // moment a flight completes (when it is, by definition, newly unsynced) rather than
         // when the background submit actually finishes.
         _sessionManager.FlightCompleted += OnFlightCompleted;
+        _sessionManager.FlightHeldForReview += OnFlightHeldForReview;
         _alertService.LandingResultReady += OnLandingResultReady;
+        _eventReminder.ReminderDue += OnEventReminderDue;
         _ = RefreshFlightsBadgeAsync();
 
         Activated += OnFirstActivated;
@@ -142,6 +147,39 @@ public sealed partial class ShellWindow : Window
 
         var appWindow = AppWindow.GetFromWindowId(Win32Interop.GetWindowIdFromWindow(hwnd));
         appWindow.Resize(new SizeInt32(1440, 900));
+
+        // Known WinUI 3 NavigationView gap (see e.g. microsoft-ui-xaml#7237 and the
+        // PaneDisplayMode-toggle issues in the same area): NavigationView does not reliably
+        // re-measure its own layout math on certain state changes it didn't itself initiate
+        // interactively. Two symptoms of the same underlying gap, two different triggers:
+        //   1. An OS-driven maximize/restore (SC_MAXIMIZE, not an interactive drag-resize)
+        //      leaves the content-area width stale. Every page here centers its content via
+        //      MaxWidth + HorizontalAlignment="Stretch" on a StackPanel, which only starts
+        //      actually constraining anything once the window is wider than that MaxWidth
+        //      (1440) -- true at the 1440x900 startup size, so this never showed up until
+        //      maximizing on a wider screen actually exercised the centering math, at which
+        //      point it centered against the stale (too-wide) content-area width instead of
+        //      the real one, landing everything shifted right with the far edge clipped
+        //      off-window.
+        //   2. Toggling the pane open/closed (the hamburger button) leaves each
+        //      NavigationViewItem's icon positioned at its wide-open-pane offset even after
+        //      the pane visually narrows to compact width, so the now-too-far-right icon gets
+        //      clipped by the pane's own (now much narrower) bounds -- confirmed live via a
+        //      screenshot showing every rail icon half cut off in compact mode.
+        // Forcing a fresh measure/arrange pass once the trigger has actually happened is the
+        // documented workaround for this whole class of NavigationView bug.
+        void ForceNavRelayout()
+        {
+            Nav.InvalidateMeasure();
+            Nav.UpdateLayout();
+        }
+
+        appWindow.Changed += (sender, args) =>
+        {
+            if (args.DidSizeChange) ForceNavRelayout();
+        };
+        Nav.PaneOpened += (_, _) => ForceNavRelayout();
+        Nav.PaneClosed += (_, _) => ForceNavRelayout();
 
         // Covers both the startup login-gate (this method's else branch, native LoginPage) and
         // any future logout-triggered return to login (SettingsPage's OnLogOutTapped navigating
@@ -232,7 +270,14 @@ public sealed partial class ShellWindow : Window
                 currentGroup = destination.Group;
             }
 
-            var item = new NavigationViewItem { Tag = destination.Tag };
+            var item = new NavigationViewItem
+            {
+                Tag = destination.Tag,
+                // Required for the pane's compact/icon-only collapse (clicking the hamburger
+                // toggle) to actually show an icon instead of squeezing Content's label text
+                // into the narrow compact width -- see NavDestination.IconGlyph's doc comment.
+                Icon = new FontIcon { FontFamily = new FontFamily("Segoe Fluent Icons"), Glyph = destination.IconGlyph },
+            };
 
             if (destination.Tag is "acars" or "map")
             {
@@ -255,6 +300,7 @@ public sealed partial class ShellWindow : Window
             // never Content, so it applies uniformly regardless of which branch above built
             // this item's Content — plain label, live-pill panel, or dot panel.
             StyleNavItem(item);
+            InteractiveEffects.Attach(item);
             Nav.MenuItems.Add(item);
 
             switch (destination.Tag)
@@ -282,13 +328,24 @@ public sealed partial class ShellWindow : Window
     /// as plain property values. Setting the properties directly on each item, since
     /// BuildNavItems() already constructs them in code, avoids the crash entirely and
     /// produces the identical rendered result an implicit style would have.
+    ///
+    /// Horizontal margin is 4px, not the original 10px (app.css never has to reckon with a
+    /// compact/icon-only pane, so it never faced this trade-off): the app.css value only ever
+    /// gets exercised in the ~300px-wide expanded pane, where 10px reads as a trivial inset,
+    /// but the SAME item is also rendered inside NavigationView's ~40-48px compact pane once
+    /// the hamburger toggle closes it, and there a 10+10=20px horizontal margin eats roughly
+    /// half that width -- confirmed live via a screenshot showing every rail icon clipped in
+    /// compact mode, and NOT fixed by forcing a NavigationView re-layout (see
+    /// OnFirstActivated's PaneOpened/PaneClosed handlers), which ruled out a stale-measurement
+    /// bug and pointed at a real "the numbers don't fit" geometry conflict instead. 4px leaves
+    /// enough room for the icon in compact mode while still reading as a small inset when open.
     /// </summary>
     private static NavigationViewItem StyleNavItem(NavigationViewItem item)
     {
         item.FontFamily = (FontFamily)Application.Current.Resources["BodyFontMedium"];
         item.FontSize = 13.5;
         item.Foreground = (Brush)Application.Current.Resources["SidebarTextBrush"];
-        item.Margin = new Thickness(10, 2, 10, 2);
+        item.Margin = new Thickness(4, 2, 4, 2);
         item.CornerRadius = new CornerRadius(12);
         return item;
     }
@@ -524,6 +581,38 @@ public sealed partial class ShellWindow : Window
         await dialog.ShowAsync();
     }
 
+    // Shown after LandingResultDialog's own popup (both are queued on the ContentDialog host,
+    // so the pilot sees their landing report first, then this) whenever the just-completed
+    // flight tripped one of LandingComplianceChecker's/FlightComplianceMonitor's checks. Never
+    // blocks anything -- SubmitPirepSafeAsync has already fired independently of this dialog.
+    private async void OnFlightHeldForReview(object? sender, FlightRecord flight)
+    {
+        var acarsKey = _settings.Settings.AcarsKey.Trim();
+        if (string.IsNullOrEmpty(acarsKey)) return;
+
+        var backend = App.GetService<Core.Backend.AviatesBackendClient>();
+        await FlightReviewDialog.ShowAsync(RootGrid.XamlRoot, flight, backend, acarsKey);
+    }
+
+    // Fires 10 minutes before an event the pilot is registered for (EventReminderService's own
+    // timer). Confirming arms the hours multiplier for whichever flight starts next and opens
+    // SimBrief dispatch (both inside EventReminderService.ConfirmAttendance) -- this does not
+    // touch BookingService/CurrentAirportIata at all, an event flight is independent of the
+    // booking/position system. Dismissing does nothing further; the pilot can still fly the
+    // event, they just won't get the bonus hours.
+    private async void OnEventReminderDue(object? sender, AviatesEvent evt)
+    {
+        var confirmed = await ConfirmDialog.ShowAsync(
+            RootGrid.XamlRoot,
+            "Event Starting Soon",
+            $"\"{evt.Title}\" departs in about 10 minutes. Confirm you're attending to open SimBrief and get bonus hours for this flight ({(evt.IsFeatured ? "2x" : "1.5x")}).",
+            "Confirm & Open SimBrief",
+            "Not Flying");
+
+        if (confirmed)
+            _eventReminder.ConfirmAttendance(evt);
+    }
+
     private void OnNavSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         if (args.SelectedItem is not NavigationViewItem { Tag: string tag }) return;
@@ -555,7 +644,9 @@ public sealed partial class ShellWindow : Window
         _sessionManager.SessionStateChanged -= OnSessionStateChanged;
         _messagingService.UnreadCountChanged -= OnUnreadCountChanged;
         _sessionManager.FlightCompleted -= OnFlightCompleted;
+        _sessionManager.FlightHeldForReview -= OnFlightHeldForReview;
         _alertService.LandingResultReady -= OnLandingResultReady;
+        _eventReminder.ReminderDue -= OnEventReminderDue;
 
         _subclass.Detach();
         (Application.Current as App)?.Shutdown();

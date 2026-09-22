@@ -10,7 +10,15 @@ namespace AviatesAirTracker.Navigation;
 /// the WebView2/Blazor bridge. Null (the default) for every destination that has not yet
 /// migrated to a native WinUI page.
 /// </param>
-public sealed record NavDestination(string Tag, string Label, string Route, string? Group, Type? NativePageType = null);
+/// <param name="IconGlyph">
+/// Segoe Fluent Icons codepoint for this item's <c>NavigationViewItem.Icon</c>. Every item MUST
+/// have one: WinUI's NavigationView only properly collapses to icon-only in compact/closed-pane
+/// mode when an Icon is set -- without one, the pane just squeezes the item's Content (label
+/// text, here) into the narrow compact width instead of hiding it, which is what the
+/// hamburger-toggle "compressed text" bug actually was before icons were added. Written as a
+/// \uXXXX escape (not a raw PUA character) so it stays legible/diffable in a plain editor.
+/// </param>
+public sealed record NavDestination(string Tag, string Label, string Route, string? Group, Type? NativePageType, string IconGlyph);
 
 /// <summary>
 /// Single source of truth for shell navigation. Order, wording and grouping are copied
@@ -22,19 +30,19 @@ public static class NavDestinations
 {
     public static readonly IReadOnlyList<NavDestination> All =
     [
-        new("dashboard", "Dashboard", "/",          "Overview", NativePageType: typeof(Pages.DashboardPage)),
-        new("flights",   "Flights",   "/flights",   "Overview", NativePageType: typeof(Pages.FlightsPage)),
-        new("routes",    "Routes",    "/routes",    "Overview", NativePageType: typeof(Pages.RoutesPage)),
-        new("fleet",     "Fleet",     "/fleet",     "Overview", NativePageType: typeof(Pages.FleetPage)),
-        new("pilot-hub", "Pilot Hub", "/pilot-hub", "Pilot", NativePageType: typeof(Pages.PilotHubPage)),
-        new("acars",     "ACARS",     "/acars",     "Pilot", NativePageType: typeof(Pages.AcarsPage)),
-        new("map",       "Map",       "/map",       "Pilot", NativePageType: typeof(Pages.MapPage)),
-        new("messages",  "Messages",  "/messages",  "Pilot", NativePageType: typeof(Pages.MessagesPage)),
-        new("news",      "News",      "/news",      "Community", NativePageType: typeof(Pages.NewsPage)),
-        new("events",    "Events",    "/events",    "Community", NativePageType: typeof(Pages.EventsPage)),
-        new("support",   "Support",   "/support",   "Community", NativePageType: typeof(Pages.SupportPage)),
+        new("dashboard", "Dashboard", "/",          "Overview", typeof(Pages.DashboardPage), IconGlyph: ""), // Home
+        new("flights",   "Flights",   "/flights",   "Overview", typeof(Pages.FlightsPage),   IconGlyph: ""), // Airplane
+        new("routes",    "Routes",    "/routes",    "Overview", typeof(Pages.RoutesPage),    IconGlyph: ""), // MapDirections
+        new("fleet",     "Fleet",     "/fleet",     "Overview", typeof(Pages.FleetPage),     IconGlyph: ""), // AllApps
+        new("pilot-hub", "Pilot Hub", "/pilot-hub", "Pilot", typeof(Pages.PilotHubPage),      IconGlyph: ""), // ContactInfo
+        new("acars",     "ACARS",     "/acars",     "Pilot", typeof(Pages.AcarsPage),         IconGlyph: ""), // Radar
+        new("map",       "Map",       "/map",       "Pilot", typeof(Pages.MapPage),           IconGlyph: ""), // Nav2DMapView
+        new("messages",  "Messages",  "/messages",  "Pilot", typeof(Pages.MessagesPage),      IconGlyph: ""), // Message
+        new("news",      "News",      "/news",      "Community", typeof(Pages.NewsPage),      IconGlyph: ""), // PostUpdate
+        new("events",    "Events",    "/events",    "Community", typeof(Pages.EventsPage),    IconGlyph: ""), // Calendar
+        new("support",   "Support",   "/support",   "Community", typeof(Pages.SupportPage),   IconGlyph: ""), // Help
         // Settings sits below the connection-status block in the sidebar footer,
         // outside every section heading.
-        new("settings",  "Settings",  "/settings",  null, NativePageType: typeof(Pages.SettingsPage)),
+        new("settings",  "Settings",  "/settings",  null, typeof(Pages.SettingsPage),          IconGlyph: ""), // Settings
     ];
 }

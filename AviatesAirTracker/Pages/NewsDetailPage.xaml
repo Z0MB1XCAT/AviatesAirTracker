@@ -1,0 +1,66 @@
+<Page
+    x:Class="AviatesAirTracker.Pages.NewsDetailPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="#080B14">
+
+    <!--
+      New page: the full-article view NewsPage's cards navigate to on tap (previously "Read" was
+      a documented dead link; news_articles has always carried a full markdown-ish `content`
+      column, per AviatesBackendClient.RemoteNewsArticle.Content, it just had nowhere to render).
+      Reached only via this.Frame.Navigate(typeof(NewsDetailPage), article) from NewsPage; no
+      NavDestinations entry of its own, same "separate destination, shell back button returns"
+      pattern LogbookPage already established.
+
+      content is rendered by a small hand-rolled block splitter in code-behind (BuildContentBlocks),
+      not a real Markdown engine; this project has no Markdown-rendering dependency anywhere else,
+      and the only markup actually seen in existing rows is "## Heading" lines and blank-line-
+      separated paragraphs, so a tiny purpose-built splitter covers it without a new NuGet
+      dependency for one page.
+
+      Same Phase 2/3 rules every native page in this project follows: no Style element and no new
+      Theme/Tokens.xaml entry anywhere in this file (silently crashes XamlCompiler.exe on this
+      SDK), and no literal double hyphen inside any XAML comment (invalid XML, same silent crash;
+      a single hyphen or the box-drawing "──" character is used instead).
+    -->
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
+        <StackPanel MaxWidth="900" Spacing="20" HorizontalAlignment="Stretch">
+
+            <!-- Hero: photo if the article has one, else a gradient band matching the card's own
+                 fallback (index-cycled the same way, so the detail page and the card the pilot
+                 tapped never show a visually different color). Border clips its child to
+                 CornerRadius automatically, same as NewsPage.xaml's own card banner Grid. -->
+            <Border CornerRadius="20">
+                <Grid Height="280">
+                    <Image x:Name="HeroImage" Visibility="Collapsed" Stretch="UniformToFill" />
+                    <Border x:Name="HeroGradientBorder" />
+                </Grid>
+            </Border>
+
+            <StackPanel Spacing="10">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Border Background="#1F4D9BEC" CornerRadius="10" Padding="10,4">
+                        <TextBlock x:Name="CategoryText" FontSize="11" FontWeight="Bold"
+                                   Foreground="#4D9BEC" CharacterSpacing="80" />
+                    </Border>
+                    <TextBlock x:Name="DateText" FontSize="12.5" Foreground="#64748B" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <TextBlock x:Name="TitleText" FontFamily="{StaticResource DisplayFontBold}"
+                           FontSize="30" FontWeight="Bold" Foreground="#F1F5F9"
+                           TextWrapping="Wrap" LineHeight="36" />
+
+                <TextBlock x:Name="SummaryText" FontSize="15" Foreground="#94A3B8"
+                           TextWrapping="Wrap" LineHeight="24" />
+            </StackPanel>
+
+            <Border Height="1" Background="#0DFFFFFF" />
+
+            <!-- Article body: populated in code-behind by BuildContentBlocks, one TextBlock per
+                 paragraph/heading block, appended directly to this StackPanel's Children. -->
+            <StackPanel x:Name="ContentPanel" Spacing="14" />
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>

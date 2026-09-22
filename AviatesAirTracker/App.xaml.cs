@@ -13,6 +13,7 @@ using Microsoft.UI.Dispatching;
 using Serilog;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Microsoft.UI.Xaml;
 
 namespace AviatesAirTracker;
@@ -21,6 +22,22 @@ public partial class App : Application
 {
     private ServiceProvider _serviceProvider = null!;
     private bool _shutdownRan;
+
+    // Held for the app's whole lifetime so the installer can tell whether the app is currently
+    // running. Name must match installer\AviatesAirTracker_Setup.iss's own AppMutex directive
+    // exactly -- Inno Setup checks for a mutex by this name before copying files and (with
+    // CloseApplications=yes, the default) uses the Windows Restart Manager to close whatever
+    // process is holding it first. Without this, UpdateService.DownloadAndInstallAsync's silent
+    // installer launch had no synchronization with this process's own shutdown at all: it fired
+    // Process.Start for the installer, waited a bare 500ms, then called Exit() -- if this
+    // process's runtime/DLL file handles hadn't actually been released yet (self-contained .NET
+    // apps hold dozens of loose DLLs, not just the one EXE), Setup's /VERYSILENT run would hit
+    // file-in-use errors on those files, and /SUPPRESSMSGBOXES silently swallowed the resulting
+    // failure -- the update would appear to run (window closes, app "restarts") while actually
+    // still being the old version, matching the reported "download and install doesn't actually
+    // install." AppMutex hands this synchronization to Setup itself instead of racing a fixed
+    // delay against an unknown teardown time.
+    private Mutex? _appMutex;
 
     public App()
     {
@@ -37,6 +54,12 @@ public partial class App : Application
     /// </summary>
     public static T GetService<T>() where T : class =>
         ((App)Application.Current)._serviceProvider.GetRequiredService<T>();
+
+    // Exposed so SettingsPage's Wipe Local Data & Resync action can re-run
+    // SyncPirepHistoryAsync/SyncLandingHistoryAsync/SyncFriendsAsync below -- the exact same
+    // IServiceProvider-based signature those three already use at startup, reused rather than
+    // reimplemented.
+    internal static IServiceProvider ServiceProvider => ((App)Application.Current)._serviceProvider;
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern int MessageBoxW(nint hWnd, string text, string caption, uint type);
@@ -56,6 +79,14 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // Created first, disposed last (see Shutdown()) -- see the field's own doc comment for
+        // why the installer needs this. Inno Setup's AppMutex check only cares that a mutex
+        // object by this exact name exists in the kernel (i.e. some process holds an open handle
+        // to it) -- not whether it's actually locked -- so this deliberately never calls
+        // WaitOne()/ReleaseMutex(); it exists purely as Setup's "is the app running" signal, not
+        // for this process's own mutual exclusion.
+        _appMutex = new Mutex(initiallyOwned: false, name: "AviatesAirTracker-AppMutex");
+
         // Global crash handlers — capture any exception before the window appears
         AppDomain.CurrentDomain.UnhandledException += (_, ex) =>
             DumpCrash("AppDomain", ex.ExceptionObject as Exception);
@@ -111,6 +142,16 @@ public partial class App : Application
             // Retry any PIREPs that failed or couldn't submit last session
             _ = RetryPendingPirepsAsync(_serviceProvider);
             _ = SyncPirepHistoryAsync(_serviceProvider);
+            _ = SyncLandingHistoryAsync(_serviceProvider);
+            _ = SyncFriendsAsync(_serviceProvider);
+
+            // BookingService.ActiveBooking is in-memory-only and starts every launch as null
+            // even when a booking (activated or not) still exists server-side -- FlightSession
+            // Manager.OnEnginesStarted reads ActiveBooking synchronously (no network call) at the
+            // exact moment engines start to decide whether tracking is allowed to begin, so
+            // without this a pilot who booked+activated, then restarted the app before flying,
+            // would be silently blocked from ever having their flight tracked.
+            _ = HydrateActiveBookingAsync(_serviceProvider);
 
             // When a booked flight completes, advance the pilot's current airport to the
             // booking destination so the Routes page only shows departures from there next time.
@@ -128,12 +169,29 @@ public partial class App : Application
                 }
             };
 
-            // Schedule update check 8 seconds after startup so it doesn't delay the UI
+            // Schedule update check 8 seconds after startup so it doesn't delay the UI. If a
+            // newer version is found and no flight is in progress, install it silently and
+            // relaunch (DownloadAndInstallAsync shuts the app down for the installer) --
+            // the sessionMgr guard just avoids yanking the app out from under an active flight
+            // on the rare case this ever runs mid-session.
             var updateSvc = _serviceProvider.GetRequiredService<UpdateService>();
             _ = Task.Run(async () =>
             {
                 await Task.Delay(8000);
                 await updateSvc.CheckAsync();
+
+                if (updateSvc.AvailableUpdate != null && sessionMgr.State == FlightSessionState.Idle)
+                {
+                    Log.Information("[Update] Auto-installing {Version}", updateSvc.AvailableUpdate.Version);
+                    try
+                    {
+                        await updateSvc.DownloadAndInstallAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "[Update] Auto-install failed");
+                    }
+                }
             });
 
             // EFB companion server — resolving it wires the telemetry bridge; auto-start
@@ -209,6 +267,24 @@ public partial class App : Application
         catch { /* last resort — can't log the logger */ }
     }
 
+    // See the call site's own comment above for why this exists. isCharter is derived from
+    // RouteId being null rather than tracked separately server-side -- a charter booking has no
+    // route_id at all (see BookingService.CreateCharterBookingAsync), a normal one always does.
+    private static async Task HydrateActiveBookingAsync(IServiceProvider sp)
+    {
+        try
+        {
+            var bookingSvc = sp.GetRequiredService<BookingService>();
+            var booking = await bookingSvc.GetCurrentBookingAsync();
+            if (booking != null && !booking.IsCancelled)
+                bookingSvc.SetActiveBooking(booking, isCharter: booking.RouteId == null);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[App] HydrateActiveBookingAsync failed");
+        }
+    }
+
     private static async Task RetryPendingPirepsAsync(IServiceProvider sp)
     {
         try
@@ -246,7 +322,7 @@ public partial class App : Application
         }
     }
 
-    private static async Task SyncPirepHistoryAsync(IServiceProvider sp)
+    internal static async Task SyncPirepHistoryAsync(IServiceProvider sp)
     {
         try
         {
@@ -265,27 +341,56 @@ public partial class App : Application
 
             foreach (var r in remote)
             {
-                if (string.IsNullOrWhiteSpace(r.FlightNumber) ||
-                    string.IsNullOrWhiteSpace(r.DepartureICAO) ||
-                    string.IsNullOrWhiteSpace(r.ArrivalICAO))
+                if (string.IsNullOrWhiteSpace(r.DepartureICAO) || string.IsNullOrWhiteSpace(r.ArrivalICAO))
                     continue;
 
-                // Skip if already in local cache — match by flight number + block-out within 60 s
+                // FlightNumber can be legitimately blank: an approved manual PIREP (submitted on
+                // the website with no airline flight number, identified only by callsign) gets
+                // migrated into this same `pireps` table by worker.js's admin-approval handler,
+                // which sets callsign = flight_number || aircraft_reg -- flight_number itself is
+                // optional on that form and often blank. This loop used to also require
+                // FlightNumber non-blank, which silently dropped every such PIREP from the app's
+                // local sync entirely: it never showed up in Flights/Pilot Hub and never counted
+                // toward local hours, even though it was already sitting in the real `pireps`
+                // table and counting correctly on the website (server-side stats read
+                // block_minutes directly, not gated on FlightNumber at all).
+                var label = !string.IsNullOrWhiteSpace(r.FlightNumber) ? r.FlightNumber : r.Callsign;
+                if (string.IsNullOrWhiteSpace(label)) continue;
+
+                // Skip if already in local cache — match by the same label + block-out within 60 s
                 var rBlockOut = r.BlockOutTime ?? r.SubmittedAt;
                 bool exists = local.Any(f =>
-                    f.FlightNumber == r.FlightNumber &&
+                    (f.FlightNumber == label || f.Callsign == label) &&
                     Math.Abs((f.BlockOutTime - rBlockOut).TotalSeconds) < 60);
                 if (exists) continue;
 
+                // A migrated manual PIREP has no real block_out_time/block_in_time (worker.js
+                // inserts both as null -- only block_minutes/air_minutes carry the real duration).
+                // FlightRecord.BlockTime/AirTime are computed as InTime-OutTime, not read from any
+                // minutes field, so leaving both timestamps equal (the old `?? r.SubmittedAt`
+                // fallback for both) silently collapsed every migrated manual PIREP's hours to
+                // zero even once it did show up locally. Synthesizing an End time exactly
+                // BlockMinutes/AirMinutes after Start whenever the server didn't give us two
+                // distinct real timestamps makes the flight's hours count locally exactly as if
+                // it had flown with normal ACARS telemetry. A real ACARS-submitted flight always
+                // has two genuine, already-distinct timestamps here, so this never changes that
+                // case's own numbers.
+                var blockOut = r.BlockOutTime ?? r.SubmittedAt;
+                var blockIn  = r.BlockInTime ?? blockOut.AddMinutes(r.BlockMinutes);
+                if (blockIn <= blockOut && r.BlockMinutes > 0)
+                    blockIn = blockOut.AddMinutes(r.BlockMinutes);
+
                 var record = new FlightRecord
                 {
-                    FlightNumber     = r.FlightNumber,
+                    FlightNumber     = label,
                     Callsign         = r.Callsign,
                     DepartureICAO    = r.DepartureICAO,
                     ArrivalICAO      = r.ArrivalICAO,
                     AircraftType     = r.AircraftType,
-                    BlockOutTime     = r.BlockOutTime ?? r.SubmittedAt,
-                    BlockInTime      = r.BlockInTime  ?? r.SubmittedAt,
+                    BlockOutTime     = blockOut,
+                    BlockInTime      = blockIn,
+                    TakeoffTime      = blockOut,
+                    LandingTime      = r.AirMinutes > 0 ? blockOut.AddMinutes(r.AirMinutes) : blockIn,
                     FuelUsedLbs      = r.FuelUsedLbs,
                     ActualDistanceNm = r.DistanceNm,
                     Status           = FlightStatus.Completed,
@@ -315,11 +420,126 @@ public partial class App : Application
         }
     }
 
+    // Mirrors SyncPirepHistoryAsync above, one level of detail down: rebuilds the local
+    // per-landing history (full score breakdown, runway, wind, rollout, etc.) from
+    // /api/v1/landings, instead of only the coarse VS/score embedded in each PIREP. This is
+    // what makes Pilot Hub's Landing History table and average-score stat match across a
+    // reinstall/new PC, not just the Flights list.
+    internal static async Task SyncLandingHistoryAsync(IServiceProvider sp)
+    {
+        try
+        {
+            var settings = sp.GetRequiredService<SettingsService>();
+            var key      = settings.Settings.AcarsKey.Trim();
+            if (string.IsNullOrEmpty(key)) return;
+
+            var backend  = sp.GetRequiredService<AviatesBackendClient>();
+            var landings = sp.GetRequiredService<ILandingRepository>();
+
+            var remote = await backend.FetchMyLandingsAsync(key);
+            if (remote.Count == 0) return;
+
+            var local = await landings.GetAllAsync();
+            int added = 0;
+
+            foreach (var r in remote)
+            {
+                // Dedupe by touchdown time within a few seconds -- two genuinely distinct
+                // landings from the same pilot this close together essentially never happen,
+                // matching SyncPirepHistoryAsync's own tolerance-window dedupe approach.
+                bool exists = local.Any(l => Math.Abs((l.Timestamp - r.TouchdownAt).TotalSeconds) < 5);
+                if (exists) continue;
+
+                var record = new LandingResult
+                {
+                    Timestamp                  = r.TouchdownAt,
+                    AirportICAO                = r.AirportIcao,
+                    RunwayIdentifier            = r.RunwayIdentifier,
+                    TouchdownLatitude           = r.TouchdownLat ?? 0,
+                    TouchdownLongitude          = r.TouchdownLon ?? 0,
+                    VerticalSpeedFPM            = r.VsFpm,
+                    IASKts                      = r.IasKts,
+                    GroundSpeedKts              = r.GsKts,
+                    TouchdownPitchDeg           = r.PitchDeg,
+                    TouchdownBankDeg            = r.BankDeg,
+                    HeadwindComponent           = r.HeadwindKt,
+                    CrosswindComponent          = r.CrosswindKt,
+                    WindSpeedKts                = r.WindSpeedKt,
+                    WindDirectionDeg            = r.WindDirDeg,
+                    ApproachWasStable           = r.ApproachStable,
+                    FlareDetected               = r.FlareDetected,
+                    BounceCount                 = r.BounceCount,
+                    RolloutDistanceFt           = r.RolloutDistanceFt,
+                    AverageDecelerationKtPerSec = r.AvgDeceleration,
+                    ThresholdDistanceFt         = r.ThresholdDistanceFt,
+                    FuelOnTouchdownLbs          = r.FuelOnTouchdownLbs,
+                    LandingScore                = r.Score,
+                    ScoreBreakdown = new LandingScoreBreakdown
+                    {
+                        VerticalSpeedScore = r.ScoreVs,
+                        PitchScore         = r.ScorePitch,
+                        BankScore          = r.ScoreBank,
+                        SpeedScore         = r.ScoreSpeed,
+                        CrosswindScore     = r.ScoreCrosswind,
+                        StabilityScore     = r.ScoreStability,
+                        TotalScore         = r.Score,
+                    },
+                };
+
+                await landings.SaveAsync(record);
+                added++;
+            }
+
+            if (added > 0)
+                Log.Information("[Startup] Synced {Count} historical landing(s) from Supabase", added);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Startup] Landing history sync failed (non-critical)");
+        }
+    }
+
+    // Mirrors SyncPirepHistoryAsync/SyncLandingHistoryAsync above: rebuilds the local friend
+    // list from /api/v1/friends so it survives a reinstall/new PC instead of living only in
+    // the local JSON cache (adding a friend was never actually persisted server-side before
+    // this pass -- see MessagingService.AddFriendByCodeAsync).
+    internal static async Task SyncFriendsAsync(IServiceProvider sp)
+    {
+        try
+        {
+            var settings = sp.GetRequiredService<SettingsService>();
+            var key      = settings.Settings.AcarsKey.Trim();
+            if (string.IsNullOrEmpty(key)) return;
+
+            var backend = sp.GetRequiredService<AviatesBackendClient>();
+            var friends = sp.GetRequiredService<IFriendRepository>();
+
+            var remote = await backend.FetchMyFriendsAsync(key);
+            if (remote.Count == 0) return;
+
+            int added = 0;
+            foreach (var entry in remote)
+            {
+                if (string.IsNullOrWhiteSpace(entry.PilotId)) continue;
+                if (await friends.ExistsAsync(entry.PilotId)) continue;
+
+                await friends.AddAsync(entry);
+                added++;
+            }
+
+            if (added > 0)
+                Log.Information("[Startup] Synced {Count} friend(s) from Supabase", added);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Startup] Friends sync failed (non-critical)");
+        }
+    }
+
     private static void ConfigureServices(ServiceCollection services)
     {
         // Data layer — JSON-persisted (survive app restarts)
         services.AddSingleton<IFlightRepository, JsonFlightRepository>();
-        services.AddSingleton<IPilotRepository, InMemoryPilotRepository>();
         services.AddSingleton<ILandingRepository, JsonLandingRepository>();
         services.AddSingleton<IFlightDeletionRepository, JsonFlightDeletionRepository>();
         services.AddSingleton<IMessageRepository, JsonMessageRepository>();
@@ -340,6 +560,7 @@ public partial class App : Application
         services.AddSingleton<LandingAnalyzer>();
         services.AddSingleton<ApproachMonitor>();
         services.AddSingleton<FuelAnalyzer>();
+        services.AddSingleton<FlightComplianceMonitor>();
         services.AddSingleton<RunwayDetector>();
         // Business
         services.AddSingleton<AviatesBackendClient>();
@@ -368,6 +589,7 @@ public partial class App : Application
         services.AddSingleton<ExportService>();
         services.AddSingleton<PilotStatsService>();
         services.AddSingleton<EventsService>();
+        services.AddSingleton<EventReminderService>();
         services.AddSingleton<RoutesService>();
         services.AddSingleton<BookingService>();
         services.AddSingleton<FleetService>();
@@ -378,12 +600,14 @@ public partial class App : Application
         services.AddSingleton<EfbChecklistService>();
         services.AddSingleton<EfbManualsService>();
         services.AddSingleton<EfbAtisService>();
+        services.AddSingleton<EfbNetworkTrafficService>();
         services.AddSingleton<EfbServer>();
         // ViewModels
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<MapViewModel>();
         services.AddSingleton<LandingAnalysisViewModel>();
         services.AddSingleton<PilotHubViewModel>();
+        services.AddSingleton<LogbookViewModel>();
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<ReplayViewModel>();
         services.AddSingleton<MainViewModel>();
@@ -395,6 +619,7 @@ public partial class App : Application
         services.AddSingleton<EventsViewModel>();
         services.AddSingleton<MessagesViewModel>();
         services.AddSingleton<AcarsViewModel>();
+        services.AddSingleton<NewsViewModel>();
         services.AddSingleton<ShellWindow>();
     }
 
@@ -493,10 +718,17 @@ public partial class App : Application
         Step("VoiceChannelClient", () => _serviceProvider.GetService<VoiceChannelClient>()?.Dispose());
         Step("VoiceAudioEngine", () => _serviceProvider.GetService<VoiceAudioEngine>()?.Dispose());
         Step("UpdateService", () => _serviceProvider.GetService<UpdateService>()?.Dispose());
+        Step("EventReminderService", () => _serviceProvider.GetService<EventReminderService>()?.Dispose());
         Step("TakeoffPerf", () => _serviceProvider.GetService<TakeoffPerformanceService>()?.Dispose());
 
         Log.Information("[Shutdown] All services disposed in {Ms} ms — exiting", sw.ElapsedMilliseconds);
         Log.CloseAndFlush();
         _serviceProvider.Dispose();
+
+        // Last, after the log is flushed -- releasing this drops the kernel object once no
+        // process holds it, which is what lets the installer's AppMutex check see the app as
+        // "gone" and proceed with copying files.
+        _appMutex?.Dispose();
+        _appMutex = null;
     }
 }
