@@ -1,5 +1,8 @@
+using AviatesAirTracker.Core.Efb;
 using AviatesAirTracker.Models;
+using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
+using AviatesAirTracker.Services.Efb;
 using AviatesAirTracker.ViewModels;
 using Mapsui;
 using Mapsui.Layers;
@@ -11,7 +14,9 @@ using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Reflection;
+using System.Threading.Tasks;
 
 namespace AviatesAirTracker.Pages;
 
@@ -34,11 +39,29 @@ public sealed partial class MapPage : Page
     private readonly MapViewModel _vm;
     private readonly OtherPilotsService _otherPilots;
     private readonly MessagingService _messaging;
+    private readonly EfbNetworkTrafficService _network;
 
     private readonly NativeMapRenderer _renderer;
     private readonly Mapsui.UI.WinUI.MapControl _mapControl;
 
     private HashSet<string> _renderedOtherPilotIds = new();
+
+    // ── Weather radar / VATSIM / IVAO layer toggles ─────────────────────────────────────────
+    // Page-owned, not MapViewModel-owned — matches OtherPilotsService's own direct-injection
+    // pattern above (this.constructor comment) and AcarsPage.xaml.cs's documented rule that no
+    // ViewModel here owns a DispatcherTimer. EfbNetworkTrafficService is the exact same singleton
+    // already built for the EFB web map's VATSIM/IVAO layers (Services/Efb/EfbNetworkTrafficService.cs)
+    // — reused here rather than duplicating the VATSIM/IVAO/transceivers fetch+cache logic a
+    // second time for the native map.
+    private bool _weatherRadarOn;
+    private bool _vatsimOn;
+    private bool _ivaoOn;
+    private DispatcherTimer? _weatherTimer;
+    private DispatcherTimer? _networkTimer;
+    // RainViewer's metadata endpoint is unrelated to this app's own backend/EFB server, so this
+    // gets its own small HttpClient rather than reusing any service's client that carries
+    // ACARS-key or EFB-token auth headers meant for a different host.
+    private readonly HttpClient _weatherHttp = new() { Timeout = TimeSpan.FromSeconds(10) };
 
     // Set by OnMapInfo when an other-pilot marker is tapped. Exposed as a property (not a bare
     // field) so this class's own build doesn't trip CS0414 ("assigned but never read"); the
@@ -55,9 +78,13 @@ public sealed partial class MapPage : Page
     {
         InitializeComponent();
 
+        InteractiveEffects.Attach(CenterButtonBorder, ZoomInButtonBorder, ZoomOutButtonBorder, PilotDetailCloseButton,
+            WeatherRadarButtonBorder, VatsimButtonBorder, IvaoButtonBorder);
+
         _vm = App.GetService<MapViewModel>();
         _otherPilots = App.GetService<OtherPilotsService>();
         _messaging = App.GetService<MessagingService>();
+        _network = App.GetService<EfbNetworkTrafficService>();
 
         // NativeMapRenderer(map: null) creates and owns its own Mapsui.Map (see its own doc
         // comment: "works both standalone ... or pre-wired to a MapControl") -- handing that same
@@ -126,12 +153,30 @@ public sealed partial class MapPage : Page
             PushPlannedRoute(plan);
 
         UpdateNoFlightOverlay();
+
+        // Always running (matching AcarsPage.xaml.cs's _metarTimer convention), gated inside each
+        // tick by the relevant _weatherRadarOn/_vatsimOn/_ivaoOn flag -- so nothing fetches over
+        // the network while every layer toggle is off, and re-enabling a toggle later doesn't
+        // need to wait for the next tick to pick up (each toggle handler also fires one immediate
+        // refresh of its own).
+        _weatherTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
+        _weatherTimer.Tick += async (_, _) => await RefreshWeatherRadarAsync();
+        _weatherTimer.Start();
+
+        _networkTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
+        _networkTimer.Tick += async (_, _) => await RefreshNetworkTrafficAsync();
+        _networkTimer.Start();
     }
 
     private void OnPageUnloaded(object sender, RoutedEventArgs e)
     {
         _vm.MapRenderRequested -= OnMapRenderRequested;
         _otherPilots.PositionsUpdated -= OnOtherPilotsUpdated;
+
+        _weatherTimer?.Stop();
+        _weatherTimer = null;
+        _networkTimer?.Stop();
+        _networkTimer = null;
     }
 
     // ── MapViewModel.MapRenderRequested -- the ~4 Hz decimated telemetry tick ───────────────────
@@ -326,6 +371,137 @@ public sealed partial class MapPage : Page
     private void OnZoomInTapped(object sender, TappedRoutedEventArgs e) => _renderer.ZoomIn();
 
     private void OnZoomOutTapped(object sender, TappedRoutedEventArgs e) => _renderer.ZoomOut();
+
+    // ── Weather radar / VATSIM / IVAO layer toggles ─────────────────────────────────────────────
+    // Same "toggle + immediate refresh + periodic background refresh" shape the EFB web map's
+    // rail buttons use (EfbWeb/app.js's toggleWeather/drawNetwork) -- kept deliberately parallel
+    // so both surfaces behave the same way, not because any code is shared between them (WinUI3
+    // vs. vanilla JS can't share code here).
+
+    private async void OnWeatherRadarTapped(object sender, TappedRoutedEventArgs e)
+    {
+        _weatherRadarOn = !_weatherRadarOn;
+        UpdateLayerToggleVisuals();
+        _renderer.SetWeatherRadarVisible(_weatherRadarOn);
+        if (_weatherRadarOn)
+            await RefreshWeatherRadarAsync();
+    }
+
+    private async void OnVatsimTapped(object sender, TappedRoutedEventArgs e)
+    {
+        _vatsimOn = !_vatsimOn;
+        UpdateLayerToggleVisuals();
+        _renderer.SetVatsimVisible(_vatsimOn);
+        if (_vatsimOn)
+            await RefreshNetworkTrafficAsync();
+    }
+
+    private async void OnIvaoTapped(object sender, TappedRoutedEventArgs e)
+    {
+        _ivaoOn = !_ivaoOn;
+        UpdateLayerToggleVisuals();
+        _renderer.SetIvaoVisible(_ivaoOn);
+        if (_ivaoOn)
+            await RefreshNetworkTrafficAsync();
+    }
+
+    private void UpdateLayerToggleVisuals()
+    {
+        SetToggleButtonVisual(WeatherRadarButtonBorder, _weatherRadarOn);
+        SetToggleButtonVisual(VatsimButtonBorder, _vatsimOn);
+        SetToggleButtonVisual(IvaoButtonBorder, _ivaoOn);
+    }
+
+    // #4D9BEC is this app's current brand accent (CLAUDE.md: #3D7EEE is the retired previous
+    // value) -- used only for this toggle-active highlight, not touching the panel's existing
+    // #3D7EEE-based resting chrome shared with the center/zoom buttons above.
+    private static void SetToggleButtonVisual(Border border, bool active)
+    {
+        border.Background = new SolidColorBrush(active
+            ? Windows.UI.Color.FromArgb(0x66, 0x4D, 0x9B, 0xEC)
+            : Windows.UI.Color.FromArgb(0x14, 0x3D, 0x7E, 0xEE));
+        border.BorderBrush = new SolidColorBrush(active
+            ? Windows.UI.Color.FromArgb(0xFF, 0x4D, 0x9B, 0xEC)
+            : Windows.UI.Color.FromArgb(0x40, 0x3D, 0x7E, 0xEE));
+    }
+
+    // RainViewer's public metadata + tile API -- no key required, same source the EFB web map's
+    // Map app uses (EfbWeb/app.js's drawWeather). This page does the HTTP fetch itself (unlike
+    // VATSIM/IVAO below, RainViewer has no existing backend service already fetching it) and
+    // hands NativeMapRenderer only the resolved tile URL template, matching every other method
+    // on that class taking already-resolved primitives rather than owning network calls itself.
+    private async Task RefreshWeatherRadarAsync()
+    {
+        if (!_weatherRadarOn) return;
+        try
+        {
+            var json = await _weatherHttp.GetStringAsync("https://api.rainviewer.com/public/weather-maps.json");
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("host", out var hostEl)) return;
+            if (!root.TryGetProperty("radar", out var radarEl) || !radarEl.TryGetProperty("past", out var pastEl))
+                return;
+            var frameCount = pastEl.GetArrayLength();
+            if (frameCount == 0) return;
+            var last = pastEl[frameCount - 1];
+            if (!last.TryGetProperty("path", out var pathEl)) return;
+
+            var tileUrl = $"{hostEl.GetString()}{pathEl.GetString()}/256/{{z}}/{{x}}/{{y}}/2/1_1.png";
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (!_weatherRadarOn) return; // toggled off while the fetch was in flight
+                _renderer.SetWeatherRadarTile(tileUrl);
+                _renderer.SetWeatherRadarVisible(true);
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "[Map] Weather radar refresh failed");
+        }
+    }
+
+    // Reuses EfbNetworkTrafficService (Services/Efb/EfbNetworkTrafficService.cs) -- the same
+    // VATSIM+IVAO fetch/cache the EFB web map's Map app already uses, so this page's polling
+    // never doubles the request rate against either network beyond that service's own ~30s cache.
+    private async Task RefreshNetworkTrafficAsync()
+    {
+        if (!_vatsimOn && !_ivaoOn) return;
+        try
+        {
+            var net = await _network.GetAsync();
+
+            var vatsimPilots = net.Pilots.Where(p => p.Network == "VATSIM")
+                .Select(p => (p.Lat, p.Lon, (double)p.HeadingDeg, FormatPilotLabel(p))).ToList();
+            var ivaoPilots = net.Pilots.Where(p => p.Network == "IVAO")
+                .Select(p => (p.Lat, p.Lon, (double)p.HeadingDeg, FormatPilotLabel(p))).ToList();
+            // VATSIM controllers carry no lat/lon of their own -- EfbNetworkTrafficService already
+            // dropped any it couldn't resolve via the transceivers feed, leaving Lat/Lon null.
+            var vatsimAtcs = net.Atcs.Where(a => a.Network == "VATSIM" && a.Lat.HasValue && a.Lon.HasValue)
+                .Select(a => (a.Lat!.Value, a.Lon!.Value, FormatAtcLabel(a))).ToList();
+            var ivaoAtcs = net.Atcs.Where(a => a.Network == "IVAO" && a.Lat.HasValue && a.Lon.HasValue)
+                .Select(a => (a.Lat!.Value, a.Lon!.Value, FormatAtcLabel(a))).ToList();
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                _renderer.UpdateVatsimTraffic(vatsimPilots);
+                _renderer.UpdateVatsimAtc(vatsimAtcs);
+                _renderer.UpdateIvaoTraffic(ivaoPilots);
+                _renderer.UpdateIvaoAtc(ivaoAtcs);
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "[Map] Network traffic refresh failed");
+        }
+    }
+
+    private static string FormatPilotLabel(EfbNetworkPilot p) =>
+        $"{p.Callsign} · {p.Network} · {(string.IsNullOrEmpty(p.AircraftType) ? "?" : p.AircraftType)} · " +
+        $"{(string.IsNullOrEmpty(p.DepartureIcao) ? "?" : p.DepartureIcao)}→{(string.IsNullOrEmpty(p.ArrivalIcao) ? "?" : p.ArrivalIcao)}";
+
+    private static string FormatAtcLabel(EfbNetworkAtc a) =>
+        $"{a.Callsign} · {(string.IsNullOrEmpty(a.Position) ? a.Network : a.Position)}" +
+        (a.Frequency > 0 ? $" · {a.Frequency:F3}" : "");
 
     // ── Pilot-detail panel (top-right, offset from the plan HUD) ───────────────────────────────
 

@@ -104,11 +104,11 @@ public partial class AcarsViewModel : ObservableObject
 
     public string BannerTitle => SimStatus switch
     {
-        SimConnectionStatus.Connected when SessionState != FlightSessionState.Idle => "ACARS Live — Flight In Progress",
-        SimConnectionStatus.Connected  => "ACARS Online — Sim Connected",
+        SimConnectionStatus.Connected when SessionState != FlightSessionState.Idle => "ACARS Live: Flight In Progress",
+        SimConnectionStatus.Connected  => "ACARS Online: Sim Connected",
         SimConnectionStatus.Connecting => "Connecting to MSFS...",
-        SimConnectionStatus.Error      => "ACARS Error — Connection Failed",
-        _                               => "ACARS Offline — MSFS Not Connected"
+        SimConnectionStatus.Error      => "ACARS Error: Connection Failed",
+        _                               => "ACARS Offline: MSFS Not Connected"
     };
 
     public string BannerDesc => SimStatus switch

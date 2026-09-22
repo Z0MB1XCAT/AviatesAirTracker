@@ -43,6 +43,26 @@ public partial class EventsViewModel : ObservableObject
                 _ => await _events.GetEventsAsync("upcoming"),
             };
 
+            // The server's own upcoming/past split (get_events_list) is date-only and only
+            // reclassifies an event's `status` via a scheduled job that can lag well behind the
+            // event's actual start time -- reconciled locally here using the same start-time
+            // calculation EventReminderService uses for its own 10-minutes-before popup, so a
+            // pilot never sees an event sitting in Upcoming that's already started.
+            var now = DateTime.UtcNow;
+            if (tab == "upcoming")
+            {
+                result = result.Where(e => EventReminderService.EventStartUtc(e) is not { } start || start >= now).ToList();
+            }
+            else if (tab == "past")
+            {
+                var stillMarkedUpcoming = await _events.GetEventsAsync("upcoming");
+                var justElapsed = stillMarkedUpcoming.Where(e => EventReminderService.EventStartUtc(e) is { } start && start < now);
+                result = result.Concat(justElapsed)
+                    .DistinctBy(e => e.Id)
+                    .OrderByDescending(e => e.EventDate)
+                    .ToList();
+            }
+
             Events.Clear();
             foreach (var e in result) Events.Add(e);
             FeaturedEvent = Events.FirstOrDefault(e => e.IsFeatured);
@@ -70,4 +90,7 @@ public partial class EventsViewModel : ObservableObject
 
     public async Task<(bool Success, string Error)> CreateEventAsync(CreateEventRequest req)
         => await _events.CreateEventAsync(req, _settings.Settings.AcarsKey);
+
+    public async Task<List<EventAttendee>> GetAttendeesAsync(int eventId)
+        => await _events.GetAttendeesAsync(eventId);
 }

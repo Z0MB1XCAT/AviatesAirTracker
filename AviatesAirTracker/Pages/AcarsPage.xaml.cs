@@ -3,6 +3,7 @@ using AviatesAirTracker.Core.Reference;
 using AviatesAirTracker.Core.SimConnect;
 using AviatesAirTracker.Dialogs;
 using AviatesAirTracker.Models;
+using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
 using AviatesAirTracker.ViewModels;
 using Microsoft.UI.Text;
@@ -159,15 +160,19 @@ public sealed partial class AcarsPage : Page
     // the page's own DispatcherTimer to call every 10 minutes").
     private DispatcherTimer? _metarTimer;
 
-    // Page-local UI-only state (collapsed-panel booleans, "just copied" flash) -- matches the
-    // design spec's own carve-out and AcarsViewModel's class-doc deviation #4.
+    // Page-local UI-only state (collapsed-panel booleans) -- matches the design spec's own
+    // carve-out and AcarsViewModel's class-doc deviation #4.
     private bool _showNotams;
     private bool _showOfp;
-    private bool _pirepCopied;
 
     public AcarsPage()
     {
         InitializeComponent();
+
+        // CompletionPanelBorder is excluded -- it's a whole slide-in overlay panel whose Tapped
+        // handler only stops the dismiss-on-backdrop-tap bubble, not a clickable button.
+        InteractiveEffects.Attach(ConnectButtonBorder, EndFlightButtonBorder, BookingDismissBorder,
+            FullMapLinkBorder, ClearPlanButtonBorder, RefreshOfpButtonBorder, ImportOfpButtonBorder);
 
         _vm = App.GetService<AcarsViewModel>();
         _session = App.GetService<FlightSessionManager>();
@@ -205,7 +210,24 @@ public sealed partial class AcarsPage : Page
         _pilotHub.DataRefreshed += OnPilotHubDataRefreshed;
         _vm.EventLog.CollectionChanged += OnEventLogCollectionChanged;
         _vm.HoppiesLog.CollectionChanged += OnHoppiesLogCollectionChanged;
-        _vm.PosReportHistory.CollectionChanged += OnPosReportHistoryCollectionChanged;
+
+        // Booking activation gate -- checked fresh against the server (not the possibly-stale
+        // in-memory BookingService.ActiveBooking) every time this page loads, since activating
+        // happens on Pilot Hub, a different page in this single-Frame shell, so the pilot always
+        // returns here by navigating back rather than this page staying open across activation.
+        // A one-time network call on page load is cheap; this is not the 20Hz hot path.
+        // FlightSessionManager.OnEnginesStarted enforces the real "no tracking" rule -- this only
+        // decides what the page shows, so the two are allowed to use different booking sources.
+        var currentBooking = await _booking.GetCurrentBookingAsync();
+        var activated = currentBooking is { IsActivated: true };
+        BookingGateGrid.Visibility = activated ? Visibility.Collapsed : Visibility.Visible;
+        if (!activated)
+        {
+            BookingGateSubtitleText.Text = currentBooking == null
+                ? "Book a flight from Routes, then activate it from Pilot Hub before you fly."
+                : "You have a booking waiting. Activate it from Pilot Hub before you start tracking.";
+            return;
+        }
 
         var snap = _session.LatestTelemetry;
         _renderer.Init(snap?.Latitude ?? 0, snap?.Longitude ?? 0);
@@ -258,7 +280,6 @@ public sealed partial class AcarsPage : Page
         _pilotHub.DataRefreshed -= OnPilotHubDataRefreshed;
         _vm.EventLog.CollectionChanged -= OnEventLogCollectionChanged;
         _vm.HoppiesLog.CollectionChanged -= OnHoppiesLogCollectionChanged;
-        _vm.PosReportHistory.CollectionChanged -= OnPosReportHistoryCollectionChanged;
 
         _utcClockTimer?.Stop();
         _utcClockTimer = null;
@@ -310,7 +331,6 @@ public sealed partial class AcarsPage : Page
             {
                 UpdateConnectionBanner();
                 UpdatePhaseLadder();
-                UpdatePirepPanel();
             }
             catch (Exception ex)
             {
@@ -351,7 +371,6 @@ public sealed partial class AcarsPage : Page
                 UpdateProgressStrip();
                 UpdateBookingBanner();
                 UpdatePhaseLadder();
-                UpdatePirepPanel();
 
                 _renderer.UpdatePosition(snap.Latitude, snap.Longitude, snap.Raw.HeadingTrue);
                 var trail = _vm.GetTrailIfChanged();
@@ -696,7 +715,6 @@ public sealed partial class AcarsPage : Page
         UpdateMetarCards();
         UpdateNotamsPanel();
         UpdateOfpTextPanel();
-        UpdatePirepPanel();
     }
 
     // ── Waypoint route strip (Acars.razor:401-437) ──────────────────────────────────────────────
@@ -708,7 +726,7 @@ public sealed partial class AcarsPage : Page
         WaypointStripBorder.Visibility = hasWaypoints ? Visibility.Visible : Visibility.Collapsed;
         if (!hasWaypoints || plan is null) return;
 
-        WaypointStripTitleText.Text = $"Route — {plan.DepartureICAO} → {plan.ArrivalICAO}";
+        WaypointStripTitleText.Text = $"Route: {plan.DepartureICAO} → {plan.ArrivalICAO}";
 
         // SID/STAR label line -- falls back to the runway when no SID/STAR name is present,
         // matching Acars.razor:407-408 exactly. The original also color-differentiates the " · "
@@ -786,7 +804,7 @@ public sealed partial class AcarsPage : Page
         DepMetarCardBorder.Visibility = showDep ? Visibility.Visible : Visibility.Collapsed;
         if (showDep)
         {
-            DepMetarTitleText.Text = $"DEP METAR — {plan.DepartureICAO}";
+            DepMetarTitleText.Text = $"DEP METAR: {plan.DepartureICAO}";
             DepMetarTimeText.Text = timeText;
             DepMetarBodyText.Text = depText;
             DepMetarRefreshIconText.Text = _vm.MetarRefreshing ? "…" : "↻";
@@ -795,7 +813,7 @@ public sealed partial class AcarsPage : Page
         ArrMetarCardBorder.Visibility = showArr ? Visibility.Visible : Visibility.Collapsed;
         if (showArr)
         {
-            ArrMetarTitleText.Text = $"ARR METAR — {plan.ArrivalICAO}";
+            ArrMetarTitleText.Text = $"ARR METAR: {plan.ArrivalICAO}";
             ArrMetarTimeText.Text = timeText;
             ArrMetarBodyText.Text = arrText;
             ArrMetarRefreshIconText.Text = _vm.MetarRefreshing ? "…" : "↻";
@@ -804,7 +822,7 @@ public sealed partial class AcarsPage : Page
         AltMetarCardBorder.Visibility = showAlt ? Visibility.Visible : Visibility.Collapsed;
         if (showAlt)
         {
-            AltMetarTitleText.Text = $"ALT METAR — {plan.AlternateICAO}";
+            AltMetarTitleText.Text = $"ALT METAR: {plan.AlternateICAO}";
             AltMetarTimeText.Text = timeText;
             AltMetarBodyText.Text = altText;
             AltMetarRefreshIconText.Text = _vm.MetarRefreshing ? "…" : "↻";
@@ -915,101 +933,6 @@ public sealed partial class AcarsPage : Page
     {
         _showOfp = !_showOfp;
         UpdateOfpTextPanel();
-    }
-
-    // ── Position Report / PIREP panel (Acars.razor:569-661) ─────────────────────────────────────
-
-    private void UpdatePirepPanel()
-    {
-        if (_vm.FlightPlan is null) return; // panel itself is inside OfpDetailsStripPanel's gate
-
-        PirepAutoBadgeBorder.Visibility = _vm.Settings.Settings.AutoPirepIntervalMinutes > 0
-            ? Visibility.Visible : Visibility.Collapsed;
-        if (_vm.PosReportHistory.Count > 0)
-            PirepLastReportText.Text = $"Last: {_vm.PosReportHistory[^1]:HH:mm}Z";
-        else
-            PirepLastReportText.Text = "Auto-filled from telemetry";
-
-        PirepPositionText.Text = _session.LatestTelemetry is not null ? _vm.CoordsText : "—";
-        PirepAltitudeText.Text = $"{_vm.AltText} ft";
-        PirepIasGsText.Text = $"{_vm.IasText} / {_vm.GsText} kts";
-        PirepFuelText.Text = $"{_vm.FuelText} lbs";
-        PirepEtaLabelText.Text = $"ETA {_vm.FlightPlan!.ArrivalICAO}";
-        PirepEtaText.Text = _vm.EtaText;
-        PirepPhaseText.Text = _vm.SessionState.ToString();
-
-        var showCruise = _vm.CruiseLabel != "—";
-        PirepCruiseBorder.Visibility = showCruise ? Visibility.Visible : Visibility.Collapsed;
-        if (showCruise)
-        {
-            PirepCruiseLabelText.Text = $"CRUISE FL{_vm.FlightPlan.CruiseAltitudeFt / 100:D3}";
-            PirepCruiseValueText.Text = _vm.CruiseLabel;
-            PirepCruiseValueText.Foreground = BrushFromHex(_vm.CruiseColorHex);
-        }
-
-        var hasHistory = _vm.PosReportHistory.Count > 0;
-        PirepRecentReportsPanel.Visibility = hasHistory ? Visibility.Visible : Visibility.Collapsed;
-        if (hasHistory)
-        {
-            PirepRecentReportsChipsPanel.Children.Clear();
-            foreach (var rpt in _vm.PosReportHistory.Reverse().Take(5))
-            {
-                PirepRecentReportsChipsPanel.Children.Add(new Border
-                {
-                    Background = Surface2Brush,
-                    BorderBrush = BorderBrush_,
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(6),
-                    Padding = new Thickness(8, 3, 8, 3),
-                    Child = new TextBlock
-                    {
-                        Text = rpt.ToString("HH:mm") + "Z",
-                        FontFamily = new FontFamily("Consolas"),
-                        FontSize = 10,
-                        Foreground = TextMutedBrush,
-                    },
-                });
-            }
-        }
-
-        var hasAcarsKey = !string.IsNullOrWhiteSpace(_vm.Settings.Settings.AcarsKey);
-        var canSubmit = !_vm.PirepSubmitting && _session.LatestTelemetry is not null && hasAcarsKey;
-        SubmitPirepButtonText.Text = _vm.PirepSubmitting ? "Sending..." : (_vm.PirepSubmitResult ?? "Submit Position Report");
-        SubmitPirepButtonBorder.Opacity = canSubmit ? 1.0 : 0.5;
-        PirepConfigureAcarsText.Visibility = hasAcarsKey ? Visibility.Collapsed : Visibility.Visible;
-    }
-
-    private void OnPosReportHistoryCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => UpdatePirepPanel();
-
-    private void OnPirepRemarksTextChanged(object sender, TextChangedEventArgs e) => _vm.PirepRemarks = PirepRemarksTextBox.Text;
-
-    private async void OnCopyPirepTapped(object sender, TappedRoutedEventArgs e)
-    {
-        if (_pirepCopied) return; // ignore a fast double-tap while the flash is already showing
-
-        var package = new DataPackage();
-        package.SetText(_vm.BuildPirepText());
-        Clipboard.SetContent(package);
-
-        _pirepCopied = true;
-        CopyPirepButtonText.Text = "✓ Copied to clipboard";
-
-        await Task.Delay(2200); // matches Acars.razor's own Task.Delay(2200)
-
-        _pirepCopied = false;
-        CopyPirepButtonText.Text = "Copy PIREP Text";
-    }
-
-    private async void OnSubmitPirepTapped(object sender, TappedRoutedEventArgs e)
-    {
-        if (_vm.PirepSubmitting || _session.LatestTelemetry is null || string.IsNullOrWhiteSpace(_vm.Settings.Settings.AcarsKey))
-            return;
-
-        UpdatePirepPanel(); // reflect "Sending..." immediately
-        await _vm.SubmitPositionReportAsync();
-        UpdatePirepPanel();
-        await Task.Delay(2500); // matches AcarsViewModel.SubmitPositionReportAsync's own Task.Delay(2500)
-        UpdatePirepPanel(); // clears the transient "✓ Sent"/"Failed" result text
     }
 
     // ── Flight completion overlay (Acars.razor:1414-1479) ───────────────────────────────────────

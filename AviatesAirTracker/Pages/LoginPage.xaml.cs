@@ -1,4 +1,5 @@
 using AviatesAirTracker.Core.Backend;
+using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -57,6 +58,8 @@ public sealed partial class LoginPage : Page
     public LoginPage()
     {
         InitializeComponent();
+
+        InteractiveEffects.Attach(PasteButtonBorder, ConnectButtonBorder, RegisterLinkBorder);
 
         _settings = App.GetService<SettingsService>();
         _backendClient = App.GetService<AviatesBackendClient>();
@@ -177,6 +180,16 @@ public sealed partial class LoginPage : Page
             _settings.Save();
             _settings.RefreshFriendCode();
 
+            // Re-populate the (now-empty, per OnLogOutTapped's ClearAllAsync) local flights/
+            // landings/friends caches for this pilot without requiring an app restart -- these
+            // are the same App.xaml.cs startup-sync methods, reused. Fire-and-forget: the pilot
+            // shouldn't wait on the network here, and every page that reads these repos already
+            // refreshes on its own Loaded/OnNavigatedTo.
+            var sp = App.ServiceProvider;
+            _ = App.SyncPirepHistoryAsync(sp);
+            _ = App.SyncLandingHistoryAsync(sp);
+            _ = App.SyncFriendsAsync(sp);
+
             _loading = false;
             _success = true;
             UpdateVisualState();
@@ -222,29 +235,29 @@ public sealed partial class LoginPage : Page
         ConnectSpinner.Visibility = _loading ? Visibility.Visible : Visibility.Collapsed;
         ConnectSpinner.IsActive = _loading;
         ConnectCheckText.Visibility = _success ? Visibility.Visible : Visibility.Collapsed;
-        ConnectButtonText.Text = _loading ? "Validating…" : _success ? "Authenticated — Loading" : "Connect to AviatesAir";
+        ConnectButtonText.Text = _loading ? "Validating…" : _success ? "Authenticated, Loading" : "Connect to AviatesAir";
 
         if (_loading)
         {
-            ClearanceStripText.Text = "STATUS — VALIDATING CREDENTIALS";
+            ClearanceStripText.Text = "STATUS: VALIDATING CREDENTIALS";
             ClearanceStripText.Foreground = MutedBrush;
             ClearanceStripDot.Fill = MutedBrush;
         }
         else if (_success)
         {
-            ClearanceStripText.Text = "STATUS — CLEARED FOR PUSHBACK";
+            ClearanceStripText.Text = "STATUS: CLEARED FOR PUSHBACK";
             ClearanceStripText.Foreground = SuccessBrush;
             ClearanceStripDot.Fill = SuccessBrush;
         }
         else if (hasError)
         {
-            ClearanceStripText.Text = "STATUS — CLEARANCE DENIED";
+            ClearanceStripText.Text = "STATUS: CLEARANCE DENIED";
             ClearanceStripText.Foreground = ErrorBrush;
             ClearanceStripDot.Fill = ErrorBrush;
         }
         else
         {
-            ClearanceStripText.Text = "STATUS — AWAITING CLEARANCE";
+            ClearanceStripText.Text = "STATUS: AWAITING CLEARANCE";
             ClearanceStripText.Foreground = MutedBrush;
             ClearanceStripDot.Fill = MutedBrush;
         }

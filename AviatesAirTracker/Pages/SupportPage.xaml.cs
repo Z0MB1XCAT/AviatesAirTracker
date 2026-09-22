@@ -1,3 +1,4 @@
+using System;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -6,15 +7,16 @@ using Microsoft.UI.Xaml.Media;
 namespace AviatesAirTracker.Pages;
 
 /// <summary>
-/// Native reproduction of AviatesAirTracker.LegacyWeb\Pages\Support.razor. No ViewModel and no
-/// service dependency -- the original's own @code block is just a nullable OpenFaq string and a
-/// static Faqs dictionary, so this page's only state is the FAQ accordion's currently-open index.
+/// Native reproduction of AviatesAirTracker.LegacyWeb\Pages\Support.razor, since expanded with
+/// real content from flyaviatesair.uk (Contact &amp; Community section, FAQ items 6-9, and the
+/// GitHub Issues link). Still no ViewModel or service dependency -- the only state is the FAQ
+/// accordion's currently-open index.
 /// </summary>
 public sealed partial class SupportPage : Page
 {
     // Matches Support.razor's `private string? OpenFaq;` -- a single nullable field naming which
-    // FAQ is open, not a per-row bool set. Keyed by index here (0-5, matching XAML declaration
-    // order) rather than by question text, since the six rows are fixed and named in XAML; the
+    // FAQ is open, not a per-row bool set. Keyed by index here (0-9, matching XAML declaration
+    // order) rather than by question text, since the rows are fixed and named in XAML; the
     // toggle semantics are identical to ToggleFaq's own key-based logic.
     private int? _openFaqIndex;
 
@@ -25,17 +27,41 @@ public sealed partial class SupportPage : Page
     {
         InitializeComponent();
 
-        _faqRotates = [Faq0Rotate, Faq1Rotate, Faq2Rotate, Faq3Rotate, Faq4Rotate, Faq5Rotate];
-        _faqAnswers = [Faq0Answer, Faq1Answer, Faq2Answer, Faq3Answer, Faq4Answer, Faq5Answer];
+        _faqRotates =
+        [
+            Faq0Rotate, Faq1Rotate, Faq2Rotate, Faq3Rotate, Faq4Rotate, Faq5Rotate,
+            Faq6Rotate, Faq7Rotate, Faq8Rotate, Faq9Rotate,
+        ];
+        _faqAnswers =
+        [
+            Faq0Answer, Faq1Answer, Faq2Answer, Faq3Answer, Faq4Answer, Faq5Answer,
+            Faq6Answer, Faq7Answer, Faq8Answer, Faq9Answer,
+        ];
     }
 
-    // Support.razor's three feature-card buttons (Open Chat / Browse Docs / Open GitHub) have no
-    // @onclick handler at all in the original -- they are purely decorative today. This handler
-    // is a documented no-op so the Border still reads as a real interactive control in the native
-    // tree; it deliberately does not open a URL, a chat widget, or navigate anywhere, since none
-    // of those destinations exist in the source being ported.
-    private void OnFeatureButtonTapped(object sender, TappedRoutedEventArgs e)
+    // Live Chat now opens the real chat dialog (same backend the website's /support live chat
+    // widget uses). Knowledge Base still has no destination to link to, so it stays a no-op.
+    private async void OnFeatureButtonTapped(object sender, TappedRoutedEventArgs e)
     {
+        if (sender is not FrameworkElement { Tag: string tag } || tag != "live-chat") return;
+
+        var backend  = App.GetService<AviatesAirTracker.Core.Backend.AviatesBackendClient>();
+        var settings = App.GetService<AviatesAirTracker.Services.SettingsService>();
+        await AviatesAirTracker.Dialogs.LiveChatDialog.ShowAsync(XamlRoot, backend, settings);
+    }
+
+    private async void OnGitHubIssuesTapped(object sender, TappedRoutedEventArgs e)
+    {
+        await Windows.System.Launcher.LaunchUriAsync(new Uri("https://github.com/Z0MB1XCAT/AviatesAirTracker/issues"));
+    }
+
+    // Shared by both Contact & Community cards: Tag carries the destination URI directly (a
+    // mailto: link for email, an https: invite link for Discord), same Launcher.LaunchUriAsync
+    // pattern LoginPage.xaml.cs's OnRegisterTapped already uses.
+    private async void OnContactTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string uri }) return;
+        await Windows.System.Launcher.LaunchUriAsync(new Uri(uri));
     }
 
     // Matches ToggleFaq's exact logic: tapping the currently-open row closes it; tapping a

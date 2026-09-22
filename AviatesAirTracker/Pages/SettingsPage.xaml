@@ -144,29 +144,17 @@
                                 </Grid>
                             </Border>
 
-                            <!-- Pilot Name / Pilot ID fields -->
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Spacing="8">
-                                    <TextBlock Text="Pilot Name" FontSize="12.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
-                                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1.5" CornerRadius="12">
-                                        <TextBox x:Name="PilotNameTextBox" PlaceholderText="Your full name"
-                                                 Background="Transparent" BorderThickness="0" Foreground="#F1F5F9"
-                                                 Padding="14,10" TextChanged="OnPilotNameTextChanged" />
-                                    </Border>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Spacing="8">
-                                    <TextBlock Text="Pilot ID" FontSize="12.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
-                                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1.5" CornerRadius="12">
-                                        <TextBox x:Name="PilotIdTextBox" PlaceholderText="AVT-00000"
-                                                 Background="Transparent" BorderThickness="0" Foreground="#F1F5F9"
-                                                 Padding="14,10" TextChanged="OnPilotIdTextChanged" />
-                                    </Border>
-                                </StackPanel>
-                            </Grid>
+                            <!-- Pilot Name: read-only, synced from the ACARS account, not locally
+                                 editable. Pilot ID intentionally has no field here at all; it is
+                                 still used internally (SettingsService.Settings.PilotId, required
+                                 for the messaging system to route/display messages correctly),
+                                 just never shown or editable on this page. -->
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Pilot Name" FontSize="12.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                                <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1.5" CornerRadius="12">
+                                    <TextBlock x:Name="PilotNameText" FontSize="14" Foreground="#F1F5F9" Padding="14,10" />
+                                </Border>
+                            </StackPanel>
 
                             <!-- Log Out: same danger-tinted Border+Tapped treatment as AcarsPage's
                                  End Flight action (Background #1AEF4444 / BorderBrush #EF4444 /
@@ -176,86 +164,6 @@
                                     CornerRadius="12" Padding="14,10" HorizontalAlignment="Left">
                                 <TextBlock Text="Log Out" FontSize="13" FontWeight="SemiBold" Foreground="#EF4444" />
                             </Border>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- ── Appearance ── -->
-                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
-                            CornerRadius="20" Padding="20">
-                        <StackPanel Spacing="16">
-                            <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,0,0,12">
-                                <TextBlock Text="Appearance" FontFamily="{StaticResource DisplayFontBold}"
-                                           FontSize="16" FontWeight="Bold" Foreground="#F1F5F9" />
-                            </Border>
-                            <TextBlock Text="Choose a theme or let the app follow your operating system preference."
-                                       FontSize="13" Foreground="#64748B" TextWrapping="Wrap" LineHeight="22" />
-
-                            <!-- Three theme-option cards. Active-state border/background/icon-stroke/
-                                 label are all driven from code-behind (UpdateThemeCardVisuals) - per
-                                 the design spec's explicit scope decision, tapping a card only
-                                 persists Settings.Theme, it does NOT re-theme the running shell. -->
-                            <Grid ColumnSpacing="12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-
-                                <Border Grid.Column="0" x:Name="ThemeSystemBorder" Tag="system"
-                                        Tapped="OnThemeCardTapped" CornerRadius="12" Padding="14,10" BorderThickness="2">
-                                    <StackPanel HorizontalAlignment="Center" Spacing="8">
-                                        <Viewbox Width="22" Height="22" HorizontalAlignment="Center">
-                                            <Grid x:Name="ThemeSystemIconGrid" Width="24" Height="24">
-                                                <Rectangle Width="20" Height="14" RadiusX="2" RadiusY="2"
-                                                           Stroke="#64748B" StrokeThickness="2"
-                                                           HorizontalAlignment="Left" VerticalAlignment="Top" Margin="2,3,0,0" />
-                                                <Line X1="8" Y1="21" X2="16" Y2="21" Stroke="#64748B" StrokeThickness="2"
-                                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-                                                <Line X1="12" Y1="17" X2="12" Y2="21" Stroke="#64748B" StrokeThickness="2"
-                                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-                                            </Grid>
-                                        </Viewbox>
-                                        <TextBlock x:Name="ThemeSystemText" Text="System" FontSize="12.5"
-                                                   FontWeight="SemiBold" Foreground="#CBD5E1" HorizontalAlignment="Center" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border Grid.Column="1" x:Name="ThemeLightBorder" Tag="light"
-                                        Tapped="OnThemeCardTapped" CornerRadius="12" Padding="14,10" BorderThickness="2">
-                                    <StackPanel HorizontalAlignment="Center" Spacing="8">
-                                        <Viewbox Width="22" Height="22" HorizontalAlignment="Center">
-                                            <Grid x:Name="ThemeLightIconGrid" Width="24" Height="24">
-                                                <Ellipse Width="8" Height="8" Stroke="#64748B" StrokeThickness="2"
-                                                         HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                <Line X1="12" Y1="2" X2="12" Y2="4" Stroke="#64748B" StrokeThickness="2" StrokeStartLineCap="Round" />
-                                                <Line X1="12" Y1="20" X2="12" Y2="22" Stroke="#64748B" StrokeThickness="2" StrokeStartLineCap="Round" />
-                                                <Line X1="4.22" Y1="4.22" X2="5.64" Y2="5.64" Stroke="#64748B" StrokeThickness="2" StrokeStartLineCap="Round" />
-                                                <Line X1="18.36" Y1="18.36" X2="19.78" Y2="19.78" Stroke="#64748B" StrokeThickness="2" StrokeStartLineCap="Round" />
-                                                <Line X1="2" Y1="12" X2="4" Y2="12" Stroke="#64748B" StrokeThickness="2" StrokeStartLineCap="Round" />
-                                                <Line X1="20" Y1="12" X2="22" Y2="12" Stroke="#64748B" StrokeThickness="2" StrokeStartLineCap="Round" />
-                                                <Line X1="4.22" Y1="19.78" X2="5.64" Y2="18.36" Stroke="#64748B" StrokeThickness="2" StrokeStartLineCap="Round" />
-                                                <Line X1="18.36" Y1="5.64" X2="19.78" Y2="4.22" Stroke="#64748B" StrokeThickness="2" StrokeStartLineCap="Round" />
-                                            </Grid>
-                                        </Viewbox>
-                                        <TextBlock x:Name="ThemeLightText" Text="Light" FontSize="12.5"
-                                                   FontWeight="SemiBold" Foreground="#CBD5E1" HorizontalAlignment="Center" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border Grid.Column="2" x:Name="ThemeDarkBorder" Tag="dark"
-                                        Tapped="OnThemeCardTapped" CornerRadius="12" Padding="14,10" BorderThickness="2">
-                                    <StackPanel HorizontalAlignment="Center" Spacing="8">
-                                        <Viewbox Width="22" Height="22" HorizontalAlignment="Center">
-                                            <Grid x:Name="ThemeDarkIconGrid" Width="24" Height="24">
-                                                <Path Data="M21,12.79 A9,9 0 1,1 11.21,3 A7,7 0 0,0 21,12.79 Z"
-                                                      Stroke="#64748B" StrokeThickness="2" StrokeLineJoin="Round" />
-                                            </Grid>
-                                        </Viewbox>
-                                        <TextBlock x:Name="ThemeDarkText" Text="Dark" FontSize="12.5"
-                                                   FontWeight="SemiBold" Foreground="#CBD5E1" HorizontalAlignment="Center" />
-                                    </StackPanel>
-                                </Border>
-                            </Grid>
                         </StackPanel>
                     </Border>
 
@@ -286,7 +194,7 @@
                                 <TextBlock FontSize="12" Foreground="#64748B" TextWrapping="Wrap" LineHeight="20">
                                     <Run Text="Accepts your SimBrief username (e.g. " />
                                     <Run Text="jsmith" FontWeight="Bold" />
-                                    <Run Text=") or numeric pilot ID. You can override this — your account value is only applied on first sync." />
+                                    <Run Text=") or numeric pilot ID. You can override this; your account value is only applied on first sync." />
                                 </TextBlock>
                             </Border>
                         </StackPanel>
@@ -301,8 +209,11 @@
                      Panel order matches Settings.razor's own top-to-bottom order in this column. -->
                 <StackPanel Grid.Column="1" Spacing="20">
 
-                    <!-- ── ACARS Configuration ── -->
-                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                    <!-- ── ACARS Configuration ──
+                         Temporarily hidden from the UI (Visibility="Collapsed") while the setting
+                         itself, and everything that reads/writes it in code-behind, stays intact -
+                         only the panel's visibility changed here. -->
+                    <Border Visibility="Collapsed" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
                             CornerRadius="20" Padding="20">
                         <StackPanel Spacing="16">
                             <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,0,0,12">
@@ -369,7 +280,7 @@
                                                   Stroke="#4D9BEC" StrokeThickness="2" StrokeLineJoin="Round" />
                                         </Grid>
                                     </Viewbox>
-                                    <TextBlock Text="Profile synced — name and SimBrief ID have been populated from your AviatesAir account."
+                                    <TextBlock Text="Profile synced: name and SimBrief ID have been populated from your AviatesAir account."
                                                FontSize="12.5" Foreground="#4D9BEC" TextWrapping="Wrap" LineHeight="20" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Border>
@@ -420,7 +331,7 @@
                                         <TextBlock Text="Ctrl+Shift+F" FontFamily="Consolas" FontSize="10"
                                                    FontWeight="Bold" Foreground="#F1F5F9" CharacterSpacing="30" />
                                     </Border>
-                                    <TextBlock Text="Opens the FMC overlay from anywhere on the ACARS page — a hidden shortcut."
+                                    <TextBlock Text="Opens the FMC overlay from anywhere on the ACARS page (a hidden shortcut)."
                                                FontSize="12" Foreground="#64748B" TextWrapping="Wrap" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Border>
@@ -444,7 +355,7 @@
                                                  Background="Transparent" BorderThickness="0" Foreground="#F1F5F9"
                                                  Padding="14,10" PasswordChanged="OnHoppiesPilotCodeChanged" />
                                 </Border>
-                                <TextBlock Text="Stored for a future feature. Not required for company messages to reach you — those use the VA's own Hoppies connection."
+                                <TextBlock Text="Stored for a future feature. Not required for company messages to reach you; those use the VA's own Hoppies connection."
                                            FontSize="12" Foreground="#64748B" TextWrapping="Wrap" LineHeight="20" />
                             </StackPanel>
 
@@ -558,8 +469,12 @@
                          this native page). Selecting a device only persists the choice to
                          SettingsService - nothing native exists yet to receive an
                          "aviatesVoice.setMicrophone"/"setSpeaker"-shaped call, and inventing one
-                         would be worse than clearly doing nothing beyond persisting the setting. -->
-                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                         would be worse than clearly doing nothing beyond persisting the setting.
+
+                         Temporarily hidden from the UI (Visibility="Collapsed") - the dispatch
+                         radio function itself keeps running off whatever settings were already
+                         saved; only this panel's visibility changed here. -->
+                    <Border Visibility="Collapsed" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
                             CornerRadius="20" Padding="20">
                         <StackPanel Spacing="16">
                             <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,0,0,12">
@@ -897,6 +812,11 @@
                                             <TextBlock Text="Download &amp; Install" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" />
                                         </StackPanel>
                                     </Border>
+                                    <!-- Hidden unless a download/install attempt actually failed;
+                                         previously errors here were swallowed with no UI feedback
+                                         at all, which is exactly why this bug went undiagnosed. -->
+                                    <TextBlock x:Name="UpdateErrorText" Visibility="Collapsed"
+                                               FontSize="12" Foreground="#F87171" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
                             <Border x:Name="UpToDateBanner" Visibility="Collapsed"
@@ -923,7 +843,7 @@
                                            FontSize="16" FontWeight="Bold" Foreground="#F1F5F9" />
                             </Border>
                             <TextBlock FontSize="13" Foreground="#64748B" TextWrapping="Wrap" LineHeight="21"
-                                       Text="Host a virtual AviatesAir tablet on your network. Open the address below on an iPad, phone, or second monitor — or scan the QR — to get a live EFB with your flight dashboard, performance tools, checklists and manuals." />
+                                       Text="Host a virtual AviatesAir tablet on your network. Open the address below on an iPad, phone, or second monitor (or scan the QR) to get a live EFB with your flight dashboard, performance tools, checklists and manuals." />
 
                             <!-- Running state: QR code (Grid-of-Rectangle module grid, built in
                                  code-behind's BuildEfbQrGrid - NOT an SVG hack, per the design

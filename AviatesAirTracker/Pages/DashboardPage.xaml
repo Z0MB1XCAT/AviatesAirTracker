@@ -74,7 +74,7 @@
                         <StackPanel MaxWidth="520" Spacing="12" Padding="40,36"
                                     VerticalAlignment="Top" HorizontalAlignment="Left">
                             <Border Background="#1AFFFFFF" BorderBrush="#24FFFFFF" BorderThickness="1"
-                                    CornerRadius="999" Padding="12,4" HorizontalAlignment="Left">
+                                    CornerRadius="10" Padding="12,4" HorizontalAlignment="Left">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Ellipse Width="5" Height="5" Fill="#06B6D4" VerticalAlignment="Center" />
                                     <TextBlock Text="Virtual Airline Operations" FontSize="10"
@@ -100,7 +100,7 @@
                                  Flights page via this.Frame.Navigate (see OnViewFlightsTapped
                                  in the code-behind); the first native-to-native navigation in
                                  this migration. -->
-                            <Border Background="#FFFFFF" CornerRadius="999" Padding="22,11"
+                            <Border Background="#FFFFFF" CornerRadius="10" Padding="22,11"
                                     HorizontalAlignment="Left" Margin="0,10,0,0"
                                     Tapped="OnViewFlightsTapped">
                                 <TextBlock Text="View Flights" FontSize="13.5" FontWeight="Bold" Foreground="#0F172A" />
@@ -230,14 +230,22 @@
                     </ItemsControl>
                 </StackPanel>
 
-                <!-- Your Assignments: static, a literal transcription of Dashboard.razor's
-                     current 3 rows; nothing here backs it with real data, per the design
-                     spec's revised decision. -->
+                <!-- Recent Landings: real data (DashboardViewModel.RecentLandings, from
+                     ILandingRepository), replacing the old static "Your Assignments" table
+                     (Padhang Satrio / Zakir Horizontal / Leonardo Samsul rows), which was never
+                     backed by anything real. -->
                 <StackPanel Spacing="14">
-                    <TextBlock Text="Your Assignments" FontFamily="{StaticResource DisplayFontBold}"
+                    <TextBlock Text="Recent Landings" FontFamily="{StaticResource DisplayFontBold}"
                                FontSize="17" Foreground="#F1F5F9" />
 
-                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
+                    <TextBlock x:Name="EmptyLandingsText"
+                               Text="No landings recorded yet. Complete a flight to see your history here."
+                               FontSize="13" Foreground="#64748B" TextWrapping="Wrap"
+                               HorizontalAlignment="Center" TextAlignment="Center"
+                               Padding="0,32" Visibility="Collapsed" />
+
+                    <Border x:Name="RecentLandingsBorder" Background="#0C111D" BorderBrush="#14FFFFFF"
+                            BorderThickness="1" CornerRadius="20">
                         <StackPanel>
 
                             <!-- Header -->
@@ -245,149 +253,68 @@
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="220" />
-                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="120" />
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="50" />
+                                        <ColumnDefinition Width="60" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="DISPATCHER / INSTRUCTOR" FontSize="10.5"
+                                    <TextBlock Grid.Column="0" Text="LANDING" FontSize="10.5"
                                                FontWeight="Bold" Foreground="#64748B" />
-                                    <TextBlock Grid.Column="1" Text="TYPE" FontSize="10.5" FontWeight="Bold"
+                                    <TextBlock Grid.Column="1" Text="GRADE" FontSize="10.5" FontWeight="Bold"
                                                Foreground="#64748B" />
-                                    <TextBlock Grid.Column="2" Text="DESCRIPTION" FontSize="10.5" FontWeight="Bold"
+                                    <TextBlock Grid.Column="2" Text="DETAILS" FontSize="10.5" FontWeight="Bold"
                                                Foreground="#64748B" />
-                                    <TextBlock Grid.Column="3" Text="ACTION" FontSize="10.5" FontWeight="Bold"
+                                    <TextBlock Grid.Column="3" Text="SCORE" FontSize="10.5" FontWeight="Bold"
                                                Foreground="#64748B" />
                                 </Grid>
                             </Border>
 
-                            <!-- Row 1: Padhang Satrio / Chief Dispatcher / Route Planning -->
-                            <Border Padding="16,13" BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="220" />
-                                        <ColumnDefinition Width="150" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="50" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
-                                        <Border Width="34" Height="34" CornerRadius="12">
-                                            <Border.Background>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                    <GradientStop Color="#4D9BEC" Offset="0" />
-                                                    <GradientStop Color="#B8934A" Offset="1" />
-                                                </LinearGradientBrush>
-                                            </Border.Background>
-                                            <TextBlock Text="PS" FontSize="11" FontWeight="Bold" Foreground="#FFFFFF"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <ItemsControl x:Name="RecentLandingsList">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="16,13" BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="220" />
+                                                    <ColumnDefinition Width="120" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="60" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
+                                                    <Border Width="34" Height="34" CornerRadius="12" Background="{Binding IconBg}">
+                                                        <Viewbox Width="16" Height="16">
+                                                            <Polyline Points="22,12 18,12 15,21 9,3 6,12 2,12" Stroke="{Binding IconFg}"
+                                                                      StrokeThickness="2" StrokeLineJoin="Round"
+                                                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                        </Viewbox>
+                                                    </Border>
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Airport}" FontSize="13" FontWeight="SemiBold"
+                                                                   Foreground="#F1F5F9" />
+                                                        <TextBlock Text="{Binding DateText}" FontSize="11" Foreground="#64748B" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Background="{Binding IconBg}" CornerRadius="6" Padding="8,3"
+                                                        HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding GradeText}" FontSize="10" FontWeight="Bold"
+                                                               Foreground="{Binding IconFg}" />
+                                                </Border>
+                                                <TextBlock Grid.Column="2" Text="{Binding DetailsText}"
+                                                           FontSize="12.5" FontWeight="Medium" Foreground="#94A3B8"
+                                                           VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                <TextBlock Grid.Column="3" Text="{Binding ScoreText}"
+                                                           FontFamily="{StaticResource DisplayFontBold}" FontSize="16"
+                                                           FontWeight="Bold" Foreground="{Binding IconFg}"
+                                                           VerticalAlignment="Center" />
+                                            </Grid>
                                         </Border>
-                                        <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="Padhang Satrio" FontSize="13" FontWeight="SemiBold"
-                                                       Foreground="#F1F5F9" />
-                                            <TextBlock Text="Chief Dispatcher" FontSize="11" Foreground="#64748B" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                    <Border Grid.Column="1" Background="#1FB8934A" CornerRadius="6" Padding="8,3"
-                                            HorizontalAlignment="Left" VerticalAlignment="Center">
-                                        <TextBlock Text="ROUTE PLANNING" FontSize="10" FontWeight="Bold"
-                                                   Foreground="#B8934A" />
-                                    </Border>
-                                    <TextBlock Grid.Column="2" Text="Complete EGLL–KJFK transatlantic briefing"
-                                               FontSize="13" FontWeight="Medium" Foreground="#F1F5F9"
-                                               VerticalAlignment="Center" TextWrapping="Wrap" />
-                                    <Border Grid.Column="3" Width="30" Height="30" CornerRadius="999"
-                                            BorderBrush="#14FFFFFF" BorderThickness="1.5"
-                                            HorizontalAlignment="Left" VerticalAlignment="Center">
-                                        <TextBlock Text="&#x203A;" FontSize="14" Foreground="#CBD5E1"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
-                                </Grid>
-                            </Border>
-
-                            <!-- Row 2: Zakir Horizontal / Fleet Manager / Flight Academy -->
-                            <Border Padding="16,13" BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="220" />
-                                        <ColumnDefinition Width="150" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="50" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
-                                        <Border Width="34" Height="34" CornerRadius="12">
-                                            <Border.Background>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                    <GradientStop Color="#4D9BEC" Offset="0" />
-                                                    <GradientStop Color="#B8934A" Offset="1" />
-                                                </LinearGradientBrush>
-                                            </Border.Background>
-                                            <TextBlock Text="ZH" FontSize="11" FontWeight="Bold" Foreground="#FFFFFF"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                        <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="Zakir Horizontal" FontSize="13" FontWeight="SemiBold"
-                                                       Foreground="#F1F5F9" />
-                                            <TextBlock Text="Fleet Manager" FontSize="11" Foreground="#64748B" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                    <Border Grid.Column="1" Background="#1A06B6D4" CornerRadius="6" Padding="8,3"
-                                            HorizontalAlignment="Left" VerticalAlignment="Center">
-                                        <TextBlock Text="FLIGHT ACADEMY" FontSize="10" FontWeight="Bold"
-                                                   Foreground="#06B6D4" />
-                                    </Border>
-                                    <TextBlock Grid.Column="2" Text="Boeing 777 type rating — simulator session 3"
-                                               FontSize="13" FontWeight="Medium" Foreground="#F1F5F9"
-                                               VerticalAlignment="Center" TextWrapping="Wrap" />
-                                    <Border Grid.Column="3" Width="30" Height="30" CornerRadius="999"
-                                            BorderBrush="#14FFFFFF" BorderThickness="1.5"
-                                            HorizontalAlignment="Left" VerticalAlignment="Center">
-                                        <TextBlock Text="&#x203A;" FontSize="14" Foreground="#CBD5E1"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
-                                </Grid>
-                            </Border>
-
-                            <!-- Row 3: Leonardo Samsul / Check Captain / Checkride -->
-                            <Border Padding="16,13">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="220" />
-                                        <ColumnDefinition Width="150" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="50" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
-                                        <Border Width="34" Height="34" CornerRadius="12">
-                                            <Border.Background>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                    <GradientStop Color="#4D9BEC" Offset="0" />
-                                                    <GradientStop Color="#B8934A" Offset="1" />
-                                                </LinearGradientBrush>
-                                            </Border.Background>
-                                            <TextBlock Text="LS" FontSize="11" FontWeight="Bold" Foreground="#FFFFFF"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                        <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="Leonardo Samsul" FontSize="13" FontWeight="SemiBold"
-                                                       Foreground="#F1F5F9" />
-                                            <TextBlock Text="Check Captain" FontSize="11" Foreground="#64748B" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                    <Border Grid.Column="1" Background="#1F3EC7AC" CornerRadius="6" Padding="8,3"
-                                            HorizontalAlignment="Left" VerticalAlignment="Center">
-                                        <TextBlock Text="CHECKRIDE" FontSize="10" FontWeight="Bold"
-                                                   Foreground="#3EC7AC" />
-                                    </Border>
-                                    <TextBlock Grid.Column="2" Text="Annual line check — EDDF hub operations"
-                                               FontSize="13" FontWeight="Medium" Foreground="#F1F5F9"
-                                               VerticalAlignment="Center" TextWrapping="Wrap" />
-                                    <Border Grid.Column="3" Width="30" Height="30" CornerRadius="999"
-                                            BorderBrush="#14FFFFFF" BorderThickness="1.5"
-                                            HorizontalAlignment="Left" VerticalAlignment="Center">
-                                        <TextBlock Text="&#x203A;" FontSize="14" Foreground="#CBD5E1"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
-                                </Grid>
-                            </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
 
                         </StackPanel>
                     </Border>
@@ -464,99 +391,65 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Operations Team: static, same 3 people as Dashboard.razor today. -->
+                        <!-- Friends' Recent Activity: real data; each friend's most recent flight,
+                             newest first, capped at 3 (DashboardViewModel.RefreshAsync). Replaces
+                             the old static "Operations Team" placeholder rows (Padhang Satrio /
+                             Zakir Horizontal / Leonardo Samsul), which were never backed by
+                             anything and had non-functional "Follow" buttons. -->
                         <StackPanel Spacing="10">
-                            <TextBlock Text="YOUR OPERATIONS TEAM" FontSize="9" FontWeight="Bold"
+                            <TextBlock Text="FRIENDS' RECENT ACTIVITY" FontSize="9" FontWeight="Bold"
                                        Foreground="#64748B" />
 
-                            <Grid ColumnSpacing="12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="36" Height="36" CornerRadius="999">
-                                    <Border.Background>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#334155" Offset="0" />
-                                            <GradientStop Color="#1E293B" Offset="1" />
-                                        </LinearGradientBrush>
-                                    </Border.Background>
-                                    <Grid>
-                                        <TextBlock Text="PS" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        <Ellipse Width="9" Height="9" Fill="#3EC7AC" HorizontalAlignment="Right"
-                                                 VerticalAlignment="Bottom" />
-                                    </Grid>
-                                </Border>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Padhang Satrio" FontSize="13" FontWeight="SemiBold"
-                                               Foreground="#F1F5F9" />
-                                    <TextBlock Text="Chief Dispatcher" FontSize="11" Foreground="#64748B" />
-                                </StackPanel>
-                                <Border Grid.Column="2" Background="#1F4D9BEC" CornerRadius="999" Padding="12,5"
-                                        VerticalAlignment="Center">
-                                    <TextBlock Text="Follow" FontSize="12" FontWeight="SemiBold" Foreground="#4D9BEC" />
-                                </Border>
-                            </Grid>
+                            <TextBlock x:Name="EmptyFriendActivityText"
+                                       Text="Add friends by code in Messages to see their flights here."
+                                       FontSize="11.5" Foreground="#64748B" TextWrapping="Wrap"
+                                       Visibility="Collapsed" />
 
-                            <Grid ColumnSpacing="12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="36" Height="36" CornerRadius="999">
-                                    <Border.Background>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#334155" Offset="0" />
-                                            <GradientStop Color="#1E293B" Offset="1" />
-                                        </LinearGradientBrush>
-                                    </Border.Background>
-                                    <TextBlock Text="ZH" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Zakir Horizontal" FontSize="13" FontWeight="SemiBold"
-                                               Foreground="#F1F5F9" />
-                                    <TextBlock Text="Fleet Manager" FontSize="11" Foreground="#64748B" />
-                                </StackPanel>
-                                <Border Grid.Column="2" Background="#1F4D9BEC" CornerRadius="999" Padding="12,5"
-                                        VerticalAlignment="Center">
-                                    <TextBlock Text="Follow" FontSize="12" FontWeight="SemiBold" Foreground="#4D9BEC" />
-                                </Border>
-                            </Grid>
-
-                            <Grid ColumnSpacing="12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="36" Height="36" CornerRadius="999">
-                                    <Border.Background>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#334155" Offset="0" />
-                                            <GradientStop Color="#1E293B" Offset="1" />
-                                        </LinearGradientBrush>
-                                    </Border.Background>
-                                    <TextBlock Text="LS" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Leonardo Samsul" FontSize="13" FontWeight="SemiBold"
-                                               Foreground="#F1F5F9" />
-                                    <TextBlock Text="Check Captain" FontSize="11" Foreground="#64748B" />
-                                </StackPanel>
-                                <Border Grid.Column="2" Background="#1F4D9BEC" CornerRadius="999" Padding="12,5"
-                                        VerticalAlignment="Center">
-                                    <TextBlock Text="Follow" FontSize="12" FontWeight="SemiBold" Foreground="#4D9BEC" />
-                                </Border>
-                            </Grid>
+                            <ItemsControl x:Name="FriendActivityList">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Spacing="14" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnSpacing="12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Width="36" Height="36" CornerRadius="999">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                        <GradientStop Color="#334155" Offset="0" />
+                                                        <GradientStop Color="#1E293B" Offset="1" />
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                                <TextBlock Text="{Binding Initials}" FontSize="12" FontWeight="Bold"
+                                                           Foreground="#FFFFFF" HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                                <TextBlock Text="{Binding PilotName}" FontSize="13" FontWeight="SemiBold"
+                                                           Foreground="#F1F5F9" />
+                                                <TextBlock Text="{Binding RouteText}" FontSize="11" Foreground="#64748B"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" HorizontalAlignment="Right" Spacing="1">
+                                                <TextBlock Text="{Binding ScoreText}" FontSize="11" FontWeight="SemiBold"
+                                                           Foreground="#4D9BEC" HorizontalAlignment="Right" />
+                                                <TextBlock Text="{Binding TimeAgoText}" FontSize="10" Foreground="#64748B"
+                                                           HorizontalAlignment="Right" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
 
                         <Border Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="12"
-                                Padding="0,10">
+                                Padding="0,10" Tapped="OnSeeAllTeamTapped">
                             <TextBlock Text="See All Team" FontSize="13" FontWeight="SemiBold"
                                        Foreground="#CBD5E1" HorizontalAlignment="Center" />
                         </Border>
@@ -605,7 +498,8 @@
 
                             <Border Grid.Row="1" Grid.Column="0" Background="#121A2A" CornerRadius="16" Padding="14">
                                 <StackPanel HorizontalAlignment="Center">
-                                    <TextBlock Text="92%" FontFamily="{StaticResource DisplayFontBold}" FontSize="22"
+                                    <TextBlock Text="{Binding OnTimePercentText, Mode=OneWay}"
+                                               FontFamily="{StaticResource DisplayFontBold}" FontSize="22"
                                                Foreground="#3EC7AC" HorizontalAlignment="Center" />
                                     <TextBlock Text="ON-TIME" FontSize="10.5" FontWeight="SemiBold"
                                                Foreground="#64748B" HorizontalAlignment="Center" Margin="0,2,0,0" />

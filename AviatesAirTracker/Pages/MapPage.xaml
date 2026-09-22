@@ -70,6 +70,29 @@
                     <TextBlock Text="−" FontSize="14" Foreground="#A6FFFFFF"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
+                <Border Height="1" Background="#403D7EEE" Margin="0,2" />
+                <!-- Weather radar / VATSIM / IVAO layer toggles — inactive chrome matches the
+                     center/zoom buttons above; UpdateLayerToggleVisuals() (code-behind) recolors
+                     a button using the app's current accent (#4D9BEC, not the retired #3D7EEE)
+                     while its layer is switched on. -->
+                <Border x:Name="WeatherRadarButtonBorder" Width="28" Height="28"
+                        Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
+                        Tapped="OnWeatherRadarTapped" ToolTipService.ToolTip="Weather Radar">
+                    <TextBlock Text="W" FontFamily="Consolas" FontWeight="Bold" FontSize="12" Foreground="#A6FFFFFF"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <Border x:Name="VatsimButtonBorder" Width="28" Height="28"
+                        Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
+                        Tapped="OnVatsimTapped" ToolTipService.ToolTip="VATSIM Traffic + ATC">
+                    <TextBlock Text="V" FontFamily="Consolas" FontWeight="Bold" FontSize="12" Foreground="#A6FFFFFF"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <Border x:Name="IvaoButtonBorder" Width="28" Height="28"
+                        Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
+                        Tapped="OnIvaoTapped" ToolTipService.ToolTip="IVAO Traffic + ATC">
+                    <TextBlock Text="I" FontFamily="Consolas" FontWeight="Bold" FontSize="12" Foreground="#A6FFFFFF"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
             </StackPanel>
         </Border>
 

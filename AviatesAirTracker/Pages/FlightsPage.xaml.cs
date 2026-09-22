@@ -1,5 +1,7 @@
+using AviatesAirTracker.Core.Backend;
 using AviatesAirTracker.Core.Reference;
 using AviatesAirTracker.Models;
+using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
 using AviatesAirTracker.ViewModels;
 using Microsoft.UI;
@@ -140,9 +142,16 @@ public sealed partial class FlightsPage : Page
     // showing, only this page's row-rebuild logic does).
     private string _activeTab = "all";
 
+    // Filter dialog state -- also page-local, same reasoning as _activeTab above. Empty string /
+    // null both mean "no filter applied" (matches the ComboBox's "All Aircraft" placeholder item).
+    private string _filterSearch = "";
+    private string? _filterAircraft = null;
+
     public FlightsPage()
     {
         InitializeComponent();
+
+        InteractiveEffects.Attach(TabAllBorder, TabActiveBorder, TabCompletedBorder, TabPendingBorder, FilterBorder);
 
         _viewModel = App.GetService<FlightsViewModel>();
         DataContext = _viewModel;
@@ -156,7 +165,33 @@ public sealed partial class FlightsPage : Page
             await _viewModel.RefreshAsync();
             RefreshStatStrip();
             RefreshActiveTabContent();
+            await ApplyAdminVisibilityAsync();
         };
+    }
+
+    // Pending Review (the flight-deletion request queue) is only meaningful for the small
+    // admin team moderating those requests -- every other pilot only ever sees their own
+    // local requests here anyway (deletion requests are stored locally, not server-side), so
+    // showing the tab to everyone just invited confusion. Fails closed (tab stays hidden) on
+    // any error, since accidentally exposing an admin-only panel is the wrong failure mode.
+    private async Task ApplyAdminVisibilityAsync()
+    {
+        var settings = App.GetService<SettingsService>();
+        var acarsKey = settings.Settings.AcarsKey.Trim();
+        var isAdmin = !string.IsNullOrEmpty(acarsKey)
+            && await App.GetService<AviatesBackendClient>().CheckIsAdminAsync(acarsKey);
+
+        TabPendingBorder.Visibility = isAdmin ? Visibility.Visible : Visibility.Collapsed;
+
+        // Was already showing the pending tab (e.g. re-navigated back to this page) but is no
+        // longer admin -- switch back to a real tab instead of leaving an admin-only panel
+        // open with its own tab button now hidden.
+        if (!isAdmin && _activeTab == "pending")
+        {
+            _activeTab = "all";
+            UpdateTabVisuals();
+            RefreshActiveTabContent();
+        }
     }
 
     private void OnTabTapped(object sender, TappedRoutedEventArgs e)
@@ -278,6 +313,19 @@ public sealed partial class FlightsPage : Page
         FlightRows.Clear();
 
         var filtered = FlightsFilterLogic.FilterByTab(_viewModel.Flights, _activeTab);
+
+        if (_filterAircraft != null)
+            filtered = filtered.Where(f => string.Equals(f.AircraftType, _filterAircraft, StringComparison.OrdinalIgnoreCase));
+
+        if (!string.IsNullOrWhiteSpace(_filterSearch))
+        {
+            var q = _filterSearch;
+            filtered = filtered.Where(f =>
+                f.FlightNumber.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                f.DepartureICAO.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                f.ArrivalICAO.Contains(q, StringComparison.OrdinalIgnoreCase));
+        }
+
         foreach (var f in filtered)
         {
             var hasPendingDelete = _viewModel.PendingRequests
@@ -321,6 +369,16 @@ public sealed partial class FlightsPage : Page
                 row.StatusChipColor = StatusRed;
                 row.StatusChipBackground = StatusRedBg;
             }
+            else if (f.RequiresReview)
+            {
+                // See LandingComplianceChecker/FlightComplianceMonitor -- reuses the same
+                // status-chip slot "Del. Pending" above overrides, same reasoning (a flight
+                // can't be both, and neither wants the flight's real Completed/InProgress
+                // status hidden underneath silently).
+                row.StatusLabel = "Under Review";
+                row.StatusChipColor = StatusRed;
+                row.StatusChipBackground = StatusRedBg;
+            }
             else
             {
                 row.StatusLabel = FlightsDisplay.StatusLabel(f.Status);
@@ -332,11 +390,25 @@ public sealed partial class FlightsPage : Page
             FlightRows.Add(row);
         }
 
-        // Exact empty-state copy from Flights.razor's "No flights yet" panel. Toggles the whole
-        // header-row-plus-ItemsControl group (FlightsTableContent), not just the ItemsControl on
-        // its own -- Flights.razor's empty state replaces the entire <table> (header included),
-        // not just its <tbody>.
+        // Exact empty-state copy from Flights.razor's "No flights yet" panel, except when the
+        // active tab genuinely has flights but the Filter dialog's search/aircraft criteria
+        // matched none of them -- showing "Connect MSFS and start your engines" there would be
+        // actively wrong, so the title/subtitle swap to a filter-specific message instead. Toggles
+        // the whole header-row-plus-ItemsControl group (FlightsTableContent), not just the
+        // ItemsControl on its own -- Flights.razor's empty state replaces the entire <table>
+        // (header included), not just its <tbody>.
         var isEmpty = FlightRows.Count == 0;
+        var isFilterActive = _filterAircraft != null || !string.IsNullOrWhiteSpace(_filterSearch);
+        if (isEmpty && isFilterActive)
+        {
+            EmptyStateTitle.Text = "No matching flights";
+            EmptyStateSubtitle.Text = "Try a different search term or aircraft type, or clear the filter.";
+        }
+        else
+        {
+            EmptyStateTitle.Text = "No flights yet";
+            EmptyStateSubtitle.Text = "Connect MSFS and start your engines to begin recording.";
+        }
         EmptyStateText.Visibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
         FlightsTableContent.Visibility = isEmpty ? Visibility.Collapsed : Visibility.Visible;
     }
@@ -388,6 +460,89 @@ public sealed partial class FlightsPage : Page
         var isEmpty = PendingRequestRows.Count == 0;
         DeletionRequestsEmptyText.Visibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
         DeletionRequestsTableContent.Visibility = isEmpty ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    // ── Filter dialog ────────────────────────────────────────────────────────────────────────────
+    // Search text (flight number / departure / arrival ICAO) plus an aircraft-type picker, applied
+    // on top of whichever tab is active. Same ContentDialog pattern as the delete/force-remove
+    // dialogs below -- this page already proved ContentDialog + this.XamlRoot works correctly here.
+
+    private async void OnFilterTapped(object sender, TappedRoutedEventArgs e) => await ShowFilterDialogAsync();
+
+    private async Task ShowFilterDialogAsync()
+    {
+        var searchLabel = new TextBlock
+        {
+            FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Foreground = new SolidColorBrush(Color.FromArgb(0xFF, 0xCB, 0xD5, 0xE1)),
+            Text = "SEARCH",
+        };
+        var searchBox = new TextBox
+        {
+            PlaceholderText = "Flight number or airport (e.g. EGLL)...",
+            Text = _filterSearch,
+        };
+
+        var aircraftLabel = new TextBlock
+        {
+            FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Foreground = new SolidColorBrush(Color.FromArgb(0xFF, 0xCB, 0xD5, 0xE1)),
+            Text = "AIRCRAFT TYPE", Margin = new Thickness(0, 8, 0, 0),
+        };
+        const string allAircraft = "All Aircraft";
+        var aircraftTypes = _viewModel.Flights
+            .Select(f => f.AircraftType)
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(t => t, StringComparer.OrdinalIgnoreCase);
+        var aircraftCombo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+        aircraftCombo.Items.Add(allAircraft);
+        foreach (var t in aircraftTypes) aircraftCombo.Items.Add(t);
+        aircraftCombo.SelectedItem = _filterAircraft ?? allAircraft;
+        if (aircraftCombo.SelectedIndex < 0) aircraftCombo.SelectedIndex = 0; // stale type from a since-deleted flight
+
+        var panel = new StackPanel
+        {
+            Spacing = 6, Width = 340,
+            Children = { searchLabel, searchBox, aircraftLabel, aircraftCombo },
+        };
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = this.XamlRoot,
+            Title = BuildDialogHeader("Filter Flights", "Narrows the logbook below by search text and/or aircraft type"),
+            Content = panel,
+            PrimaryButtonText = "Apply",
+            SecondaryButtonText = "Clear Filters",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+
+        dialog.SecondaryButtonClick += (_, _) =>
+        {
+            _filterSearch = "";
+            _filterAircraft = null;
+            UpdateFilterBadge();
+            RefreshActiveTabContent();
+        };
+
+        dialog.PrimaryButtonClick += (_, _) =>
+        {
+            _filterSearch = searchBox.Text?.Trim() ?? "";
+            var selected = aircraftCombo.SelectedItem as string;
+            _filterAircraft = string.IsNullOrEmpty(selected) || selected == allAircraft ? null : selected;
+            UpdateFilterBadge();
+            RefreshActiveTabContent();
+        };
+
+        await dialog.ShowAsync();
+    }
+
+    private void UpdateFilterBadge()
+    {
+        var count = (string.IsNullOrWhiteSpace(_filterSearch) ? 0 : 1) + (_filterAircraft != null ? 1 : 0);
+        FilterCountBadge.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        FilterCountText.Text = count.ToString(CultureInfo.InvariantCulture);
     }
 
     // ── Approve / Reject (Pending Review tab) ───────────────────────────────────────────────────

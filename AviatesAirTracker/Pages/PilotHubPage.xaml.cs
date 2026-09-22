@@ -1,7 +1,10 @@
+using AviatesAirTracker.Platform;
 using AviatesAirTracker.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Serilog;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using Windows.UI;
@@ -29,6 +32,9 @@ public sealed class LandingDisplayRow
     public string GradeLetter { get; set; } = "";
     public Brush GradeChipColor { get; set; } = PilotHubPage.GradeRed;
     public Brush GradeChipBackground { get; set; } = PilotHubPage.GradeRedBg;
+
+    // See LandingComplianceChecker -- set whenever LandingResult.RequiresReview is true.
+    public Visibility ShowReviewBadge { get; set; } = Visibility.Collapsed;
 }
 
 public sealed partial class PilotHubPage : Page
@@ -71,20 +77,111 @@ public sealed partial class PilotHubPage : Page
     {
         InitializeComponent();
 
+        InteractiveEffects.Attach(BookingActivateBorder, BookingCancelBorder, BookingActivatedRow);
+
         _viewModel = App.GetService<PilotHubViewModel>();
         DataContext = _viewModel;
         LandingHistoryList.ItemsSource = LandingRows;
 
-        Loaded += async (_, _) =>
-        {
-            await _viewModel.RefreshAsync();
+        Loaded += OnPageLoaded;
+        Unloaded += OnPageUnloaded;
+    }
 
+    private async void OnPageLoaded(object sender, RoutedEventArgs e)
+    {
+        // Subscribed before the first RefreshAsync so that call's own DataRefreshed firing
+        // renders the initial state -- and every later refresh (e.g. PilotHubViewModel's
+        // FlightCompleted subscription firing while this page is already open) re-renders the
+        // rank card and landing lists too, instead of only ever reflecting whatever was current
+        // the moment this page first loaded.
+        _viewModel.DataRefreshed += OnViewModelDataRefreshed;
+        await _viewModel.RefreshAsync();
+    }
+
+    private void OnPageUnloaded(object sender, RoutedEventArgs e)
+    {
+        _viewModel.DataRefreshed -= OnViewModelDataRefreshed;
+    }
+
+    private void OnViewModelDataRefreshed()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
             RankSubText.Text = $"{_viewModel.RankProgressPct:F0}% progress toward {_viewModel.NextRank}";
             RankProgressFill.Width = RankProgressTrackWidth * (_viewModel.RankProgressPct / 100.0);
 
             RebuildLastLandingCard();
             RebuildLandingRows();
-        };
+            RebuildBookingCard();
+        });
+    }
+
+    // See BookingService.cs's MaxBookings = 1 and PilotHubViewModel.RefreshBookingAsync's own
+    // doc comment. Four states: no booking (card collapsed entirely), an unactivated confirmed
+    // booking (route/callsign/aircraft/scheduled time + Activate/Cancel), an activated one (same
+    // details, but Activate/Cancel are replaced by a plain "Reopen SimBrief" row -- activating is
+    // one-way, see PilotHubViewModel.ActivateCurrentBookingAsync's own comment), or one that just
+    // expired (BookingService.ExpireIfStaleAsync already cancelled it server-side -- this only
+    // renders the after-the-fact notice, there's nothing left to activate or cancel).
+    private void RebuildBookingCard()
+    {
+        var booking = _viewModel.CurrentBooking;
+        if (booking == null)
+        {
+            BookingCardBorder.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        BookingCardBorder.Visibility = Visibility.Visible;
+        BookingRouteText.Text = $"{booking.OriginIata} → {booking.DestIata}";
+        BookingActivateErrorText.Visibility = Visibility.Collapsed; // reset; OnActivateBookingTapped re-shows it on failure
+
+        if (_viewModel.BookingExpired)
+        {
+            BookingExpiredChipBorder.Visibility = Visibility.Visible;
+            BookingActivatedChipBorder.Visibility = Visibility.Collapsed;
+            BookingDetailText.Text = $"{booking.Callsign} · {booking.AircraftType} — you didn't fly before the scheduled departure, so this booking was cancelled. You remain at your last location.";
+            BookingActivateBorder.Visibility = Visibility.Collapsed;
+            BookingCancelBorder.Visibility = Visibility.Collapsed;
+            BookingActivatedRow.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            BookingExpiredChipBorder.Visibility = Visibility.Collapsed;
+            BookingDetailText.Text =
+                $"{booking.Callsign} · {booking.AircraftType} — scheduled {booking.ScheduledDepUtc.ToString("MMM d, yyyy 'at' HH:mm 'UTC'", CultureInfo.InvariantCulture)}";
+
+            var activated = booking.IsActivated;
+            BookingActivatedChipBorder.Visibility = activated ? Visibility.Visible : Visibility.Collapsed;
+            BookingActivateBorder.Visibility = activated ? Visibility.Collapsed : Visibility.Visible;
+            BookingCancelBorder.Visibility = activated ? Visibility.Collapsed : Visibility.Visible;
+            BookingActivatedRow.Visibility = activated ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private async void OnActivateBookingTapped(object sender, TappedRoutedEventArgs e)
+    {
+        // Disabled immediately so a fast double-tap can't fire SimBrief's browser launch twice
+        // or race two activate calls -- re-enabled by the next RebuildBookingCard either way.
+        BookingActivateBorder.IsHitTestVisible = false;
+        var error = await _viewModel.ActivateCurrentBookingAsync();
+        BookingActivateBorder.IsHitTestVisible = true;
+        RebuildBookingCard(); // resets BookingActivateErrorText.Visibility -- set it after, not before
+
+        if (error != null)
+        {
+            Log.Warning("[PilotHubPage] Activate booking failed: {Error}", error);
+            BookingActivateErrorText.Text = $"Activation failed: {error} SimBrief opened anyway; tap Activate again once this is fixed.";
+            BookingActivateErrorText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void OnReopenDispatchTapped(object sender, TappedRoutedEventArgs e) => _viewModel.ReopenDispatch();
+
+    private void OnCancelBookingTapped(object sender, TappedRoutedEventArgs e)
+    {
+        _viewModel.CancelCurrentBooking();
+        RebuildBookingCard();
     }
 
     private void RebuildLastLandingCard()
@@ -132,7 +229,7 @@ public sealed partial class PilotHubPage : Page
             {
                 AirportLine = l.AirportICAO,
                 DateText = l.Timestamp.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture),
-                RunwayText = $"{l.AirportICAO} {l.RunwayIdentifier}",
+                RunwayText = l.RunwayIdentifier,
                 VsText = $"{l.VerticalSpeedFPM.ToString("F0", CultureInfo.InvariantCulture)} fpm",
                 VsColor = VsColor(l.VerticalSpeedFPM),
                 PitchText = $"{l.TouchdownPitchDeg.ToString("F1", CultureInfo.InvariantCulture)}°",
@@ -142,6 +239,7 @@ public sealed partial class PilotHubPage : Page
                 GradeLetter = PilotHubViewModel.GradeLetter(l.LandingScore),
                 GradeChipColor = ScoreColor(l.LandingScore),
                 GradeChipBackground = ScoreColorBg(l.LandingScore),
+                ShowReviewBadge = l.RequiresReview ? Visibility.Visible : Visibility.Collapsed,
             });
         }
 
@@ -163,7 +261,9 @@ public sealed partial class PilotHubPage : Page
     // its own to fix, but collapsing D into red here keeps the ring, the score text, and the
     // chip all agreeing on one color for a given grade (e.g. a Grade D landing is red
     // everywhere), which is the "should agree" goal the amber fix is meant to achieve.
-    private static Brush ScoreColor(int score) => score switch
+    // internal (not private): LogbookPage.xaml.cs's full landing-history table reuses this
+    // exact 4-tier mapping so the two pages' grade colors never drift apart from each other.
+    internal static Brush ScoreColor(int score) => score switch
     {
         >= 90 => GradeGreen,
         >= 75 => GradeBlue,
@@ -173,7 +273,7 @@ public sealed partial class PilotHubPage : Page
 
     // Translucent-background counterpart to ScoreColor(), used for the grade chip's Border
     // background so the tint always matches the chip's own foreground color.
-    private static Brush ScoreColorBg(int score) => score switch
+    internal static Brush ScoreColorBg(int score) => score switch
     {
         >= 90 => GradeGreenBg,
         >= 75 => GradeBlueBg,
@@ -199,10 +299,24 @@ public sealed partial class PilotHubPage : Page
 
     // Reproduces PilotHubViewModel.VsColor's exact thresholds (> -250 green, > -400 accent
     // blue, else red) as a native Brush instead of a "var(--x)" CSS string.
-    private static Brush VsColor(double vsFpm) => vsFpm switch
+    internal static Brush VsColor(double vsFpm) => vsFpm switch
     {
         > -250 => GradeGreen,
         > -400 => GradeBlue,
         _ => GradeRed,
     };
+
+    // Shared by both "View all" (Last Landing Analysis card) and "View logbook" (Landing
+    // History table) -- same this.Frame.Navigate pattern DashboardPage.xaml.cs's own
+    // "View Flights" CTA uses.
+    private void OnViewLogbookTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (this.Frame == null)
+        {
+            Log.Warning("[PilotHub] View logbook tapped but this.Frame is null; cannot navigate to LogbookPage");
+            return;
+        }
+
+        this.Frame.Navigate(typeof(LogbookPage));
+    }
 }

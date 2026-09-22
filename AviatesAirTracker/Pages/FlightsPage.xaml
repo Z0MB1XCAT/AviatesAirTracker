@@ -29,7 +29,7 @@
             <StackPanel Spacing="4">
                 <TextBlock Text="Flights" FontFamily="{StaticResource DisplayFontBold}"
                            FontSize="26" Foreground="#F1F5F9" />
-                <TextBlock Text="Your complete logbook — every flight recorded and scored."
+                <TextBlock Text="Your complete logbook: every flight recorded and scored."
                            FontSize="14" Foreground="#94A3B8" />
             </StackPanel>
 
@@ -66,7 +66,7 @@
                              Flights.razor's own badge exactly) since PendingRequests itself
                              holds every request regardless of status, same imperative-set
                              pattern PilotHubPage.xaml.cs already uses for RankSubText/etc. -->
-                        <Border Background="#EF4444" CornerRadius="999" Padding="7,1" MinWidth="18"
+                        <Border Background="#EF4444" CornerRadius="10" Padding="7,1" MinWidth="18"
                                 VerticalAlignment="Center">
                             <TextBlock x:Name="PendingCountText" Text="0" FontSize="10" FontWeight="Bold"
                                        Foreground="#FFFFFF" HorizontalAlignment="Center" />
@@ -160,13 +160,12 @@
                  ItemsControl since WinUI has no table equivalent; same technique
                  PilotHubPage.xaml's Landing History table already established (header Grid and
                  each row's Grid share identical star-weighted ColumnDefinitions so the two line
-                 up). Filter/Export buttons and the per-row view-details/delete/force-remove
-                 icons are visual-only in this task (Task 4 wires their Tapped handlers); Task 3
-                 only makes them exist and show/hide correctly per row. -->
+                 up). The per-row view-details icon stays visual-only (no destination page exists
+                 yet); delete/force-remove are wired below. -->
             <Border x:Name="FlightLogbookBorder" Background="#0C111D" BorderBrush="#14FFFFFF"
                     BorderThickness="1" CornerRadius="20">
                 <StackPanel>
-                    <!-- Header strip: title + inert Filter/Export -->
+                    <!-- Header strip: title + Filter (Export removed, was never wired to anything) -->
                     <Grid Padding="20,16" ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -177,7 +176,12 @@
                         <TextBlock Grid.Column="0" Text="Flight Logbook" FontFamily="{StaticResource DisplayFontBold}"
                                    FontSize="14" FontWeight="Bold" Foreground="#F1F5F9" VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                            <Border Background="#121A2A" BorderBrush="#1FFFFFFF" BorderThickness="1"
+                            <!-- Filter: opens a ContentDialog (search text + aircraft type), same
+                                 dialog pattern as the delete/force-remove/settings dialogs elsewhere
+                                 in this page and app; WinUI's Flyout is untested anywhere in this
+                                 project, ContentDialog is proven safe on this exact page. -->
+                            <Border x:Name="FilterBorder" Tag="filter" Tapped="OnFilterTapped"
+                                    Background="#121A2A" BorderBrush="#1FFFFFFF" BorderThickness="1"
                                     CornerRadius="8" Padding="12,7">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <Viewbox Width="13" Height="13">
@@ -185,22 +189,23 @@
                                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
                                     </Viewbox>
                                     <TextBlock Text="Filter" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1" />
-                                </StackPanel>
-                            </Border>
-                            <Border Background="#4D9BEC" CornerRadius="8" Padding="12,7">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <Viewbox Width="13" Height="13">
-                                        <Path Data="M12 5v14M5 12l7 7 7-7" Stroke="#FFFFFF" StrokeThickness="2"
-                                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-                                    </Viewbox>
-                                    <TextBlock Text="Export" FontSize="12" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                    <!-- Active-filter count badge, same visual language as the
+                                         Pending Review tab's count pill above; hidden at 0. -->
+                                    <Border x:Name="FilterCountBadge" Background="#4D9BEC" CornerRadius="10"
+                                            Padding="7,1" MinWidth="18" VerticalAlignment="Center"
+                                            Visibility="Collapsed">
+                                        <TextBlock x:Name="FilterCountText" Text="0" FontSize="10" FontWeight="Bold"
+                                                   Foreground="#FFFFFF" HorizontalAlignment="Center" />
+                                    </Border>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
                     </Grid>
 
                     <!-- Empty state: shown when the active tab's filtered flight list is empty.
-                         Exact copy from Flights.razor's "No flights yet" panel. -->
+                         Base copy is an exact copy from Flights.razor's "No flights yet" panel;
+                         title/subtitle text is swapped in code-behind when the empty result is
+                         caused by an active Filter rather than a genuinely empty logbook. -->
                     <StackPanel x:Name="EmptyStateText" Visibility="Collapsed" Padding="24,64" Spacing="16">
                         <Viewbox Width="40" Height="40" Opacity="0.4">
                             <Path Data="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z" Stroke="#64748B"
@@ -208,9 +213,9 @@
                                   StrokeEndLineCap="Round" />
                         </Viewbox>
                         <StackPanel Spacing="6" HorizontalAlignment="Center">
-                            <TextBlock Text="No flights yet" FontSize="14" FontWeight="SemiBold"
+                            <TextBlock x:Name="EmptyStateTitle" Text="No flights yet" FontSize="14" FontWeight="SemiBold"
                                        Foreground="#CBD5E1" HorizontalAlignment="Center" />
-                            <TextBlock Text="Connect MSFS and start your engines to begin recording."
+                            <TextBlock x:Name="EmptyStateSubtitle" Text="Connect MSFS and start your engines to begin recording."
                                        FontSize="12.5" Foreground="#64748B" HorizontalAlignment="Center" />
                         </StackPanel>
                     </StackPanel>
@@ -300,7 +305,7 @@
 
                                         <!-- Status chip -->
                                         <Border Grid.Column="5" Background="{Binding StatusChipBackground}"
-                                                CornerRadius="999" Padding="9,4" HorizontalAlignment="Left"
+                                                CornerRadius="10" Padding="9,4" HorizontalAlignment="Left"
                                                 VerticalAlignment="Center">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <Ellipse Width="6" Height="6" Fill="{Binding StatusChipColor}" VerticalAlignment="Center" />
@@ -443,7 +448,7 @@
                                                    Foreground="#64748B" VerticalAlignment="Center" />
 
                                         <Border Grid.Column="4" Background="{Binding StatusBackground}"
-                                                CornerRadius="999" Padding="9,4" HorizontalAlignment="Left"
+                                                CornerRadius="10" Padding="9,4" HorizontalAlignment="Left"
                                                 VerticalAlignment="Center">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <Ellipse Width="6" Height="6" Fill="{Binding StatusColor}" VerticalAlignment="Center" />

@@ -67,7 +67,7 @@ public partial class SettingsViewModel : ObservableObject
         {
             var plan = await _simBriefSvc.FetchLatestOFPAsync(SimBriefUsername);
             StatusMessage = plan != null
-                ? $"OK — Latest OFP: {plan.DepartureICAO}→{plan.ArrivalICAO}"
+                ? $"Latest OFP loaded: {plan.DepartureICAO}→{plan.ArrivalICAO}"
                 : "No OFP found.";
         }
         catch (Exception ex)

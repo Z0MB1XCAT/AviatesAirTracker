@@ -1,6 +1,8 @@
 using AviatesAirTracker.Core.Backend;
+using AviatesAirTracker.Core.Data;
 using AviatesAirTracker.Core.Efb;
 using AviatesAirTracker.Dialogs;
+using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
 using AviatesAirTracker.Services.Efb;
 using AviatesAirTracker.Services.Voice;
@@ -117,17 +119,22 @@ public sealed partial class SettingsPage : Page
     {
         InitializeComponent();
 
+        InteractiveEffects.Attach(LogOutButtonBorder,
+            VerifySyncButtonBorder, ClearHotkeyButtonBorder, BindJoystickButtonBorder, CopyFriendCodeButtonBorder,
+            CheckForUpdatesButtonBorder, DownloadInstallButtonBorder,
+            StopEfbButtonBorder, StartEfbButtonBorder, SaveSettingsButtonBorder, ResetSettingsButtonBorder);
+
         _settings = App.GetService<SettingsService>();
         _pttInput = App.GetService<PttInputService>();
         _updateService = App.GetService<UpdateService>();
         _efbServer = App.GetService<EfbServer>();
         _voiceAudioEngine = App.GetService<VoiceAudioEngine>();
 
-        // Initial field values. Setting .Text here also fires each TextChanged handler once,
-        // which harmlessly re-writes the same value back to Settings -- not worth guarding
-        // against since none of the three handlers below have a destructive side effect.
-        PilotNameTextBox.Text = _settings.Settings.PilotName;
-        PilotIdTextBox.Text = _settings.Settings.PilotId;
+        // Initial field values. Pilot Name is read-only display now (see PilotNameText in XAML) --
+        // it's only ever written from SyncProfileAsync's ACARS sync, never typed here. Setting
+        // .Text on SimBriefUsernameTextBox still fires its TextChanged handler once, which
+        // harmlessly re-writes the same value back to Settings.
+        PilotNameText.Text = _settings.Settings.PilotName;
         SimBriefUsernameTextBox.Text = _settings.Settings.SimBriefUsername;
         AcarsKeyPasswordBox.Password = _settings.Settings.AcarsKey;
         SelectAutoPirepIntervalItem(_settings.Settings.AutoPirepIntervalMinutes);
@@ -173,7 +180,6 @@ public sealed partial class SettingsPage : Page
 
         UpdateStatusBanner();
         UpdateNameDisplay();
-        UpdateThemeCardVisuals();
         UpdatePilotProfileVerifiedVisuals();
         UpdateSimBriefHintVisibility();
         UpdateAcarsInfoBanner();
@@ -227,27 +233,18 @@ public sealed partial class SettingsPage : Page
     }
 
     // ── Pilot Profile ────────────────────────────────────────────────────────────────────────
-
-    private void OnPilotNameTextChanged(object sender, TextChangedEventArgs e)
-    {
-        _settings.Settings.PilotName = PilotNameTextBox.Text;
-        UpdateNameDisplay();
-    }
-
-    private void OnPilotIdTextChanged(object sender, TextChangedEventArgs e)
-    {
-        _settings.Settings.PilotId = PilotIdTextBox.Text;
-        // The subtitle line ("{PilotId} · AviatesAir") reads PilotId live, so it needs a refresh
-        // on every keystroke here too, not just at load.
-        UpdatePilotProfileVerifiedVisuals();
-    }
+    // Pilot Name and Pilot ID are neither shown as editable fields nor changeable by the pilot
+    // here -- Pilot Name is read-only display text (PilotNameText), and Pilot ID has no UI at
+    // all on this page. Both are still written internally by SyncProfileAsync's ACARS sync
+    // (Settings.PilotName/Settings.PilotId), since PilotId in particular is required for the
+    // messaging system to route/display messages correctly -- only the ability to hand-edit
+    // either one from Settings was removed.
 
     // Recomputes _displayName ("Pilot" if blank) and _initials (first letter of up to the first 2
     // space-separated words, uppercased, "?" if blank) from Settings.PilotName, then pushes both
     // into the avatar/name TextBlocks. Ported verbatim from Settings.razor's own
-    // UpdateNameDisplay(). Kept as a distinctly-named, parameterless, private method (not inlined
-    // into OnPilotNameTextChanged) because Task 2's ACARS sync flow and Task 6's Reset handler
-    // both call this exact method again later.
+    // UpdateNameDisplay(). Kept as a distinctly-named, parameterless, private method because
+    // SyncProfileAsync's ACARS sync flow and OnResetSettingsTapped both call it again later.
     private void UpdateNameDisplay()
     {
         var name = _settings.Settings.PilotName ?? "";
@@ -264,16 +261,15 @@ public sealed partial class SettingsPage : Page
         AvatarInitialsText.Text = _initials;
     }
 
-    // Refreshes everything gated on _isVerified/_verifiedEmail/PilotId: the checkmark badge, the
-    // VERIFIED chip, the "{PilotId} · AviatesAir" subtitle (PilotId can change independently via
-    // OnPilotIdTextChanged), and the verified-email row.
+    // Refreshes everything gated on _isVerified/_verifiedEmail: the checkmark badge, the VERIFIED
+    // chip, and the verified-email row. The subtitle no longer shows the raw Pilot ID -- Pilot ID
+    // is internal-only now (still used by the messaging system), never surfaced in the UI.
     private void UpdatePilotProfileVerifiedVisuals()
     {
         VerifiedBadgeBorder.Visibility = _isVerified ? Visibility.Visible : Visibility.Collapsed;
         VerifiedChipBorder.Visibility = _isVerified ? Visibility.Visible : Visibility.Collapsed;
 
-        var pilotId = _settings.Settings.PilotId;
-        PilotIdSubtitleText.Text = (string.IsNullOrEmpty(pilotId) ? "AviatesAir" : pilotId) + " · AviatesAir";
+        PilotIdSubtitleText.Text = "AviatesAir";
 
         var showEmail = _isVerified && !string.IsNullOrEmpty(_verifiedEmail);
         VerifiedEmailRow.Visibility = showEmail ? Visibility.Visible : Visibility.Collapsed;
@@ -285,68 +281,33 @@ public sealed partial class SettingsPage : Page
     // via SettingsService.LogOut() -- deliberately narrower than Reset(), leaves PTT/EFB/appearance
     // untouched -- then navigates to the native LoginPage. Rail visibility is handled centrally by
     // ShellWindow's NativeHost.Navigated subscription, not here.
+    //
+    // Also wipes the local flights/landings/friends/messages JSON caches (same ClearAllAsync
+    // the Data & Sync "Wipe Local Data" action uses) and the in-memory ActiveBooking/
+    // CurrentAirportIata -- these are all keyed only by device, not by account, so switching
+    // accounts without this left the previous pilot's flights, landings, friends, and DMs
+    // showing under the new one (reported directly: signing out of a test account and into a
+    // personal one still showed the test account's data).
     private async void OnLogOutTapped(object sender, TappedRoutedEventArgs e)
     {
         var confirmed = await ConfirmDialog.ShowAsync(
             XamlRoot,
             "Log Out?",
-            "You'll be signed out of AviatesAir and returned to the login screen. Your keybinds, EFB setup, and other app settings will stay exactly as they are.",
+            "You'll be signed out of AviatesAir and returned to the login screen. Your keybinds, EFB setup, and other app settings will stay exactly as they are. Locally cached flights, landings, friends, and messages will be cleared.",
             "Log Out",
             "Cancel");
 
         if (!confirmed) return;
 
+        await App.GetService<IFlightRepository>().ClearAllAsync();
+        await App.GetService<ILandingRepository>().ClearAllAsync();
+        await App.GetService<IFriendRepository>().ClearAllAsync();
+        await App.GetService<IMessageRepository>().ClearAllAsync();
+        App.GetService<BookingService>().SetActiveBooking(null);
+
+        _settings.Settings.CurrentAirportIata = "";
         _settings.LogOut();
         Frame.Navigate(typeof(LoginPage));
-    }
-
-    // ── Appearance ───────────────────────────────────────────────────────────────────────────
-
-    private void OnThemeCardTapped(object sender, TappedRoutedEventArgs e)
-    {
-        if (sender is not Border { Tag: string theme }) return;
-
-        // Per the design spec's explicit scope decision: this persists Settings.Theme and
-        // refreshes only these three cards' own active-state visuals. It does NOT re-theme the
-        // running native shell -- every native page in this migration hardcodes its own
-        // dark-theme hex values rather than using dynamic ThemeResource lookups, so live
-        // re-theming would mean reworking every previously-built page, far beyond this page's
-        // own scope.
-        _settings.Settings.Theme = theme;
-        _settings.Save();
-        UpdateThemeCardVisuals();
-    }
-
-    private void UpdateThemeCardVisuals()
-    {
-        ApplyThemeCardVisual(ThemeSystemBorder, ThemeSystemIconGrid, ThemeSystemText, "system");
-        ApplyThemeCardVisual(ThemeLightBorder, ThemeLightIconGrid, ThemeLightText, "light");
-        ApplyThemeCardVisual(ThemeDarkBorder, ThemeDarkIconGrid, ThemeDarkText, "dark");
-    }
-
-    private void ApplyThemeCardVisual(Border cardBorder, Grid iconGrid, TextBlock label, string theme)
-    {
-        var isActive = _settings.Settings.Theme == theme;
-
-        cardBorder.BorderBrush = isActive ? AccentBrush : HairlineBrush;
-        cardBorder.Background = isActive ? AccentLightBrush : Surface2Brush;
-
-        SetIconStroke(iconGrid, isActive ? AccentBrush : TextMutedBrush);
-
-        label.Foreground = isActive ? AccentBrush : TextSecondaryBrush;
-        label.FontWeight = isActive ? FontWeights.Bold : FontWeights.SemiBold;
-    }
-
-    // Every child of a theme-icon Grid is a Shape (Rectangle/Line/Ellipse/Path) whose Stroke
-    // reproduces the original SVG's stroke="currentColor" -- walking the Grid's children and
-    // setting Stroke on each avoids naming every individual shape element just to retint it.
-    private static void SetIconStroke(Grid iconGrid, Brush stroke)
-    {
-        foreach (var child in iconGrid.Children)
-        {
-            if (child is Shape shape)
-                shape.Stroke = stroke;
-        }
     }
 
     // ── SimBrief Integration ─────────────────────────────────────────────────────────────────
@@ -434,7 +395,7 @@ public sealed partial class SettingsPage : Page
                 if (!string.IsNullOrWhiteSpace(result.Name))
                 {
                     _settings.Settings.PilotName = result.Name;
-                    PilotNameTextBox.Text = result.Name;
+                    PilotNameText.Text = result.Name;
                     UpdateNameDisplay();
                 }
 
@@ -451,7 +412,6 @@ public sealed partial class SettingsPage : Page
                 if (!string.IsNullOrWhiteSpace(result.PilotId))
                 {
                     _settings.Settings.PilotId = result.PilotId;
-                    PilotIdTextBox.Text = result.PilotId;
                 }
                 else if (string.IsNullOrEmpty(_settings.Settings.PilotId))
                 {
@@ -460,8 +420,13 @@ public sealed partial class SettingsPage : Page
                     var hash = System.Security.Cryptography.SHA256.HashData(
                         System.Text.Encoding.UTF8.GetBytes("AVIATES_PID_" + key));
                     _settings.Settings.PilotId = "avt_" + Convert.ToHexString(hash)[..12].ToLowerInvariant();
-                    PilotIdTextBox.Text = _settings.Settings.PilotId;
                 }
+
+                // Subsidiary is chosen on the website, not here -- this just mirrors the backend's
+                // current value locally so RoutesViewModel.CreateBookingAsync can filter without a
+                // live network call. Always overwritten (including back to null) since the website
+                // is the sole source of truth for this field.
+                _settings.Settings.Subsidiary = result.Subsidiary;
 
                 _isVerified = true;
                 _verifiedEmail = result.Email;
@@ -469,7 +434,7 @@ public sealed partial class SettingsPage : Page
                 // Regenerate friend code and persist.
                 _settings.RefreshFriendCode();
 
-                _statusMessage = $"Profile synced — welcome, {result.Name}!";
+                _statusMessage = $"Profile synced, welcome {result.Name}!";
                 _isError = false;
             }
             else
@@ -484,7 +449,7 @@ public sealed partial class SettingsPage : Page
         {
             _isVerified = false;
             _verifiedEmail = "";
-            _statusMessage = $"Could not reach AviatesAir servers — {ex.Message}";
+            _statusMessage = $"Could not reach AviatesAir servers: {ex.Message}";
             _isError = true;
         }
         finally
@@ -628,7 +593,7 @@ public sealed partial class SettingsPage : Page
 
         if (vk is null)
         {
-            _hotkeyRejectedMessage = $"\"{PttKeyDisplayName(e.Key)}\" can't be used as a PTT hotkey — try a different key.";
+            _hotkeyRejectedMessage = $"\"{PttKeyDisplayName(e.Key)}\" can't be used as a PTT hotkey; try a different key.";
             _capturingHotkey = false;
         }
         else
@@ -657,7 +622,7 @@ public sealed partial class SettingsPage : Page
         PttHotkeyTextBox.Text = _capturingHotkey
             ? "Press a key…"
             : (_settings.Settings.PttHotkeyVkCode == 0
-                ? "Unbound — click and press a key"
+                ? "Unbound: click and press a key"
                 : _settings.Settings.PttHotkeyLabel);
 
         var hasRejection = !string.IsNullOrEmpty(_hotkeyRejectedMessage);
@@ -1023,25 +988,30 @@ public sealed partial class SettingsPage : Page
         await InstallFromSettingsAsync();
     }
 
-    // Ported from Settings.razor's InstallFromSettingsAsync() -- on success, DownloadAndInstallAsync
-    // shuts the app down itself (see UpdateService.cs), so there is nothing further to do here. On
-    // exception, this silently resets the installing flag/progress and rebuilds without showing an
-    // error -- that matches the original's own catch block exactly, even though it looks
-    // incomplete; ported verbatim rather than "fixed".
+    // On success, DownloadAndInstallAsync shuts the app down itself (see UpdateService.cs), so
+    // there is nothing further to do here. On exception, this used to silently reset the
+    // installing flag/progress with no error shown at all (ported verbatim from Settings.razor's
+    // own catch block, which had the same gap) -- now surfaces the failure via UpdateErrorText
+    // instead, since a silent failure here is exactly what made the underlying install bug hard
+    // to diagnose in the first place.
     private async Task InstallFromSettingsAsync()
     {
         _isInstallingUpdate = true;
         _updateDlProgress = 0;
+        UpdateErrorText.Visibility = Visibility.Collapsed;
         UpdateUpdateAvailablePanel();
 
         try
         {
             await _updateService.DownloadAndInstallAsync();
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning(ex, "[Settings] Update download/install failed");
             _isInstallingUpdate = false;
             _updateDlProgress = 0;
+            UpdateErrorText.Text = $"Update failed: {ex.Message}. Please try again or download it manually from the website.";
+            UpdateErrorText.Visibility = Visibility.Visible;
             UpdateUpdateAvailablePanel();
         }
     }
@@ -1290,8 +1260,7 @@ public sealed partial class SettingsPage : Page
         // the same value back to Settings" reasoning documented there) -- it is the simplest way
         // to guarantee every control agrees with the reset object rather than patching each one
         // individually and risking a miss.
-        PilotNameTextBox.Text = _settings.Settings.PilotName;
-        PilotIdTextBox.Text = _settings.Settings.PilotId;
+        PilotNameText.Text = _settings.Settings.PilotName;
         SimBriefUsernameTextBox.Text = _settings.Settings.SimBriefUsername;
         AcarsKeyPasswordBox.Password = _settings.Settings.AcarsKey;
         SelectAutoPirepIntervalItem(_settings.Settings.AutoPirepIntervalMinutes);
@@ -1326,7 +1295,6 @@ public sealed partial class SettingsPage : Page
         // Code, Hoppies category dim/disable, Dispatch Radio's PTT hotkey/joystick displays, and
         // EFB Companion.
         UpdateNameDisplay();
-        UpdateThemeCardVisuals();
         UpdatePilotProfileVerifiedVisuals();
         UpdateSimBriefHintVisibility();
         UpdateAcarsInfoBanner();

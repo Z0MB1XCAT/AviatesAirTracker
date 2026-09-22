@@ -1,4 +1,5 @@
 using AviatesAirTracker.Models;
+using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
 using AviatesAirTracker.ViewModels;
 using Microsoft.UI.Input;
@@ -125,6 +126,9 @@ public sealed partial class MessagesPage : Page
     {
         InitializeComponent();
 
+        InteractiveEffects.Attach(TabInboxBorder, TabBroadcastBorder, TabFriendsBorder,
+            SendButtonBorder, BroadcastSendButtonBorder, AddFriendButtonBorder);
+
         _viewModel = App.GetService<MessagesViewModel>();
         _settings = App.GetService<SettingsService>();
         _messaging = App.GetService<MessagingService>();
@@ -154,6 +158,9 @@ public sealed partial class MessagesPage : Page
 
             await _viewModel.RefreshAllAsync();
             RebuildUi();
+            UpdateTabVisuals(); // keeps the tab bar's own highlight in sync with _activeTab,
+                                 // including when OnNavigatedTo set it to "friends" (RebuildUi
+                                 // only re-renders each panel's content, not the tab bar itself)
 
             // Consume any pending auto-select navigation parameter now that Friends is actually
             // populated -- see _pendingSelectPilotId's doc comment for why this can't run inside
@@ -179,12 +186,23 @@ public sealed partial class MessagesPage : Page
     // A normal navigation to Messages from the nav sidebar (no parameter) leaves e.Parameter null,
     // so _pendingSelectPilotId simply stays null and the page behaves exactly as before this
     // change -- Friends loads, RebuildUi() runs, nothing extra happens.
+    // Sentinel navigation parameter meaning "open straight to the Friends tab" -- e.g.
+    // Dashboard's "See All Team" link (DashboardPage.xaml.cs's OnSeeAllTeamTapped). Safe to
+    // reuse the same string-parameter slot as the pilotId auto-select below: real pilot ids are
+    // 32 lowercase hex characters (computePilotId's SHA-256-derived format), so this literal
+    // can never collide with one.
+    public const string FriendsTabParameter = "friends";
+
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
 
-        if (e.Parameter is string pilotId && !string.IsNullOrEmpty(pilotId))
-            _pendingSelectPilotId = pilotId;
+        if (e.Parameter is not string param || string.IsNullOrEmpty(param)) return;
+
+        if (param == FriendsTabParameter)
+            _activeTab = "friends";
+        else
+            _pendingSelectPilotId = param;
     }
 
     // ── Live-update subscriptions ────────────────────────────────────────────────────────────
@@ -376,7 +394,7 @@ public sealed partial class MessagesPage : Page
         ConvNameText.Text = friend?.PilotName ?? "Pilot";
         ConvRankText.Text = friend?.Rank ?? "";
 
-        RebuildBubbleList(BubbleListPanel, _viewModel.Conversation, isBroadcast: false, "No messages yet — say hello!");
+        RebuildBubbleList(BubbleListPanel, _viewModel.Conversation, isBroadcast: false, "No messages yet. Say hello!");
         UpdateDmSendError();
         UpdateComposeState();
         ScrollToBottom(BubbleListScroll);
@@ -551,7 +569,7 @@ public sealed partial class MessagesPage : Page
     private void RebuildCrewList()
     {
         var count = _viewModel.Friends.Count;
-        CrewTitleText.Text = $"Your Crew — {count} pilot{(count == 1 ? "" : "s")}"; // matches @(_friends.Count == 1 ? "" : "s")
+        CrewTitleText.Text = $"Your Crew: {count} pilot{(count == 1 ? "" : "s")}"; // matches @(_friends.Count == 1 ? "" : "s")
 
         _crewRows.Clear();
 

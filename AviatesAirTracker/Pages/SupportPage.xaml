@@ -18,9 +18,16 @@
       (SupportPage.xaml.cs's own _openFaqIndex field).
 
       Feature cards: Live Chat / Knowledge Base / GitHub Issues, icon paths ported verbatim from
-      Support.razor's inline SVGs. None of the three buttons has an @onclick in the original ──
-      they are purely decorative there, so OnFeatureButtonTapped below is a documented no-op, not
-      a place to invent a real destination.
+      Support.razor's inline SVGs. Live Chat and Knowledge Base still have no @onclick (no live
+      chat widget or knowledge base exists to link to yet), so OnFeatureButtonTapped below stays a
+      documented no-op for those two. GitHub Issues now opens the real public repo
+      (github.com/Z0MB1XCAT/AviatesAirTracker) via OnGitHubIssuesTapped, since that destination
+      does exist.
+
+      Contact & Community and the FAQ's items 6-9 below are sourced from the live
+      flyaviatesair.uk site (support page + fleet page), not invented: the real support email,
+      Discord invite, and the site's own FAQ answers about ACARS keys, fleet/SimBrief
+      requirements, account recovery, and VATSIM callsigns.
     -->
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
@@ -120,8 +127,10 @@
                         <TextBlock Text="Report bugs or request features directly on our public GitHub repository."
                                    FontSize="12.5" Foreground="#64748B" TextWrapping="Wrap" TextAlignment="Center"
                                    HorizontalAlignment="Center" Margin="0,0,0,16" />
-                        <!-- Inert: no @onclick in the original (btn-ghost styling only). -->
-                        <Border Tag="github-issues" Tapped="OnFeatureButtonTapped"
+                        <!-- Opens the real public repo in the default browser (the other two
+                             feature buttons stay inert placeholders; no live chat widget or
+                             knowledge base exists to link to yet). -->
+                        <Border Tag="github-issues" Tapped="OnGitHubIssuesTapped"
                                 Background="Transparent" BorderBrush="#1F4D9BEC" BorderThickness="1.5"
                                 CornerRadius="10" Padding="0,10" HorizontalAlignment="Stretch">
                             <TextBlock Text="Open GitHub" FontSize="13" FontWeight="SemiBold" Foreground="#4D9BEC"
@@ -130,6 +139,61 @@
                     </StackPanel>
                 </Border>
             </Grid>
+
+            <!-- ── Contact & Community ──
+                 Real contact channels from flyaviatesair.uk/support: email is the primary channel
+                 for account/ACARS-key/flight-log issues, Discord for chatting with other pilots
+                 and faster informal questions. Both Borders open the actual destination (mailto:
+                 / the real Discord invite) via OnContactTapped, same Launcher.LaunchUriAsync
+                 pattern LoginPage.xaml.cs already uses for its "Register" link. -->
+            <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="Contact &amp; Community" FontFamily="{StaticResource DisplayFontBold}"
+                               FontWeight="Bold" FontSize="17" Foreground="#F1F5F9" />
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Tag="mailto:aviatesair@gmail.com" Tapped="OnContactTapped"
+                                Background="#121A2A" CornerRadius="12" Padding="16" HorizontalAlignment="Stretch">
+                            <StackPanel Orientation="Horizontal" Spacing="14">
+                                <Border Width="40" Height="40" CornerRadius="10" Background="#1F4D9BEC">
+                                    <Viewbox Width="18" Height="18">
+                                        <Path Data="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"
+                                              Stroke="#4D9BEC" StrokeThickness="1.8"
+                                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    </Viewbox>
+                                </Border>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock Text="Email Support" FontSize="13.5" FontWeight="Bold" Foreground="#F1F5F9" />
+                                    <TextBlock Text="aviatesair@gmail.com · account, ACARS key, and flight-log questions"
+                                               FontSize="11.5" Foreground="#64748B" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="1" Tag="https://discord.gg/WjBubsD8E9" Tapped="OnContactTapped"
+                                Background="#121A2A" CornerRadius="12" Padding="16" HorizontalAlignment="Stretch">
+                            <StackPanel Orientation="Horizontal" Spacing="14">
+                                <Border Width="40" Height="40" CornerRadius="10" Background="#1F5865F2">
+                                    <Viewbox Width="18" Height="18">
+                                        <Path Data="M18 9a6 6 0 00-12 0v6a6 6 0 0012 0zM9 21h6M12 3v2"
+                                              Stroke="#5865F2" StrokeThickness="1.8"
+                                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    </Viewbox>
+                                </Border>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock Text="Discord" FontSize="13.5" FontWeight="Bold" Foreground="#F1F5F9" />
+                                    <TextBlock Text="Chat with other pilots; usually the fastest way to get an answer"
+                                               FontSize="11.5" Foreground="#64748B" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </Border>
 
             <!-- ── FAQ ──
                  Support.razor's Faqs dictionary, ported verbatim (6 question/answer pairs).
@@ -164,7 +228,7 @@
                             </Border>
                             <Border x:Name="Faq0Answer" Visibility="Collapsed"
                                     BorderBrush="#0DFFFFFF" BorderThickness="0,1,0,0" Padding="20,12,20,16">
-                                <TextBlock Text="Go to Settings and enter your ACARS key. Then launch MSFS and load a flight — the tracker will connect automatically once SimConnect is active."
+                                <TextBlock Text="Go to Settings and enter your ACARS key. Then launch MSFS and load a flight; the tracker will connect automatically once SimConnect is active."
                                            FontSize="13.5" Foreground="#64748B" TextWrapping="Wrap" LineHeight="22" />
                             </Border>
                         </StackPanel>
@@ -220,7 +284,7 @@
                             </Border>
                             <Border x:Name="Faq2Answer" Visibility="Collapsed"
                                     BorderBrush="#0DFFFFFF" BorderThickness="0,1,0,0" Padding="20,12,20,16">
-                                <TextBlock Text="Rank progression is based on logged block hours, number of completed flights, and average landing score. Visit Pilot Hub to see your current progress toward the next rank."
+                                <TextBlock Text="Every pilot starts as a Cadet and advances through the ranks automatically as your logged block hours build up, from Junior First Officer all the way to Senior Captain. Visit Pilot Hub to see your current progress toward the next rank."
                                            FontSize="13.5" Foreground="#64748B" TextWrapping="Wrap" LineHeight="22" />
                             </Border>
                         </StackPanel>
@@ -248,7 +312,7 @@
                             </Border>
                             <Border x:Name="Faq3Answer" Visibility="Collapsed"
                                     BorderBrush="#0DFFFFFF" BorderThickness="0,1,0,0" Padding="20,12,20,16">
-                                <TextBlock Text="You can fly any aircraft available in MSFS. The tracker records your aircraft type from SimConnect automatically. Some events may restrict to specific types."
+                                <TextBlock Text="You'll need at least one aircraft from the AviatesAir fleet (see the Fleet page for the full Airbus, Boeing and ATR lineup across Mainline, Sky Cargo and Cityhopper). The tracker records your aircraft type from SimConnect automatically; some events may restrict to specific types."
                                            FontSize="13.5" Foreground="#64748B" TextWrapping="Wrap" LineHeight="22" />
                             </Border>
                         </StackPanel>
@@ -304,7 +368,119 @@
                             </Border>
                             <Border x:Name="Faq5Answer" Visibility="Collapsed"
                                     BorderBrush="#0DFFFFFF" BorderThickness="0,1,0,0" Padding="20,12,20,16">
-                                <TextBlock Text="Yes — go to Settings and enter your SimBrief Pilot ID. Then use the Import SimBrief button in the main header to load your active OFP before departure."
+                                <TextBlock Text="Yes. Go to Settings and enter your SimBrief Pilot ID. Then use the Import SimBrief button in the main header to load your active OFP before departure."
+                                           FontSize="13.5" Foreground="#64748B" TextWrapping="Wrap" LineHeight="22" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- FAQ 6 (from flyaviatesair.uk/support) -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
+                        <StackPanel>
+                            <Border Tag="6" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="What do I need to fly with AviatesAir?"
+                                               FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Column="1" Text="+" FontSize="18" Foreground="#64748B"
+                                               VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                        <TextBlock.RenderTransform>
+                                            <RotateTransform x:Name="Faq6Rotate" Angle="0" />
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                            <Border x:Name="Faq6Answer" Visibility="Collapsed"
+                                    BorderBrush="#0DFFFFFF" BorderThickness="0,1,0,0" Padding="20,12,20,16">
+                                <TextBlock Text="Microsoft Flight Simulator (2020 or 2024), at least one aircraft from the AviatesAir fleet, a SimBrief account for flight planning, and you must be 13 years or older."
+                                           FontSize="13.5" Foreground="#64748B" TextWrapping="Wrap" LineHeight="22" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- FAQ 7 (from flyaviatesair.uk/support) -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
+                        <StackPanel>
+                            <Border Tag="7" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="What exactly is my ACARS key for?"
+                                               FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Column="1" Text="+" FontSize="18" Foreground="#64748B"
+                                               VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                        <TextBlock.RenderTransform>
+                                            <RotateTransform x:Name="Faq7Rotate" Angle="0" />
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                            <Border x:Name="Faq7Answer" Visibility="Collapsed"
+                                    BorderBrush="#0DFFFFFF" BorderThickness="0,1,0,0" Padding="20,12,20,16">
+                                <TextBlock Text="It's a unique code that links your flights to your pilot account, so every sector you fly is tracked automatically toward your hours and rank. You'll receive it when you sign up on flyaviatesair.uk; enter it in Settings to connect this tracker to your account."
+                                           FontSize="13.5" Foreground="#64748B" TextWrapping="Wrap" LineHeight="22" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- FAQ 8 (from flyaviatesair.uk/support) -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
+                        <StackPanel>
+                            <Border Tag="8" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="I can't log in, or I've lost my ACARS key. What now?"
+                                               FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Column="1" Text="+" FontSize="18" Foreground="#64748B"
+                                               VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                        <TextBlock.RenderTransform>
+                                            <RotateTransform x:Name="Faq8Rotate" Angle="0" />
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                            <Border x:Name="Faq8Answer" Visibility="Collapsed"
+                                    BorderBrush="#0DFFFFFF" BorderThickness="0,1,0,0" Padding="20,12,20,16">
+                                <TextBlock Text="Email aviatesair@gmail.com from your registered address for account recovery assistance; most emails are answered within a day or two."
+                                           FontSize="13.5" Foreground="#64748B" TextWrapping="Wrap" LineHeight="22" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- FAQ 9 (from flyaviatesair.uk/support) -->
+                    <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
+                        <StackPanel>
+                            <Border Tag="9" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Which callsign should I use on VATSIM?"
+                                               FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock Grid.Column="1" Text="+" FontSize="18" Foreground="#64748B"
+                                               VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                        <TextBlock.RenderTransform>
+                                            <RotateTransform x:Name="Faq9Rotate" Angle="0" />
+                                        </TextBlock.RenderTransform>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                            <Border x:Name="Faq9Answer" Visibility="Collapsed"
+                                    BorderBrush="#0DFFFFFF" BorderThickness="0,1,0,0" Padding="20,12,20,16">
+                                <TextBlock Text="Use one of AviatesAir's registered ICAO prefixes, listed on the Callsigns page at flyaviatesair.uk, matched to whichever subsidiary you're flying for (Mainline, Sky Cargo, or Cityhopper)."
                                            FontSize="13.5" Foreground="#64748B" TextWrapping="Wrap" LineHeight="22" />
                             </Border>
                         </StackPanel>

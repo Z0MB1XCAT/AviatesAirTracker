@@ -117,7 +117,7 @@
 
                     <StackPanel Grid.Column="0" MaxWidth="520" VerticalAlignment="Center" Spacing="0">
                         <Border Background="#1AFFFFFF" BorderBrush="#24FFFFFF" BorderThickness="1"
-                                CornerRadius="999" Padding="12,4" HorizontalAlignment="Left" Margin="0,0,0,16">
+                                CornerRadius="10" Padding="12,4" HorizontalAlignment="Left" Margin="0,0,0,16">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Ellipse Width="5" Height="5" Fill="#06B6D4" VerticalAlignment="Center" />
                                 <TextBlock x:Name="FeaturedEyebrowText" FontSize="10" FontWeight="Bold"
@@ -129,7 +129,7 @@
                         <TextBlock x:Name="FeaturedDescText" FontSize="13" Foreground="#94FFFFFF"
                                     TextWrapping="Wrap" MaxWidth="400" Margin="0,0,0,16" />
                         <Border Tag="featured-cta" Tapped="OnFeaturedCtaTapped" Background="#FFFFFF"
-                                CornerRadius="999" Padding="18,9" HorizontalAlignment="Left">
+                                CornerRadius="10" Padding="18,9" HorizontalAlignment="Left">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock x:Name="FeaturedCtaText" FontSize="12.5" FontWeight="Bold" Foreground="#0F172A" />
                                 <Viewbox Width="14" Height="14">
@@ -143,14 +143,26 @@
                         </Border>
                     </StackPanel>
 
-                    <!-- Simplified decorative art: concentric rings, no SVG text glyph. -->
-                    <Viewbox Grid.Column="1" Width="120" Height="120" HorizontalAlignment="Right" VerticalAlignment="Center" Opacity="0.7">
-                        <Grid Width="200" Height="160">
-                            <Ellipse Width="70" Height="70" Stroke="#4D9BEC" StrokeThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            <Ellipse Width="50" Height="50" Stroke="#4D9BEC" StrokeThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            <Ellipse Width="30" Height="30" Stroke="#4D9BEC" StrokeThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Grid>
-                    </Viewbox>
+                    <!-- Decorative art: a soft radial glow behind a large, faded paper-plane glyph
+                         (the same send-icon path RoutesPage/BookingDialog already use for flight
+                         bookings elsewhere in this app), replacing the earlier bare concentric-
+                         ring placeholder; reported as looking out of place/disconnected floating
+                         in empty space with nothing else anchoring it. -->
+                    <Grid Grid.Column="1" Width="200" Height="160" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Ellipse Width="170" Height="170" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Ellipse.Fill>
+                                <RadialGradientBrush>
+                                    <GradientStop Color="#294D9BEC" Offset="0.0" />
+                                    <GradientStop Color="#004D9BEC" Offset="1.0" />
+                                </RadialGradientBrush>
+                            </Ellipse.Fill>
+                        </Ellipse>
+                        <Viewbox Width="76" Height="76" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5">
+                            <Path Data="M22 16.5L13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"
+                                  Stroke="#4D9BEC" StrokeThickness="1.4"
+                                  StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                        </Viewbox>
+                    </Grid>
                 </Grid>
             </Border>
 
@@ -265,10 +277,6 @@
                                                 <TextBlock Text="{Binding RouteText}" FontSize="11.5" Foreground="#64748B" VerticalAlignment="Center" />
                                             </StackPanel>
 
-                                            <Border Background="#1AF59E0B" CornerRadius="6" Padding="8,2" Visibility="{Binding ShowRankRestriction}" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding RankRestrictionText}" FontSize="10.5" FontWeight="SemiBold" Foreground="#F59E0B" />
-                                            </Border>
-
                                             <Border Background="#1FB8934A" CornerRadius="6" Padding="8,2" Visibility="{Binding ShowAircraftRestriction}" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding AircraftRestrictionText}" FontSize="10.5" FontWeight="SemiBold" Foreground="#B8934A" />
                                             </Border>
@@ -287,12 +295,29 @@
                                                     IsHitTestVisible="{Binding IsActionEnabled}">
                                                 <TextBlock Text="{Binding UnregisterButtonText}" FontSize="12" FontWeight="SemiBold" Foreground="#EF4444" />
                                             </Border>
-                                            <Border Background="#1AF97316" CornerRadius="999" Padding="10,5"
+                                            <Border Background="#1AF97316" CornerRadius="10" Padding="10,5"
                                                     Visibility="{Binding ShowFullChip}">
                                                 <TextBlock Text="Full" FontSize="11" FontWeight="SemiBold" Foreground="#F97316" />
                                             </Border>
                                         </StackPanel>
                                     </Grid>
+
+                                    <!-- "Who's attending": names fetched separately per event (see
+                                         EventsPage.xaml.cs's ReloadAsync/BuildAttendeesText), not part of
+                                         AviatesEvent itself. A full-width row below the meta row/action Grid
+                                         above, not inside it; it previously had no Grid.Column set and so
+                                         defaulted into column 0, rendering directly on top of the meta row's
+                                         own text instead of below it. -->
+                                    <StackPanel Orientation="Horizontal" Spacing="5" Margin="0,6,0,0" Visibility="{Binding ShowAttendees}">
+                                        <Viewbox Width="11" Height="11">
+                                            <Grid Width="24" Height="24">
+                                                <Ellipse Width="8" Height="8" Stroke="#64748B" StrokeThickness="1.8" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                                                <Ellipse Width="8" Height="8" Stroke="#64748B" StrokeThickness="1.8" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,3,0,0" />
+                                            </Grid>
+                                        </Viewbox>
+                                        <TextBlock Text="{Binding AttendeesText}" FontSize="11" Foreground="#64748B"
+                                                   TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Grid>
                         </Border>

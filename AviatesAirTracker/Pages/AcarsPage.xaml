@@ -72,7 +72,7 @@
                     </Border>
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                        <TextBlock x:Name="BannerTitleText" Text="ACARS Offline — MSFS Not Connected"
+                        <TextBlock x:Name="BannerTitleText" Text="ACARS Offline: MSFS Not Connected"
                                    FontSize="14" FontWeight="Bold" Foreground="#F1F5F9" />
                         <TextBlock x:Name="BannerDescText"
                                    Text="Launch Microsoft Flight Simulator to begin automatic ACARS tracking. All flight data will be recorded in real-time."
@@ -85,13 +85,13 @@
 
                     <!-- Exactly one of these three is visible at a time (see UpdateConnectionBanner). -->
                     <Border x:Name="ConnectButtonBorder" Grid.Column="3" Tapped="OnConnectTapped"
-                            Background="#4D9BEC" CornerRadius="9999" Padding="16,7" VerticalAlignment="Center">
+                            Background="#4D9BEC" CornerRadius="10" Padding="16,7" VerticalAlignment="Center">
                         <TextBlock x:Name="ConnectButtonText" Text="Connect" FontSize="12" FontWeight="Bold" Foreground="White" />
                     </Border>
 
                     <StackPanel x:Name="LiveGroupPanel" Grid.Column="3" Orientation="Horizontal" Spacing="10"
                                 Visibility="Collapsed" VerticalAlignment="Center">
-                        <Border Background="#1F3EC7AC" CornerRadius="9999" Padding="10,3">
+                        <Border Background="#1F3EC7AC" CornerRadius="10" Padding="10,3">
                             <StackPanel Orientation="Horizontal" Spacing="5">
                                 <Ellipse Width="6" Height="6" Fill="#3EC7AC" VerticalAlignment="Center" />
                                 <TextBlock Text="LIVE" FontSize="11" FontWeight="SemiBold" Foreground="#3EC7AC" />
@@ -99,13 +99,13 @@
                         </Border>
                         <Border x:Name="EndFlightButtonBorder" Tapped="OnEndFlightTapped"
                                 Background="#1AEF4444" BorderBrush="#EF4444" BorderThickness="1.5"
-                                CornerRadius="9999" Padding="16,6">
+                                CornerRadius="10" Padding="16,6">
                             <TextBlock Text="End Flight" FontSize="12" FontWeight="Bold" Foreground="#EF4444" />
                         </Border>
                     </StackPanel>
 
                     <Border x:Name="CompleteChipBorder" Grid.Column="3"
-                            Background="#1F4D9BEC" CornerRadius="9999" Padding="10,3"
+                            Background="#1F4D9BEC" CornerRadius="10" Padding="10,3"
                             Visibility="Collapsed" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Spacing="5">
                             <Ellipse Width="6" Height="6" Fill="#4D9BEC" VerticalAlignment="Center" />
@@ -156,7 +156,7 @@
                                    FontSize="11.5" FontWeight="SemiBold" Foreground="#64748B" />
                     </Border>
 
-                    <TextBlock Grid.Column="5" Text="SimBrief opened in browser — generate your plan, then click Fetch OFP below"
+                    <TextBlock Grid.Column="5" Text="SimBrief opened in browser; generate your plan, then click Fetch OFP below"
                                FontSize="12" Foreground="#64748B" VerticalAlignment="Center" TextWrapping="Wrap" />
 
                     <Border x:Name="BookingDismissBorder" Grid.Column="6" Tapped="OnBookingDismissTapped"
@@ -325,7 +325,13 @@
                 <Border Grid.Column="0" CornerRadius="20" BorderBrush="#14FFFFFF" BorderThickness="1"
                         Background="#0C111D" MinHeight="380">
                     <Grid>
-                        <Grid x:Name="MiniMapHost" Height="380" />
+                        <!-- No fixed Height: the map fills whatever height this Border ends up
+                             (it stretches to match the taller sidebar column via the shared row).
+                             A fixed Height here left the MapControl's own height locked at 380
+                             while the Border grew taller than that to match the sidebar, so the
+                             Grid centered the shorter map inside it, letterboxing it with the
+                             Border's own dark background showing as bars above and below. -->
+                        <Grid x:Name="MiniMapHost" />
                         <Border x:Name="FullMapLinkBorder" Tapped="OnFullMapTapped"
                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,12,12"
                                 Background="#D20A0D17" BorderBrush="#14FFFFFF" BorderThickness="1"
@@ -392,7 +398,7 @@
                                 </StackPanel>
                                 <Border x:Name="RefreshOfpButtonBorder" Tapped="OnRefreshOfpTapped"
                                         Background="Transparent" BorderBrush="#14FFFFFF" BorderThickness="1"
-                                        CornerRadius="9999" Padding="0,8" HorizontalAlignment="Stretch">
+                                        CornerRadius="10" Padding="0,8" HorizontalAlignment="Stretch">
                                     <TextBlock Text="Refresh OFP" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1"
                                                HorizontalAlignment="Center" />
                                 </Border>
@@ -419,7 +425,7 @@
                                                TextWrapping="Wrap" />
                                     <Border Tapped="OnConfigureSimBriefTapped"
                                             Background="Transparent" BorderBrush="#14FFFFFF" BorderThickness="1"
-                                            CornerRadius="9999" Padding="0,8" HorizontalAlignment="Stretch">
+                                            CornerRadius="10" Padding="0,8" HorizontalAlignment="Stretch">
                                         <TextBlock Text="Configure SimBrief" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1"
                                                    HorizontalAlignment="Center" />
                                     </Border>
@@ -432,7 +438,7 @@
                                                    Foreground="#CBD5E1" />
                                     </StackPanel>
                                     <Border x:Name="ImportOfpButtonBorder" Tapped="OnImportOfpTapped"
-                                            Background="#4D9BEC" CornerRadius="9999" Padding="0,8" HorizontalAlignment="Stretch">
+                                            Background="#4D9BEC" CornerRadius="10" Padding="0,8" HorizontalAlignment="Stretch">
                                         <TextBlock Text="Import Latest OFP" FontSize="12" FontWeight="Bold" Foreground="White"
                                                    HorizontalAlignment="Center" />
                                     </Border>
@@ -515,7 +521,7 @@
 
                             <Border Tapped="OnConfigureAcarsTapped"
                                     Background="Transparent" BorderBrush="#14FFFFFF" BorderThickness="1"
-                                    CornerRadius="9999" Padding="0,8" HorizontalAlignment="Stretch">
+                                    CornerRadius="10" Padding="0,8" HorizontalAlignment="Stretch">
                                 <TextBlock Text="Configure ACARS" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1"
                                            HorizontalAlignment="Center" />
                             </Border>
@@ -716,124 +722,6 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Position Report / PIREP panel (Acars.razor:569-661) -->
-                <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20">
-                    <StackPanel Spacing="16">
-                        <Grid>
-                            <TextBlock Text="Position Report" FontFamily="{StaticResource DisplayFontBold}"
-                                       FontSize="15" Foreground="#F1F5F9" HorizontalAlignment="Left" />
-                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                                <Border x:Name="PirepAutoBadgeBorder" Background="#1F3EC7AC" CornerRadius="6" Padding="7,2"
-                                        Visibility="Collapsed">
-                                    <TextBlock Text="AUTO" FontSize="10" FontWeight="Bold" CharacterSpacing="60" Foreground="#3EC7AC" />
-                                </Border>
-                                <TextBlock x:Name="PirepLastReportText" Text="Auto-filled from telemetry"
-                                           FontSize="11" Foreground="#64748B" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Grid>
-
-                        <!-- Telemetry data grid -->
-                        <Grid ColumnSpacing="12" RowSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-
-                            <Border Grid.Row="0" Grid.Column="0" Background="#121A2A" CornerRadius="12" Padding="12,8">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="POSITION" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
-                                    <TextBlock x:Name="PirepPositionText" Text="—" FontFamily="Consolas" FontSize="11" Foreground="#F1F5F9" />
-                                </StackPanel>
-                            </Border>
-                            <Border Grid.Row="0" Grid.Column="1" Background="#121A2A" CornerRadius="12" Padding="12,8">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="ALTITUDE" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
-                                    <TextBlock x:Name="PirepAltitudeText" Text="— ft" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
-                                </StackPanel>
-                            </Border>
-                            <Border Grid.Row="0" Grid.Column="2" Background="#121A2A" CornerRadius="12" Padding="12,8">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="IAS / GS" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
-                                    <TextBlock x:Name="PirepIasGsText" Text="— / — kts" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
-                                </StackPanel>
-                            </Border>
-                            <Border Grid.Row="1" Grid.Column="0" Background="#121A2A" CornerRadius="12" Padding="12,8">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="FUEL REMAINING" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
-                                    <TextBlock x:Name="PirepFuelText" Text="— lbs" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
-                                </StackPanel>
-                            </Border>
-                            <Border Grid.Row="1" Grid.Column="1" Background="#121A2A" CornerRadius="12" Padding="12,8">
-                                <StackPanel Spacing="4">
-                                    <TextBlock x:Name="PirepEtaLabelText" Text="ETA" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
-                                    <TextBlock x:Name="PirepEtaText" Text="—" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
-                                </StackPanel>
-                            </Border>
-                            <Border Grid.Row="1" Grid.Column="2" Background="#121A2A" CornerRadius="12" Padding="12,8">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="FLIGHT PHASE" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
-                                    <TextBlock x:Name="PirepPhaseText" Text="—" FontFamily="Consolas" FontSize="13" FontWeight="Bold" Foreground="#F1F5F9" />
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-
-                        <!-- Cruise compliance -->
-                        <Border x:Name="PirepCruiseBorder" Background="#121A2A" CornerRadius="12" Padding="12,8" Visibility="Collapsed">
-                            <Grid>
-                                <TextBlock x:Name="PirepCruiseLabelText" Text="" FontSize="10" FontWeight="Bold" Foreground="#64748B"
-                                           CharacterSpacing="100" HorizontalAlignment="Left" />
-                                <TextBlock x:Name="PirepCruiseValueText" Text="" FontFamily="Consolas" FontSize="12" FontWeight="Bold"
-                                           HorizontalAlignment="Right" />
-                            </Grid>
-                        </Border>
-
-                        <!-- Remarks -->
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="REMARKS" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
-                            <TextBox x:Name="PirepRemarksTextBox"
-                                     PlaceholderText="ATC remarks, weather observations, or notes..."
-                                     AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60"
-                                     Background="#121A2A" BorderBrush="#14FFFFFF" BorderThickness="1"
-                                     Foreground="#F1F5F9" FontFamily="Consolas" FontSize="12"
-                                     TextChanged="OnPirepRemarksTextChanged" />
-                        </StackPanel>
-
-                        <!-- Recent auto-reports -->
-                        <StackPanel x:Name="PirepRecentReportsPanel" Spacing="6" Visibility="Collapsed">
-                            <TextBlock Text="RECENT REPORTS" FontSize="10" FontWeight="Bold" Foreground="#64748B" CharacterSpacing="100" />
-                            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                                <StackPanel x:Name="PirepRecentReportsChipsPanel" Orientation="Horizontal" Spacing="6" />
-                            </ScrollViewer>
-                        </StackPanel>
-
-                        <!-- Actions -->
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Tapped="OnCopyPirepTapped"
-                                    Background="#4D9BEC" CornerRadius="9999" Padding="16,8">
-                                <TextBlock x:Name="CopyPirepButtonText" Text="Copy PIREP Text" FontSize="12" FontWeight="Bold" Foreground="White" />
-                            </Border>
-                            <Border Grid.Column="1" x:Name="SubmitPirepButtonBorder" Tapped="OnSubmitPirepTapped"
-                                    Background="Transparent" BorderBrush="#14FFFFFF" BorderThickness="1"
-                                    CornerRadius="9999" Padding="16,8">
-                                <TextBlock x:Name="SubmitPirepButtonText" Text="Submit Position Report" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1" />
-                            </Border>
-                            <TextBlock x:Name="PirepConfigureAcarsText" Grid.Column="2" Text="Configure ACARS key in Settings"
-                                       FontSize="11" Foreground="#64748B" HorizontalAlignment="Right" VerticalAlignment="Center"
-                                       Visibility="Collapsed" />
-                        </Grid>
-                    </StackPanel>
-                </Border>
-
             </StackPanel>
 
         </StackPanel>
@@ -925,6 +813,29 @@
                 </StackPanel>
             </ScrollViewer>
         </Border>
+    </Grid>
+
+    <!-- ── Booking activation gate ──
+         Topmost sibling in the root Grid, so it fully replaces the page (opaque, matching the
+         page background; not a translucent dim like CompletionOverlayGrid above, which docks a
+         panel over live content) whenever the pilot has no activated booking. Checked fresh in
+         OnPageLoaded every time this page is navigated to; there is no live re-check while this
+         page stays open because activating only happens on Pilot Hub, a different page in this
+         single-Frame shell, so the pilot always returns here by navigating back. The real "no
+         tracking" enforcement is server-side of this UI gate; see
+         FlightSessionManager.OnEnginesStarted's own comment. -->
+    <Grid x:Name="BookingGateGrid" Background="#080B14" Visibility="Collapsed">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16" MaxWidth="420">
+            <Viewbox Width="40" Height="40" Opacity="0.4" HorizontalAlignment="Center">
+                <Path Data="M12 2 15 8l6 .9-4.5 4.3L17.5 20 12 17l-5.5 3 1-6.8L3 8.9 9 8z" Stroke="#64748B"
+                      StrokeThickness="1.5" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+            </Viewbox>
+            <TextBlock Text="Activate a booking to access ACARS" FontFamily="{StaticResource DisplayFontBold}"
+                       FontSize="18" FontWeight="Bold" Foreground="#F1F5F9" HorizontalAlignment="Center"
+                       TextAlignment="Center" TextWrapping="Wrap" />
+            <TextBlock x:Name="BookingGateSubtitleText" FontSize="13" Foreground="#94A3B8"
+                       HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+        </StackPanel>
     </Grid>
     </Grid>
 </Page>

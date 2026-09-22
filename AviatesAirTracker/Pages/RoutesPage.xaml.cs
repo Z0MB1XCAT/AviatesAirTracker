@@ -1,4 +1,6 @@
 using AviatesAirTracker.Core.Reference;
+using AviatesAirTracker.Dialogs;
+using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
 using AviatesAirTracker.ViewModels;
 using Microsoft.UI;
@@ -85,6 +87,8 @@ public sealed partial class RoutesPage : Page
     {
         InitializeComponent();
 
+        InteractiveEffects.Attach(TabAllBorder, TabMainlineBorder, TabCargoBorder, TabRegionalBorder, CharterButtonBorder);
+
         _viewModel = App.GetService<RoutesViewModel>();
         DataContext = _viewModel;
         RouteCardsList.ItemsSource = RouteRows;
@@ -153,9 +157,25 @@ public sealed partial class RoutesPage : Page
     // call, not a single combined step -- RoutesViewModel.ClearPositionAsync deliberately does
     // not reload internally (Task 1's design), so this page calls LoadRoutesAsync itself right
     // after, with its own current tab/search state.
+    //
+    // Now rate-limited to once every 7 days (real reposition also cancels the pilot's active
+    // booking for consistency -- see ClearPositionAsync's own doc comment); a blocked attempt
+    // shows the remaining cooldown instead of silently no-opping.
     private async void OnRepositionTapped(object sender, TappedRoutedEventArgs e)
     {
-        await _viewModel.ClearPositionAsync();
+        var (success, remaining) = await _viewModel.ClearPositionAsync();
+        if (!success)
+        {
+            var days = Math.Max(1, (int)Math.Ceiling((remaining ?? TimeSpan.Zero).TotalDays));
+            await ConfirmDialog.ShowAsync(
+                XamlRoot,
+                "Reposition Limit Reached",
+                $"You can only reposition once every 7 days. Try again in {days} day{(days == 1 ? "" : "s")}.",
+                "OK",
+                "");
+            return;
+        }
+
         await ReloadAsync();
     }
 
@@ -296,7 +316,7 @@ public sealed partial class RoutesPage : Page
                 DestFlagSource = LoadFlagImage(route.DestIata),
                 SubText = string.IsNullOrEmpty(route.Notes)
                     ? $"{route.OriginName} to {route.DestName}"
-                    : $"{route.OriginName} to {route.DestName} — {route.Notes}",
+                    : $"{route.OriginName} to {route.DestName} ({route.Notes})",
                 IconColor = iconFg,
                 IconBackground = iconBg,
                 AircraftType = route.AircraftType,
@@ -352,6 +372,14 @@ public sealed partial class RoutesPage : Page
     {
         if (sender is not FrameworkElement { Tag: RouteDisplayRow row }) return;
         await AviatesAirTracker.Dialogs.BookingDialog.ShowAsync(this.XamlRoot, _viewModel, row.Source);
+        await ReloadAsync();
+    }
+
+    // ── Charter button ───────────────────────────────────────────────────────────────────────
+    // Same post-dialog reload-unconditionally reasoning as OnBookTapped above.
+    private async void OnCharterTapped(object sender, TappedRoutedEventArgs e)
+    {
+        await CharterBookingDialog.ShowAsync(this.XamlRoot, _viewModel);
         await ReloadAsync();
     }
 }

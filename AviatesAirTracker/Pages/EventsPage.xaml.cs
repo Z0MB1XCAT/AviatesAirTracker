@@ -1,4 +1,5 @@
 using AviatesAirTracker.Dialogs;
+using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
 using AviatesAirTracker.ViewModels;
 using Microsoft.UI;
@@ -48,11 +49,14 @@ public sealed class EventDisplayRow
     public string RouteText { get; set; } = "";
     public Visibility ShowRoute { get; set; } = Visibility.Collapsed;
 
-    public string RankRestrictionText { get; set; } = "";
-    public Visibility ShowRankRestriction { get; set; } = Visibility.Collapsed;
-
     public string AircraftRestrictionText { get; set; } = "";
     public Visibility ShowAircraftRestriction { get; set; } = Visibility.Collapsed;
+
+    // "Who's attending" -- names fetched via EventsViewModel.GetAttendeesAsync and cached per
+    // reload in EventsPage's _attendeesByEvent (see ReloadAsync), not sourced from AviatesEvent
+    // itself (the list endpoint only ever returns a count, not names).
+    public string AttendeesText { get; set; } = "";
+    public Visibility ShowAttendees { get; set; } = Visibility.Collapsed;
 
     public Visibility ShowActionRow { get; set; } = Visibility.Visible;
     public Visibility ShowRegisterButton { get; set; } = Visibility.Collapsed;
@@ -105,9 +109,15 @@ public sealed partial class EventsPage : Page
     // flight, every other event's button stays interactive.
     private readonly System.Collections.Generic.HashSet<int> _busyEvents = [];
 
+    // Populated fresh in ReloadAsync -- see RebuildEventRows's own doc comment for why this
+    // isn't fetched per-row.
+    private System.Collections.Generic.Dictionary<int, List<EventAttendee>> _attendeesByEvent = [];
+
     public EventsPage()
     {
         InitializeComponent();
+
+        InteractiveEffects.Attach(TabUpcomingBorder, TabPastBorder, TabMyBorder);
 
         _viewModel = App.GetService<EventsViewModel>();
         _settings = App.GetService<SettingsService>();
@@ -204,6 +214,16 @@ public sealed partial class EventsPage : Page
     {
         ShowLoadingState();
         await _viewModel.LoadEventsAsync(_activeTab);
+
+        // Fetched once per reload for every currently-loaded event, in parallel, rather than
+        // per-row inside RebuildEventRows -- that method runs synchronously and can re-run
+        // several times per reload (e.g. from HandleRegisterAsync's busy-state rebuild), so an
+        // await there would either block the UI thread or require a much larger restructure for
+        // no benefit given how few events are ever on screen at once.
+        var ids = _viewModel.Events.Select(e => e.Id).ToList();
+        var pairs = await Task.WhenAll(ids.Select(async id => (id, attendees: await _viewModel.GetAttendeesAsync(id))));
+        _attendeesByEvent = pairs.ToDictionary(p => p.id, p => p.attendees);
+
         RebuildUi();
     }
 
@@ -295,11 +315,12 @@ public sealed partial class EventsPage : Page
                 RouteText = evt.Route,
                 ShowRoute = string.IsNullOrEmpty(evt.Route) ? Visibility.Collapsed : Visibility.Visible,
 
-                RankRestrictionText = evt.RankRestriction,
-                ShowRankRestriction = string.IsNullOrEmpty(evt.RankRestriction) ? Visibility.Collapsed : Visibility.Visible,
-
                 AircraftRestrictionText = evt.AircraftRestriction,
                 ShowAircraftRestriction = string.IsNullOrEmpty(evt.AircraftRestriction) ? Visibility.Collapsed : Visibility.Visible,
+
+                AttendeesText = BuildAttendeesText(_attendeesByEvent.GetValueOrDefault(evt.Id, [])),
+                ShowAttendees = _attendeesByEvent.TryGetValue(evt.Id, out var atts) && atts.Count > 0
+                    ? Visibility.Visible : Visibility.Collapsed,
 
                 ShowActionRow = showAction ? Visibility.Visible : Visibility.Collapsed,
                 ShowRegisterButton = showAction && !evt.IsRegistered && !full ? Visibility.Visible : Visibility.Collapsed,
@@ -310,6 +331,18 @@ public sealed partial class EventsPage : Page
                 IsActionEnabled = !busy,
             });
         }
+    }
+
+    // Names up front (up to 4), "+N more" for the rest -- an event with a large turnout would
+    // otherwise overflow the card. "No one" case is handled by ShowAttendees staying Collapsed,
+    // this never runs on an empty list.
+    private static string BuildAttendeesText(List<EventAttendee> attendees)
+    {
+        const int maxNames = 4;
+        var names = attendees.Take(maxNames).Select(a => string.IsNullOrWhiteSpace(a.PilotName) ? "Pilot" : a.PilotName);
+        var text = string.Join(", ", names);
+        var remaining = attendees.Count - maxNames;
+        return remaining > 0 ? $"{text} +{remaining} more" : text;
     }
 
     // ── Register / Unregister ───────────────────────────────────────────────────────────────

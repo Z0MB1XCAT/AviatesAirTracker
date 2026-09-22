@@ -29,6 +29,13 @@ public partial class PilotHubViewModel : ObservableObject
     [ObservableProperty] private bool _hasLandings;
     [ObservableProperty] private bool _isLoading;
 
+    // Current booking card (MaxBookings = 1 -- BookingService.cs -- so there's ever at most one
+    // to show). Null CurrentBooking means the card is hidden entirely; BookingExpired
+    // distinguishes "still confirmed, showing normally" from "just auto-cancelled because its
+    // scheduled departure passed unflown" for the same booking object.
+    [ObservableProperty] private FlightBooking? _currentBooking;
+    [ObservableProperty] private bool _bookingExpired;
+
     // Landing history table (most recent 10)
     public ObservableCollection<LandingResult> RecentLandings { get; } = [];
 
@@ -37,11 +44,16 @@ public partial class PilotHubViewModel : ObservableObject
 
     private readonly PilotStatsService _statsService;
     private readonly ILandingRepository _landingRepo;
+    private readonly BookingService _bookingService;
+    private readonly SimBriefService _simBrief;
 
-    public PilotHubViewModel(PilotStatsService statsService, ILandingRepository landingRepo, FlightSessionManager sessionManager)
+    public PilotHubViewModel(PilotStatsService statsService, ILandingRepository landingRepo,
+        FlightSessionManager sessionManager, BookingService bookingService, SimBriefService simBrief)
     {
         _statsService = statsService;
         _landingRepo  = landingRepo;
+        _bookingService = bookingService;
+        _simBrief = simBrief;
         sessionManager.FlightCompleted += (_, _) => _ = RefreshAsync();
     }
 
@@ -79,12 +91,102 @@ public partial class PilotHubViewModel : ObservableObject
                 LastLandingGradeLabel  = GradeLabel(LastLanding.LandingScore);
                 LastLandingGradeClass  = GradeClass(LastLanding.LandingScore);
             }
+
+            await RefreshBookingAsync();
         }
         finally
         {
             IsLoading = false;
             DataRefreshed?.Invoke();
         }
+    }
+
+    // Fetches the pilot's single booking (server is the source of truth -- ActiveBooking is only
+    // the in-memory "flight in progress right now" pointer) and expires it if its scheduled
+    // departure has passed unflown. BookingExpired stays true for this one refresh so the card
+    // can show "Booking Expired" once, then the booking simply won't be there on the next load.
+    private async Task RefreshBookingAsync()
+    {
+        var booking = await _bookingService.GetCurrentBookingAsync();
+        if (booking == null)
+        {
+            CurrentBooking = null;
+            BookingExpired = false;
+            return;
+        }
+
+        var expired = await _bookingService.ExpireIfStaleAsync(booking);
+        CurrentBooking = booking;
+        BookingExpired = expired != null;
+    }
+
+    // Instant local cancel -- clears CurrentBooking/ActiveBooking synchronously so Pilot Hub's
+    // card (and anywhere else reading ActiveBooking, e.g. ACARS) updates the moment the pilot
+    // taps Cancel, rather than waiting on a full round trip to the backend first. The actual
+    // DELETE still runs in the background and still goes through every real server-side check
+    // (ownership, already-cancelled, etc.) -- this doesn't skip or fake that, it just doesn't
+    // block the pilot's own screen on it. A rebook attempted before the background cancel has
+    // actually landed can still race the server's own MaxBookings check; that's an accepted
+    // edge case of "instant locally, cloud catches up" rather than something silently papered
+    // over -- a real failure there surfaces as a real error from CreateBookingAsync.
+    public void CancelCurrentBooking()
+    {
+        // Mirrors the server's own guard (DELETE /api/bookings/:id 409s once activated_at is
+        // set) -- an activated booking is a genuine point of no return, not just a UI
+        // restriction, so this silently no-ops rather than firing a request that will fail.
+        if (CurrentBooking == null || CurrentBooking.IsActivated) return;
+        var booking = CurrentBooking;
+
+        CurrentBooking = null;
+        BookingExpired = false;
+        if (_bookingService.ActiveBooking?.Id == booking.Id)
+            _bookingService.SetActiveBooking(null);
+
+        _ = _bookingService.CancelBookingAsync(booking.Id);
+    }
+
+    /// <summary>
+    /// One-way: opens SimBrief dispatch pre-filled from the current booking (route, aircraft,
+    /// registration, callsign, schedule -- everything OpenDispatch already builds into the URL),
+    /// then marks the booking activated server-side so it can never be cancelled again. The
+    /// browser opens regardless of whether the activate call itself succeeds -- SimBrief doesn't
+    /// depend on our backend, and there's no way to "unopen" the tab if the network hiccups, so
+    /// there's nothing to gain by ordering it after a successful response. Returns an error
+    /// message if the server-side activation didn't go through (CurrentBooking is left
+    /// unactivated in that case, and the pilot can just tap Activate again), or null on success.
+    /// </summary>
+    public async Task<string?> ActivateCurrentBookingAsync()
+    {
+        if (CurrentBooking == null || CurrentBooking.IsActivated) return null;
+        var booking = CurrentBooking;
+
+        _simBrief.OpenDispatch(booking);
+
+        var (updated, error) = await _bookingService.ActivateBookingAsync(booking.Id);
+        if (updated != null)
+        {
+            CurrentBooking = updated;
+
+            // Keep BookingService.ActiveBooking's own activated_at in sync -- it's a *different*
+            // object reference from CurrentBooking (this class fetches its own copy via
+            // GetCurrentBookingAsync, ActiveBooking was set once at booking-creation time), and
+            // FlightSessionManager.OnEnginesStarted reads ActiveBooking specifically (a
+            // synchronous, no-network check at the moment engines start) to decide whether
+            // tracking is allowed to begin -- if this drifts, activating here would never
+            // actually unlock flying. Preserves whatever IsActiveBookingCharter already was;
+            // SetActiveBooking's own isCharter parameter defaults to false, which would
+            // silently clear the charter flag on activation otherwise.
+            if (_bookingService.ActiveBooking?.Id == updated.Id)
+                _bookingService.SetActiveBooking(updated, _bookingService.IsActiveBookingCharter);
+        }
+        return error;
+    }
+
+    /// <summary>Re-opens the same SimBrief dispatch URL for an already-activated booking (the
+    /// pilot may have closed the tab) -- does NOT touch activation state.</summary>
+    public void ReopenDispatch()
+    {
+        if (CurrentBooking != null) _simBrief.OpenDispatch(CurrentBooking);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

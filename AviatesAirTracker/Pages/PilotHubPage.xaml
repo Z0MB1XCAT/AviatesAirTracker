@@ -11,8 +11,9 @@
       appear anywhere in this project's XAML, or XamlCompiler.exe silently crashes on this SDK.
       Every color/spacing value below is a direct property value, not a resource.
 
-      My Bookings tab is explicitly out of scope for this pass; this is a single-tab
-      Career-only page (see the plan's Definition of done).
+      A pilot's booking (MaxBookings = 1, BookingService.cs) now shows inline as its own
+      "Current Booking" card just below the header instead of linking out to a separate list
+      page; with only ever one booking to show, a whole page for it stopped making sense.
 
       NOTE: XAML comments are plain XML comments, so a literal double hyphen anywhere inside
       one is invalid XML and crashes XamlCompiler.exe the same way the Style/resource issue
@@ -29,6 +30,76 @@
                 <TextBlock Text="Your career progress, landing analysis, and flight bookings."
                            FontSize="14" Foreground="#94A3B8" />
             </StackPanel>
+
+            <!-- ── Current booking card ──
+                 One of three mutually-exclusive states, toggled in code-behind from
+                 PilotHubViewModel.CurrentBooking (null/expired/CurrentBooking.IsActivated): no
+                 booking at all (collapsed entirely; nothing shown, matching the empty-state
+                 convention every other card on this page uses), an unactivated confirmed booking
+                 (route/callsign/aircraft/scheduled time + Activate/Cancel), an activated one
+                 (same details, but Activate/Cancel are replaced by a plain "Activated" indicator;
+                 activating is a one-way action, see OnActivateBookingTapped's own comment), or an
+                 expired one (BookingService.ExpireIfStaleAsync already cancelled it server-side by
+                 the time this renders; this is just the after-the-fact notice). -->
+            <Border x:Name="BookingCardBorder" Background="#0C111D" BorderBrush="#14FFFFFF"
+                    BorderThickness="1" CornerRadius="20" Padding="20" Visibility="Collapsed">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Spacing="6">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="CURRENT BOOKING" FontSize="10.5" FontWeight="Bold"
+                                       CharacterSpacing="80" Foreground="#64748B" />
+                            <Border x:Name="BookingExpiredChipBorder" Background="#1FEF4444"
+                                    CornerRadius="6" Padding="8,3" Visibility="Collapsed">
+                                <TextBlock Text="EXPIRED" FontSize="9.5" FontWeight="Bold"
+                                           CharacterSpacing="60" Foreground="#EF4444" />
+                            </Border>
+                            <Border x:Name="BookingActivatedChipBorder" Background="#1F3EC7AC"
+                                    CornerRadius="6" Padding="8,3" Visibility="Collapsed">
+                                <TextBlock Text="ACTIVATED" FontSize="9.5" FontWeight="Bold"
+                                           CharacterSpacing="60" Foreground="#3EC7AC" />
+                            </Border>
+                        </StackPanel>
+                        <TextBlock x:Name="BookingRouteText" FontFamily="{StaticResource DisplayFontBold}"
+                                   FontSize="18" FontWeight="Bold" Foreground="#F1F5F9" />
+                        <TextBlock x:Name="BookingDetailText" FontSize="12.5" Foreground="#94A3B8" />
+                        <!-- Shown when OnActivateBookingTapped's server call fails; SimBrief still
+                             opens either way (see PilotHubViewModel.ActivateCurrentBookingAsync's
+                             own comment), but the booking stays unactivated and this explains why,
+                             instead of the pilot just seeing nothing happen and assuming it worked. -->
+                        <TextBlock x:Name="BookingActivateErrorText" FontSize="12" Foreground="#EF4444"
+                                   TextWrapping="Wrap" Visibility="Collapsed" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" x:Name="BookingActionsPanel" Spacing="8" VerticalAlignment="Center">
+                        <!-- Activate: opens SimBrief dispatch pre-filled from this booking, then
+                             marks it activated server-side. Primary/accent styling since this is
+                             the action the pilot is meant to take before flying. -->
+                        <Border x:Name="BookingActivateBorder" Tapped="OnActivateBookingTapped"
+                                Background="#4D9BEC" CornerRadius="10" Padding="14,8">
+                            <TextBlock Text="Activate" FontSize="12.5" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                        </Border>
+                        <Border x:Name="BookingCancelBorder" Tapped="OnCancelBookingTapped"
+                                Background="#1AEF4444" BorderBrush="#4DEF4444" BorderThickness="1"
+                                CornerRadius="10" Padding="14,8">
+                            <TextBlock Text="Cancel" FontSize="12.5" FontWeight="SemiBold" Foreground="#EF4444" HorizontalAlignment="Center" />
+                        </Border>
+                        <!-- Shown instead of both buttons once activated; re-opens the same
+                             SimBrief dispatch URL rather than doing nothing, since the pilot may
+                             have closed the browser tab and wants it back. It does NOT re-trigger
+                             the one-way activation call itself. -->
+                        <Border x:Name="BookingActivatedRow" Tapped="OnReopenDispatchTapped" Visibility="Collapsed"
+                                Background="#14FFFFFF" BorderBrush="#1FFFFFFF" BorderThickness="1"
+                                CornerRadius="10" Padding="14,8">
+                            <TextBlock Text="Reopen SimBrief" FontSize="12.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </Border>
 
             <!-- ── Stat strip ── -->
             <Grid ColumnSpacing="16">
@@ -153,7 +224,7 @@
                     </Border.Background>
                     <StackPanel>
                         <Border Background="#1AFFFFFF" BorderBrush="#26FFFFFF" BorderThickness="1"
-                                CornerRadius="999" Padding="12,5" HorizontalAlignment="Left" Margin="0,0,0,16">
+                                CornerRadius="10" Padding="12,5" HorizontalAlignment="Left" Margin="0,0,0,16">
                             <TextBlock Text="🪖 RANK STATUS" FontSize="11" FontWeight="Bold" Foreground="#D9FFFFFF" />
                         </Border>
 
@@ -248,10 +319,12 @@
                             <TextBlock Grid.Column="0" Text="Last Landing Analysis"
                                        FontFamily="{StaticResource DisplayFontBold}" FontSize="15" FontWeight="Bold"
                                        Foreground="#F1F5F9" VerticalAlignment="Center" />
-                            <!-- Inert "View all" link; no /landings native page exists yet,
-                                 same inert-CTA treatment Dashboard used for "View Flights". -->
+                            <!-- Navigates to the new LogbookPage (full landing history); same
+                                 this.Frame.Navigate pattern DashboardPage.xaml.cs's own
+                                 "View Flights" CTA uses for FlightsPage. -->
                             <TextBlock Grid.Column="1" Text="View all" FontSize="12" FontWeight="SemiBold"
-                                       Foreground="#4D9BEC" VerticalAlignment="Center" />
+                                       Foreground="#4D9BEC" VerticalAlignment="Center"
+                                       Tapped="OnViewLogbookTapped" />
                         </Grid>
 
                         <!-- Empty state: shown when !VM.HasLandings. -->
@@ -351,10 +424,11 @@
                     <TextBlock Grid.Column="0" Text="Landing History"
                                FontFamily="{StaticResource DisplayFontBold}" FontSize="17" FontWeight="Bold"
                                Foreground="#F1F5F9" VerticalAlignment="Center" />
-                    <!-- Inert "View logbook" link; no /landings native page exists yet, same
-                         inert-CTA treatment as Task 3's "View all". -->
+                    <!-- Navigates to the new LogbookPage; same handler as the card above's
+                         "View all" link. -->
                     <TextBlock Grid.Column="1" Text="View logbook" FontSize="13" FontWeight="SemiBold"
-                               Foreground="#4D9BEC" VerticalAlignment="Center" />
+                               Foreground="#4D9BEC" VerticalAlignment="Center"
+                               Tapped="OnViewLogbookTapped" />
                 </Grid>
 
                 <!-- Empty state: shown when !VM.HasLandings. Exact copy from PilotHub.razor. -->
@@ -382,7 +456,7 @@
                                     VerticalAlignment="Bottom" />
                             <TextBlock Grid.Column="0" Text="DATE" FontSize="10.5" FontWeight="Bold"
                                        CharacterSpacing="80" Foreground="#64748B" />
-                            <TextBlock Grid.Column="1" Text="AIRPORT" FontSize="10.5" FontWeight="Bold"
+                            <TextBlock Grid.Column="1" Text="RUNWAY" FontSize="10.5" FontWeight="Bold"
                                        CharacterSpacing="80" Foreground="#64748B" />
                             <TextBlock Grid.Column="2" Text="V/S" FontSize="10.5" FontWeight="Bold"
                                        CharacterSpacing="80" Foreground="#64748B" />
@@ -444,12 +518,21 @@
                                                    FontWeight="Bold" Foreground="{Binding ScoreColor}"
                                                    VerticalAlignment="Center" />
 
-                                        <Border Grid.Column="6" Background="{Binding GradeChipBackground}"
-                                                CornerRadius="6" Padding="8,3" HorizontalAlignment="Left"
-                                                VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding GradeLetter}" FontSize="10" FontWeight="Bold"
-                                                       CharacterSpacing="80" Foreground="{Binding GradeChipColor}" />
-                                        </Border>
+                                        <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="6"
+                                                    HorizontalAlignment="Left" VerticalAlignment="Center">
+                                            <Border Background="{Binding GradeChipBackground}"
+                                                    CornerRadius="6" Padding="8,3">
+                                                <TextBlock Text="{Binding GradeLetter}" FontSize="10" FontWeight="Bold"
+                                                           CharacterSpacing="80" Foreground="{Binding GradeChipColor}" />
+                                            </Border>
+                                            <!-- See LandingComplianceChecker; shown when this landing tripped a
+                                                 compliance check (hard landing, unstabilized approach, etc). -->
+                                            <Border Background="#1FEF4444" CornerRadius="6" Padding="8,3"
+                                                    Visibility="{Binding ShowReviewBadge}">
+                                                <TextBlock Text="REVIEW" FontSize="9.5" FontWeight="Bold"
+                                                           CharacterSpacing="60" Foreground="#EF4444" />
+                                            </Border>
+                                        </StackPanel>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
