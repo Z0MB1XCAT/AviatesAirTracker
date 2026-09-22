@@ -130,7 +130,7 @@ public static class EfbChecklistLibrary
             Id = "landing", Name = "Landing", Phase = "Landing",
             Items =
             [
-                I("gear-down", "Landing gear", "DOWN — 3 GREEN"),
+                I("gear-down", "Landing gear", "DOWN, 3 GREEN"),
                 I("flaps-land", "Flaps", "LANDING SETTING"),
                 I("spoilers-armed", "Speedbrake", "ARMED"),
                 I("landing-clearance", "Landing clearance", "RECEIVED"),

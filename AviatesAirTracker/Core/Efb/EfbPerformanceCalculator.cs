@@ -150,13 +150,13 @@ public static class EfbPerformanceCalculator
         if (weight > p.MtowLbs)
             res.Warnings.Add($"Weight {weight:N0} lb exceeds MTOW {p.MtowLbs:N0} lb.");
         if (head < 0)
-            res.Warnings.Add($"Tailwind component {-head:F0} kt — increases takeoff distance.");
+            res.Warnings.Add($"Tailwind component of {-head:F0} kt increases takeoff distance.");
         if (Math.Abs(cross) > 25)
             res.Warnings.Add($"Crosswind {Math.Abs(cross):F0} kt is high for most types.");
         if (r.RunwayLengthM > 0 && required > r.RunwayLengthM)
             res.Warnings.Add($"Required {required:N0} m exceeds runway {r.RunwayLengthM:N0} m.");
         if (densAlt > 6000)
-            res.Warnings.Add($"High density altitude {densAlt:N0} ft — degraded performance.");
+            res.Warnings.Add($"High density altitude of {densAlt:N0} ft degrades performance.");
 
         res.Status = Status(res.Warnings, r.RunwayLengthM > 0 && required > r.RunwayLengthM, weight > p.MtowLbs);
         return res;
@@ -217,13 +217,13 @@ public static class EfbPerformanceCalculator
         res.MarginM = r.RunwayLengthM > 0 ? Math.Round(r.RunwayLengthM - factored) : 0;
 
         if (weight > p.MlwLbs)
-            res.Warnings.Add($"Weight {weight:N0} lb exceeds MLW {p.MlwLbs:N0} lb — overweight landing.");
+            res.Warnings.Add($"Weight {weight:N0} lb exceeds MLW {p.MlwLbs:N0} lb (overweight landing).");
         if (head < 0)
-            res.Warnings.Add($"Tailwind component {-head:F0} kt — increases landing distance.");
+            res.Warnings.Add($"Tailwind component of {-head:F0} kt increases landing distance.");
         if (Math.Abs(cross) > 25)
             res.Warnings.Add($"Crosswind {Math.Abs(cross):F0} kt is high for most types.");
         if (r.WetRunway)
-            res.Warnings.Add("Wet runway — reduced braking, factored distance applied.");
+            res.Warnings.Add("Wet runway: reduced braking, factored distance applied.");
         if (r.RunwayLengthM > 0 && factored > r.RunwayLengthM)
             res.Warnings.Add($"Factored landing distance {factored:N0} m exceeds runway {r.RunwayLengthM:N0} m.");
 

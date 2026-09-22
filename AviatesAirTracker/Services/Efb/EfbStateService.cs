@@ -270,6 +270,7 @@ public sealed class EfbStateService : IDisposable
             Registration = p.AircraftRegistration,
             CruiseAltitudeFt = p.CruiseAltitudeFt,
             CruiseMach = p.CruiseMach,
+            CostIndex = p.CostIndex,
             PlannedDistanceNm = p.PlannedDistanceNm,
             PlannedFlightTimeMin = p.PlannedFlightTimeMin,
             RampFuelLbs = p.TakeoffFuelLbs,

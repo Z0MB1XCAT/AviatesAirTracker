@@ -122,6 +122,7 @@ public sealed class EfbFlightPlan
     public string Registration { get; set; } = "";
     public int CruiseAltitudeFt { get; set; }
     public double CruiseMach { get; set; }
+    public int? CostIndex { get; set; }
     public double PlannedDistanceNm { get; set; }
     public int PlannedFlightTimeMin { get; set; }
     public double RampFuelLbs { get; set; }
@@ -199,6 +200,44 @@ public sealed class EfbTraffic
     public string Phase { get; set; } = "";
     public string DepartureIcao { get; set; } = "";
     public string ArrivalIcao { get; set; } = "";
+}
+
+// ============================================================
+// ONLINE NETWORK TRAFFIC/ATC (VATSIM + IVAO, for the EFB map's network layers)
+// Separate from EfbTraffic above, which is this app's OWN pilots (OtherPilotsService,
+// AviatesAir's backend) -- these are the two real online ATC networks instead.
+// ============================================================
+
+public sealed class EfbNetworkPilot
+{
+    public string Network { get; set; } = "";   // "VATSIM" | "IVAO"
+    public string Callsign { get; set; } = "";
+    public double Lat { get; set; }
+    public double Lon { get; set; }
+    public int AltitudeFt { get; set; }
+    public int GroundSpeedKts { get; set; }
+    public int HeadingDeg { get; set; }
+    public string AircraftType { get; set; } = "";
+    public string DepartureIcao { get; set; } = "";
+    public string ArrivalIcao { get; set; } = "";
+}
+
+public sealed class EfbNetworkAtc
+{
+    public string Network { get; set; } = "";   // "VATSIM" | "IVAO"
+    public string Callsign { get; set; } = "";
+    public string Position { get; set; } = "";  // DEL/GND/TWR/APP/DEP/CTR/FSS, best-effort
+    public double Frequency { get; set; }
+    // Null when the ATC's position could not be resolved (VATSIM controllers carry no lat/lon of
+    // their own -- see EfbNetworkTrafficService for how this is joined from the transceivers feed).
+    public double? Lat { get; set; }
+    public double? Lon { get; set; }
+}
+
+public sealed class EfbNetworkTraffic
+{
+    public List<EfbNetworkPilot> Pilots { get; set; } = [];
+    public List<EfbNetworkAtc> Atcs { get; set; } = [];
 }
 
 public sealed class EfbWaypoint

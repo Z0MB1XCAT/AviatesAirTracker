@@ -124,7 +124,7 @@ public sealed class EfbManualsService
                 "If not stabilised → **GO-AROUND**. No exceptions.\n\n" +
                 "## Standard Callouts\n" +
                 "- \"1,000\" / \"500\" radio altitude\n- \"Stabilised\" / \"Go-around, flaps\"\n" +
-                "- \"Minimums\" — continue or go-around\n\n" +
+                "- \"Minimums\": continue or go-around\n\n" +
                 "## Sterile Flight Deck\n" +
                 "Below **10,000 ft** only operationally relevant communication.",
         },
@@ -140,23 +140,23 @@ public sealed class EfbManualsService
                 "## In-flight Checks\n" +
                 "Compare actual vs plan at every waypoint. Investigate any adverse trend.\n\n" +
                 "## Declarations\n" +
-                "- **MINIMUM FUEL** — committed to land at a specific aerodrome and any change may result in landing below final reserve.\n" +
-                "- **MAYDAY MAYDAY MAYDAY FUEL** — predicted usable fuel on landing < final reserve.",
+                "- **MINIMUM FUEL**: committed to land at a specific aerodrome and any change may result in landing below final reserve.\n" +
+                "- **MAYDAY MAYDAY MAYDAY FUEL**: predicted usable fuel on landing < final reserve.",
         },
         new()
         {
             Id = "emer-memory", Title = "Emergency Memory Items", Category = "Emergency",
-            Summary = "Immediate-action (recall) items — rejected takeoff, engine fire, cabin depressurisation.",
+            Summary = "Immediate-action (recall) items: rejected takeoff, engine fire, cabin depressurisation.",
             Tags = ["emergency", "memory items", "recall", "engine fire"],
             BodyMarkdown =
                 "# Emergency Memory Items\n\n" +
-                "> Reference only — always confirm with the aircraft QRH.\n\n" +
+                "> Reference only; always confirm with the aircraft QRH.\n\n" +
                 "## Rejected Takeoff (before V1)\n" +
-                "1. Thrust levers — **CLOSE**\n2. Reverse — **MAX**\n3. Brakes — **AS REQUIRED / AUTO**\n4. Directional control — **MAINTAIN**\n\n" +
+                "1. Thrust levers: **CLOSE**\n2. Reverse: **MAX**\n3. Brakes: **AS REQUIRED / AUTO**\n4. Directional control: **MAINTAIN**\n\n" +
                 "## Engine Fire / Severe Damage\n" +
-                "1. Thrust lever (affected) — **IDLE**\n2. Engine master (affected) — **OFF**\n3. Fire push-button — **PUSH**\n4. If fire persists — **AGENT 1**, then **AGENT 2**\n\n" +
+                "1. Thrust lever (affected): **IDLE**\n2. Engine master (affected): **OFF**\n3. Fire push-button: **PUSH**\n4. If fire persists: **AGENT 1**, then **AGENT 2**\n\n" +
                 "## Cabin Altitude / Rapid Depressurisation\n" +
-                "1. Oxygen masks — **ON, 100%**\n2. Crew communication — **ESTABLISH**\n3. Emergency descent — **INITIATE** if cabin alt uncontrollable\n4. Signs — **ON**",
+                "1. Oxygen masks: **ON, 100%**\n2. Crew communication: **ESTABLISH**\n3. Emergency descent: **INITIATE** if cabin alt uncontrollable\n4. Signs: **ON**",
         },
         new()
         {
@@ -164,7 +164,7 @@ public sealed class EfbManualsService
             Summary = "Typical speeds, weights and flap schedule for the AviatesAir 737-800.",
             Tags = ["b738", "737", "boeing", "speeds"],
             BodyMarkdown =
-                "# Boeing 737-800 — Quick Reference\n\n" +
+                "# Boeing 737-800 Quick Reference\n\n" +
                 "| Item | Value |\n|---|---|\n" +
                 "| MTOW | ~174,200 lb |\n| MLW | ~146,300 lb |\n| Typical cruise | M0.78 / FL360–380 |\n" +
                 "| Flap schedule | UP → 1 → 5 (T/O) … 15 → 30/40 (LDG) |\n\n" +
@@ -177,7 +177,7 @@ public sealed class EfbManualsService
             Summary = "Typical speeds, weights and config schedule for the AviatesAir A320neo.",
             Tags = ["a20n", "a320", "airbus", "config"],
             BodyMarkdown =
-                "# Airbus A320neo — Quick Reference\n\n" +
+                "# Airbus A320neo Quick Reference\n\n" +
                 "| Item | Value |\n|---|---|\n" +
                 "| MTOW | ~174,165 lb |\n| MLW | ~145,505 lb |\n| Typical cruise | M0.78 / FL360–390 |\n" +
                 "| Config schedule | 1+F → 2 → 3 (T/O) … 3 → FULL (LDG) |\n\n" +
@@ -195,7 +195,7 @@ public sealed class EfbManualsService
                 "`EGLL 231150Z 24012KT 9999 FEW035 12/06 Q1014` →\n" +
                 "wind 240°/12kt, vis >10km, few cloud 3,500ft, temp 12/dew 6, QNH 1014.\n\n" +
                 "## Contaminated runways\n" +
-                "Standing water/snow/ice degrade braking sharply — always apply the wet/contaminated\n" +
+                "Standing water/snow/ice degrade braking sharply; always apply the wet/contaminated\n" +
                 "landing distance factor and expect longer stopping.\n\n" +
                 "## Density Altitude\n" +
                 "High elevation + high temperature = higher true speeds and longer field lengths.\n" +
@@ -213,12 +213,12 @@ public sealed class EfbManualsService
                 "2. On your tablet/phone (same Wi-Fi), open the shown address or scan the QR.\n" +
                 "3. If asked, enter the 6-digit pairing code.\n\n" +
                 "## Dashboard\n" +
-                "Live callsign, position, altitude, speed, fuel, phase and ETA — updated in real time.\n\n" +
+                "Live callsign, position, altitude, speed, fuel, phase and ETA, updated in real time.\n\n" +
                 "## Performance\n" +
-                "Pick aircraft, enter weight/runway/wind — get V-speeds and required runway.\n\n" +
+                "Pick aircraft, enter weight/runway/wind, and get V-speeds and required runway.\n\n" +
                 "## Remote Monitor\n" +
                 "Away from the sim? The dashboard keeps updating so you can watch progress from anywhere\n" +
-                "on your network — e.g. *\"AVA102 · CRUISE · FL350 · Landing in 1h 12m\"*.",
+                "on your network, e.g. *\"AVA102 · CRUISE · FL350 · Landing in 1h 12m\"*.",
         },
     ];
 }

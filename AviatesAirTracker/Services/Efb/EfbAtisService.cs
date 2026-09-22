@@ -45,6 +45,11 @@ public sealed class EfbAtisService : IDisposable
 
     public EfbAtisService(SimBriefService simBrief) => _simBrief = simBrief;
 
+    // Shared with EfbNetworkTrafficService (the map's VATSIM traffic/ATC layer) so both consumers
+    // of the VATSIM datafeed hit the network once and split one 90s-cached JsonDocument, rather
+    // than each keeping (and separately rate-limiting) its own copy of the same large fetch.
+    public Task<JsonDocument?> GetSharedVatsimFeedAsync() => GetFeedAsync();
+
     public async Task<EfbAtisResult> GetAsync(string icao)
     {
         icao = (icao ?? "").Trim().ToUpperInvariant();
@@ -188,7 +193,7 @@ public sealed class EfbAtisService : IDisposable
         sb.AppendLine("RAW METAR");
         sb.AppendLine(metar);
         sb.AppendLine();
-        sb.AppendLine("No online ATIS station — generated locally. Advise you have information on initial contact.");
+        sb.AppendLine("No online ATIS station. Generated locally. Advise you have information on initial contact.");
         return sb.ToString().Trim();
     }
 

@@ -29,7 +29,7 @@ async function boot(){
   try{ const h=await getJSON('/efb/api/hello'); if(!h.tokenValid){showPairing();return;} }
   catch{ showPairing(); return; }
   $('#pairing').classList.add('hidden'); $('#app').classList.remove('hidden');
-  loadPrefs(); buildSpringboard(); loadWallpaper();
+  loadPrefs(); buildSpringboard(); buildRail(); loadWallpaper();
   try{ aircraft=await getJSON('/efb/api/aircraft'); }catch{}
   try{ state=await getJSON('/efb/api/state'); }catch{}
   try{ plan =await getJSON('/efb/api/flightplan'); }catch{}
@@ -37,8 +37,11 @@ async function boot(){
   try{ msg=await getJSON('/efb/api/messages'); }catch{}
   renderLive(); renderBadges();
   connectWS(); startClock();
-  $('#appBack').onclick=closeApp; $('#homeInd').onclick=closeApp;
   $('#flightWidget').onclick=()=>openApp('flight');
+  $('#mbFlight').onclick=()=>openApp('flight');
+  $('#openSettingsBtn').onclick=()=>openApp('settings');
+  $('#resetWallBtn').onclick=async()=>{ await fetch('/efb/api/wallpaper',{method:'DELETE',headers:{'X-EFB-Token':token}});
+    document.documentElement.removeAttribute('data-wallpaper'); };
 }
 
 // ── pairing ───────────────────────────────────────────────
@@ -53,7 +56,7 @@ async function doPair(){
   const code=$$('#codeInput input').map(x=>x.value).join('');
   if(code.length!==6){$('#pairErr').textContent='Enter all 6 digits';return;}
   try{ const r=await fetch('/efb/api/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});
-    if(!r.ok){$('#pairErr').textContent='Incorrect code — check the desktop app';return;}
+    if(!r.ok){$('#pairErr').textContent='Incorrect code, check the desktop app';return;}
     const d=await r.json(); token=d.token; localStorage.setItem('efbToken',token); boot();
   }catch{ $('#pairErr').textContent='Connection failed'; }
 }
@@ -75,9 +78,22 @@ function connectWS(){
 }
 function startPolling(){ if(pollTimer)return; pollTimer=setInterval(async()=>{try{state=await getJSON('/efb/api/state');renderLive();}catch{}},1500); }
 function stopPolling(){ if(pollTimer){clearInterval(pollTimer);pollTimer=null;} }
-function setConn(live){ $('#connDot').classList.toggle('live',live&&state.simConnected!==false); }
+function setConn(live){
+  const acarsUp=live&&state.simConnected!==false;
+  $('#mbAcars').dataset.state=acarsUp?'on':'off';
+}
 
-function startClock(){ const t=()=>{const d=new Date();$('#sbTime').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}; t(); setInterval(t,10000); }
+const MONTHS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+function startClock(){
+  const t=()=>{
+    const d=new Date();
+    $('#mbDate').textContent=`${String(d.getDate()).padStart(2,'0')} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    const local=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+    const zulu=String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');
+    $('#mbTime').textContent=`${local}L  ${zulu}Z`;
+  };
+  t(); setInterval(t,10000);
+}
 
 // ── wallpaper ─────────────────────────────────────────────
 async function loadWallpaper(){
@@ -99,31 +115,49 @@ function setWallpaperImg(url){
   document.documentElement.dataset.wallpaper='custom';
 }
 
-// ═══ SPRINGBOARD ═══════════════════════════════════════════
+// ═══ LAUNCHER ══════════════════════════════════════════════
+// Small line-art SVG set (24x24, currentColor stroke) — no emoji, so every
+// icon reads the same weight/style regardless of platform or font.
+const SVG_ATTRS='viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"';
+const ICONS={
+  flight:  `<path d="M22 16.5 13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z"/>`,
+  dep:     `<path d="M4 19h16"/><path d="M6 15 12 5l3 5.5"/><path d="M12 5v14"/>`,
+  arr:     `<path d="M4 19h16"/><path d="M6 9l6 10 3-5.5"/><path d="M12 19V5"/>`,
+  atis:    `<path d="M5 12a7 7 0 0 1 14 0"/><path d="M8.5 12a3.5 3.5 0 0 1 7 0"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>`,
+  map:     `<path d="M9 3 4 5v16l5-2 6 2 5-2V3l-5 2-6-2Z"/><path d="M9 3v16M15 5v16"/>`,
+  msg:     `<path d="M4 5h16v11H8l-4 4V5Z"/>`,
+  ofp:     `<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h6M9 15.5h6M9 8.5h3"/>`,
+  chk:     `<rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 12.5l2.4 2.4L16 9.5"/>`,
+  land:    `<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".9" fill="currentColor" stroke="none"/>`,
+  scr:     `<path d="M4 20l1-4.2L15.6 5.2a1.6 1.6 0 0 1 2.2 0l1 1a1.6 1.6 0 0 1 0 2.2L8.2 19 4 20Z"/>`,
+  pa:      `<path d="M3 10v4h3l6 4V6l-6 4H3Z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>`,
+  man:     `<path d="M4 5.5C4 4.7 4.7 4 5.5 4H12v16H5.5A1.5 1.5 0 0 1 4 18.5Z"/><path d="M20 5.5c0-.8-.7-1.5-1.5-1.5H12v16h6.5a1.5 1.5 0 0 0 1.5-1.5Z"/>`,
+  game:    `<rect x="3" y="8" width="18" height="9" rx="4.5"/><path d="M8 10.5v4M6 12.5h4"/><circle cx="16" cy="11" r="1" fill="currentColor" stroke="none"/><circle cx="18.5" cy="13.5" r="1" fill="currentColor" stroke="none"/>`,
+  set:     `<circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.9 2.9l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.9-2.9l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H4a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.9-2.9l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.6V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.9 2.9l-.1.1a1.7 1.7 0 0 0-.3 1.9V10a1.7 1.7 0 0 0 1.6 1H20a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>`,
+  acars:   `<path d="M12 20V10M12 10 7 6M12 10l5-4"/><path d="M4 20h16"/>`,
+};
 const APPS=[
-  {id:'flight',   name:'Flight',         glyph:'✈', tile:'t-flight'},
-  {id:'depperf',  name:'Departure Perf', glyph:'↑', tile:'t-dep'},
-  {id:'arrperf',  name:'Arrival Perf',   glyph:'↓', tile:'t-arr'},
-  {id:'atis',     name:'ATIS',           glyph:'☰', tile:'t-atis'},
-  {id:'map',      name:'Map',            glyph:'❖', tile:'t-map'},
-  {id:'messages', name:'Messages',       glyph:'✉', tile:'t-msg'},
-  {id:'acars',    name:'ACARS',          glyph:'⇅', tile:'t-acars'},
-  {id:'ofp',      name:'OFP',            glyph:'▤', tile:'t-ofp'},
-  {id:'checklist',name:'Checklist',      glyph:'☑', tile:'t-chk'},
-  {id:'landing',  name:'Landing',        glyph:'◎', tile:'t-land'},
-  {id:'scratch',  name:'Scratchpad',     glyph:'✎', tile:'t-scr'},
-  {id:'pa',       name:'Cabin PA',       glyph:'☎', tile:'t-pa'},
-  {id:'manuals',  name:'Manuals',        glyph:'❏', tile:'t-man'},
-  {id:'game',     name:'Approach!',      glyph:'🕹', tile:'t-game'},
-  {id:'settings', name:'Settings',       glyph:'⚙', tile:'t-set'},
+  {id:'flight',   name:'Flight',         icon:'flight', tile:'t-flight'},
+  {id:'depperf',  name:'Dep Perf',       icon:'dep',    tile:'t-dep'},
+  {id:'arrperf',  name:'Arr Perf',       icon:'arr',    tile:'t-arr'},
+  {id:'atis',     name:'ATIS',           icon:'atis',   tile:'t-atis'},
+  {id:'map',      name:'Map',            icon:'map',    tile:'t-map'},
+  {id:'messages', name:'Messages',       icon:'msg',    tile:'t-msg'},
+  {id:'acars',    name:'ACARS',          icon:'acars',  tile:'t-acars'},
+  {id:'ofp',      name:'OFP',            icon:'ofp',    tile:'t-ofp'},
+  {id:'checklist',name:'Checklist',      icon:'chk',    tile:'t-chk'},
+  {id:'landing',  name:'Landing',        icon:'land',   tile:'t-land'},
+  {id:'scratch',  name:'Scratchpad',     icon:'scr',    tile:'t-scr'},
+  {id:'pa',       name:'Cabin PA',       icon:'pa',     tile:'t-pa'},
+  {id:'manuals',  name:'Manuals',        icon:'man',    tile:'t-man'},
+  {id:'game',     name:'Approach!',      icon:'game',   tile:'t-game'},
+  {id:'settings', name:'Settings',       icon:'set',    tile:'t-set'},
 ];
-const DOCK=['flight','map','messages','settings'];
 function iconHtml(a){ return `<button class="icon" data-app="${a.id}">
-  <div class="tile ${a.tile}">${a.glyph}<span class="badge hidden" data-badge="${a.id}"></span></div>
+  <div class="tile ${a.tile}"><svg ${SVG_ATTRS}>${ICONS[a.icon]}</svg><span class="badge hidden" data-badge="${a.id}"></span></div>
   <span class="lbl">${a.name}</span></button>`; }
 function buildSpringboard(){
   $('#appGrid').innerHTML=APPS.map(iconHtml).join('');
-  $('#dock').innerHTML=DOCK.map(id=>iconHtml(APPS.find(a=>a.id===id))).join('');
   $$('#app .icon').forEach(el=>el.onclick=()=>openApp(el.dataset.app));
 }
 function renderBadges(){
@@ -136,13 +170,49 @@ const APP_META={ flight:'Flight', depperf:'Departure Performance', arrperf:'Arri
   atis:'ATIS', map:'Map', messages:'Messages', acars:'ACARS Log', ofp:'SimBrief OFP',
   checklist:'Checklists', landing:'Landing Report', scratch:'Scratchpad', pa:'Cabin PA',
   game:'Approach!', manuals:'Manuals', settings:'Settings' };
+
+// Persistent left icon rail, visible only while an app is open (flyPad-style quick-switch).
+// A curated subset, not all 15 -- the springboard already covers full discovery, so the rail
+// only needs the handful a pilot actually flips between mid-flight. Home always returns to the
+// springboard regardless of which app is open, including the ones not on the rail at all.
+const RAIL_APPS=['flight','depperf','checklist','atis','map','messages','manuals','settings'];
+function buildRail(){
+  const home=`<button class="rail-btn rail-home" id="railHome" title="Home" aria-label="Home">
+    <svg ${SVG_ATTRS}><rect x="4" y="4" width="6.5" height="6.5" rx="1.4"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.4"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.4"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.4"/></svg>
+  </button>`;
+  const items=RAIL_APPS.map(id=>{
+    const a=APPS.find(x=>x.id===id); if(!a)return '';
+    return `<button class="rail-btn" data-app="${a.id}" title="${a.name}" aria-label="${a.name}">
+      <svg ${SVG_ATTRS}>${ICONS[a.icon]}</svg></button>`;
+  }).join('');
+  $('#appRail').innerHTML=home+'<div class="rail-sep"></div>'+items;
+  $('#railHome').onclick=closeApp;
+  $$('#appRail [data-app]').forEach(el=>el.onclick=()=>openApp(el.dataset.app));
+}
+// depperf/arrperf share one rail icon (Performance) -- the page itself has a Takeoff/Landing
+// toggle (see renderPerf) rather than the rail carrying two near-identical icons.
+function updateRailActive(id){
+  const railId=id==='arrperf'?'depperf':id;
+  $$('#appRail [data-app]').forEach(el=>el.classList.toggle('active',el.dataset.app===railId));
+}
+
 function openApp(id){
   if(appCleanup){appCleanup();appCleanup=null;}
   activeApp=id;
   $('#appName').textContent=APP_META[id]||id;
+  $('#appRoute').textContent=appRouteLine();
   $('#appActions').innerHTML='';
+  updateRailActive(id);
   const host=$('#appHost'); host.classList.remove('hidden','closing');
   renderApp();
+}
+// The small identity line under every app's name, Jeppesen-header style —
+// callsign/route/aircraft when a flight is active, otherwise just the date.
+function appRouteLine(){
+  const s=state||{};
+  if(s.hasActiveFlight&&(s.departureIcao||s.arrivalIcao))
+    return `${s.departureIcao||'----'} → ${s.arrivalIcao||'----'}${s.aircraftType?' · '+s.aircraftType:''}`;
+  return (s.callsign||s.flightNumber)?String(s.callsign||s.flightNumber):'';
 }
 function closeApp(){
   if(!activeApp)return;
@@ -157,20 +227,26 @@ function renderApp(){
     game:renderGame, manuals:renderManuals, settings:renderSettings}[activeApp]||(()=>{}))(body);
 }
 
-// ═══ LIVE (widget + statusbar + flight app) ═══════════════
+// ═══ LIVE (menu bar readout + flight app) ══════════════════
 function renderLive(){
   const s=state||{};
   setConn(ws&&ws.readyState===1);
   document.documentElement.style.setProperty('--phase',s.phaseColor||'var(--accent)');
-  // widget
-  $('#wgCs').textContent=s.callsign||s.flightNumber||'AVIATESAIR';
-  const wp=$('#wgPhase'); wp.textContent=(s.phase||'STANDBY').toUpperCase(); wp.style.setProperty('--phase',s.phaseColor||'var(--accent)');
-  $('#wgGlow').style.setProperty('--phase',s.phaseColor?`color-mix(in srgb,${s.phaseColor} 35%,transparent)`:'var(--accent-glow)');
-  $('#wgDep').textContent=s.departureIcao||'----'; $('#wgArr').textContent=s.arrivalIcao||'----';
-  $('#wgPlane').style.left=clamp(s.progressPct||0,0,100)+'%';
-  const fl=s.altitudeFt>=18000?'FL'+Math.round(s.altitudeFt/100):(s.altitudeFt?num(s.altitudeFt)+' ft':'On ground');
-  $('#wgFl').textContent=s.hasActiveFlight?fl:'On ground';
-  $('#wgEta').textContent=s.hasActiveFlight?(s.eteMinutes>0?'Landing in '+etaText(s):(s.distanceRemainingNm?num(s.distanceRemainingNm)+' nm':'—')):'—';
+  $('#mbSim').dataset.state=s.simConnected?'on':'off';
+
+  // compact live-flight readout in the menu bar (hidden until a session starts)
+  const mb=$('#mbFlight');
+  const active=!!(s.callsign||s.flightNumber||s.hasActiveFlight);
+  mb.classList.toggle('hidden',!active);
+  if(active){
+    $('#mbCs').textContent=s.callsign||s.flightNumber||'—';
+    const mp=$('#mbPhase'); mp.textContent=(s.phase||'STANDBY').toUpperCase();
+    mp.style.setProperty('--phase',s.phaseColor||'var(--accent-2)');
+    $('#mbRoute').textContent=`${s.departureIcao||'----'} → ${s.arrivalIcao||'----'}`;
+  }
+  // don't clobber a route line an app has customized for itself (e.g. Messages
+  // shows the open friend's code while a thread is open, not the flight route)
+  if(activeApp&&!(activeApp==='messages'&&openThreadId))$('#appRoute').textContent=appRouteLine();
   if(activeApp==='flight')updateFlight();
 }
 function etaText(s){ if(s.eteMinutes>0){const h=Math.floor(s.eteMinutes/60),m=s.eteMinutes%60;return (h?h+'h ':'')+m+'m';} return '—'; }
@@ -186,14 +262,48 @@ const INSTR=[
   {id:'oat',l:'OAT',u:'°C',g:s=>num(s.oatC)},
   {id:'qnh',l:'QNH',u:'mb',g:s=>num(s.qnhMb)},
 ];
+// Checklist completion summary for the Flight dashboard's info panel -- reuses the same
+// `checklists` array the Checklist app itself renders from, no separate data source.
+function checklistSummary(){
+  if(!checklists.length)return null;
+  const total=checklists.reduce((n,c)=>n+c.totalCount,0), done=checklists.reduce((n,c)=>n+c.checkedCount,0);
+  const next=checklists.find(c=>!c.isComplete);
+  return {total,done,next};
+}
 function renderFlight(body){
+  const hasPlan=plan.hasPlan;
+  // Dense route/dispatch summary card, flyPad "Your Flight"-style -- everything here is real
+  // SimBrief-plan data (no fabricated route string: `plan.waypoints` only carries lat/lon, not
+  // waypoint identifiers, so it's deliberately not rendered as text here).
   body.innerHTML=`
-    <div class="inst-grid">${INSTR.map(i=>`<div class="inst ${i.a?'accent':''}"><div class="inst-label">${i.l}</div>
-      <div class="inst-val" id="iv-${i.id}">—<small>${i.u}</small></div></div>`).join('')}</div>
-    <div class="panel advisor" id="advisor"></div>
-    <div class="panel"><div class="panel-h"><span>Fuel &amp; Configuration</span><span class="panel-tag" id="fpTag"></span></div>
-      <div class="fuel-bar"><div class="fuel-fill" id="fuelFill"></div></div>
-      <div class="cfg-rows" id="cfgRows"></div></div>`;
+    <div class="flight-layout">
+      <div class="flight-card">
+        ${hasPlan?`
+          <div class="fc-route">
+            <span class="fc-icao">${plan.departureIcao}</span>
+            <span class="fc-arrow">→</span>
+            <span class="fc-icao">${plan.arrivalIcao}</span>
+          </div>
+          <div class="fc-names">${esc(plan.departureName||'')} <span class="fc-sep">·</span> ${esc(plan.arrivalName||'')}</div>
+          <div class="fc-stats">
+            <div class="fc-stat"><div class="k">Cost Index</div><div class="v">${plan.costIndex??'—'}</div></div>
+            <div class="fc-stat"><div class="k">Cruise Alt</div><div class="v">${plan.cruiseAltitudeFt?'FL'+Math.round(plan.cruiseAltitudeFt/100):'—'}</div></div>
+            <div class="fc-stat"><div class="k">ZFW</div><div class="v">${plan.zeroFuelWeightKg?Math.round(plan.zeroFuelWeightKg*2.20462).toLocaleString():'—'}<small>lb</small></div></div>
+            <div class="fc-stat"><div class="k">Planned Time</div><div class="v">${plan.plannedFlightTimeMin?Math.floor(plan.plannedFlightTimeMin/60)+'h'+String(plan.plannedFlightTimeMin%60).padStart(2,'0'):'—'}</div></div>
+            <div class="fc-stat"><div class="k">ETE</div><div class="v" id="fcEte">—</div></div>
+          </div>`
+          :`<div class="autofill dim">No SimBrief plan loaded. Import one from Settings or the desktop app.</div>`}
+      </div>
+      <div class="inst-grid">${INSTR.map(i=>`<div class="inst ${i.a?'accent':''}"><div class="inst-label">${i.l}</div>
+        <div class="inst-val" id="iv-${i.id}">—<small>${i.u}</small></div></div>`).join('')}</div>
+      <div class="flight-secondary">
+        <div class="panel advisor" id="advisor"></div>
+        <div class="panel" id="infoPanel"></div>
+      </div>
+      <div class="panel"><div class="panel-h"><span>Fuel &amp; Configuration</span><span class="panel-tag" id="fpTag"></span></div>
+        <div class="fuel-bar"><div class="fuel-fill" id="fuelFill"></div></div>
+        <div class="cfg-rows" id="cfgRows"></div></div>
+    </div>`;
   updateFlight();
 }
 function updateFlight(){
@@ -201,6 +311,21 @@ function updateFlight(){
   INSTR.forEach(i=>{const el=$('#iv-'+i.id);if(el)el.innerHTML=`${i.g(s)}<small>${i.u}</small>`;});
   const fill=$('#fuelFill'); if(fill)fill.style.width=clamp((s.fuelPct||0)*100,0,100)+'%';
   const tag=$('#fpTag'); if(tag)tag.textContent=plan.hasPlan?`${plan.departureIcao}–${plan.arrivalIcao}`:'';
+  const eteEl=$('#fcEte'); if(eteEl)eteEl.textContent=etaText(s);
+  // "Important Information" panel, flyPad-style -- repurposed with what this app actually has
+  // (no chart library to pin, so checklist progress + a weather one-liner stand in for it).
+  const info=$('#infoPanel');
+  if(info){
+    const cl=checklistSummary();
+    const depWx=parseMetar(plan.departureMetar), arrWx=parseMetar(plan.arrivalMetar);
+    info.innerHTML=`<div class="panel-h"><span>Flight Status</span></div>
+      <div class="cfg-rows">
+        <div class="cfg-row"><span class="k">Checklists</span><span class="v">${cl?`${cl.done}/${cl.total} items`:'—'}</span></div>
+        <div class="cfg-row"><span class="k">Next checklist</span><span class="v">${cl&&cl.next?esc(cl.next.name):(cl?'All complete':'—')}</span></div>
+        <div class="cfg-row"><span class="k">Departure WX</span><span class="v">${plan.departureIcao&&depWx.windKts!=null?`${depWx.windDir||0}°/${depWx.windKts}kt`:'—'}</span></div>
+        <div class="cfg-row"><span class="k">Arrival WX</span><span class="v">${plan.arrivalIcao&&arrWx.windKts!=null?`${arrWx.windDir||0}°/${arrWx.windKts}kt`:'—'}</span></div>
+      </div>`;
+  }
   const adv=$('#advisor');
   if(adv){
     if(!s.hasActiveFlight){
@@ -255,7 +380,7 @@ function parseMetar(m){
   const w=p.find(x=>/^(\d{3}|VRB)\d{2}(G\d{2})?KT$/.test(x));
   if(w){ const d=w.slice(0,3); out.windDir=d==='VRB'?0:parseInt(d,10); out.windKts=parseInt(w.slice(3,5),10); }
   const t=p.find(x=>/^M?\d{2}\/M?\d{2}$/.test(x));
-  if(t){ const tt=t.split('/')[0]; out.tempC=parseInt(tt.replace('M','-'),10); }
+  if(t){ const[tt,dd]=t.split('/'); out.tempC=parseInt(tt.replace('M','-'),10); out.dewC=parseInt(dd.replace('M','-'),10); }
   const q=p.find(x=>/^Q\d{4}$/.test(x));
   if(q) out.qnh=parseInt(q.slice(1),10);
   return out;
@@ -264,6 +389,19 @@ function renderPerf(mode,body){
   body=body||$('#appBody');
   const s=state||{}, def=pickAircraft(s.aircraftType);
   const dep = mode==='takeoff';
+  // Takeoff/Landing toggle in the topbar actions slot -- mirrors the flyPad Performance
+  // screen's own top-right mode tabs, and lets the pilot flip mode without leaving the app
+  // (the two springboard tiles/rail icon still exist as separate entry points too).
+  $('#appActions').innerHTML=`<div class="seg" id="perfSeg">
+    <button class="seg-btn ${dep?'active':''}" data-mode="takeoff">Takeoff</button>
+    <button class="seg-btn ${!dep?'active':''}" data-mode="landing">Landing</button>
+  </div>`;
+  $$('#perfSeg .seg-btn').forEach(b=>b.onclick=()=>{
+    if(b.dataset.mode===mode)return;
+    activeApp=b.dataset.mode==='takeoff'?'depperf':'arrperf';
+    updateRailActive(activeApp);
+    renderPerf(b.dataset.mode,body);
+  });
   // Landing weight ≈ zero-fuel weight + planned landing fuel
   const wt=dep?(plan.takeoffWeightKg?Math.round(plan.takeoffWeightKg*2.20462):'')
     :(plan.zeroFuelWeightKg?Math.round((plan.zeroFuelWeightKg*2.20462)+(plan.landingFuelLbs||0)):'');
@@ -279,29 +417,41 @@ function renderPerf(mode,body){
   const oat  = liveOk&&num(s.oatC)!=='—'?Math.round(s.oatC):(mx.tempC??15);
   const qnh  = liveOk&&num(s.qnhMb)!=='—'?Math.round(s.qnhMb):(mx.qnh??1013);
   body.innerHTML=`
-    ${plan.hasPlan?`<div class="autofill">Autofilled from SimBrief · ${dep?plan.departureIcao:plan.arrivalIcao}
-      ${(dep?plan.departureRunway:plan.arrivalRunway)?' RWY '+(dep?plan.departureRunway:plan.arrivalRunway):''}
-      ${liveOk?'· live wind':(mx.windDir!=null?'· METAR wind':'')}</div>`
-      :`<div class="autofill dim">No SimBrief plan loaded — enter values manually.</div>`}
-    <form class="perf-form" id="pf">
-      <div class="fld wide"><label>Aircraft</label><select name="ac">${acOptions(def)}</select></div>
-      <div class="fld"><label>Weight (lb)</label><input name="weight" inputmode="numeric" value="${wt||''}" placeholder="145000"></div>
-      <div class="fld"><label>Flaps</label><select name="flap">${flapOptions(def,mode)}</select></div>
-      <div class="fld"><label>Runway length (m)</label><input name="rwy" inputmode="numeric" value="${rwyLen}" placeholder="3000"></div>
-      <div class="fld"><label>Elevation (ft)</label><input name="elev" inputmode="numeric" value="${elev}" placeholder="80"></div>
-      <div class="fld"><label>Runway hdg (°)</label><input name="rhdg" inputmode="numeric" value="${rh||''}" placeholder="270"></div>
-      <div class="fld"><label>Wind dir (°)</label><input name="wdir" inputmode="numeric" value="${wdir}"></div>
-      <div class="fld"><label>Wind (kt)</label><input name="wspd" inputmode="numeric" value="${wspd}"></div>
-      <div class="fld"><label>OAT (°C)</label><input name="oat" inputmode="numeric" value="${oat}"></div>
-      <div class="fld"><label>QNH (mb)</label><input name="qnh" inputmode="numeric" value="${qnh}"></div>
-      <div class="fld"><label>Slope (%)</label><input name="slope" inputmode="decimal" value="0"></div>
-      ${mode==='landing'?`<div class="fld"><label>Autobrake</label><select name="ab"><option>LOW</option><option selected>MED</option><option>MAX</option></select></div>`:''}
-      <div class="fld check"><input type="checkbox" name="wet" id="wet"><label for="wet" style="text-transform:none;letter-spacing:0">Wet runway</label></div>
-      <button class="btn-primary" type="button" id="calc">Calculate ${mode==='takeoff'?'Takeoff':'Landing'}</button>
-    </form>
-    <div id="pout"></div>`;
+    <div class="perf-layout">
+      <div class="perf-left">
+        ${plan.hasPlan?`<div class="autofill">Autofilled from SimBrief · ${dep?plan.departureIcao:plan.arrivalIcao}
+          ${(dep?plan.departureRunway:plan.arrivalRunway)?' RWY '+(dep?plan.departureRunway:plan.arrivalRunway):''}
+          ${liveOk?'· live wind':(mx.windDir!=null?'· METAR wind':'')}</div>`
+          :`<div class="autofill dim">No SimBrief plan loaded; enter values manually.</div>`}
+        <form class="perf-form dense" id="pf">
+          <div class="fld wide"><label>Aircraft</label><select name="ac">${acOptions(def)}</select></div>
+          <div class="fld"><label>Weight (lb)</label><input name="weight" inputmode="numeric" value="${wt||''}" placeholder="145000"></div>
+          <div class="fld"><label>Flaps</label><select name="flap">${flapOptions(def,mode)}</select></div>
+          <div class="fld"><label>Runway length (m)</label><input name="rwy" inputmode="numeric" value="${rwyLen}" placeholder="3000"></div>
+          <div class="fld"><label>Elevation (ft)</label><input name="elev" inputmode="numeric" value="${elev}" placeholder="80"></div>
+          <div class="fld"><label>Runway hdg (°)</label><input name="rhdg" inputmode="numeric" value="${rh||''}" placeholder="270"></div>
+          <div class="fld"><label>Wind dir (°)</label><input name="wdir" inputmode="numeric" value="${wdir}"></div>
+          <div class="fld"><label>Wind (kt)</label><input name="wspd" inputmode="numeric" value="${wspd}"></div>
+          <div class="fld"><label>OAT (°C)</label><input name="oat" inputmode="numeric" value="${oat}"></div>
+          <div class="fld"><label>QNH (mb)</label><input name="qnh" inputmode="numeric" value="${qnh}"></div>
+          <div class="fld"><label>Slope (%)</label><input name="slope" inputmode="decimal" value="0"></div>
+          ${mode==='landing'?`<div class="fld"><label>Autobrake</label><select name="ab"><option>LOW</option><option selected>MED</option><option>MAX</option></select></div>`:''}
+          <div class="fld check"><input type="checkbox" name="wet" id="wet"><label for="wet" style="text-transform:none;letter-spacing:0">Wet runway</label></div>
+        </form>
+        <div class="perf-actions">
+          <button class="btn-primary" type="button" id="calc">Calculate</button>
+          <button class="btn-danger" type="button" id="clearPerf">Clear</button>
+        </div>
+        <div id="pout"></div>
+      </div>
+      <div class="perf-right" id="perfViz">
+        <div class="viz-empty">Calculate to see the runway distance margin.</div>
+      </div>
+    </div>`;
   const f=$('#pf');
   f.querySelector('[name=ac]').onchange=e=>{f.querySelector('[name=flap]').innerHTML=flapOptions(e.target.value,mode);};
+  $('#clearPerf').onclick=()=>{ f.reset(); $('#pout').innerHTML='';
+    $('#perfViz').innerHTML=`<div class="viz-empty">Calculate to see the runway distance margin.</div>`; };
   $('#calc').onclick=async()=>{
     const g=n=>f.querySelector(`[name=${n}]`), v=n=>parseFloat(g(n)?.value)||0;
     const req={aircraftCode:g('ac').value,weightLbs:v('weight'),flapSetting:g('flap').value,runwayLengthM:v('rwy'),
@@ -316,38 +466,66 @@ function renderPerfResult(mode,r){
   const speeds=mode==='takeoff'?[['V1',r.v1,'kt'],['VR',r.vr,'kt'],['V2',r.v2,'kt']]:[['VREF',r.vref,'kt'],['VAPP',r.vapp,'kt'],['FLAP',r.flapSetting,'']];
   const dist=mode==='takeoff'?[['Takeoff distance',r.takeoffDistanceM+' m'],['Required runway',r.requiredRunwayM+' m']]:[['Landing distance (factored)',r.landingDistanceM+' m'],['Autobrake',r.autobrake]];
   const usedM=mode==='takeoff'?r.requiredRunwayM:r.landingDistanceM;
-  const mp=r.runwayLengthM?clamp(100*(1-usedM/r.runwayLengthM),0,100):0;
+  const mp=r.runwayLengthM?clamp(100*(usedM/r.runwayLengthM),0,100):0;
   const mc=r.marginM<0?'var(--bad)':r.marginM<300?'var(--caution)':'var(--good)';
+  const statusLabel=r.status==='OK'?'✓ Within limits':r.status==='CAUTION'?'▲ Review cautions':'✕ Not within limits';
   $('#pout').innerHTML=`<div class="panel">
     <div class="panel-h"><span>${r.aircraftName}</span><span class="panel-tag">${r.flapSetting}</span></div>
     <div class="vrow">${speeds.map(([k,val,u])=>`<div class="vspd"><div class="k">${k}</div><div class="n">${val}</div><div class="u">${u}</div></div>`).join('')}</div>
-    <div class="perf-status ${r.status}">${r.status==='OK'?'✓ Within limits':r.status==='CAUTION'?'▲ Review cautions':'✕ Not within limits'}</div>
+    <div class="perf-status ${r.status}">${statusLabel}</div>
     ${dist.map(([k,v])=>`<div class="dist-row"><span class="k">${k}</span><span>${v}</span></div>`).join('')}
-    ${r.runwayLengthM?`<div class="margin-bar"><div class="margin-fill" style="width:${mp}%;background:${mc}"></div></div>
-      <div class="dist-row"><span class="k">Runway margin</span><span style="color:${mc}">${r.marginM>=0?'+':''}${r.marginM} m</span></div>`:''}
     <div class="dist-row"><span class="k">Head / Cross wind</span><span>${r.headwindKts>=0?'H':'T'}${Math.abs(r.headwindKts)} / X${Math.abs(r.crosswindKts)} kt</span></div>
     <div class="dist-row"><span class="k">Density altitude</span><span>${r.densityAltitudeFt} ft</span></div>
     ${r.warnings&&r.warnings.length?`<ul class="warn-list">${r.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul>`:''}
-    <p class="set-note">Training-grade estimate — not certified AFM/QRH data.</p></div>`;
+    <p class="set-note">Training-grade estimate, not certified AFM/QRH data.</p></div>`;
+  // Vertical runway-distance visualization, flyPad-style: a bar the height of the runway,
+  // the used/required distance filled from the threshold end, colored + labeled by margin --
+  // one real band from EfbPerformanceCalculator's own single result, not a fabricated
+  // LOW/MEDIUM/MAX split (that would need the backend to compute multiple braking-config
+  // variants, which it doesn't today).
+  const viz=$('#perfViz');
+  if(!r.runwayLengthM){ viz.innerHTML=`<div class="viz-empty">No runway length to visualize.</div>`; return; }
+  viz.innerHTML=`
+    <div class="viz-margin" style="color:${mc}">${r.marginM>=0?'+':''}${r.marginM} m<small>MARGIN</small></div>
+    <div class="viz-track">
+      <div class="viz-fill" style="height:${mp}%;background:${mc}"></div>
+      <div class="viz-rwy-num">${mode==='takeoff'?'DEP':'ARR'}</div>
+    </div>
+    <div class="viz-len">${r.runwayLengthM} m</div>`;
 }
 
 // ── CHECKLIST APP ──
+// Two-pane list+detail, flyPad-style (phase list left, active phase's items right) --
+// replaces the old card-grid-with-ring-progress layout. `activeChecklistId` persists across
+// re-renders within the same app session (item toggles/WS pushes re-render the whole app) so
+// the pilot doesn't get bounced back to the first phase after every check.
+let activeChecklistId=null;
 function renderChecklist(body){
+  if(!checklists.some(c=>c.id===activeChecklistId))
+    activeChecklistId=(checklists.find(c=>!c.isComplete)||checklists[0]||{}).id;
   $('#appActions').innerHTML=`<button class="btn-ghost" id="clReset">Reset all</button>`;
   $('#clReset').onclick=()=>postJSON('/efb/api/checklists/reset',{}).catch(()=>{});
-  body.innerHTML=checklists.map(c=>{
-    const pct=c.totalCount?Math.round(100*c.checkedCount/c.totalCount):0, done=c.isComplete;
-    return `<div class="cl-card" data-cl="${c.id}"><div class="cl-card-h">
-      <div class="ring ${done?'done':''}" style="--p:${pct}"><span>${done?'✓':c.checkedCount+'/'+c.totalCount}</span></div>
-      <div class="cl-title">${c.name}<small>${c.phase}</small></div></div>
-      <div class="cl-items">${c.items.map(it=>`<div class="cl-item ${it.isChecked?'checked':''}" data-item="${it.id}">
-        <div class="cl-box">✓</div><div class="cl-ch">${it.challenge}</div><div class="cl-rsp">${it.response}</div>
-        <div class="cl-ts">${it.checkedAtUtc?fmtT(it.checkedAtUtc):''}</div></div>`).join('')}</div></div>`;
-  }).join('');
+  const active=checklists.find(c=>c.id===activeChecklistId);
+  body.innerHTML=`
+    <div class="cl-layout">
+      <div class="cl-list">${checklists.map(c=>{
+        const pct=c.totalCount?Math.round(100*c.checkedCount/c.totalCount):0;
+        return `<button class="cl-phase ${c.id===activeChecklistId?'active':''} ${c.isComplete?'done':''}" data-cl="${c.id}">
+          <span class="cl-phase-name">${c.name}</span>
+          <span class="cl-phase-pct">${c.isComplete?'✓':pct+'%'}</span></button>`;
+      }).join('')||'<div class="empty">No checklists loaded.</div>'}</div>
+      <div class="cl-detail">${active?`
+        <div class="cl-detail-h"><span>${esc(active.name)}</span><small>${esc(active.phase)} · ${active.checkedCount}/${active.totalCount}</small></div>
+        <div class="cl-items">${active.items.map(it=>`<div class="cl-item ${it.isChecked?'checked':''}" data-item="${it.id}">
+          <div class="cl-box">✓</div><div class="cl-ch">${esc(it.challenge)}</div><div class="cl-rsp">${esc(it.response)}</div>
+          <div class="cl-ts">${it.checkedAtUtc?fmtT(it.checkedAtUtc):''}</div></div>`).join('')}</div>`
+        :'<div class="empty">Select a checklist.</div>'}</div>
+    </div>`;
+  $$('#appBody .cl-phase').forEach(btn=>btn.onclick=()=>{ activeChecklistId=btn.dataset.cl; renderChecklist(body); });
   $$('#appBody .cl-item').forEach(row=>row.onclick=()=>{
-    const cl=row.closest('.cl-card').dataset.cl,id=row.dataset.item,on=!row.classList.contains('checked');
+    const id=row.dataset.item,on=!row.classList.contains('checked');
     row.classList.toggle('checked',on);
-    postJSON('/efb/api/checklists/item',{checklistId:cl,itemId:id,checked:on}).catch(()=>{});
+    postJSON('/efb/api/checklists/item',{checklistId:activeChecklistId,itemId:id,checked:on}).catch(()=>{});
   });
 }
 function fmtT(iso){ try{return new Date(iso).toISOString().substr(11,5)+'Z';}catch{return '';} }
@@ -409,36 +587,56 @@ function loadLeaflet(){
   });
   return leafPromise;
 }
+const RAIL_ICONS={
+  legend: `<circle cx="8" cy="8" r="2"/><path d="M12 8h7"/><circle cx="8" cy="16" r="2"/><path d="M12 16h7"/>`,
+  traffic:`<path d="M12 2v6M12 16v6M2 12h6M16 12h6"/><circle cx="12" cy="12" r="3"/>`,
+  wx:     `<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>`,
+  vatsim: `<path d="M12 3v4M6.5 6.5l2.8 2.8M17.5 6.5l-2.8 2.8"/><path d="M4 13a8 8 0 0 1 16 0"/><circle cx="12" cy="17" r="2"/>`,
+  ivao:   `<path d="M12 3v4M6.5 6.5l2.8 2.8M17.5 6.5l-2.8 2.8"/><path d="M4 13a8 8 0 0 1 16 0"/><circle cx="12" cy="17" r="2"/>`,
+  recenter:`<path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="6"/>`,
+};
+const RAIL_LABELS={ legend:'Legend', traffic:'Traffic', wx:'Weather Radar', vatsim:'VATSIM', ivao:'IVAO', recenter:'Recenter' };
+function renderMapRail(){
+  return `<div class="jep-rail">
+    ${['legend','traffic','wx','vatsim','ivao','recenter'].map(k=>`<button class="jep-rail-btn ${k==='legend'||k==='traffic'?'active':''}" data-rail="${k}" title="${RAIL_LABELS[k]}">
+      <svg ${SVG_ATTRS}>${RAIL_ICONS[k]}</svg></button>`).join('')}</div>`;
+}
 async function renderMap(body){
   body.classList.add('nopad');
   body.innerHTML=`<div class="map-wrap"><div id="efbMap"></div>
-    <div class="map-legend"><div class="row"><span class="dot" style="background:var(--accent-2)"></span>You</div>
+    ${renderMapRail()}
+    <div class="map-legend" id="mapLegend"><div class="row"><span class="dot" style="background:var(--active)"></span>You</div>
     <div class="row"><span class="dot" style="background:#22C55E"></span>Departure</div>
     <div class="row"><span class="dot" style="background:#EF4444"></span>Arrival</div>
-    <div class="row"><span class="dot" style="background:#F0A02A"></span>Traffic</div></div></div>`;
+    <div class="row"><span class="dot" style="background:#F0A02A"></span>Traffic</div>
+    <div class="row"><span class="dot" style="background:#3B82F6"></span>VATSIM</div>
+    <div class="row"><span class="dot" style="background:#A855F7"></span>IVAO</div></div></div>`;
   try{ await loadLeaflet(); }catch{ body.innerHTML=`<div class="empty">The map needs an internet connection to load tiles.<br>Your route and traffic will appear once online.</div>`; return; }
   const start=(state.latitude||state.longitude)?[state.latitude,state.longitude]:[48,8];
   const map=L.map('efbMap',{zoomControl:false,attributionControl:true}).setView(start,5);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:18,
     attribution:'&copy; OSM &copy; CARTO'}).addTo(map);
-  const layers={route:null,dep:null,arr:null,own:null,traffic:[]};
+  const layers={route:null,dep:null,arr:null,own:null,traffic:[],wx:null,vatsimPilots:[],vatsimAtc:[],ivaoPilots:[],ivaoAtc:[]};
+  let showTraffic=true, showWx=false, showVatsim=false, showIvao=false, wxIv=null;
   function planeIcon(color,hdg){ return L.divIcon({className:'ac-marker',iconSize:[26,26],iconAnchor:[13,13],
     html:`<svg width="26" height="26" viewBox="0 0 24 24" style="transform:rotate(${hdg||0}deg)"><path fill="${color}" d="M12 2l3 8 7 3-7 1.5L12 22l-3-7.5L2 13l7-3z"/></svg>`}); }
   function drawRoute(){
     if(!plan.hasPlan||!plan.waypoints||!plan.waypoints.length)return;
     const pts=plan.waypoints.filter(w=>w.latitude||w.longitude).map(w=>[w.latitude,w.longitude]);
-    if(pts.length>1){ layers.route=L.polyline(pts,{color:getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#3D7EEE',weight:2.5,opacity:.75}).addTo(map);
+    if(pts.length>1){ layers.route=L.polyline(pts,{color:getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#4D9BEC',weight:2.5,opacity:.75}).addTo(map);
       layers.dep=L.circleMarker(pts[0],{radius:6,color:'#22C55E',fillColor:'#22C55E',fillOpacity:1}).addTo(map).bindTooltip(plan.departureIcao||'DEP');
       layers.arr=L.circleMarker(pts[pts.length-1],{radius:6,color:'#EF4444',fillColor:'#EF4444',fillOpacity:1}).addTo(map).bindTooltip(plan.arrivalIcao||'ARR');
       map.fitBounds(layers.route.getBounds(),{padding:[50,50],maxZoom:8}); }
   }
   function drawOwn(){
     if(!(state.latitude||state.longitude))return;
-    const c=getComputedStyle(document.documentElement).getPropertyValue('--accent-2').trim()||'#5EA0FF';
+    const c=getComputedStyle(document.documentElement).getPropertyValue('--active').trim()||'#E63FA6';
     if(layers.own)layers.own.setLatLng([state.latitude,state.longitude]).setIcon(planeIcon(c,state.trackDeg));
     else layers.own=L.marker([state.latitude,state.longitude],{icon:planeIcon(c,state.trackDeg),zIndexOffset:1000}).addTo(map).bindTooltip(state.callsign||'You');
   }
+  function recenter(){ if(state.latitude||state.longitude) map.setView([state.latitude,state.longitude],Math.max(map.getZoom(),7)); }
   async function drawTraffic(){
+    if(!showTraffic){ layers.traffic.forEach(m=>map.removeLayer(m)); layers.traffic=[]; return; }
     let t=[]; try{ t=await getJSON('/efb/api/traffic'); }catch{return;}
     layers.traffic.forEach(m=>map.removeLayer(m)); layers.traffic=[];
     t.forEach(p=>{ if(p.pilotId===msg.myPilotId)return;
@@ -446,23 +644,108 @@ async function renderMap(body){
         .bindTooltip(`${p.callsign||p.pilotName||'Traffic'} · ${p.phase||''}<br>${p.departureIcao||'?'}→${p.arrivalIcao||'?'} · ${p.alt} ft`);
       layers.traffic.push(m); });
   }
+  // Weather radar: RainViewer's public metadata + tile API, no key required. Frames refresh
+  // roughly every 10 minutes on RainViewer's end, so re-fetching metadata every 5 minutes while
+  // the layer is on is plenty fresh without hammering their API.
+  async function drawWeather(){
+    try{
+      const meta=await fetch('https://api.rainviewer.com/public/weather-maps.json').then(r=>r.json());
+      const frames=(meta&&meta.radar&&meta.radar.past)||[];
+      const last=frames[frames.length-1];
+      if(!last)return;
+      if(layers.wx)map.removeLayer(layers.wx);
+      layers.wx=L.tileLayer(`${meta.host}${last.path}/256/{z}/{x}/{y}/2/1_1.png`,{opacity:.55}).addTo(map);
+    }catch{}
+  }
+  function toggleWeather(on){
+    showWx=on;
+    if(on){ drawWeather(); wxIv=setInterval(drawWeather,300000); }
+    else{ if(wxIv){clearInterval(wxIv);wxIv=null;} if(layers.wx){map.removeLayer(layers.wx);layers.wx=null;} }
+  }
+  // VATSIM + IVAO traffic/ATC: both networks come back together from one backend call
+  // (EfbNetworkTrafficService, cached server-side ~30s) so toggling either on refetches once,
+  // not twice.
+  async function drawNetwork(){
+    [...layers.vatsimPilots,...layers.vatsimAtc,...layers.ivaoPilots,...layers.ivaoAtc].forEach(m=>map.removeLayer(m));
+    layers.vatsimPilots=[]; layers.vatsimAtc=[]; layers.ivaoPilots=[]; layers.ivaoAtc=[];
+    if(!showVatsim && !showIvao) return;
+    let net; try{ net=await getJSON('/efb/api/network'); }catch{return;}
+    (net.pilots||[]).forEach(p=>{
+      if((p.network==='VATSIM' && !showVatsim) || (p.network==='IVAO' && !showIvao)) return;
+      const color=p.network==='VATSIM'?'#3B82F6':'#A855F7';
+      const m=L.marker([p.lat,p.lon],{icon:planeIcon(color,p.headingDeg)}).addTo(map)
+        .bindTooltip(`${p.callsign} · ${p.network}<br>${p.aircraftType||'?'} · ${p.departureIcao||'?'}→${p.arrivalIcao||'?'}<br>FL${Math.round((p.altitudeFt||0)/100)} · ${p.groundSpeedKts||0}kt`);
+      (p.network==='VATSIM'?layers.vatsimPilots:layers.ivaoPilots).push(m);
+    });
+    (net.atcs||[]).forEach(a=>{
+      if((a.network==='VATSIM' && !showVatsim) || (a.network==='IVAO' && !showIvao)) return;
+      if(a.lat==null||a.lon==null) return;
+      const color=a.network==='VATSIM'?'#3B82F6':'#A855F7';
+      const m=L.circleMarker([a.lat,a.lon],{radius:7,color,fillColor:color,fillOpacity:.85,weight:2}).addTo(map)
+        .bindTooltip(`${a.callsign} · ${a.position||''}<br>${a.frequency?a.frequency.toFixed(3):''} · ${a.network}`);
+      (a.network==='VATSIM'?layers.vatsimAtc:layers.ivaoAtc).push(m);
+    });
+  }
   drawRoute(); drawOwn(); drawTraffic();
-  const iv=setInterval(()=>{drawOwn();drawTraffic();},12000);
+  $$('.jep-rail-btn').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.rail;
+    if(k==='recenter'){ recenter(); return; }
+    if(k==='legend'){ $('#mapLegend').classList.toggle('hidden'); b.classList.toggle('active'); return; }
+    if(k==='traffic'){ showTraffic=!showTraffic; b.classList.toggle('active',showTraffic); drawTraffic(); return; }
+    if(k==='wx'){ toggleWeather(!showWx); b.classList.toggle('active',showWx); return; }
+    if(k==='vatsim'){ showVatsim=!showVatsim; b.classList.toggle('active',showVatsim); drawNetwork(); return; }
+    if(k==='ivao'){ showIvao=!showIvao; b.classList.toggle('active',showIvao); drawNetwork(); return; }
+  });
+  const iv=setInterval(()=>{drawOwn();drawTraffic();if(showVatsim||showIvao)drawNetwork();},12000);
   const liveIv=setInterval(drawOwn,2000);
-  appCleanup=()=>{ clearInterval(iv); clearInterval(liveIv); try{map.remove();}catch{} };
+  appCleanup=()=>{ clearInterval(iv); clearInterval(liveIv); if(wxIv)clearInterval(wxIv); try{map.remove();}catch{} };
 }
 
-// ── OFP APP (SimBrief PDF) ──
+// ── OFP APP (composed dispatch-text block + SimBrief PDF) ──
+// The dense monospace "[ OFP ]" dispatch-release look, the specific reference the redesign was
+// asked to match -- composed from the OFP fields already parsed into `plan`, not a raw text
+// field from SimBrief's API (SimBriefFlightPlan has none; see the plan doc's own note). The PDF
+// (when SimBrief generated one) stays available as a secondary "Open full OFP" action, since
+// the composed block only ever covers what `plan` actually carries, not the full briefing
+// package (NOTAMs, full navlog, weight & balance sheet, etc.).
+function ofpBlock(o){
+  if(!plan.hasPlan)return `<div class="empty">No SimBrief plan loaded.<br>Import one from Settings or the desktop app to see the dispatch release here.</div>`;
+  const row=(k,v)=>`<div class="ofp-row"><span class="ofp-k">${k}</span><span class="ofp-v">${v??'—'}</span></div>`;
+  const kg2lb=kg=>kg?Math.round(kg*2.20462).toLocaleString():null;
+  const zfw=kg2lb(plan.zeroFuelWeightKg), tow=kg2lb(plan.takeoffWeightKg);
+  const flt=plan.plannedFlightTimeMin?Math.floor(plan.plannedFlightTimeMin/60)+'+'+String(plan.plannedFlightTimeMin%60).padStart(2,'0'):null;
+  return `
+    <div class="ofp-block">
+      <div class="ofp-title">[ OFP ]</div>
+      <div class="ofp-hdr">${esc(state.callsign||state.flightNumber||'')} &nbsp; ${esc(plan.departureIcao)} - ${esc(plan.arrivalIcao)}</div>
+      <div class="ofp-hr"></div>
+      <div class="ofp-cols">
+        <div class="ofp-col">
+          ${row('ZFW',zfw?zfw+' LB':null)}
+          ${row('TOW',tow?tow+' LB':null)}
+          ${row('LW FUEL',plan.landingFuelLbs?Math.round(plan.landingFuelLbs).toLocaleString()+' LB':null)}
+        </div>
+        <div class="ofp-col">
+          ${row('CI',plan.costIndex)}
+          ${row('CRZ FL',plan.cruiseAltitudeFt?'FL'+Math.round(plan.cruiseAltitudeFt/100):null)}
+          ${row('BLK TIME',flt)}
+        </div>
+      </div>
+      <div class="ofp-hr"></div>
+      <div class="ofp-row"><span class="ofp-k">DEP RWY</span><span class="ofp-v">${plan.departureRunway||'—'}</span>
+        <span class="ofp-k" style="margin-left:24px">ARR RWY</span><span class="ofp-v">${plan.arrivalRunway||'—'}</span></div>
+      ${plan.route?`<div class="ofp-hr"></div>
+      <div class="ofp-wx"><span class="ofp-k">OFP ROUTE</span> ${esc(plan.departureIcao)}/${esc(plan.departureRunway||'')} ${esc(plan.route)} ${esc(plan.arrivalIcao)}/${esc(plan.arrivalRunway||'')}</div>`:''}
+      <div class="ofp-hr"></div>
+      <div class="ofp-wx"><span class="ofp-k">${esc(plan.departureIcao)} WX</span> ${esc(plan.departureMetar||'—')}</div>
+      <div class="ofp-wx"><span class="ofp-k">${esc(plan.arrivalIcao)} WX</span> ${esc(plan.arrivalMetar||'—')}</div>
+    </div>
+    ${o&&o.hasPdf&&o.pdfUrl?`<a class="btn-ghost ofp-pdf-link" href="${o.pdfUrl}" target="_blank" rel="noopener">Open full OFP (PDF) ↗</a>`:''}`;
+}
 async function renderOfp(body){
+  body.innerHTML=`<div class="empty">Loading OFP…</div>`;
   let o; try{ o=await getJSON('/efb/api/ofp'); }catch{ o={hasPdf:false}; }
-  if(o.hasPdf&&o.pdfUrl){
-    body.classList.add('nopad');
-    body.innerHTML=`<div style="padding:10px 14px;display:flex;gap:10px">
-      <a class="btn-ghost" href="${o.pdfUrl}" target="_blank" rel="noopener">Open in browser ↗</a></div>
-      <div style="position:absolute;inset:56px 0 0"><iframe class="ofp-frame" src="${o.pdfUrl}"></iframe></div>`;
-  }else{
-    body.innerHTML=`<div class="empty">No OFP PDF available yet.<br>Import a SimBrief flight plan (in the ACARS app, or from EFB Settings) to load the briefing package.</div>`;
-  }
+  body.innerHTML=ofpBlock(o);
 }
 
 // ── ATIS APP ──
@@ -490,11 +773,23 @@ async function loadAtis(){
   catch{ out.innerHTML=`<div class="empty">Could not reach the ATIS service.</div>`; return; }
   if(!d.found){ out.innerHTML=`<div class="empty">No ATIS or METAR available for ${esc(d.icao||atisIcao)}.</div>`; return; }
   const src=d.source==='VATSIM'?'VATSIM · live controller ATIS':'Generated from METAR';
-  out.innerHTML=`<div class="panel">
-      <div class="panel-h"><span>${esc(d.icao)} ATIS</span><span class="panel-tag">${esc(src)}</span></div>
-      ${d.letter?`<div class="atis-letter">${esc(d.letter)}</div>`:''}
-      <pre class="atis-text">${esc(d.text)}</pre></div>
-    ${d.metar?`<div class="panel" style="margin-top:12px"><div class="panel-h"><span>METAR</span></div><pre class="atis-text">${esc(d.metar)}</pre></div>`:''}
+  // Dense weather-card layout, flyPad-style: station + raw line up top, four icon-labeled
+  // stat tiles (pressure/wind/temp/dewpoint) parsed from whichever raw line is available
+  // (METAR preferred; falls back to the ATIS text itself if no separate METAR was returned).
+  const mx=parseMetar(d.metar||d.text);
+  const tile=(k,v)=>`<div class="wx-tile"><div class="wx-k">${k}</div><div class="wx-v">${v}</div></div>`;
+  out.innerHTML=`<div class="panel wx-card">
+      <div class="panel-h"><span>${esc(d.icao)}</span><span class="panel-tag">${esc(src)}</span></div>
+      ${d.letter?`<div class="atis-letter">ATIS ${esc(d.letter)}</div>`:''}
+      <pre class="atis-text raw">${esc(d.metar||d.text)}</pre>
+      <div class="wx-tiles">
+        ${tile('PRESSURE',mx.qnh!=null?mx.qnh+' hPa':'—')}
+        ${tile('WIND',mx.windKts!=null?`${String(mx.windDir||0).padStart(3,'0')}°/${mx.windKts}kt`:'—')}
+        ${tile('TEMP',mx.tempC!=null?mx.tempC+' °C':'—')}
+        ${tile('DEW POINT',mx.dewC!=null?mx.dewC+' °C':'—')}
+      </div>
+      ${d.letter?`<pre class="atis-text">${esc(d.text)}</pre>`:''}
+    </div>
     ${d.taf?`<div class="panel" style="margin-top:12px"><div class="panel-h"><span>TAF</span></div><pre class="atis-text">${esc(d.taf)}</pre></div>`:''}`;
 }
 
@@ -525,7 +820,7 @@ let msgTab='friends', openThreadId=null;
 function renderMessages(body){
   if(openThreadId){ renderThread(body,openThreadId); return; }
   body.innerHTML=`
-    <div class="mycode"><div class="lbl">My Friend Code</div><div class="code">${msg.myFriendCode||'— set ACARS key —'}</div></div>
+    <div class="mycode"><div class="lbl">My Friend Code</div><div class="code">${msg.myFriendCode||'[set ACARS key]'}</div></div>
     <div class="addfriend"><input id="fcode" maxlength="9" placeholder="FRIEND CODE"><button class="btn-primary" id="addFr" style="width:auto;padding:12px 18px">Add</button></div>
     <div class="msg-tabs"><span class="t ${msgTab==='friends'?'active':''}" data-t="friends">Friends</span>
       <span class="t ${msgTab==='broadcast'?'active':''}" data-t="broadcast">Broadcast</span></div>
@@ -563,8 +858,9 @@ function renderThread(body,fid){
   // mark their unread as read
   conv.filter(m=>!m.mine&&!m.isRead).forEach(m=>postJSON('/efb/api/messages/read',{id:m.id}).catch(()=>{}));
   $('#appName').textContent=f.pilotName||'Pilot';
+  $('#appRoute').textContent=f.friendCode||'';
   $('#appActions').innerHTML=`<button class="btn-ghost" id="thBack">‹ Messages</button>`;
-  $('#thBack').onclick=()=>{openThreadId=null;$('#appName').textContent='Messages';$('#appActions').innerHTML='';renderMessages($('#appBody'));};
+  $('#thBack').onclick=()=>{openThreadId=null;$('#appName').textContent='Messages';$('#appRoute').textContent=appRouteLine();$('#appActions').innerHTML='';renderMessages($('#appBody'));};
   body.innerHTML=`<div class="thread"><div class="thread-msgs" id="tmsgs">${
     conv.length?conv.map(bubble).join(''):`<div class="empty">No messages yet. Say hello 👋</div>`}</div>
     <form class="composer" id="dm"><input id="dmtext" placeholder="Message ${esc(f.pilotName||'pilot')}…"><button class="btn-primary" type="submit">Send</button></form></div>`;
@@ -652,7 +948,7 @@ function renderScratch(body){
       <div class="seg"><button class="seg-btn ${scratchMode==='draw'?'active':''}" data-m="draw">Draw</button>
         <button class="seg-btn ${scratchMode==='type'?'active':''}" data-m="type">Type</button></div>
       <div class="scr-tools ${scratchMode==='draw'?'':'hidden'}" id="scrTools">
-        ${['#0A0D17','#3D7EEE','#EF4444','#22C55E'].map((c,i)=>`<span class="pen ${i===0?'active':''}" data-c="${c}" style="background:${c}"></span>`).join('')}
+        ${['#0A0D17','#4D9BEC','#EF4444','#22C55E'].map((c,i)=>`<span class="pen ${i===0?'active':''}" data-c="${c}" style="background:${c}"></span>`).join('')}
         <span class="pen-size" data-s="2">·</span><span class="pen-size active" data-s="4">•</span><span class="pen-size" data-s="9">⬤</span>
         <button class="btn-ghost" id="scrUndo">Undo</button>
       </div>
@@ -730,8 +1026,8 @@ function paScript(k,s){
   const T={
     boarding:`Good day ladies and gentlemen, and welcome aboard AviatesAir flight ${cs}, with service to ${arr}.\n\nPlease take your seat as quickly as possible and stow your cabin baggage in the overhead lockers or completely under the seat in front of you. Please keep the aisle clear to help us get away on time.\n\nOn behalf of the flight deck and your cabin crew, thank you for choosing AviatesAir.`,
     welcome:`Ladies and gentlemen, this is your captain speaking. Welcome aboard AviatesAir ${cs} from ${dep} to ${arr}.\n\nOur flight time today will be approximately ${ete}, and we'll be cruising at ${fl}. Cabin crew, please prepare doors for departure and cross-check.\n\nPlease ensure your seatbelt is fastened and your seat back and tray table are in the upright position. Sit back and enjoy the flight.`,
-    cruise:`Ladies and gentlemen, from the flight deck — we have now reached our cruising altitude of ${fl}.\n\nI've switched off the seatbelt sign, however we do recommend keeping your belt loosely fastened whenever seated. Our cabin crew will shortly be coming through the cabin with refreshments.\n\nExpected arrival into ${arr} is in about ${ete}.`,
-    descent:`Ladies and gentlemen, we have begun our descent into ${arr}.\n\nThe seatbelt sign is now on — please return to your seat, fasten your seatbelt, and ensure your tray table and seat back are stowed. Cabin crew will be through the cabin to collect any remaining items.\n\nThe weather at ${arr} is ${wx}. We expect to be on the ground shortly.`,
+    cruise:`Ladies and gentlemen, from the flight deck, we have now reached our cruising altitude of ${fl}.\n\nI've switched off the seatbelt sign, however we do recommend keeping your belt loosely fastened whenever seated. Our cabin crew will shortly be coming through the cabin with refreshments.\n\nExpected arrival into ${arr} is in about ${ete}.`,
+    descent:`Ladies and gentlemen, we have begun our descent into ${arr}.\n\nThe seatbelt sign is now on; please return to your seat, fasten your seatbelt, and ensure your tray table and seat back are stowed. Cabin crew will be through the cabin to collect any remaining items.\n\nThe weather at ${arr} is ${wx}. We expect to be on the ground shortly.`,
     landing:`Ladies and gentlemen, welcome to ${arr}.\n\nPlease remain seated with your seatbelt fastened until the aircraft has come to a complete stop at the gate and the seatbelt sign has been switched off.\n\nOn behalf of AviatesAir and the entire crew, thank you for flying with us today.`,
     deboard:`Ladies and gentlemen, we have arrived at our stand here in ${arr}.\n\nPlease take care when opening the overhead lockers as items may have shifted during the flight, and please check around your seat for personal belongings.\n\nWe hope to see you again soon on board AviatesAir. Goodbye.`,
   };
@@ -770,7 +1066,7 @@ function renderGame(body){
     // sky
     const grd=g.createLinearGradient(0,0,0,H); grd.addColorStop(0,'#12213a'); grd.addColorStop(1,'#05070d');
     g.fillStyle=grd; g.fillRect(0,0,W,H);
-    const accent=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#3D7EEE';
+    const accent=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#4D9BEC';
     // gates (terrain)
     gates.forEach(o=>{ o.x-=SPD;
       g.fillStyle='#1d2b45'; g.strokeStyle=accent; g.lineWidth=2;
@@ -800,7 +1096,7 @@ function renderGame(body){
 }
 
 // ── SETTINGS APP ──
-const THEMES=[{id:'aviates',name:'Aviates',c1:'#3D7EEE',c2:'#0A0D17'},{id:'boeing',name:'Boeing',c1:'#2ec5c9',c2:'#05080d'},
+const THEMES=[{id:'aviates',name:'Aviates',c1:'#4D9BEC',c2:'#0A0D17'},{id:'boeing',name:'Boeing',c1:'#2ec5c9',c2:'#05080d'},
   {id:'airbus',name:'Airbus',c1:'#1e88e5',c2:'#0a0f16'},{id:'minimal',name:'Minimal',c1:'#c9ced8',c2:'#0c0d10'}];
 function renderSettings(body){
   body.innerHTML=`
@@ -814,10 +1110,10 @@ function renderSettings(body){
     <div class="set-group"><h3>Flight Plan (EFB)</h3>
       <p class="set-note" style="margin:0 0 12px">${plan.hasPlan?(plan.fromEfbImport?'Imported in the EFB: ':'From ACARS: ')+plan.departureIcao+' → '+plan.arrivalIcao:'No plan loaded. If you import in the ACARS app it appears here automatically.'}</p>
       <div class="addfriend"><input id="sbUser" placeholder="SimBrief username / pilot ID" style="text-transform:none;letter-spacing:0"><button class="btn-primary" id="sbImport" style="width:auto;padding:12px 18px">Import</button></div>
-      <p class="set-note">Importing here fills the EFB only — it does not change your ACARS flight.</p></div>
+      <p class="set-note">Importing here fills the EFB only; it does not change your ACARS flight.</p></div>
     <div class="set-group"><h3>Flight</h3>
       <button class="btn-danger" id="endFlight">End Flight</button>
-      <p class="set-note">Ends the active flight and files the PIREP — same as the desktop button.</p></div>
+      <p class="set-note">Ends the active flight and files the PIREP, same as the desktop button.</p></div>
     <div class="set-group"><h3>Connection</h3>
       <div class="conn-info">Host: <b>${location.host}</b><br>Transport: <b id="tp">—</b><br>Pilot: <b>${esc(msg.myPilotName||'—')}</b></div></div>`;
   $('#wpFile').onchange=async e=>{ const file=e.target.files[0]; if(!file)return;

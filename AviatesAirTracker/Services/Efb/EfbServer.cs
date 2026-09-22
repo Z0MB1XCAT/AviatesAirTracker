@@ -54,6 +54,7 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
     private readonly OtherPilotsService _traffic;
     private readonly HoppiesAcarsOrchestrator _hoppies;
     private readonly EfbAtisService _atis;
+    private readonly EfbNetworkTrafficService _network;
     private readonly ILandingRepository _landings;
     private readonly IFlightRepository _flights;
 
@@ -97,11 +98,13 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
         OtherPilotsService traffic,
         HoppiesAcarsOrchestrator hoppies,
         EfbAtisService atis,
+        EfbNetworkTrafficService network,
         ILandingRepository landings,
         IFlightRepository flights)
     {
         _hoppies = hoppies;
         _atis = atis;
+        _network = network;
         _landings = landings;
         _flights = flights;
         _state = state;
@@ -414,6 +417,9 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
                 Lat = p.Lat, Lon = p.Lon, Alt = p.Alt, Speed = p.Speed, Heading = p.Heading,
                 Phase = p.Phase, DepartureIcao = p.DepartureIcao ?? "", ArrivalIcao = p.ArrivalIcao ?? "",
             }), Json));
+
+        // ── Online network traffic/ATC (VATSIM + IVAO map layers) ──────
+        app.MapGet("/efb/api/network", async () => Results.Json(await _network.GetAsync(), Json));
 
         // ── SimBrief OFP: import inside the EFB (does NOT touch ACARS) + PDF link ──
         app.MapPost("/efb/api/flightplan/import", async (SimbriefImportRequest req) =>
