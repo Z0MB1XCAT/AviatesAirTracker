@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "design-taste-frontend": {
+      "source": "Leonxlnx/taste-skill",
+      "sourceType": "github",
+      "skillPath": "skills/taste-skill/SKILL.md",
+      "computedHash": "53590ee9325bee34d7888bf0d81bd3941a108b1e7850df46802d93104e3f2b90"
+    },
     "embedded-captions": {
       "source": "heygen-com/hyperframes",
       "sourceType": "github",
@@ -108,6 +114,12 @@
       "sourceType": "github",
       "skillPath": "skills/talking-head-recut/SKILL.md",
       "computedHash": "a82a030cfeea7b799907cd1f7e278d81b38274f6be5cd6cbb57016f41f3f4fb4"
+    },
+    "ui-ux-pro-max": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "computedHash": "e508c08063b140cc2871f84adaf59b698f296b6ccbb269d96f512ca383c673da"
     },
     "website-to-video": {
       "source": "heygen-com/hyperframes",
