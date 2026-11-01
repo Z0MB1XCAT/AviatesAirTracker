@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "efb-dev",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "tools/EfbDevServer/EfbDevServer.csproj",
+        "--",
+        "--port",
+        "8765"
+      ],
+      "port": 8765
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    EFB dev server: serves AviatesAirTracker/EfbWeb straight from disk (edit, refresh) with the
+    app's REAL logic linked in (performance calculator, aircraft/failure data, checklist
+    service, manuals library, landing report, weather/ATIS/network services). Only the live
+    pieces (a simulated flight, messages, traffic, ACARS) are faked.
+
+    Not part of AviatesAirTracker.sln and never shipped. Run it with:
+      dotnet run (project tools/EfbDevServer, argument "port 8765")
+    then open http://localhost:8765/ (no pairing needed).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CS1998</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- same pins as AviatesAirTracker.csproj -->
+    <PackageReference Include="Serilog" Version="3.1.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- the domain model the landing report and checklists build on -->
+    <Compile Include="../../AviatesAirTracker/Core/SimConnect/SimConnectDefinitions.cs" Link="App/SimConnectDefinitions.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/FlightSessionState.cs" Link="App/FlightSessionState.cs" />
+    <Compile Include="../../AviatesAirTracker/Models/FlightModels.cs" Link="App/FlightModels.cs" />
+    <!-- EFB core: DTOs, performance, failures, policy, checklists, manuals, datalink formats, airport + ATC data -->
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbModels.cs" Link="App/EfbModels.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Efb/AircraftPerformanceProfiles.cs" Link="App/AircraftPerformanceProfiles.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbPerformanceCalculator.cs" Link="App/EfbPerformanceCalculator.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbLandingFailures.cs" Link="App/EfbLandingFailures.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbCompanyPolicy.cs" Link="App/EfbCompanyPolicy.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbChecklistLibrary.cs" Link="App/EfbChecklistLibrary.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbManuals.cs" Link="App/EfbManuals.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbAcars.cs" Link="App/EfbAcars.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbAirportData.cs" Link="App/EfbAirportData.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbAtcGeo.cs" Link="App/EfbAtcGeo.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Analytics/WeightBalanceDatabase.cs" Link="App/WeightBalanceDatabase.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Analytics/LandingReport.cs" Link="App/LandingReport.cs" />
+    <!-- EFB services that only need HTTP: checklist state, ATIS/METAR/TAF, map weather, VATSIM/IVAO -->
+    <Compile Include="../../AviatesAirTracker/Services/Efb/EfbChecklistService.cs" Link="App/EfbChecklistService.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/Efb/EfbAtisService.cs" Link="App/EfbAtisService.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/Efb/EfbMapWeatherService.cs" Link="App/EfbMapWeatherService.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/Efb/EfbNetworkTrafficService.cs" Link="App/EfbNetworkTrafficService.cs" />
+  </ItemGroup>
+</Project>
