@@ -164,14 +164,17 @@ public sealed class VoiceAudioEngine : IDisposable
     /// <summary>Enumerates active render (speaker) devices. Never throws -- returns an empty list on failure.</summary>
     public IReadOnlyList<VoiceAudioDevice> GetRenderDevices() => EnumerateDevices(DataFlow.Render);
 
-    private List<VoiceAudioDevice> EnumerateDevices(DataFlow flow)
+    // Settings calls this from a background thread (it takes over a second with a dozen
+    // endpoints, mostly reading each FriendlyName), so it uses its own enumerator rather than the
+    // shared one created on the UI thread.
+    private static List<VoiceAudioDevice> EnumerateDevices(DataFlow flow)
     {
         var result = new List<VoiceAudioDevice>();
-        if (_deviceEnumerator == null) return result;
 
         try
         {
-            var collection = _deviceEnumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
+            using var enumerator = new MMDeviceEnumerator();
+            var collection = enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active);
             foreach (var device in collection)
             {
                 try

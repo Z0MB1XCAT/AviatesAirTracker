@@ -174,7 +174,7 @@ public sealed partial class SettingsPage : Page
         // DeviceInformation.FindAllAsync call they replaced, but still deferred to Loaded to match
         // this page's existing initialization shape.
         DispatchBackendUrlTextBox.Text = _settings.Settings.DispatchBackendUrl;
-        PopulateJoystickComboBox();
+        _ = PopulateJoystickComboBoxAsync();
 
         // Task 5: About & Updates + EFB Companion initial field values.
         var version = Assembly.GetExecutingAssembly().GetName().Version;
@@ -236,7 +236,7 @@ public sealed partial class SettingsPage : Page
         // devices, now via VoiceAudioEngine.GetCaptureDevices/GetRenderDevices (Task 5) instead of
         // the WinRT Windows.Devices.Enumeration.DeviceInformation.FindAllAsync this used before --
         // see LoadAudioDevices's own remarks for why that swap was necessary, not optional.
-        Loaded += (_, _) => LoadAudioDevices();
+        Loaded += (_, _) => _ = LoadAudioDevicesAsync();
     }
 
     // ── Pilot Profile ────────────────────────────────────────────────────────────────────────
@@ -706,15 +706,40 @@ public sealed partial class SettingsPage : Page
 
     // Populated once on load (GetConnectedJoysticks() is a plain synchronous C# call) -- matches
     // Settings.razor's OnInitialized(), which also doesn't live-refresh this list.
-    private void PopulateJoystickComboBox()
+    // Opening Settings used to freeze the window for over a second: the joystick list
+    // (DirectInput, ~0.1 s) and the audio device lists (WASAPI, 1.1-1.3 s on a PC with a dozen
+    // endpoints) were both read on the UI thread, every time the page opened. Both now load in
+    // the background; until they arrive each box shows the saved choice, so saving early can't
+    // clear it.
+    private async Task PopulateJoystickComboBoxAsync()
     {
+        var savedGuid = _settings.Settings.PttJoystickGuid;
         JoystickComboBox.Items.Clear();
         JoystickComboBox.Items.Add(new ComboBoxItem { Content = "-- No joystick --", Tag = "" });
+        if (savedGuid != Guid.Empty)
+        {
+            var placeholder = new ComboBoxItem { Content = "Looking for controllers…", Tag = savedGuid.ToString() };
+            JoystickComboBox.Items.Add(placeholder);
+            JoystickComboBox.SelectedItem = placeholder;
+        }
+        else
+        {
+            JoystickComboBox.SelectedIndex = 0;
+        }
 
-        var savedGuid = _settings.Settings.PttJoystickGuid;
+        IReadOnlyList<(Guid InstanceGuid, string ProductName)> joysticks;
+        try { joysticks = await Task.Run(_pttInput.GetConnectedJoysticks); }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Settings] Failed to list joysticks");
+            joysticks = [];
+        }
+
+        JoystickComboBox.Items.Clear();
+        JoystickComboBox.Items.Add(new ComboBoxItem { Content = "-- No joystick --", Tag = "" });
         ComboBoxItem? matched = null;
 
-        foreach (var (instanceGuid, productName) in _pttInput.GetConnectedJoysticks())
+        foreach (var (instanceGuid, productName) in joysticks)
         {
             var item = new ComboBoxItem { Content = productName, Tag = instanceGuid.ToString() };
             JoystickComboBox.Items.Add(item);
@@ -808,12 +833,21 @@ public sealed partial class SettingsPage : Page
     // the ONLY source of both the persisted PttMicrophoneDeviceId/PttSpeakerDeviceId values AND
     // the ids later passed to SetMicrophone/SetSpeaker -- one ID namespace throughout, not two.
 
-    private void LoadAudioDevices()
+    // True while the device boxes are being filled in code: their SelectionChanged handlers
+    // save settings and switch the voice engine's device, which only a pilot's choice should do.
+    // (Filling them used to re-save settings and could rebuild the capture device on every visit.)
+    private bool _populatingAudioDevices;
+
+    private async Task LoadAudioDevicesAsync()
     {
+        _populatingAudioDevices = true;
         try
         {
-            var microphones = _voiceAudioEngine.GetCaptureDevices();
-            var speakers = _voiceAudioEngine.GetRenderDevices();
+            ShowSavedDevicePlaceholder(MicrophoneComboBox, _settings.Settings.PttMicrophoneDeviceId);
+            ShowSavedDevicePlaceholder(SpeakerComboBox, _settings.Settings.PttSpeakerDeviceId);
+
+            var (microphones, speakers) = await Task.Run(() =>
+                (_voiceAudioEngine.GetCaptureDevices(), _voiceAudioEngine.GetRenderDevices()));
 
             PopulateAudioDeviceComboBox(MicrophoneComboBox, microphones, _settings.Settings.PttMicrophoneDeviceId);
             PopulateAudioDeviceComboBox(SpeakerComboBox, speakers, _settings.Settings.PttSpeakerDeviceId);
@@ -822,6 +856,19 @@ public sealed partial class SettingsPage : Page
         {
             Log.Warning(ex, "[Settings] Failed to enumerate audio devices");
         }
+        finally
+        {
+            _populatingAudioDevices = false;
+        }
+    }
+
+    private static void ShowSavedDevicePlaceholder(ComboBox comboBox, string savedDeviceId)
+    {
+        comboBox.Items.Clear();
+        comboBox.Items.Add(new ComboBoxItem { Content = "System default", Tag = "" });
+        if (!string.IsNullOrEmpty(savedDeviceId))
+            comboBox.Items.Add(new ComboBoxItem { Content = "Loading devices…", Tag = savedDeviceId });
+        comboBox.SelectedIndex = comboBox.Items.Count - 1;
     }
 
     private static void PopulateAudioDeviceComboBox(ComboBox comboBox, IReadOnlyList<VoiceAudioDevice> devices, string savedDeviceId)
@@ -843,6 +890,7 @@ public sealed partial class SettingsPage : Page
 
     private void OnMicrophoneSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_populatingAudioDevices) return;
         if (MicrophoneComboBox.SelectedItem is ComboBoxItem { Tag: string deviceId })
         {
             _settings.Settings.PttMicrophoneDeviceId = deviceId;
@@ -853,6 +901,7 @@ public sealed partial class SettingsPage : Page
 
     private void OnSpeakerSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_populatingAudioDevices) return;
         if (SpeakerComboBox.SelectedItem is ComboBoxItem { Tag: string deviceId })
         {
             _settings.Settings.PttSpeakerDeviceId = deviceId;
@@ -1357,7 +1406,7 @@ public sealed partial class SettingsPage : Page
         // Joystick binding is cleared by Reset() too (PttJoystickGuid/PttJoystickButton are part
         // of AppSettings) -- re-populating the combo box re-selects "-- No joystick --" since no
         // connected device will match Guid.Empty.
-        PopulateJoystickComboBox();
+        _ = PopulateJoystickComboBoxAsync();
 
         EfbEnabledToggle.IsOn = _settings.Settings.EfbEnabled;
         EfbAutoStartToggle.IsOn = _settings.Settings.EfbAutoStart;
@@ -1382,12 +1431,12 @@ public sealed partial class SettingsPage : Page
         UpdateUpdateAvailablePanel();
         UpdateEfbPanel();
 
-        // Microphone/Speaker selection also needs to re-sync (PttMicrophoneDeviceId/
-        // PttSpeakerDeviceId are now blank) -- re-running the same enumeration+select this page
-        // already uses on load re-selects "System default" for both, since no device will match an
-        // empty saved id. Also re-applies "System default" to VoiceAudioEngine via
-        // SetMicrophone(null)/SetSpeaker(null).
-        LoadAudioDevices();
+        // Microphone/Speaker go back to the system defaults (PttMicrophoneDeviceId/
+        // PttSpeakerDeviceId are now blank): tell the voice engine directly, then refill both boxes,
+        // which re-selects "System default" since no device matches an empty saved id.
+        _voiceAudioEngine.SetMicrophone(null);
+        _voiceAudioEngine.SetSpeaker(null);
+        _ = LoadAudioDevicesAsync();
 
         _statusMessage = "Settings reset to defaults.";
         _isError = false;
