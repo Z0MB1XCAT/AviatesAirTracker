@@ -9,7 +9,11 @@
 ; ============================================================
 
 #define AppName      "Aviates Air Flight Tracker"
-#define AppVersion   "2.0.0"
+; The version comes from AviatesAirTracker.csproj: build.ps1 -Installer passes it as
+; /DAppVersion=x.y.z. The fallback below is only for compiling this script by hand.
+#ifndef AppVersion
+  #define AppVersion "2.1.0"
+#endif
 #define AppPublisher "Aviates Air"
 #define AppURL       "https://z0mb1xcat.github.io/avaitesairlol"
 #define AppExeName   "AviatesAirTracker.exe"

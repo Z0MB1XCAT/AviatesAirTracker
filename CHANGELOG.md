@@ -20,6 +20,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.1.0] — 2026-11-01
+
+### Added
+- **Landings page** — a full debrief of every landing: an overall rating (Critical, Needs work,
+  Good, Excellent), every check against its limit with coaching (stabilised by 1,000/500 ft,
+  configuration, speed, glidepath, centreline, touchdown point, flare, bounces, crab), the
+  approach profile against a 3° path, speed/sink/attitude/configuration traces and a
+  touchdown-zone diagram
+- **Statistics page** — hours, flights, rank progress, hours by month, landing-score trend, a map
+  of every recorded track, aircraft, most-flown routes, landing grades and records
+- **Multiple aircraft per route** — pick which aircraft to fly when booking a route
+- ACARS **"Before you fly"** checks: sim connected, booking activated, plan matches, at the
+  departure airport, booked aircraft loaded
+- **PIREP status on Flights** with Send now, and Fix details for PIREPs Aviates Air refuses
+- In-app notices for approach alerts, and Windows notifications for messages, PIREP results,
+  event reminders, landings and updates while the tracker is behind the sim
+- **Tray mode**, Start with Windows and Start with Microsoft Flight Simulator; opening the app
+  twice brings the running copy forward
+- **Ctrl+K** search; full keyboard and screen-reader support
+- Window size and position are remembered
+
+### Changed
+- Updates are **mandatory**: checked every 6 hours, installed when no flight is being tracked,
+  and the installer is verified against GitHub's published SHA-256 before it runs
+- Flights without an activated booking are no longer tracked
+
+### Fixed
+- Crash 10 minutes before every event you'd registered for
+- Crash when leaving the Map or ACARS page
+- Crash when two pop-ups opened at once
+- Settings no longer freezes the window for over a second when it opens
+- Tracking stopped for the rest of the session after an unbooked flight
+- Bookings are now marked completed on the server
+- Rail highlight and Back button follow in-page navigation; Back no longer returns to login
+- Messages unread badge updates; the same message is no longer re-announced every minute
+- Joystick PTT no longer floods the log; logs are capped at 20 MB a day
+- Flight history can no longer be wiped by a crash mid-save
+- The updater can launch the installer (2.0.0 couldn't, so 2.1.0 must be installed by hand once)
+
+---
+
 ## [1.0.0] — 2026-03-16
 
 ### Added

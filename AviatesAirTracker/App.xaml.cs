@@ -175,7 +175,9 @@ public partial class App : Application
                     rollOnFileSizeLimit: true,
                     outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
                 .CreateLogger();
-            Log.Information("=== Aviates Air Flight Tracker v1.0 Starting ===");
+            var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            Log.Information("=== Aviates Air Flight Tracker v{Version} Starting ===",
+                version is null ? "?" : $"{version.Major}.{version.Minor}.{version.Build}");
 
             var services = new ServiceCollection();
             ConfigureServices(services);
