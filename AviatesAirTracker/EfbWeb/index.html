@@ -8,6 +8,7 @@
 <meta name="theme-color" content="#0A0D17" />
 <title>AviatesAir EFB</title>
 <link rel="stylesheet" href="efb.css" />
+<link rel="stylesheet" href="ui.css" />
 <link rel="icon" href="favicon.svg" />
 </head>
 <body>
@@ -32,12 +33,11 @@
 <!-- ══ DEVICE (its own OS) ══ -->
 <div id="app" class="device hidden">
 
-  <!-- OS menu bar -->
+  <!-- OS status bar — transparent, drawn straight over the wallpaper (iPad-style) -->
   <header class="menubar">
     <div class="mb-cluster mb-left">
       <span class="mb-date" id="mbDate">-- --- ----</span>
-      <span class="mb-sep">/</span>
-      <span class="mb-time" id="mbTime">--:--L  --:--Z</span>
+      <span class="mb-time" id="mbTime">--:--L / --:--Z</span>
     </div>
 
     <!-- compact live-flight readout, hidden until a session is active -->
@@ -48,13 +48,22 @@
     </button>
 
     <div class="mb-cluster mb-right">
+      <!-- sterile cockpit: chat alerts are being held (count = held messages) -->
+      <span class="mb-fm hidden" id="mbFm" title="Sterile cockpit: chat alerts held">STERILE</span>
+      <!-- host link: 4 bars on the live WebSocket, 1 bar while falling back to polling -->
+      <span class="mb-ic mb-signal" id="mbSignal" title="Desktop link" data-bars="0">
+        <svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx=".7"/><rect x="5" y="5.5" width="3" height="6.5" rx=".7"/><rect x="10" y="3" width="3" height="9" rx=".7"/><rect x="15" y="0" width="3" height="12" rx=".7"/></svg>
+      </span>
       <span class="mb-ic" id="mbSim" title="Simulator link" data-state="off">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.5 13 3l-2 4-5-1L2 9l5 2-1 3 4 1 1 5 5-3z" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg>
       </span>
-      <span class="mb-ic" id="mbAcars" title="ACARS link" data-state="off">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20V10M12 10 7 6M12 10l5-4" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 20h16" stroke-linecap="round"/></svg>
+      <span class="mb-ic" id="mbGps" title="Aircraft position" data-state="off">
+        <svg viewBox="0 0 24 24"><path fill="currentColor" d="M21 3 3 10.6l7.4 2.9 2.9 7.5z"/></svg>
       </span>
-      <span class="mb-batt"><i></i></span>
+      <span class="mb-batt-wrap hidden" id="mbBattWrap">
+        <span class="mb-pct" id="mbPct"></span>
+        <span class="mb-batt"><i id="mbBattFill"></i></span>
+      </span>
     </div>
   </header>
 
@@ -63,28 +72,28 @@
     <div class="wallpaper" id="wallpaper"></div>
     <div class="wall-scrim"></div>
 
-    <div class="app-launcher" id="appGrid"></div>
+    <nav class="app-launcher" id="appGrid" aria-label="Apps"></nav>
 
     <div class="brand-lockup" id="flightWidget" role="button" tabindex="0" title="Open Flight app">
-      <img class="brand-logo" src="logo-white.webp" alt="" />
-      <div class="brand-word">AVIATES<span>AIR</span></div>
-      <div class="brand-sub">ELECTRONIC FLIGHT BAG</div>
+      <img class="brand-logo" src="logo-wordmark.webp" alt="AviatesAir" />
+      <div class="brand-sub">Electronic Flight Bag</div>
     </div>
 
+    <!-- the five apps for the current phase of flight; hidden when there is no flight -->
+    <div class="home-dock hidden" id="homeDock" aria-label="Apps for this phase of flight"></div>
     <div class="home-utility">
-      <button class="ghost-link" id="openSettingsBtn">Settings</button>
-      <span class="hu-dot">·</span>
-      <button class="ghost-link" id="resetWallBtn">Reset wallpaper</button>
+      <button class="home-btn" id="fullscreenBtn">Enter full screen</button>
+      <button class="home-btn" id="wallpaperBtn">Change wallpaper</button>
     </div>
   </div>
 
-  <!-- APP host (fullscreen). Persistent left icon rail (quick-switch between the most-used
-       apps + a Home icon back to the springboard) + a per-app heading/actions row, replacing
-       the old single back-button "Jeppesen-style" header -- the rail is built once here
-       (buildRail()) and every app inherits it via the shared openApp()/renderApp() path, same
-       as the header it replaces. -->
+  <!-- alert banners (new messages, ACARS uplinks, flight-mode changes) -->
+  <div class="nt-stack" id="ntStack" aria-live="polite"></div>
+  <!-- APP host (fullscreen, below the status bar). No sidebar: like a real iPad EFB, each app
+       owns the whole screen and the home indicator at the bottom (tap or swipe up, or Esc)
+       returns to the springboard. Apps in FULL_APPS draw their own chrome; the rest keep the
+       slim heading/actions row. -->
   <div class="app-host hidden" id="appHost">
-    <nav class="app-rail" id="appRail"></nav>
     <div class="jep-main">
       <div class="jep-topbar">
         <div class="jep-id">
@@ -95,6 +104,7 @@
       </div>
       <div class="app-body" id="appBody"></div>
     </div>
+    <button class="home-ind" id="homeInd" title="Home (swipe up)" aria-label="Home"><span></span></button>
   </div>
 
 </div>
