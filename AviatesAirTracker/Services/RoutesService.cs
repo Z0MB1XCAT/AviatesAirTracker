@@ -5,6 +5,24 @@ using Serilog;
 
 namespace AviatesAirTracker.Services;
 
+/// <summary>One aircraft that flies a route. A route can be flown by several, each with its own
+/// subsidiary and optionally its own flight number, frequency and block time.</summary>
+public class RouteAircraft
+{
+    [JsonPropertyName("type")]                   public string  Type             { get; set; } = "";
+    [JsonPropertyName("fleet_group")]            public string  FleetGroup       { get; set; } = "";
+    [JsonPropertyName("flight_number")]          public string? FlightNumber     { get; set; }
+    [JsonPropertyName("frequency")]              public string? Frequency        { get; set; }
+    [JsonPropertyName("est_block_time_minutes")] public int?    BlockTimeMinutes { get; set; }
+
+    /// <summary>"ATR 72" and "ATR72", "b738" and "B738" are the same aircraft.</summary>
+    public bool Is(string? type) =>
+        Normalized(Type).Length > 0 && Normalized(Type) == Normalized(type);
+
+    private static string Normalized(string? s) =>
+        new string((s ?? "").ToUpperInvariant().Where(char.IsLetterOrDigit).ToArray());
+}
+
 public class AviatesRoute
 {
     [JsonPropertyName("id")]                     public int    Id               { get; set; }
@@ -20,6 +38,27 @@ public class AviatesRoute
     [JsonPropertyName("distance_km")]            public int    DistanceKm       { get; set; }
     [JsonPropertyName("frequency")]              public string Frequency        { get; set; } = "";
     [JsonPropertyName("notes")]                  public string Notes            { get; set; } = "";
+    // Every aircraft flying the route, first = the one in AircraftType/FleetGroup. Absent from
+    // servers that predate multi-aircraft routes; use AircraftOptions, which falls back.
+    [JsonPropertyName("aircraft")]               public List<RouteAircraft>? Aircraft { get; set; }
+
+    /// <summary>Every aircraft flying the route (at least the single AircraftType one).</summary>
+    [JsonIgnore] public IReadOnlyList<RouteAircraft> AircraftOptions =>
+        Aircraft is { Count: > 0 } list
+            ? list
+            : [new RouteAircraft
+              {
+                  Type = AircraftType, FleetGroup = FleetGroup,
+                  FlightNumber = string.IsNullOrEmpty(FlightNumber) ? null : FlightNumber,
+                  Frequency = string.IsNullOrEmpty(Frequency) ? null : Frequency,
+                  BlockTimeMinutes = BlockTimeMinutes > 0 ? BlockTimeMinutes : null,
+              }];
+
+    /// <summary>"B738, B739, ATR72"</summary>
+    [JsonIgnore] public string AircraftLabel => string.Join(", ", AircraftOptions.Select(a => a.Type).Where(t => t.Length > 0));
+
+    /// <summary>The route's aircraft entry for <paramref name="type"/>, or null if it isn't flown with it.</summary>
+    public RouteAircraft? AircraftFor(string? type) => AircraftOptions.FirstOrDefault(a => a.Is(type));
 
     [JsonIgnore] public int    DistanceNm      => (int)(DistanceKm / 1.852);
     [JsonIgnore] public string BlockTimeDisplay => BlockTimeMinutes >= 60
@@ -97,9 +136,10 @@ public static class Subsidiary
         Normalize("B77F")
     };
 
+    // Letters and digits only: routes store both "ATR 42" and "ATR42", and the space-only
+    // normalisation this replaced sent "ATR42" to the Mainline prefix.
     private static string Normalize(string type) =>
-        string.Join(' ', (type ?? "").Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries))
-              .ToUpperInvariant();
+        new string((type ?? "").ToUpperInvariant().Where(char.IsLetterOrDigit).ToArray());
 
     /// <summary>Resolves the ICAO designator (VAV/VAC/VAH) for a given aircraft type.</summary>
     public static string IcaoPrefix(string? aircraftType)

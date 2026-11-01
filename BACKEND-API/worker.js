@@ -549,12 +549,72 @@ async function sbDelete(env, path) {
   return res.status;
 }
 
+// ── Route aircraft ───────────────────────────────────────────────────────────
+// A route can be flown by several aircraft (routes.aircraft, see the
+// routes_multiple_aircraft migration): [{type, fleet_group, flight_number?, frequency?,
+// est_block_time_minutes?}]. The single-aircraft columns mirror the first entry. Rows written
+// before that migration (or read through a select that omits the column) fall back to a
+// one-entry list built from those columns.
+function routeAircraftList(row) {
+  if (Array.isArray(row.aircraft) && row.aircraft.length > 0) return row.aircraft;
+  if (!row.aircraft_type) return [];
+  const entry = { type: row.aircraft_type, fleet_group: row.fleet_group };
+  if (row.flight_number) entry.flight_number = row.flight_number;
+  if (row.frequency) entry.frequency = row.frequency;
+  if (row.est_block_time_minutes) entry.est_block_time_minutes = row.est_block_time_minutes;
+  return [entry];
+}
+
+// "ATR 72" and "ATR72", "b738" and "B738" are the same aircraft.
+function sameAircraftType(a, b) {
+  const norm = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return norm(a) !== "" && norm(a) === norm(b);
+}
+
+// Validates the admin panel's aircraft list. Returns { list } or { error }.
+function parseRouteAircraftList(raw) {
+  if (!Array.isArray(raw) || raw.length === 0) return { error: "Add at least one aircraft" };
+  if (raw.length > 12) return { error: "A route can have at most 12 aircraft" };
+  const list = [];
+  for (let i = 0; i < raw.length; i++) {
+    const e = raw[i] || {};
+    const type = String(e.type || "").trim().substring(0, 20);
+    const fleet = String(e.fleet_group || "").trim().toLowerCase();
+    if (!type) return { error: `Aircraft ${i + 1}: choose a type` };
+    if (!VALID_FLEET_GROUPS.includes(fleet)) return { error: `Aircraft ${i + 1}: choose Mainline, CityHopper or Cargo` };
+    if (list.some(x => sameAircraftType(x.type, type))) return { error: `${type} is listed twice on this route` };
+    const entry = { type, fleet_group: fleet };
+    const flightNumber = String(e.flight_number || "").trim().toUpperCase().substring(0, 10);
+    if (flightNumber) entry.flight_number = flightNumber;
+    const frequency = String(e.frequency || "").trim().substring(0, 30);
+    if (frequency) entry.frequency = frequency;
+    const block = parseInt(e.est_block_time_minutes, 10);
+    if (block > 0) entry.est_block_time_minutes = block;
+    list.push(entry);
+  }
+  return { list };
+}
+
+// The single-aircraft columns for a list (its first entry). The database trigger does the
+// same; set here too so the response is right even before that migration runs.
+function primaryAircraftColumns(list) {
+  const p = list[0];
+  return {
+    aircraft_type: p.type,
+    fleet_group: p.fleet_group,
+    flight_number: p.flight_number || null,
+    frequency: p.frequency || null,
+    est_block_time_minutes: p.est_block_time_minutes || null,
+  };
+}
+
 function transformRouteRecord(row) {
   return {
     id: row.id,
     departure: row.origin_iata,
     arrival: row.dest_iata,
     aircraft: row.aircraft_type,
+    aircraftList: routeAircraftList(row),
     distance: row.distance_km,
     flightTime: row.est_block_time_minutes,
     originName: row.origin_name,
@@ -1280,9 +1340,18 @@ export default {
           if (!departure || !/^[A-Z]{4}$/.test(departure)) return json({ success: false, error: "Departure must be valid 4-letter ICAO code" }, 400, corsHeaders);
           if (!arrival || !/^[A-Z]{4}$/.test(arrival)) return json({ success: false, error: "Arrival must be valid 4-letter ICAO code" }, 400, corsHeaders);
           if (departure === arrival) return json({ success: false, error: "Departure and arrival cannot be the same" }, 400, corsHeaders);
-          if (!aircraft) return json({ success: false, error: "Aircraft type is required" }, 400, corsHeaders);
+          // The admin panel sends aircraftList (every aircraft flying the route); older callers
+          // send the single aircraft/fleet_group pair.
+          let aircraftList = null;
+          if (body.aircraftList !== undefined) {
+            const parsed = parseRouteAircraftList(body.aircraftList);
+            if (parsed.error) return json({ success: false, error: parsed.error }, 400, corsHeaders);
+            aircraftList = parsed.list;
+          } else {
+            if (!aircraft) return json({ success: false, error: "Aircraft type is required" }, 400, corsHeaders);
+            if (!VALID_FLEET_GROUPS.includes(fleetGroup)) return json({ success: false, error: "Invalid fleet group" }, 400, corsHeaders);
+          }
           if (distanceKm <= 0) return json({ success: false, error: "Distance must be greater than 0" }, 400, corsHeaders);
-          if (!VALID_FLEET_GROUPS.includes(fleetGroup)) return json({ success: false, error: "Invalid fleet group" }, 400, corsHeaders);
 
           try {
             const inserted = await sbInsert(env, "routes", {
@@ -1301,6 +1370,7 @@ export default {
               frequency: frequency || null,
               notes: notes || null,
               fleet_group: fleetGroup,
+              ...(aircraftList ? { aircraft: aircraftList, ...primaryAircraftColumns(aircraftList) } : {}),
             });
             purgeCache(env, ctx, ['/api/routes?limit=500', '/api/routes/summary', '/api/public/stats']);
             return json({ success: true, data: transformRouteRecord(inserted[0]) }, 201, corsHeaders);
@@ -1339,6 +1409,12 @@ export default {
               return json({ success: false, error: "Invalid fleet group" }, 400, corsHeaders);
             }
             updates.fleet_group = rawFleetGroup;
+          }
+          if (body.aircraftList !== undefined) {
+            const parsed = parseRouteAircraftList(body.aircraftList);
+            if (parsed.error) return json({ success: false, error: parsed.error }, 400, corsHeaders);
+            updates.aircraft = parsed.list;
+            Object.assign(updates, primaryAircraftColumns(parsed.list));
           }
 
           try {
@@ -2761,11 +2837,12 @@ async function handleRoutesApi(request, env, corsHeaders, ctx) {
       const cached = await fromCache(request, corsHeaders);
       if (cached) return cached;
 
-      const rows    = await sbRpc(env, "get_routes_summary");
-      const summary = { mainline: 0, cargo: 0, cityhopper: 0, total: 0 };
+      // A route flown by two subsidiaries counts under each, so the total is a plain row
+      // count rather than the sum of the per-fleet figures.
+      const [rows, total] = await Promise.all([sbRpc(env, "get_routes_summary"), sbCount(env, "routes", "id=gt.0")]);
+      const summary = { mainline: 0, cargo: 0, cityhopper: 0, total };
       for (const row of (rows || [])) {
         summary[row.fleet_group] = Number(row.count);
-        summary.total += Number(row.count);
       }
       return cachedJsonResponse(ctx, request, { summary }, 86400, corsHeaders);
     }
@@ -3106,9 +3183,19 @@ async function handleBookingsApi(request, env, corsHeaders) {
         routeId = parseInt(body.route_id, 10);
         if (!routeId || isNaN(routeId)) return json({ error: "Valid route_id required" }, 400, corsHeaders);
 
-        const routeRows = await sbGet(env, `routes?id=eq.${routeId}&select=id,fleet_group&limit=1`);
+        const routeRows = await sbGet(env, `routes?id=eq.${routeId}&select=*&limit=1`);
         if (!routeRows || routeRows.length === 0) {
           return json({ error: "Route not found" }, 404, corsHeaders);
+        }
+
+        // The booked aircraft must be one the route is flown with; its subsidiary (not the
+        // route's first aircraft's) is what the pilot's subsidiary is checked against.
+        const routeAircraft = routeAircraftList(routeRows[0]);
+        const bookedAircraft = routeAircraft.find(e => sameAircraftType(e.type, aircraftType));
+        if (routeAircraft.length > 0 && !bookedAircraft) {
+          return json({
+            error: `This route isn't flown with ${aircraftType}. Choose one of: ${routeAircraft.map(e => e.type).join(", ")}.`,
+          }, 400, corsHeaders);
         }
 
         // Subsidiary lock: a normal (non-charter) booking must be for the pilot's own
@@ -3122,7 +3209,7 @@ async function handleBookingsApi(request, env, corsHeaders) {
         const pilotRows = await sbGet(env,
           `users?acars_key=eq.${encodeURIComponent(principal.acarsKey)}&select=subsidiary&limit=1`);
         const pilotSubsidiary = pilotRows?.[0]?.subsidiary || null;
-        const routeSubsidiary = routeRows[0].fleet_group;
+        const routeSubsidiary = bookedAircraft?.fleet_group || routeRows[0].fleet_group;
         if (!pilotSubsidiary) {
           return json({
             error: "Choose a subsidiary (Mainline, Cityhopper, or Sky Cargo) at flyaviatesair.uk/portal/profile before booking a scheduled route -- or use Charter, which has no subsidiary restriction.",

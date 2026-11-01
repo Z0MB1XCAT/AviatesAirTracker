@@ -51,6 +51,7 @@
     <Compile Include="../../AviatesAirTracker/Core/SimConnect/SimConnectDefinitions.cs" Link="Core/SimConnect/SimConnectDefinitions.cs" />
     <Compile Include="../../AviatesAirTracker/Models/FlightModels.cs" Link="Models/FlightModels.cs" />
     <Compile Include="../../AviatesAirTracker/Core/Data/JsonFileStore.cs" Link="Core/Data/JsonFileStore.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/RoutesService.cs" Link="Services/RoutesService.cs" />
     <Compile Include="../../AviatesAirTracker/Platform/WindowPlacementLogic.cs" Link="Platform/WindowPlacementLogic.cs" />
     <Compile Include="../../AviatesAirTracker/Services/StartupLaunchService.cs" Link="Services/StartupLaunchService.cs" />
     <Compile Include="../../AviatesAirTracker/Services/PreflightReadiness.cs" Link="Services/PreflightReadiness.cs" />

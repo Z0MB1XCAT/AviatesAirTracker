@@ -247,7 +247,8 @@ public class BookingService
                     created.OriginName    = route.OriginName;
                     created.DestName      = route.DestName;
                     created.RouteCallsign = route.Callsign;
-                    created.RouteFlightNumber = route.FlightNumber;
+                    created.RouteFlightNumber = route.AircraftFor(aircraftType)?.FlightNumber is { Length: > 0 } fn
+                        ? fn : route.FlightNumber;
                 }
                 Log.Information("[BookingService] Booking created: {Callsign} {Orig}→{Dest}",
                     callsign, route.OriginIata, route.DestIata);

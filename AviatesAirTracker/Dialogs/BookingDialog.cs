@@ -72,13 +72,22 @@ public static class BookingDialog
         var registrationNone = BuildInlineStatus("No registrations available for this aircraft", spin: false);
         registrationNone.Visibility = Visibility.Collapsed;
 
+        // ── Aircraft: a route can be flown by several aircraft (possibly different
+        //    subsidiaries). Start on the first one the pilot's own subsidiary flies. ─────────────
+        var aircraftOptions = route.AircraftOptions;
+        var pilotSubsidiary = App.GetService<SettingsService>().Settings.Subsidiary;
+        var selectedAircraft = aircraftOptions.FirstOrDefault(a =>
+                                   string.Equals(a.FleetGroup, pilotSubsidiary, StringComparison.OrdinalIgnoreCase))
+                               ?? aircraftOptions[0];
+        Action<RouteAircraft>? aircraftChanged = null; // set once the dialog exists, below
+
         // ── Callsign preview + regenerate -- initial value untrimmed, matching
         //    OpenBookingModal's exact `GenerateCallsign(route.AircraftType)` call (the registration
         //    load below uses `.Trim()`; this one deliberately does not -- a real inconsistency in
         //    the original, preserved rather than "fixed"). ─────────────────────────────────────
         var callsignValueText = new TextBlock
         {
-            Text = RoutesViewModel.GenerateCallsign(route.AircraftType),
+            Text = RoutesViewModel.GenerateCallsign(selectedAircraft.Type),
             FontFamily = new FontFamily("Consolas"),
             FontSize = 16,
             FontWeight = Microsoft.UI.Text.FontWeights.Bold,
@@ -96,7 +105,7 @@ public static class BookingDialog
         };
         var regenerateText = new TextBlock { Text = "Regenerate", FontSize = 11.5, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = TextSecondaryBrush };
         regenerateBorder.Child = regenerateText;
-        void Regenerate() => callsignValueText.Text = RoutesViewModel.GenerateCallsign(route.AircraftType);
+        void Regenerate() => callsignValueText.Text = RoutesViewModel.GenerateCallsign(selectedAircraft.Type);
         regenerateBorder.Tapped += (_, _) => Regenerate();
         AviatesAirTracker.Platform.KeyboardActivation.Enable(regenerateBorder, Regenerate, "Generate a new callsign");
 
@@ -152,8 +161,8 @@ public static class BookingDialog
             Width = FieldWidth,
             Children =
             {
-                BuildStatsStrip(route),
-                BuildAircraftTypeField(route),
+                BuildStatsStrip(route, selectedAircraft),
+                BuildAircraftTypeField(route, aircraftOptions, selectedAircraft, pilotSubsidiary, a => aircraftChanged?.Invoke(a)),
                 BuildField("Departure Date", datePicker),
                 BuildField("Departure Time (UTC)", timePicker),
                 BuildRegistrationField(registrationCombo, registrationLoading, registrationNone),
@@ -192,7 +201,19 @@ public static class BookingDialog
         // Fire-and-forget: the dialog is shown immediately (loading indicator visible), and this
         // populates the ComboBox in place once FleetService responds -- matches OpenBookingModal's
         // own behavior (the modal renders before LoadRegistrationsAsync resolves, then re-renders).
-        _ = LoadRegistrationsAsync(viewModel, route, registrationCombo, registrationLoading, registrationNone, dialog);
+        _ = LoadRegistrationsAsync(viewModel, selectedAircraft.Type, registrationCombo, registrationLoading, registrationNone, dialog);
+
+        // Picking another aircraft changes its block time/subsidiary, its registrations and the
+        // callsign prefix.
+        aircraftChanged = aircraft =>
+        {
+            selectedAircraft = aircraft;
+            content.Children[0] = BuildStatsStrip(route, aircraft);
+            Regenerate();
+            errorBorder.Visibility = Visibility.Collapsed;
+            dialog.IsPrimaryButtonEnabled = false;
+            _ = LoadRegistrationsAsync(viewModel, aircraft.Type, registrationCombo, registrationLoading, registrationNone, dialog);
+        };
 
         var isSubmitting = false;
         dialog.PrimaryButtonClick += async (_, args) =>
@@ -234,7 +255,7 @@ public static class BookingDialog
                 isSubmitting = true;
                 var registration = (registrationCombo.SelectedItem as ComboBoxItem)?.Tag as string;
                 var (booking, error) = await viewModel.CreateBookingAsync(
-                    route, route.AircraftType.Trim(), registration, depUtc, callsignValueText.Text);
+                    route, selectedAircraft.Type.Trim(), registration, depUtc, callsignValueText.Text);
 
                 if (booking != null)
                 {
@@ -336,12 +357,13 @@ public static class BookingDialog
     }
 
     // ── Stats strip: distance / block time / fleet group, matching .booking-stats-strip. ───────
-    private static Border BuildStatsStrip(AviatesRoute route)
+    private static Border BuildStatsStrip(AviatesRoute route, RouteAircraft aircraft)
     {
+        var minutes = aircraft.BlockTimeMinutes ?? route.BlockTimeMinutes;
         var strip = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 18 };
         strip.Children.Add(BuildStat(route.DistanceNm.ToString(CultureInfo.InvariantCulture), "NM"));
-        strip.Children.Add(BuildStat(route.BlockTimeDisplay, "Block"));
-        strip.Children.Add(BuildStat(route.FleetGroup, "Type"));
+        strip.Children.Add(BuildStat(minutes >= 60 ? $"{minutes / 60}h {minutes % 60:D2}m" : $"{minutes}m", "Block"));
+        strip.Children.Add(BuildStat(string.IsNullOrEmpty(aircraft.FleetGroup) ? route.FleetGroup : aircraft.FleetGroup, "Type"));
 
         return new Border
         {
@@ -364,21 +386,53 @@ public static class BookingDialog
 
     // ── Aircraft type (fixed per route, not user-selectable) + subsidiary sub-line -- matches
     //    the original's read-only "form-input" div + "Flying for X" line exactly. ────────────────
-    private static StackPanel BuildAircraftTypeField(AviatesRoute route)
+    private static StackPanel BuildAircraftTypeField(
+        AviatesRoute route, IReadOnlyList<RouteAircraft> options, RouteAircraft selected, string? pilotSubsidiary,
+        Action<RouteAircraft> onChanged)
     {
-        var box = new Border
-        {
-            Background = Surface2Brush,
-            BorderBrush = BorderBrush_,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12, 9, 12, 9),
-            Child = new TextBlock { Text = route.AircraftType, FontFamily = new FontFamily("Consolas"), FontSize = 13, Foreground = TextPrimaryBrush },
-        };
-
-        var sub = new TextBlock { FontSize = 11.5, Foreground = TextMutedBrush };
+        var flyingFor = new Microsoft.UI.Xaml.Documents.Run { Text = Subsidiary.Name(selected.Type), Foreground = AccentBrush, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
+        var sub = new TextBlock { FontSize = 11.5, Foreground = TextMutedBrush, TextWrapping = TextWrapping.Wrap };
         sub.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "Flying for " });
-        sub.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = Subsidiary.Name(route.AircraftType), Foreground = AccentBrush, FontWeight = Microsoft.UI.Text.FontWeights.Bold });
+        sub.Inlines.Add(flyingFor);
+
+        FrameworkElement box;
+        if (options.Count > 1)
+        {
+            // Aircraft flown by another subsidiary are listed (so the pilot can see the route
+            // offers them) but can't be picked; the server refuses them anyway.
+            var combo = new ComboBox { Width = FieldWidth };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(combo, "Aircraft type");
+            foreach (var a in options)
+            {
+                var other = !string.IsNullOrEmpty(pilotSubsidiary) &&
+                            !string.Equals(a.FleetGroup, pilotSubsidiary, StringComparison.OrdinalIgnoreCase);
+                var label = a.Type
+                    + (string.IsNullOrEmpty(a.FlightNumber) ? "" : $"  ·  {a.FlightNumber}")
+                    + (string.IsNullOrEmpty(a.Frequency) ? "" : $"  ·  {a.Frequency}")
+                    + (other ? $"  ({a.FleetGroup} only)" : "");
+                combo.Items.Add(new ComboBoxItem { Content = label, Tag = a, IsEnabled = !other });
+            }
+            combo.SelectedIndex = options.ToList().IndexOf(selected);
+            combo.SelectionChanged += (_, _) =>
+            {
+                if ((combo.SelectedItem as ComboBoxItem)?.Tag is not RouteAircraft chosen) return;
+                flyingFor.Text = Subsidiary.Name(chosen.Type);
+                onChanged(chosen);
+            };
+            box = combo;
+        }
+        else
+        {
+            box = new Border
+            {
+                Background = Surface2Brush,
+                BorderBrush = BorderBrush_,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(12, 9, 12, 9),
+                Child = new TextBlock { Text = selected.Type, FontFamily = new FontFamily("Consolas"), FontSize = 13, Foreground = TextPrimaryBrush },
+            };
+        }
 
         return new StackPanel
         {
@@ -437,13 +491,13 @@ public static class BookingDialog
     // registration, then the first registration overall, then empty (no selection) if the list
     // itself is empty.
     private static async System.Threading.Tasks.Task LoadRegistrationsAsync(
-        RoutesViewModel viewModel, AviatesRoute route, ComboBox combo, StackPanel loading, StackPanel none, ContentDialog dialog)
+        RoutesViewModel viewModel, string aircraftType, ComboBox combo, StackPanel loading, StackPanel none, ContentDialog dialog)
     {
         loading.Visibility = Visibility.Visible;
         combo.Visibility = Visibility.Collapsed;
         none.Visibility = Visibility.Collapsed;
 
-        var registrations = await viewModel.LoadRegistrationsAsync(route.AircraftType.Trim());
+        var registrations = await viewModel.LoadRegistrationsAsync(aircraftType.Trim());
 
         combo.Items.Clear();
         var defaultIndex = -1;

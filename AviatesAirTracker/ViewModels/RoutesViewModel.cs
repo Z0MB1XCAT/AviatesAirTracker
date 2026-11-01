@@ -142,10 +142,13 @@ public partial class RoutesViewModel : ObservableObject
                         "website before booking a scheduled route -- or use Charter, which has no subsidiary restriction.");
                 }
 
-                if (!string.Equals(route.FleetGroup, subsidiary, StringComparison.OrdinalIgnoreCase))
+                // A route can be flown by several subsidiaries; what matters is who flies the
+                // aircraft being booked.
+                var fleet = route.AircraftFor(aircraftType)?.FleetGroup is { Length: > 0 } f ? f : route.FleetGroup;
+                if (!string.Equals(fleet, subsidiary, StringComparison.OrdinalIgnoreCase))
                 {
-                    return (null, $"This route belongs to a different subsidiary ({route.FleetGroup}). " +
-                        $"You're currently assigned to {subsidiary} -- switch subsidiary on the website, or use Charter to bypass this.");
+                    return (null, $"The {aircraftType} on this route is flown by a different subsidiary ({fleet}). " +
+                        $"You're currently assigned to {subsidiary} -- pick an aircraft your subsidiary flies, switch subsidiary on the website, or use Charter.");
                 }
             }
         }
