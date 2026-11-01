@@ -1,5 +1,6 @@
 using AviatesAirTracker.Core.Backend;
 using AviatesAirTracker.Core.Reference;
+using AviatesAirTracker.Dialogs;
 using AviatesAirTracker.Models;
 using AviatesAirTracker.Platform;
 using AviatesAirTracker.Services;
@@ -10,6 +11,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Serilog;
 using System;
 using System.Collections.ObjectModel;
 using System.Globalization;
@@ -57,6 +59,13 @@ public sealed class FlightLogRow
     public Visibility ShowDeleteAction { get; set; } = Visibility.Collapsed;
     public Visibility ShowForceRemoveAction { get; set; } = Visibility.Collapsed;
 
+    // PIREP sync: Retry for one that couldn't be sent, Fix for one the server refused; the status
+    // chip's tooltip says why. Details opens the landing analysis when there was a landing.
+    public string? StatusTooltip { get; set; }
+    public Visibility ShowRetryAction { get; set; } = Visibility.Collapsed;
+    public Visibility ShowFixAction { get; set; } = Visibility.Collapsed;
+    public Visibility ShowDetailsAction { get; set; } = Visibility.Collapsed;
+
     // Needed by Task 4's delete/force-remove handlers to know which flight a row's action
     // buttons act on.
     public FlightRecord Source { get; set; } = null!;
@@ -93,6 +102,10 @@ public sealed class DeletionRequestRow
 
 public sealed partial class FlightsPage : Page
 {
+    // Enter/Space on a focused Border-as-button runs its Tapped handler (see KeyboardActivation).
+    private void OnActivateKey(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e) =>
+        AviatesAirTracker.Platform.KeyboardActivation.Handle(this, sender, e);
+
     // Shared brush constants used both by this page's own chip-color mapping below and as
     // FlightLogRow's default property values (same "internal-ish" reuse convention
     // PilotHubPage.xaml.cs established for its own grade brushes -- these are private since
@@ -154,6 +167,7 @@ public sealed partial class FlightsPage : Page
         InteractiveEffects.Attach(TabAllBorder, TabActiveBorder, TabCompletedBorder, TabPendingBorder, FilterBorder);
 
         _viewModel = App.GetService<FlightsViewModel>();
+        _pirepSync = App.GetService<PirepSyncService>();
         DataContext = _viewModel;
         FlightsList.ItemsSource = FlightRows;
         DeletionRequestsList.ItemsSource = PendingRequestRows;
@@ -162,11 +176,198 @@ public sealed partial class FlightsPage : Page
 
         Loaded += async (_, _) =>
         {
-            await _viewModel.RefreshAsync();
-            RefreshStatStrip();
-            RefreshActiveTabContent();
+            _pirepSync.SyncStateChanged += OnPirepSyncStateChanged;
+            await ReloadAsync();
             await ApplyAdminVisibilityAsync();
         };
+        Unloaded += (_, _) => _pirepSync.SyncStateChanged -= OnPirepSyncStateChanged;
+    }
+
+    private readonly PirepSyncService _pirepSync;
+    private bool _sendingPireps;
+
+    private async Task ReloadAsync()
+    {
+        await _viewModel.RefreshAsync();
+        RefreshStatStrip();
+        RefreshActiveTabContent();
+        RefreshPirepBanner();
+    }
+
+    // A background retry (startup, or another page) finished while this page is open.
+    private void OnPirepSyncStateChanged(object? sender, FlightRecord flight) =>
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            if (_sendingPireps) return; // this page's own Send now / Retry refreshes when done
+            try { await ReloadAsync(); }
+            catch (Exception ex) { Log.Warning(ex, "[Flights] Refresh after PIREP sync failed"); }
+        });
+
+    private void RefreshPirepBanner()
+    {
+        var unsent = _viewModel.Flights.Where(PirepSyncService.IsAwaitingSync).ToList();
+        var rejected = unsent.Count(f => f.SyncRejected);
+        var retryable = unsent.Count - rejected;
+
+        PirepBanner.Visibility = unsent.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (unsent.Count == 0) return;
+
+        PirepBannerTitle.Text = unsent.Count == 1
+            ? "1 PIREP hasn't reached Aviates Air"
+            : $"{unsent.Count} PIREPs haven't reached Aviates Air";
+        PirepBannerDetail.Text = (retryable, rejected) switch
+        {
+            (> 0, 0) => "They're retried automatically when the app starts, or send them now.",
+            (0, _) => "Aviates Air refused them. Use the edit button on each row to fix its details and send it again.",
+            _ => "Send the waiting ones now. The refused ones need their details fixed first (edit button on the row).",
+        };
+        RetryAllBorder.Visibility = retryable > 0 ? Visibility.Visible : Visibility.Collapsed;
+        RetryAllText.Text = _sendingPireps ? "Sending…" : "Send now";
+    }
+
+    private async void OnRetryAllTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (_sendingPireps) return;
+        _sendingPireps = true;
+        RefreshPirepBanner();
+        try
+        {
+            foreach (var flight in _viewModel.Flights.Where(f => PirepSyncService.IsAwaitingSync(f) && !f.SyncRejected).ToList())
+            {
+                var result = await _pirepSync.SubmitAsync(flight, announce: true);
+                if (result.StatusCode is 0 or 401) break; // offline or signed out: the rest would fail the same way
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Flights] Send now failed");
+        }
+        finally
+        {
+            _sendingPireps = false;
+            await ReloadAsync();
+        }
+    }
+
+    private async void OnRetryPirepTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: FlightLogRow row } || _sendingPireps) return;
+        _sendingPireps = true;
+        try { await _pirepSync.SubmitAsync(row.Source, announce: true); }
+        catch (Exception ex) { Log.Warning(ex, "[Flights] PIREP retry failed"); }
+        finally
+        {
+            _sendingPireps = false;
+            await ReloadAsync();
+        }
+    }
+
+    private async void OnFixPirepTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: FlightLogRow row }) return;
+        await ShowFixPirepDialogAsync(row.Source);
+    }
+
+    private void OnViewLandingTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: FlightLogRow { Source.PrimaryLanding: { } landing } }) return;
+        Frame?.Navigate(typeof(LandingAnalysisPage), landing.Id.ToString());
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex IcaoPattern = new("^[A-Z0-9]{4}$");
+
+    // A PIREP Aviates Air refused (most often: no departure/arrival airport, from a flight
+    // started before the booking was attached). The pilot fills in what's missing and it's sent
+    // again straight away.
+    private async Task ShowFixPirepDialogAsync(FlightRecord flight)
+    {
+        TextBox Field(string header, string value, string placeholder, int max) => new()
+        {
+            Header = header,
+            Text = value,
+            PlaceholderText = placeholder,
+            MaxLength = max,
+            CharacterCasing = CharacterCasing.Upper,
+        };
+
+        var dep = Field("Departure airport (ICAO)", flight.DepartureICAO, "EGLL", 4);
+        var arr = Field("Arrival airport (ICAO)", flight.ArrivalICAO, "LFPG", 4);
+        var number = Field("Flight number", flight.FlightNumber, flight.Callsign, 10);
+        var type = Field("Aircraft type", flight.AircraftType, "A320", 10);
+
+        var reason = new TextBlock
+        {
+            Text = flight.SyncError ?? "Aviates Air refused this PIREP.",
+            FontSize = 12, Foreground = StatusAmber, TextWrapping = TextWrapping.Wrap,
+        };
+        var errorText = new TextBlock
+        {
+            FontSize = 11.5, Foreground = StatusRed, TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed,
+        };
+        var airports = new Grid { ColumnSpacing = 12 };
+        airports.ColumnDefinitions.Add(new ColumnDefinition());
+        airports.ColumnDefinitions.Add(new ColumnDefinition());
+        Grid.SetColumn(arr, 1);
+        airports.Children.Add(dep);
+        airports.Children.Add(arr);
+
+        var details = new Grid { ColumnSpacing = 12 };
+        details.ColumnDefinitions.Add(new ColumnDefinition());
+        details.ColumnDefinitions.Add(new ColumnDefinition());
+        Grid.SetColumn(type, 1);
+        details.Children.Add(number);
+        details.Children.Add(type);
+
+        var panel = new StackPanel { Spacing = 12, Width = 380, Children = { reason, airports, details, errorText } };
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = this.XamlRoot,
+            Title = BuildDialogHeader("Fix PIREP details",
+                $"Flown {flight.BlockOutTime.ToLocalTime().ToString("d MMM yyyy, HH:mm", CultureInfo.InvariantCulture)}. Correct what's missing and send it again."),
+            Content = panel,
+            PrimaryButtonText = "Save and send",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+
+        var busy = false;
+        dialog.PrimaryButtonClick += async (_, args) =>
+        {
+            if (busy) { args.Cancel = true; return; }
+            var d = dep.Text.Trim().ToUpperInvariant();
+            var a = arr.Text.Trim().ToUpperInvariant();
+            if (!IcaoPattern.IsMatch(d) || !IcaoPattern.IsMatch(a))
+            {
+                errorText.Text = "Enter both airports as 4-character ICAO codes, like EGLL.";
+                errorText.Visibility = Visibility.Visible;
+                args.Cancel = true;
+                return;
+            }
+
+            var deferral = args.GetDeferral();
+            busy = true;
+            _sendingPireps = true;
+            try
+            {
+                var result = await _pirepSync.FixAndResubmitAsync(flight, d, a, number.Text, type.Text);
+                if (!result.Success && result.IsPermanent)
+                {
+                    errorText.Text = flight.SyncError ?? "Aviates Air refused it again.";
+                    errorText.Visibility = Visibility.Visible;
+                    args.Cancel = true;
+                }
+            }
+            finally
+            {
+                busy = false;
+                _sendingPireps = false;
+                deferral.Complete();
+            }
+        };
+
+        await dialog.ShowQueuedAsync();
+        await ReloadAsync();
     }
 
     // Pending Review (the flight-deletion request queue) is only meaningful for the small
@@ -348,8 +549,13 @@ public sealed partial class FlightsPage : Page
                     ? Visibility.Visible : Visibility.Collapsed,
                 ShowForceRemoveAction = f.Status == FlightStatus.InProgress
                     ? Visibility.Visible : Visibility.Collapsed,
+                ShowDetailsAction = f.PrimaryLanding != null ? Visibility.Visible : Visibility.Collapsed,
                 Source = f,
             };
+
+            var awaitingSync = PirepSyncService.IsAwaitingSync(f);
+            row.ShowRetryAction = awaitingSync && !f.SyncRejected && !hasPendingDelete ? Visibility.Visible : Visibility.Collapsed;
+            row.ShowFixAction = awaitingSync && f.SyncRejected && !hasPendingDelete ? Visibility.Visible : Visibility.Collapsed;
 
             if (f.PrimaryLanding != null)
             {
@@ -368,6 +574,15 @@ public sealed partial class FlightsPage : Page
                 row.StatusLabel = "Del. Pending";
                 row.StatusChipColor = StatusRed;
                 row.StatusChipBackground = StatusRedBg;
+            }
+            else if (awaitingSync)
+            {
+                // The flight is done but Aviates Air doesn't have it yet -- more useful to see
+                // than "Completed" until it's sorted.
+                row.StatusLabel = f.SyncRejected ? "PIREP refused" : "Not sent";
+                row.StatusChipColor = f.SyncRejected ? StatusRed : StatusAmber;
+                row.StatusChipBackground = f.SyncRejected ? StatusRedBg : StatusAmberBg;
+                row.StatusTooltip = f.SyncError ?? "Waiting to be sent to Aviates Air.";
             }
             else if (f.RequiresReview)
             {
@@ -535,7 +750,7 @@ public sealed partial class FlightsPage : Page
             RefreshActiveTabContent();
         };
 
-        await dialog.ShowAsync();
+        await dialog.ShowQueuedAsync();
     }
 
     private void UpdateFilterBadge()
@@ -674,7 +889,7 @@ public sealed partial class FlightsPage : Page
             }
         };
 
-        await dialog.ShowAsync();
+        await dialog.ShowQueuedAsync();
     }
 
     // Exact copy from Flights.razor's force-remove modal: title, subtitle, and body text -- read
@@ -723,6 +938,6 @@ public sealed partial class FlightsPage : Page
             }
         };
 
-        await dialog.ShowAsync();
+        await dialog.ShowQueuedAsync();
     }
 }

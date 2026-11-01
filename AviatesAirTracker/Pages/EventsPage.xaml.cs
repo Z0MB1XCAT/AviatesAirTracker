@@ -73,6 +73,10 @@ public sealed class EventDisplayRow
 
 public sealed partial class EventsPage : Page
 {
+    // Enter/Space on a focused Border-as-button runs its Tapped handler (see KeyboardActivation).
+    private void OnActivateKey(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e) =>
+        AviatesAirTracker.Platform.KeyboardActivation.Handle(this, sender, e);
+
     // Dark-theme hex values read directly from wwwroot/css/app.css's html[data-theme="dark"]
     // block (surface #0C111D, border rgba(255,255,255,0.08), text-primary #F1F5F9, text-muted
     // #64748B, accent #4D9BEC, accent-light rgba(77,155,236,0.12), accent-glow

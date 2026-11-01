@@ -48,6 +48,10 @@ public sealed class RouteDisplayRow
 
 public sealed partial class RoutesPage : Page
 {
+    // Enter/Space on a focused Border-as-button runs its Tapped handler (see KeyboardActivation).
+    private void OnActivateKey(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e) =>
+        AviatesAirTracker.Platform.KeyboardActivation.Handle(this, sender, e);
+
     // Fleet-group icon colors: matches Routes.razor's own GetFleetColor switch exactly
     // (mainline -> blue, cargo -> amber, cityhopper -> cyan, default -> blue), using the same
     // hex values app.css's --accent/--amber/--cyan tokens resolve to in the dark theme.

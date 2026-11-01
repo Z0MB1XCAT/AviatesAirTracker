@@ -52,6 +52,7 @@ public static class LandingComplianceChecker
         // 737 FLAPS 25, A320 family CONF 3), else the generic 70 % — a legal minimum-flap
         // landing must never be held for review.
         double landingFlapPercent = EfbCompanyPolicy.MinLandingFlapPercent(aircraftType ?? profile?.Code);
+        result.LandingFlapTargetPct = landingFlapPercent;
 
         var violations = new List<string>();
 
@@ -104,6 +105,8 @@ public static class LandingComplianceChecker
                 var minSpeed = vref;
                 var maxSpeed = profile.VrefLandingRef * weightFactor * minFlap.VSpeedFactor + ApproachSpeedMarginKts;
 
+                result.ApproachSpeedMinKts = Math.Round(minSpeed);
+                result.ApproachSpeedMaxKts = Math.Round(maxSpeed);
                 result.SpeedStabilizedBy1000Ft = at1000.IASKts >= minSpeed && at1000.IASKts <= maxSpeed;
                 if (!result.SpeedStabilizedBy1000Ft)
                 {

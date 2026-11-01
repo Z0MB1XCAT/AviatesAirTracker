@@ -80,6 +80,10 @@ public sealed class HoppiesLogDisplayRow
 /// </summary>
 public sealed partial class AcarsPage : Page
 {
+    // Enter/Space on a focused Border-as-button runs its Tapped handler (see KeyboardActivation).
+    private void OnActivateKey(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e) =>
+        AviatesAirTracker.Platform.KeyboardActivation.Handle(this, sender, e);
+
     // Dark-theme hex values read directly from wwwroot/css/app.css's html[data-theme="dark"]
     // block -- same values every prior native page in this migration hardcodes (surface #0C111D,
     // surface-2 #121A2A, border rgba(255,255,255,0.08) = #14FFFFFF, text-primary #F1F5F9,
@@ -219,6 +223,9 @@ public sealed partial class AcarsPage : Page
         // FlightSessionManager.OnEnginesStarted enforces the real "no tracking" rule -- this only
         // decides what the page shows, so the two are allowed to use different booking sources.
         var currentBooking = await _booking.GetCurrentBookingAsync();
+        // Navigated away during the fetch: Unloaded has already run, so starting the clock and
+        // METAR timers below would leave them ticking on a dead page for the rest of the session.
+        if (!IsLoaded) return;
         var activated = currentBooking is { IsActivated: true };
         BookingGateGrid.Visibility = activated ? Visibility.Collapsed : Visibility.Visible;
         if (!activated)
@@ -289,6 +296,7 @@ public sealed partial class AcarsPage : Page
 
     private void RefreshAllSections()
     {
+        UpdateReadiness();
         UpdateConnectionBanner();
         UpdateBookingBanner();
         UpdateAircraftIdStrip();
@@ -331,6 +339,7 @@ public sealed partial class AcarsPage : Page
             {
                 UpdateConnectionBanner();
                 UpdatePhaseLadder();
+                UpdateReadiness();
             }
             catch (Exception ex)
             {
@@ -371,6 +380,7 @@ public sealed partial class AcarsPage : Page
                 UpdateProgressStrip();
                 UpdateBookingBanner();
                 UpdatePhaseLadder();
+                UpdateReadiness();
 
                 _renderer.UpdatePosition(snap.Latitude, snap.Longitude, snap.Raw.HeadingTrue);
                 var trail = _vm.GetTrailIfChanged();
@@ -385,6 +395,64 @@ public sealed partial class AcarsPage : Page
     }
 
     // ── Connection status banner ────────────────────────────────────────────────────────────
+
+    // ── Pre-flight readiness ────────────────────────────────────────────────────────────────
+
+    private string _readinessSignature = "";
+
+    private void UpdateReadiness()
+    {
+        var tracking = _session.State != FlightSessionState.Idle;
+        ReadinessBorder.Visibility = tracking ? Visibility.Collapsed : Visibility.Visible;
+        if (tracking) return;
+
+        var items = _vm.GetReadiness();
+        // Rebuilt only when something changed: this runs on the 4 Hz telemetry tick.
+        var signature = string.Join("|", items.Select(i => $"{i.State}:{i.Detail}"));
+        if (signature == _readinessSignature) return;
+        _readinessSignature = signature;
+
+        var blocked = items.Count(i => i.State == ReadinessState.Blocked);
+        var warnings = items.Count(i => i.State == ReadinessState.Warning);
+        (ReadinessSummaryText.Text, ReadinessSummaryText.Foreground) = (blocked, warnings) switch
+        {
+            (0, 0) => ("Ready to fly", BrushFromHex("#3EC7AC")),
+            ( > 0, _) => ($"{blocked} to sort out", BrushFromHex("#EF4444")),
+            _ => ($"{warnings} to check", BrushFromHex("#F59E0B")),
+        };
+
+        ReadinessGrid.Children.Clear();
+        ReadinessGrid.RowDefinitions.Clear();
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (i % 2 == 0) ReadinessGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var item = items[i];
+            var (glyph, hex) = item.State switch
+            {
+                ReadinessState.Ready => ("\uE73E", "#3EC7AC"),
+                ReadinessState.Warning => ("\uE7BA", "#F59E0B"),
+                ReadinessState.Blocked => ("\uEA39", "#EF4444"),
+                _ => ("\uE9CE", "#64748B"),
+            };
+            var row = new Grid { ColumnSpacing = 12 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.Children.Add(new FontIcon
+            {
+                FontFamily = new FontFamily("Segoe Fluent Icons"), Glyph = glyph, FontSize = 14,
+                Foreground = BrushFromHex(hex), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 0, 0),
+            });
+            var text = new StackPanel { Spacing = 2 };
+            text.Children.Add(new TextBlock { Text = item.Title, FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = BrushFromHex("#F1F5F9") });
+            text.Children.Add(new TextBlock { Text = item.Detail, FontSize = 12.5, Foreground = BrushFromHex("#94A3B8"), TextWrapping = TextWrapping.Wrap });
+            Grid.SetColumn(text, 1);
+            row.Children.Add(text);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(row, $"{item.Title}: {item.State}. {item.Detail}");
+            Grid.SetRow(row, i / 2);
+            Grid.SetColumn(row, i % 2);
+            ReadinessGrid.Children.Add(row);
+        }
+    }
 
     private void UpdateConnectionBanner()
     {

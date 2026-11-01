@@ -274,11 +274,15 @@ public class SimConnectManager : IDisposable
     // WINDOW HANDLE  (called by MainWindow after load)
     // =====================================================
 
+    /// <summary>Settings' "Auto-connect to MSFS". Off: no connection attempts at launch or on the
+    /// 5 s retry -- only when the pilot presses Connect.</summary>
+    public bool AutoConnect { get; set; } = true;
+
     public void SetWindowHandle(IntPtr hwnd)
     {
         _hwnd = hwnd;
         InitReconnectTimer();
-        if (HasAnySdk)
+        if (HasAnySdk && AutoConnect)
             TryConnect();
         else
             Log.Information("[SimConnect] Stub mode — SetWindowHandle ignored.");
@@ -335,10 +339,23 @@ public class SimConnectManager : IDisposable
 
             if (_sdkVersionLoaded == SimVersion.None) return;
         }
+        else if (DetectRunningSim() == SimVersion.None)
+        {
+            // Once an SDK is loaded, every 5 s reconnect tick after the sim closed used to flip
+            // the status Connecting → Disconnected (ACARS banner flicker, two status events, a
+            // COMException) just to learn the sim still isn't running.
+            return;
+        }
 
         try
         {
             Log.Information("[SimConnect] Connecting to {Sim}...", _sdkVersionLoaded);
+            // A previous attempt whose open handshake never arrived is replaced, not leaked.
+            if (_simConnect != null)
+            {
+                try { (_simConnect as IDisposable)?.Dispose(); } catch { }
+                _simConnect = null;
+            }
             UpdateStatus(SimConnectionStatus.Connecting);
 
             // new SimConnect(name, hwnd, msgId, null, 0)
@@ -788,7 +805,7 @@ public class SimConnectManager : IDisposable
         _reconnectTimer.Interval = TimeSpan.FromSeconds(5);
         _reconnectTimer.Tick += (_, _) =>
         {
-            if (!_connected && HasAnySdk && _hwnd != IntPtr.Zero)
+            if (!_connected && AutoConnect && HasAnySdk && _hwnd != IntPtr.Zero)
                 TryConnect();
         };
         _reconnectTimer.Start();

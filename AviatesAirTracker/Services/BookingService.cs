@@ -50,6 +50,9 @@ public class FlightBooking
     public bool IsCancelled => Status == "cancelled";
 
     [JsonIgnore]
+    public bool IsCompleted => Status == "completed";
+
+    [JsonIgnore]
     public bool IsPast => ScheduledDepUtc < DateTime.UtcNow;
 
     [JsonIgnore]
@@ -208,7 +211,7 @@ public class BookingService
 
         // Client-side guard: fetch current bookings and check limit
         var existing = await GetBookingsAsync();
-        var active   = existing.Where(b => !b.IsCancelled && !b.IsPast).ToList();
+        var active   = existing.Where(b => !b.IsCancelled && !b.IsCompleted && !b.IsPast).ToList();
         if (active.Count >= MaxBookings)
             return (null, $"You already have {MaxBookings} active bookings. Cancel one to add another.");
 
@@ -281,7 +284,7 @@ public class BookingService
             return (null, "No ACARS key configured. Please set your ACARS key in Settings.");
 
         var existing = await GetBookingsAsync();
-        var active   = existing.Where(b => !b.IsCancelled && !b.IsPast).ToList();
+        var active   = existing.Where(b => !b.IsCancelled && !b.IsCompleted && !b.IsPast).ToList();
         if (active.Count >= MaxBookings)
             return (null, $"You already have {MaxBookings} active bookings. Cancel one to add another.");
 
@@ -478,8 +481,10 @@ public class BookingService
 
     public async Task<FlightBooking?> GetCurrentBookingAsync()
     {
+        // The server returns every booking the pilot ever made, newest departure first -- a
+        // completed one is history, not the current booking.
         var bookings = await GetBookingsAsync();
-        return bookings.FirstOrDefault(b => !b.IsCancelled);
+        return bookings.FirstOrDefault(b => !b.IsCancelled && !b.IsCompleted);
     }
 
     /// <summary>If <paramref name="booking"/>'s scheduled departure has passed and it was never

@@ -57,6 +57,10 @@ public sealed class CrewDisplayRow
 
 public sealed partial class MessagesPage : Page
 {
+    // Enter/Space on a focused Border-as-button runs its Tapped handler (see KeyboardActivation).
+    private void OnActivateKey(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e) =>
+        AviatesAirTracker.Platform.KeyboardActivation.Handle(this, sender, e);
+
     // Dark-theme hex values read directly from wwwroot/css/app.css's html[data-theme="dark"]
     // block, the same values every prior native page in this migration hardcodes.
     private static readonly Brush AccentBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x4D, 0x9B, 0xEC));

@@ -54,18 +54,21 @@
             <StackPanel Spacing="4">
                 <Border x:Name="CenterButtonBorder" Width="28" Height="28"
                         Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
+                        IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnCenterOnAircraftTapped" AutomationProperties.Name="Centre on aircraft"
                         Tapped="OnCenterOnAircraftTapped">
                     <TextBlock Text="✈" FontSize="14" Foreground="#A6FFFFFF"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <Border x:Name="ZoomInButtonBorder" Width="28" Height="28"
                         Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
+                        IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnZoomInTapped" AutomationProperties.Name="Zoom in"
                         Tapped="OnZoomInTapped">
                     <TextBlock Text="+" FontSize="14" Foreground="#A6FFFFFF"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <Border x:Name="ZoomOutButtonBorder" Width="28" Height="28"
                         Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
+                        IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnZoomOutTapped" AutomationProperties.Name="Zoom out"
                         Tapped="OnZoomOutTapped">
                     <TextBlock Text="−" FontSize="14" Foreground="#A6FFFFFF"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -77,18 +80,21 @@
                      while its layer is switched on. -->
                 <Border x:Name="WeatherRadarButtonBorder" Width="28" Height="28"
                         Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
+                        IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnWeatherRadarTapped" AutomationProperties.Name="Weather Radar"
                         Tapped="OnWeatherRadarTapped" ToolTipService.ToolTip="Weather Radar">
                     <TextBlock Text="W" FontFamily="Consolas" FontWeight="Bold" FontSize="12" Foreground="#A6FFFFFF"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <Border x:Name="VatsimButtonBorder" Width="28" Height="28"
                         Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
+                        IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnVatsimTapped" AutomationProperties.Name="VATSIM Traffic + ATC"
                         Tapped="OnVatsimTapped" ToolTipService.ToolTip="VATSIM Traffic + ATC">
                     <TextBlock Text="V" FontFamily="Consolas" FontWeight="Bold" FontSize="12" Foreground="#A6FFFFFF"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <Border x:Name="IvaoButtonBorder" Width="28" Height="28"
                         Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
+                        IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnIvaoTapped" AutomationProperties.Name="IVAO Traffic + ATC"
                         Tapped="OnIvaoTapped" ToolTipService.ToolTip="IVAO Traffic + ATC">
                     <TextBlock Text="I" FontFamily="Consolas" FontWeight="Bold" FontSize="12" Foreground="#A6FFFFFF"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -133,6 +139,7 @@
                         </Border>
                         <Border x:Name="PilotDetailCloseButton" Grid.Column="2" Width="18" Height="18"
                                 Background="Transparent" VerticalAlignment="Center" Margin="6,0,0,0"
+                                IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnPilotDetailCloseTapped" AutomationProperties.Name="Close pilot details"
                                 Tapped="OnPilotDetailCloseTapped">
                             <TextBlock Text="×" FontSize="14" Foreground="#66FFFFFF"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -170,6 +177,7 @@
                                FontFamily="Consolas" FontSize="8" CharacterSpacing="80" Foreground="#61FFFFFF" />
                     <Border Height="1" Background="#263D7EEE" />
                     <Border Height="22" Background="#143D7EEE" BorderBrush="#403D7EEE" BorderThickness="1" CornerRadius="5"
+                            IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnMessagePilotTapped" AutomationProperties.Name="Message pilot"
                             Tapped="OnMessagePilotTapped">
                         <TextBlock Text="MESSAGE" HorizontalAlignment="Center" VerticalAlignment="Center"
                                    FontFamily="Consolas" FontSize="9" CharacterSpacing="60" Foreground="#A6FFFFFF" />

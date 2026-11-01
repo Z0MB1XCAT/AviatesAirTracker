@@ -96,7 +96,9 @@ public static class BookingDialog
         };
         var regenerateText = new TextBlock { Text = "Regenerate", FontSize = 11.5, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = TextSecondaryBrush };
         regenerateBorder.Child = regenerateText;
-        regenerateBorder.Tapped += (_, _) => callsignValueText.Text = RoutesViewModel.GenerateCallsign(route.AircraftType);
+        void Regenerate() => callsignValueText.Text = RoutesViewModel.GenerateCallsign(route.AircraftType);
+        regenerateBorder.Tapped += (_, _) => Regenerate();
+        AviatesAirTracker.Platform.KeyboardActivation.Enable(regenerateBorder, Regenerate, "Generate a new callsign");
 
         var callsignRow = new Border
         {
@@ -259,7 +261,7 @@ public static class BookingDialog
             }
         };
 
-        await dialog.ShowAsync();
+        await dialog.ShowQueuedAsync();
     }
 
     // Recolors the dialog's native Primary/Close buttons to match this dialog's own dark palette

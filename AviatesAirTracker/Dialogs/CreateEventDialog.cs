@@ -306,7 +306,7 @@ public static class CreateEventDialog
             }
         };
 
-        await dialog.ShowAsync();
+        await dialog.ShowQueuedAsync();
         return created;
     }
 

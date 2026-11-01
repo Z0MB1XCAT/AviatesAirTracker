@@ -108,6 +108,14 @@ public class FlightRecord
     // TODO: Connect to Aviates Air backend SQL database
     // When backend is available, set SyncedToBackend = true after upload
     public bool SyncedToBackend { get; set; } = false;
+
+    // Outcome of the last PIREP submission that didn't succeed (null once synced). SyncRejected
+    // means the server refused the data itself (HTTP 400, e.g. missing airports): retrying the
+    // same record can never work, so it is not retried automatically until the pilot fixes it
+    // from the Flights page.
+    public string? SyncError { get; set; }
+    public bool SyncRejected { get; set; }
+    public DateTime? LastSyncAttemptUtc { get; set; }
     public string? BackendRecordId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -212,6 +220,13 @@ public class LandingResult
     public bool FlapsConfiguredBy1000Ft { get; set; } = true;
     public bool GearDownBy1000Ft { get; set; } = true;
     public bool SpeedStabilizedBy1000Ft { get; set; } = true;
+
+    // The targets those checks were measured against, kept so the landing analysis can show
+    // "136 kt (target 131-146)" rather than a bare pass/fail. 0 = not known (no performance
+    // profile for the aircraft, or a landing recorded before these were stored).
+    public double ApproachSpeedMinKts { get; set; }
+    public double ApproachSpeedMaxKts { get; set; }
+    public double LandingFlapTargetPct { get; set; }
 
     // Human-readable reasons a pilot/reviewer can read directly -- e.g. "Hard landing: touchdown
     // vertical speed was 912 fpm (limit 800 fpm)." Empty when the landing violated nothing.
@@ -453,6 +468,20 @@ public class PilotMessage
     public MessageType Type     { get; set; }
     public bool     SyncedToBackend { get; set; }    // false until confirmed by backend
     public DateTime? LastSyncAttempt { get; set; }   // for retry logic
+
+    /// <summary>
+    /// Same sender, recipient and text, sent within two minutes: the same message even when the
+    /// ids differ (the backend assigns its own id to a message this app created locally).
+    /// </summary>
+    public bool IsSameMessageAs(PilotMessage other) =>
+        SenderId    == other.SenderId &&
+        RecipientId == other.RecipientId &&
+        string.Equals(Content?.Trim(), other.Content?.Trim(), StringComparison.Ordinal) &&
+        Math.Abs((AsUtc(SentAt) - AsUtc(other.SentAt)).TotalSeconds) < 120;
+
+    private static DateTime AsUtc(DateTime dt) =>
+        dt.Kind == DateTimeKind.Local ? dt.ToUniversalTime()
+        : DateTime.SpecifyKind(dt, DateTimeKind.Utc);
 }
 
 public enum MessageType { Direct, Broadcast, System }

@@ -14,6 +14,10 @@ namespace AviatesAirTracker.Pages;
 /// </summary>
 public sealed partial class SupportPage : Page
 {
+    // Enter/Space on a focused Border-as-button runs its Tapped handler (see KeyboardActivation).
+    private void OnActivateKey(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e) =>
+        AviatesAirTracker.Platform.KeyboardActivation.Handle(this, sender, e);
+
     // Matches Support.razor's `private string? OpenFaq;` -- a single nullable field naming which
     // FAQ is open, not a per-row bool set. Keyed by index here (0-9, matching XAML declaration
     // order) rather than by question text, since the rows are fixed and named in XAML; the

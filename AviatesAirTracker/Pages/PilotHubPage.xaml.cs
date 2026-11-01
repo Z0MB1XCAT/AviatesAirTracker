@@ -35,10 +35,17 @@ public sealed class LandingDisplayRow
 
     // See LandingComplianceChecker -- set whenever LandingResult.RequiresReview is true.
     public Visibility ShowReviewBadge { get; set; } = Visibility.Collapsed;
+
+    /// <summary>The landing's id, for opening it on the Landing Analysis page.</summary>
+    public string LandingId { get; set; } = "";
 }
 
 public sealed partial class PilotHubPage : Page
 {
+    // Enter/Space on a focused Border-as-button runs its Tapped handler (see KeyboardActivation).
+    private void OnActivateKey(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e) =>
+        AviatesAirTracker.Platform.KeyboardActivation.Handle(this, sender, e);
+
     // Must match RankProgressTrack's fixed Width in PilotHubPage.xaml -- there is no
     // {Binding}/x:Bind path from a XAML Width attribute back into this const, so the two have
     // to be kept in sync by hand (same idiom as DashboardPage.xaml.cs's ring-radius constants
@@ -240,6 +247,7 @@ public sealed partial class PilotHubPage : Page
                 GradeChipColor = ScoreColor(l.LandingScore),
                 GradeChipBackground = ScoreColorBg(l.LandingScore),
                 ShowReviewBadge = l.RequiresReview ? Visibility.Visible : Visibility.Collapsed,
+                LandingId = l.Id.ToString(),
             });
         }
 
@@ -309,6 +317,12 @@ public sealed partial class PilotHubPage : Page
     // Shared by both "View all" (Last Landing Analysis card) and "View logbook" (Landing
     // History table) -- same this.Frame.Navigate pattern DashboardPage.xaml.cs's own
     // "View Flights" CTA uses.
+    private void OnLandingRowTapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: LandingDisplayRow row })
+            Frame?.Navigate(typeof(LandingAnalysisPage), row.LandingId);
+    }
+
     private void OnViewLogbookTapped(object sender, TappedRoutedEventArgs e)
     {
         if (this.Frame == null)

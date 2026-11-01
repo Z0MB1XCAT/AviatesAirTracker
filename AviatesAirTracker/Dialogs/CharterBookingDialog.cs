@@ -157,12 +157,14 @@ public static class CharterBookingDialog
             VerticalAlignment = VerticalAlignment.Center,
         };
         regenerateBorder.Child = new TextBlock { Text = "Regenerate", FontSize = 11.5, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = TextSecondaryBrush };
-        regenerateBorder.Tapped += (_, _) =>
+        void Regenerate()
         {
             if (selectedAircraftCode == null) return;
             callsignValueText.Text = RoutesViewModel.GenerateCallsign(selectedAircraftCode);
             randomFlightNumber = GenerateFlightNumber();
-        };
+        }
+        regenerateBorder.Tapped += (_, _) => Regenerate();
+        AviatesAirTracker.Platform.KeyboardActivation.Enable(regenerateBorder, Regenerate, "Generate a new callsign");
 
         var callsignRow = new Border
         {
@@ -367,7 +369,7 @@ public static class CharterBookingDialog
             }
         };
 
-        await dialog.ShowAsync();
+        await dialog.ShowQueuedAsync();
     }
 
     // 1-4 digits, matching RoutesViewModel.GenerateCallsign's own suffix-length convention --

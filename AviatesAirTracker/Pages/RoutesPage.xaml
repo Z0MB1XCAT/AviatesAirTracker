@@ -38,7 +38,8 @@
                 <!-- Opens CharterBookingDialog: the one booking flow where the pilot picks both
                      route and aircraft themselves (every other "Book" button is per-route-card,
                      aircraft fixed by that route). Earns 0.5x hours, stated in the dialog itself. -->
-                <Border Grid.Column="1" x:Name="CharterButtonBorder" Tapped="OnCharterTapped"
+                <Border Grid.Column="1" x:Name="CharterButtonBorder" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnCharterTapped" AutomationProperties.Name="Charter a Flight"
+                                                                     Tapped="OnCharterTapped"
                         Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
                         CornerRadius="10" Padding="14,9" VerticalAlignment="Top">
                     <StackPanel Orientation="Horizontal" Spacing="7">
@@ -89,7 +90,8 @@
                                    Foreground="#59FFFFFF" />
                     </StackPanel>
 
-                    <Border Grid.Column="4" Tag="reposition" Tapped="OnRepositionTapped"
+                    <Border Grid.Column="4" Tag="reposition" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnRepositionTapped" AutomationProperties.Name="Reposition"
+                                                             Tapped="OnRepositionTapped"
                             Background="#0FFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1"
                             CornerRadius="8" Padding="12,7" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -137,21 +139,26 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-                    <Border x:Name="TabAllBorder" Tag="all" Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
+                    <Border x:Name="TabAllBorder" Tag="all" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnTabTapped" AutomationProperties.Name="All Routes"
+                                                            Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
                         <TextBlock x:Name="TabAllText" Text="All Routes" FontSize="13" FontWeight="SemiBold" />
                     </Border>
-                    <Border x:Name="TabMainlineBorder" Tag="mainline" Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
+                    <Border x:Name="TabMainlineBorder" Tag="mainline" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnTabTapped" AutomationProperties.Name="Mainline"
+                                                                      Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
                         <TextBlock x:Name="TabMainlineText" Text="Mainline" FontSize="13" FontWeight="SemiBold" />
                     </Border>
-                    <Border x:Name="TabCargoBorder" Tag="cargo" Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
+                    <Border x:Name="TabCargoBorder" Tag="cargo" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnTabTapped" AutomationProperties.Name="Cargo"
+                                                                Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
                         <TextBlock x:Name="TabCargoText" Text="Cargo" FontSize="13" FontWeight="SemiBold" />
                     </Border>
-                    <Border x:Name="TabRegionalBorder" Tag="cityhopper" Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
+                    <Border x:Name="TabRegionalBorder" Tag="cityhopper" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnTabTapped" AutomationProperties.Name="Regional"
+                                                                        Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
                         <TextBlock x:Name="TabRegionalText" Text="Regional" FontSize="13" FontWeight="SemiBold" />
                     </Border>
                 </StackPanel>
 
-                <Border Grid.Column="1" Tag="search" Tapped="OnFindRouteTapped" Background="#4D9BEC"
+                <Border Grid.Column="1" Tag="search" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFindRouteTapped" AutomationProperties.Name="Find Route"
+                                                     Tapped="OnFindRouteTapped" Background="#4D9BEC"
                         CornerRadius="8" Padding="14,8" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <Viewbox Width="14" Height="14">
@@ -332,7 +339,8 @@
                                     </StackPanel>
 
                                     <Border Grid.Column="3" Background="#4D9BEC" CornerRadius="8" Padding="14,8"
-                                            Tag="{Binding}" Tapped="OnBookTapped" VerticalAlignment="Center">
+                                            Tag="{Binding}" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnBookTapped" AutomationProperties.Name="Book"
+                                                            Tapped="OnBookTapped" VerticalAlignment="Center">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <Viewbox Width="13" Height="13">
                                                 <Path Data="M3,4 L21,4 L21,22 L3,22 Z M16,2 L16,6 M8,2 L8,6 M3,10 L21,10"

@@ -184,7 +184,7 @@ public static class FlightReviewDialog
                     : "Dialog dismissed without a reason.");
         };
 
-        await dialog.ShowAsync();
+        await dialog.ShowQueuedAsync();
     }
 
     private static void ThemeDialogButtons(ContentDialog dialog)

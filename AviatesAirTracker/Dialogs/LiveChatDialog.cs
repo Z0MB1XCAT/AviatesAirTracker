@@ -231,7 +231,7 @@ public static class LiveChatDialog
             }
         }
 
-        startButton.Tapped += async (_, _) =>
+        async void StartChat()
         {
             startErrorText.Visibility = Visibility.Collapsed;
             var name = nameBox.Text.Trim();
@@ -261,9 +261,12 @@ public static class LiveChatDialog
             // its real id) from the server. Appending a local copy first meant the poll's
             // own copy showed up right next to it once it caught up.
             await RefreshAsync(initial: true);
-        };
+        }
+        startButton.Tapped += (_, _) => StartChat();
+        AviatesAirTracker.Platform.KeyboardActivation.Enable(startButton, StartChat, "Start chat");
 
         sendButton.Tapped += async (_, _) => await SendAsync();
+        AviatesAirTracker.Platform.KeyboardActivation.Enable(sendButton, () => _ = SendAsync(), "Send message");
         composerBox.KeyDown += async (_, e) =>
         {
             if (e.Key == VirtualKey.Enter) { e.Handled = true; await SendAsync(); }
@@ -288,7 +291,7 @@ public static class LiveChatDialog
             }
         };
 
-        newChatButton.Tapped += (_, _) =>
+        void NewChat()
         {
             settings.Settings.SupportChatId = null;
             settings.Settings.SupportChatVisitorToken = null;
@@ -300,7 +303,9 @@ public static class LiveChatDialog
             startErrorText.Visibility = Visibility.Collapsed;
             threadPanel.Visibility = Visibility.Collapsed;
             startPanel.Visibility = Visibility.Visible;
-        };
+        }
+        newChatButton.Tapped += (_, _) => NewChat();
+        AviatesAirTracker.Platform.KeyboardActivation.Enable(newChatButton, NewChat, "Start a new chat");
 
         // Resume an existing conversation immediately; otherwise the start form stays up front.
         if (settings.Settings.SupportChatId.HasValue)
@@ -318,7 +323,7 @@ public static class LiveChatDialog
         };
         dialog.Closed += (_, _) => pollTimer?.Stop();
 
-        await dialog.ShowAsync();
+        await dialog.ShowQueuedAsync();
     }
 
     private static void ShowStartError(TextBlock errorText, string message)

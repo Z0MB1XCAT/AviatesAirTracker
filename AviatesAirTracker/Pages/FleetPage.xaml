@@ -41,7 +41,8 @@
                      CornerRadius doesn't reliably render (established after Dashboard's "sharp
                      oval" bug). Static icon, not spun on IsLoading; see
                      FleetPage.xaml.cs's OnRefreshTapped doc comment. -->
-                <Border Grid.Column="1" Tag="refresh" Tapped="OnRefreshTapped"
+                <Border Grid.Column="1" Tag="refresh" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnRefreshTapped" AutomationProperties.Name="Refresh"
+                                                      Tapped="OnRefreshTapped"
                         Background="#0FFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1"
                         CornerRadius="10" Padding="10" VerticalAlignment="Top">
                     <Viewbox Width="16" Height="16">
@@ -186,22 +187,26 @@
                      reuse the sidebar's SidebarActiveBrush; Fleet.razor's own CSS just fills
                      solid accent, so this reproduces that instead). -->
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Border x:Name="TabAllBorder" Tag="All" Tapped="OnFilterTapped"
+                    <Border x:Name="TabAllBorder" Tag="All" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFilterTapped" AutomationProperties.Name="All"
+                                                            Tapped="OnFilterTapped"
                             BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="10" Padding="16,6">
                         <TextBlock x:Name="TabAllText" Text="All" FontFamily="{StaticResource DisplayFontBold}"
                                    FontSize="12" FontWeight="SemiBold" />
                     </Border>
-                    <Border x:Name="TabMainlineBorder" Tag="Mainline" Tapped="OnFilterTapped"
+                    <Border x:Name="TabMainlineBorder" Tag="Mainline" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFilterTapped" AutomationProperties.Name="Mainline"
+                                                                      Tapped="OnFilterTapped"
                             BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="10" Padding="16,6">
                         <TextBlock x:Name="TabMainlineText" Text="Mainline" FontFamily="{StaticResource DisplayFontBold}"
                                    FontSize="12" FontWeight="SemiBold" />
                     </Border>
-                    <Border x:Name="TabRegionalBorder" Tag="Regional" Tapped="OnFilterTapped"
+                    <Border x:Name="TabRegionalBorder" Tag="Regional" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFilterTapped" AutomationProperties.Name="Regional"
+                                                                      Tapped="OnFilterTapped"
                             BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="10" Padding="16,6">
                         <TextBlock x:Name="TabRegionalText" Text="Regional" FontFamily="{StaticResource DisplayFontBold}"
                                    FontSize="12" FontWeight="SemiBold" />
                     </Border>
-                    <Border x:Name="TabCargoBorder" Tag="Cargo" Tapped="OnFilterTapped"
+                    <Border x:Name="TabCargoBorder" Tag="Cargo" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFilterTapped" AutomationProperties.Name="Cargo"
+                                                                Tapped="OnFilterTapped"
                             BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="10" Padding="16,6">
                         <TextBlock x:Name="TabCargoText" Text="Cargo" FontFamily="{StaticResource DisplayFontBold}"
                                    FontSize="12" FontWeight="SemiBold" />
@@ -226,7 +231,8 @@
                             <Grid HorizontalAlignment="Stretch" Margin="0,0,16,16">
                                 <Border Background="{Binding CardBackground}" BorderBrush="{Binding CardBorderBrush}"
                                         BorderThickness="{Binding CardBorderThickness}" CornerRadius="20" Padding="20"
-                                        Tag="{Binding}" Tapped="OnTypeCardTapped">
+                                        Tag="{Binding}" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnTypeCardTapped" AutomationProperties.Name="Show registrations for this type"
+                                                        Tapped="OnTypeCardTapped">
                                     <StackPanel Spacing="0">
 
                                         <!-- Head: status chip + type code badge -->
@@ -368,7 +374,8 @@
 
                             <!-- Border, not Button; same icon-button chrome as the header's own
                                  refresh button above for a consistent icon-only-button look. -->
-                            <Border Grid.Column="1" Tag="close" Tapped="OnRegPanelCloseTapped"
+                            <Border Grid.Column="1" Tag="close" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnRegPanelCloseTapped" AutomationProperties.Name="Close registration panel"
+                                                                Tapped="OnRegPanelCloseTapped"
                                     Background="#0FFFFFFF" BorderBrush="#1AFFFFFF" BorderThickness="1"
                                     CornerRadius="10" Padding="8" VerticalAlignment="Top">
                                 <Viewbox Width="16" Height="16">

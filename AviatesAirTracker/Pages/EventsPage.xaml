@@ -48,7 +48,8 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="StatusText" Grid.Column="0" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center" />
-                    <Border Grid.Column="1" Tag="close" Tapped="OnStatusCloseTapped" VerticalAlignment="Center" Padding="6,0">
+                    <Border Grid.Column="1" Tag="close" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnStatusCloseTapped" AutomationProperties.Name="Close"
+                                                        Tapped="OnStatusCloseTapped" VerticalAlignment="Center" Padding="6,0">
                         <TextBlock x:Name="StatusCloseText" Text="&#x2715;" FontSize="14" />
                     </Border>
                 </Grid>
@@ -63,19 +64,23 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-                    <Border x:Name="TabUpcomingBorder" Tag="upcoming" Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
+                    <Border x:Name="TabUpcomingBorder" Tag="upcoming" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnTabTapped" AutomationProperties.Name="Upcoming"
+                                                                      Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
                         <TextBlock x:Name="TabUpcomingText" Text="Upcoming" FontSize="13" FontWeight="SemiBold" />
                     </Border>
-                    <Border x:Name="TabPastBorder" Tag="past" Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
+                    <Border x:Name="TabPastBorder" Tag="past" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnTabTapped" AutomationProperties.Name="Past Events"
+                                                              Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
                         <TextBlock x:Name="TabPastText" Text="Past Events" FontSize="13" FontWeight="SemiBold" />
                     </Border>
-                    <Border x:Name="TabMyBorder" Tag="my" Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
+                    <Border x:Name="TabMyBorder" Tag="my" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnTabTapped" AutomationProperties.Name="My Events"
+                                                          Tapped="OnTabTapped" CornerRadius="10" Padding="16,9">
                         <TextBlock x:Name="TabMyText" Text="My Events" FontSize="13" FontWeight="SemiBold" />
                     </Border>
                 </StackPanel>
 
                 <!-- Task 3 wires this. -->
-                <Border Grid.Column="1" Tag="create" Tapped="OnCreateEventTapped" Background="#4D9BEC"
+                <Border Grid.Column="1" Tag="create" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnCreateEventTapped" AutomationProperties.Name="Create Event"
+                                                     Tapped="OnCreateEventTapped" Background="#4D9BEC"
                         CornerRadius="8" Padding="14,8" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <Viewbox Width="14" Height="14">
@@ -128,7 +133,8 @@
                                     FontSize="24" FontWeight="Bold" Foreground="#FFFFFF" TextWrapping="Wrap" Margin="0,0,0,12" />
                         <TextBlock x:Name="FeaturedDescText" FontSize="13" Foreground="#94FFFFFF"
                                     TextWrapping="Wrap" MaxWidth="400" Margin="0,0,0,16" />
-                        <Border Tag="featured-cta" Tapped="OnFeaturedCtaTapped" Background="#FFFFFF"
+                        <Border Tag="featured-cta" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFeaturedCtaTapped" AutomationProperties.Name="Register for the featured event"
+                                                   Tapped="OnFeaturedCtaTapped" Background="#FFFFFF"
                                 CornerRadius="10" Padding="18,9" HorizontalAlignment="Left">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock x:Name="FeaturedCtaText" FontSize="12.5" FontWeight="Bold" Foreground="#0F172A" />
@@ -286,12 +292,14 @@
                                              Unregister / Full are mutually exclusive within it. -->
                                         <StackPanel Grid.Column="1" Visibility="{Binding ShowActionRow}" VerticalAlignment="Center">
                                             <Border Background="#4D9BEC" CornerRadius="8" Padding="14,7"
-                                                    Visibility="{Binding ShowRegisterButton}" Tag="{Binding}" Tapped="OnEventActionTapped"
+                                                    Visibility="{Binding ShowRegisterButton}" Tag="{Binding}" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnEventActionTapped" AutomationProperties.Name="Register for event"
+                                                                                                              Tapped="OnEventActionTapped"
                                                     IsHitTestVisible="{Binding IsActionEnabled}">
                                                 <TextBlock Text="{Binding RegisterButtonText}" FontSize="12" FontWeight="SemiBold" Foreground="#FFFFFF" />
                                             </Border>
                                             <Border Background="Transparent" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="8" Padding="14,7"
-                                                    Visibility="{Binding ShowUnregisterButton}" Tag="{Binding}" Tapped="OnEventActionTapped"
+                                                    Visibility="{Binding ShowUnregisterButton}" Tag="{Binding}" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnEventActionTapped" AutomationProperties.Name="Register for event"
+                                                                                                                Tapped="OnEventActionTapped"
                                                     IsHitTestVisible="{Binding IsActionEnabled}">
                                                 <TextBlock Text="{Binding UnregisterButtonText}" FontSize="12" FontWeight="SemiBold" Foreground="#EF4444" />
                                             </Border>

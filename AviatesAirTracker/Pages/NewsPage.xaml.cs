@@ -44,6 +44,10 @@ public sealed class NewsDisplayRow
 /// </summary>
 public sealed partial class NewsPage : Page
 {
+    // Enter/Space on a focused Border-as-button runs its Tapped handler (see KeyboardActivation).
+    private void OnActivateKey(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e) =>
+        AviatesAirTracker.Platform.KeyboardActivation.Handle(this, sender, e);
+
     // news_articles' thumbnail/hero_image columns hold a root-relative path (e.g.
     // "/images/ben1.png"), confirmed directly against the table -- the same path the
     // flyaviatesair.uk website itself resolves image src attributes against. Resolving them

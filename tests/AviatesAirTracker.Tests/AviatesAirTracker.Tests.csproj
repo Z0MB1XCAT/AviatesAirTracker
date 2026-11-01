@@ -50,6 +50,14 @@
     <Compile Include="../../AviatesAirTracker/Platform/WindowSubclass.cs" Link="Platform/WindowSubclass.cs" />
     <Compile Include="../../AviatesAirTracker/Core/SimConnect/SimConnectDefinitions.cs" Link="Core/SimConnect/SimConnectDefinitions.cs" />
     <Compile Include="../../AviatesAirTracker/Models/FlightModels.cs" Link="Models/FlightModels.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Data/JsonFileStore.cs" Link="Core/Data/JsonFileStore.cs" />
+    <Compile Include="../../AviatesAirTracker/Platform/WindowPlacementLogic.cs" Link="Platform/WindowPlacementLogic.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/StartupLaunchService.cs" Link="Services/StartupLaunchService.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/PreflightReadiness.cs" Link="Services/PreflightReadiness.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/CareerStatsLogic.cs" Link="Services/CareerStatsLogic.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Reference/IcaoCountry.cs" Link="Core/Reference/IcaoCountry.cs" />
+    <Compile Include="../../AviatesAirTracker/Shell/QuickSearchLogic.cs" Link="Shell/QuickSearchLogic.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Analytics/LandingAssessment.cs" Link="Core/Analytics/LandingAssessment.cs" />
     <Compile Include="../../AviatesAirTracker/Services/FlightSessionState.cs" Link="Services/FlightSessionState.cs" />
     <Compile Include="../../AviatesAirTracker/Shell/ShellBadgeLogic.cs" Link="Shell/ShellBadgeLogic.cs" />
     <Compile Include="../../AviatesAirTracker/Services/PilotStatsLogic.cs" Link="Services/PilotStatsLogic.cs" />

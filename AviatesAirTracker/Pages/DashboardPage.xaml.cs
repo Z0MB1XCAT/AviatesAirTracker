@@ -109,6 +109,10 @@ public sealed class RecentLandingRow
 
 public sealed partial class DashboardPage : Page
 {
+    // Enter/Space on a focused Border-as-button runs its Tapped handler (see KeyboardActivation).
+    private void OnActivateKey(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e) =>
+        AviatesAirTracker.Platform.KeyboardActivation.Handle(this, sender, e);
+
     // Matches the fixed Height="48" bar-area Grid cell in DashboardPage.xaml's activity-chart
     // ItemTemplate; app.css's tallest static chart-bar values top out around here too.
     private const double MaxBarHeight = 48.0;

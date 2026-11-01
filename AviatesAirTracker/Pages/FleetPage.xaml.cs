@@ -114,6 +114,10 @@ public sealed class RegistrationDisplayRow
 
 public sealed partial class FleetPage : Page
 {
+    // Enter/Space on a focused Border-as-button runs its Tapped handler (see KeyboardActivation).
+    private void OnActivateKey(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e) =>
+        AviatesAirTracker.Platform.KeyboardActivation.Handle(this, sender, e);
+
     // ── Shared brushes ──────────────────────────────────────────────────────────────────────
     // Dark-theme hex values read directly from wwwroot/css/app.css's html[data-theme="dark"]
     // block, same values every prior native page in this migration hardcodes (surface #0C111D,

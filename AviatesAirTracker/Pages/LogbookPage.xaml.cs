@@ -8,6 +8,10 @@ namespace AviatesAirTracker.Pages;
 
 public sealed partial class LogbookPage : Page
 {
+    // Enter/Space on a focused Border-as-button runs its Tapped handler (see KeyboardActivation).
+    private void OnActivateKey(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e) =>
+        AviatesAirTracker.Platform.KeyboardActivation.Handle(this, sender, e);
+
     private readonly LogbookViewModel _viewModel;
 
     // Reuses PilotHubPage's own LandingDisplayRow (same namespace) rather than a near-duplicate
@@ -34,6 +38,12 @@ public sealed partial class LogbookPage : Page
         };
     }
 
+    private void OnLandingRowTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: LandingDisplayRow row })
+            Frame?.Navigate(typeof(LandingAnalysisPage), row.LandingId);
+    }
+
     private void RebuildLandingRows()
     {
         LandingRows.Clear();
@@ -55,6 +65,7 @@ public sealed partial class LogbookPage : Page
                 GradeChipColor = PilotHubPage.ScoreColor(l.LandingScore),
                 GradeChipBackground = PilotHubPage.ScoreColorBg(l.LandingScore),
                 ShowReviewBadge = l.RequiresReview ? Visibility.Visible : Visibility.Collapsed,
+                LandingId = l.Id.ToString(),
             });
         }
 

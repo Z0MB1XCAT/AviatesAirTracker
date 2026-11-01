@@ -681,6 +681,31 @@ public partial class AcarsViewModel : ObservableObject
 
     // ── Telemetry (20Hz -> 4Hz decimation, page calls after its own dispatcher marshaling) ──
 
+    /// <summary>The pre-flight readiness checklist from the current sim, booking and plan state.</summary>
+    public IReadOnlyList<ReadinessItem> GetReadiness()
+    {
+        var booking = _booking.ActiveBooking;
+        var plan = FlightPlan;
+        var snap = _snap ?? _session.LatestTelemetry;
+        bool hasOrigin = plan is { DepartureLat: not 0 } || plan is { DepartureLon: not 0 };
+        return PreflightReadiness.Evaluate(new ReadinessInputs(
+            SimConnected: SimStatus == SimConnectionStatus.Connected,
+            BookingActivated: booking is { IsActivated: true },
+            BookingOrigin: booking?.OriginIata,
+            BookingDestination: booking?.DestIata,
+            BookingAircraftType: booking?.AircraftType,
+            PlanOrigin: plan?.DepartureICAO,
+            PlanDestination: plan?.ArrivalICAO,
+            PlanOriginLat: hasOrigin ? plan!.DepartureLat : null,
+            PlanOriginLon: hasOrigin ? plan!.DepartureLon : null,
+            AircraftLat: snap?.Latitude,
+            AircraftLon: snap?.Longitude,
+            OnGround: snap?.IsOnGround,
+            EnginesRunning: snap?.EnginesRunning,
+            SimAircraftTitle: _aircraft.Title,
+            SimAircraftModel: _aircraft.ATCModel));
+    }
+
     public void UpdateTelemetry(TelemetrySnapshot snap)
     {
         if (++_tickCount % 5 != 0) return;

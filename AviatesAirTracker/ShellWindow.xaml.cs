@@ -36,6 +36,9 @@ public sealed partial class ShellWindow : Window
     private readonly ILandingRepository _landingRepository;
     private readonly AlertService _alertService;
     private readonly EventReminderService _eventReminder;
+    private readonly DesktopNotificationService _notifications;
+    private readonly UpdateService _updates;
+    private readonly PirepSyncService _pirepSync;
 
     // Named references into Nav.MenuItems for the four items that carry a live badge.
     // BuildNavItems assigns these by matching NavDestination.Tag; every handler below
@@ -76,7 +79,10 @@ public sealed partial class ShellWindow : Window
         IFlightRepository flightRepository,
         ILandingRepository landingRepository,
         AlertService alertService,
-        EventReminderService eventReminder)
+        EventReminderService eventReminder,
+        DesktopNotificationService notifications,
+        UpdateService updates,
+        PirepSyncService pirepSync)
     {
         InitializeComponent();
 
@@ -89,6 +95,9 @@ public sealed partial class ShellWindow : Window
         _landingRepository = landingRepository;
         _alertService = alertService;
         _eventReminder = eventReminder;
+        _notifications = notifications;
+        _updates = updates;
+        _pirepSync = pirepSync;
 
         // The second argument is not optional in practice. OnSubclassProc is a reverse
         // P/Invoke from comctl32: an exception escaping the callback unwinds across the
@@ -96,7 +105,11 @@ public sealed partial class ShellWindow : Window
         // the app alive, so if nothing is passed here the fault vanishes silently — and
         // this callback carries 20Hz SimConnect telemetry.
         _subclass = new WindowSubclass(
-            (hwnd, msg, w, l) => _viewModel.OnWindowMessage(hwnd, msg, w, l),
+            (hwnd, msg, w, l) =>
+            {
+                _viewModel.OnWindowMessage(hwnd, msg, w, l);
+                _tray?.HandleMessage(msg, l);
+            },
             ex => Log.Error(ex, "[Shell] SimConnect message callback threw"));
 
         Title = "Aviates Air Flight Tracker";
@@ -119,6 +132,10 @@ public sealed partial class ShellWindow : Window
         _eventReminder.ReminderDue += OnEventReminderDue;
         _ = RefreshFlightsBadgeAsync();
 
+        InitializeNotifications();
+        InitializeUpdateOverlay();
+        InitializeQuickSearch();
+
         Activated += OnFirstActivated;
         Closed += OnClosed;
     }
@@ -133,7 +150,14 @@ public sealed partial class ShellWindow : Window
     // once the check is done closes that gap.
     private NavDestination _pendingDestination = NavDestinations.All[0];
 
-    private void OnFirstActivated(object sender, WindowActivatedEventArgs args)
+    private void OnFirstActivated(object sender, WindowActivatedEventArgs args) => EnsureInitialised();
+
+    /// <summary>
+    /// One-time window setup: SimConnect's HWND, placement, the tray, and the login gate. Runs on
+    /// first activation, or straight from <see cref="StartInTray"/> when the app is launched in
+    /// the background and the window is never shown.
+    /// </summary>
+    private void EnsureInitialised()
     {
         if (_initialised) return;
         _initialised = true;
@@ -146,7 +170,7 @@ public sealed partial class ShellWindow : Window
         _subclass.Attach(hwnd);
 
         var appWindow = AppWindow.GetFromWindowId(Win32Interop.GetWindowIdFromWindow(hwnd));
-        appWindow.Resize(new SizeInt32(1440, 900));
+        InitializeWindowBehaviour(hwnd, appWindow);
 
         // Known WinUI 3 NavigationView gap (see e.g. microsoft-ui-xaml#7237 and the
         // PaneDisplayMode-toggle issues in the same area): NavigationView does not reliably
@@ -192,10 +216,19 @@ public sealed partial class ShellWindow : Window
         {
             var onLogin = e.SourcePageType == typeof(Pages.LoginPage);
 
+            // Login is a gate, never a history entry: arriving at it (logout) or leaving it
+            // (sign-in) drops the back stack, otherwise Back from Dashboard after signing in
+            // returned to the login screen while still signed in.
+            if (onLogin || NativeHost.BackStack.LastOrDefault()?.SourcePageType == typeof(Pages.LoginPage))
+                NativeHost.BackStack.Clear();
+
             Nav.IsPaneVisible = !onLogin;
             Nav.IsBackButtonVisible = onLogin
                 ? NavigationViewBackButtonVisible.Collapsed
                 : NavigationViewBackButtonVisible.Visible;
+            Nav.IsBackEnabled = NativeHost.CanGoBack;
+
+            SyncRailSelection(e.SourcePageType);
         };
 
         if (IsLoggedIn())
@@ -502,13 +535,19 @@ public sealed partial class ShellWindow : Window
         if (_mapLivePill != null) _mapLivePill.Visibility = visibility;
     }
 
+    // MessagingService raises this from its poll timer on a thread-pool thread, where touching
+    // a XAML element throws RPC_E_WRONG_THREAD -- and that throw landed inside the poll's own
+    // catch, so the badge silently stopped updating after the first poll.
     private void OnUnreadCountChanged(object? sender, int count)
     {
-        if (_messagesItem == null) return;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_messagesItem == null) return;
 
-        _messagesItem.InfoBadge = count > 0
-            ? new InfoBadge { Value = Math.Min(count, 99) }
-            : null;
+            _messagesItem.InfoBadge = count > 0
+                ? new InfoBadge { Value = Math.Min(count, 99) }
+                : null;
+        });
     }
 
     private void OnFlightCompleted(object? sender, FlightRecord flight) => _ = RefreshFlightsBadgeAsync();
@@ -560,39 +599,60 @@ public sealed partial class ShellWindow : Window
             Log.Warning(ex, "[Shell] Landing report context lookup failed");
         }
 
-        var report = LandingReportBuilder.Build(result, flight, history);
-        var dialog = LandingResultDialog.Build(RootGrid.XamlRoot, report);
+        try
+        {
+            var report = LandingReportBuilder.Build(result, flight, history);
+            var dialog = LandingResultDialog.Build(RootGrid.XamlRoot, report);
+            dialog.PrimaryButtonText = "Full analysis";
+            dialog.DefaultButton = ContentDialogButton.Close;
 
-        // Auto-dismiss after 60s, matching the original modal. The timer callback runs on a
-        // thread-pool thread, so Hide() -- a UI-tree operation -- must be marshaled back onto
-        // the window's dispatcher via TryEnqueue; calling it directly from the timer thread
-        // would throw (WinUI UI objects are single-threaded-apartment-affine). Hide() is safe
-        // to call while ShowAsync() is still awaiting -- it forces that await to complete with
-        // ContentDialogResult.None, same as the user clicking the close button. If the dialog
-        // is already closed by the time the timer fires (the pilot dismissed it manually), the
-        // `using` below has already disposed the timer, so this path only runs when the dialog
-        // is still open.
-        using var autoClose = new System.Threading.Timer(
-            _ => DispatcherQueue.TryEnqueue(() => dialog.Hide()),
-            null,
-            TimeSpan.FromSeconds(60),
-            System.Threading.Timeout.InfiniteTimeSpan);
+            if (!_isForeground)
+                _notifications.Notify($"Landed at {report.AirportIcao}",
+                    $"Score {report.Score} ({report.Grade.ToLowerInvariant()}), {report.VerticalSpeedFpm:F0} fpm. Open the app for the full report.",
+                    AlertLevel.Info, page: "landings");
 
-        await dialog.ShowAsync();
+            // Auto-dismiss 60s after it actually opens, matching the original modal -- armed in
+            // Opened rather than up front because the dialog may wait in DialogQueue behind
+            // another one first. The timer callback runs on a thread-pool thread, so Hide() is
+            // marshaled back onto the window's dispatcher. Hide() forces the pending ShowAsync to
+            // complete with ContentDialogResult.None, same as the pilot closing it; if they
+            // already closed it, the `using` below has disposed the timer.
+            using var autoClose = new System.Threading.Timer(
+                _ => DispatcherQueue.TryEnqueue(() => dialog.Hide()),
+                null,
+                System.Threading.Timeout.InfiniteTimeSpan,
+                System.Threading.Timeout.InfiniteTimeSpan);
+            dialog.Opened += (_, _) => autoClose.Change(TimeSpan.FromSeconds(60), System.Threading.Timeout.InfiniteTimeSpan);
+
+            if (await dialog.ShowQueuedAsync() == ContentDialogResult.Primary)
+                NavigateToTag("landings", result.Id.ToString());
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[Shell] Landing report dialog failed");
+        }
     }
 
     // Shown after LandingResultDialog's own popup (both are queued on the ContentDialog host,
     // so the pilot sees their landing report first, then this) whenever the just-completed
     // flight tripped one of LandingComplianceChecker's/FlightComplianceMonitor's checks. Never
     // blocks anything -- SubmitPirepSafeAsync has already fired independently of this dialog.
-    private async void OnFlightHeldForReview(object? sender, FlightRecord flight)
-    {
-        var acarsKey = _settings.Settings.AcarsKey.Trim();
-        if (string.IsNullOrEmpty(acarsKey)) return;
+    private void OnFlightHeldForReview(object? sender, FlightRecord flight) =>
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            try
+            {
+                var acarsKey = _settings.Settings.AcarsKey.Trim();
+                if (string.IsNullOrEmpty(acarsKey)) return;
 
-        var backend = App.GetService<Core.Backend.AviatesBackendClient>();
-        await FlightReviewDialog.ShowAsync(RootGrid.XamlRoot, flight, backend, acarsKey);
-    }
+                var backend = App.GetService<Core.Backend.AviatesBackendClient>();
+                await FlightReviewDialog.ShowAsync(RootGrid.XamlRoot, flight, backend, acarsKey);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "[Shell] Held-for-review dialog failed");
+            }
+        });
 
     // Fires 10 minutes before an event the pilot is registered for (EventReminderService's own
     // timer). Confirming arms the hours multiplier for whichever flight starts next and opens
@@ -600,18 +660,35 @@ public sealed partial class ShellWindow : Window
     // touch BookingService/CurrentAirportIata at all, an event flight is independent of the
     // booking/position system. Dismissing does nothing further; the pilot can still fly the
     // event, they just won't get the bonus hours.
-    private async void OnEventReminderDue(object? sender, AviatesEvent evt)
-    {
-        var confirmed = await ConfirmDialog.ShowAsync(
-            RootGrid.XamlRoot,
-            "Event Starting Soon",
-            $"\"{evt.Title}\" departs in about 10 minutes. Confirm you're attending to open SimBrief and get bonus hours for this flight ({(evt.IsFeatured ? "2x" : "1.5x")}).",
-            "Confirm & Open SimBrief",
-            "Not Flying");
+    //
+    // EventReminderService raises this from a System.Timers.Timer thread. Reading XamlRoot there
+    // threw RPC_E_WRONG_THREAD inside this async void, which took the whole app down 10 minutes
+    // before every registered event (recorded in crash.log) -- so it is marshaled first.
+    private void OnEventReminderDue(object? sender, AviatesEvent evt) =>
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            try
+            {
+                if (!_isForeground)
+                    _notifications.Notify("Event starting in 10 minutes",
+                        $"{evt.Title}. Open the tracker to confirm you're attending and get bonus hours.",
+                        AlertLevel.Info, page: "events");
 
-        if (confirmed)
-            _eventReminder.ConfirmAttendance(evt);
-    }
+                var confirmed = await ConfirmDialog.ShowAsync(
+                    RootGrid.XamlRoot,
+                    "Event Starting Soon",
+                    $"\"{evt.Title}\" departs in about 10 minutes. Confirm you're attending to open SimBrief and get bonus hours for this flight ({(evt.IsFeatured ? "2x" : "1.5x")}).",
+                    "Confirm & Open SimBrief",
+                    "Not Flying");
+
+                if (confirmed)
+                    _eventReminder.ConfirmAttendance(evt);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "[Shell] Event reminder dialog failed");
+            }
+        });
 
     private void OnNavSelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
@@ -624,7 +701,30 @@ public sealed partial class ShellWindow : Window
         // comment. Once that check completes, OnFirstActivated navigates to whatever this was
         // last set to, not always the first destination.
         _pendingDestination = destination;
+
+        // SyncRailSelection moving the highlight to the page already on screen is not a
+        // request to navigate there again.
+        if (NativeHost.CurrentSourcePageType == destination.NativePageType) return;
         Navigate(destination);
+    }
+
+    /// <summary>
+    /// Moves the rail highlight to whichever destination owns the page now on screen. Pages
+    /// navigate on their own (Dashboard → Flights, ACARS → Map, Back), and without this the rail
+    /// kept highlighting the previous item — so clicking that item did nothing, because
+    /// NavigationView raises no SelectionChanged for the item that is already selected. Pages
+    /// with no rail item of their own (News detail, Logbook) leave the highlight where it is.
+    /// </summary>
+    private void SyncRailSelection(Type pageType)
+    {
+        var destination = NavDestinations.All.FirstOrDefault(d => d.NativePageType == pageType);
+        if (destination == null) return;
+
+        var item = Nav.MenuItems.Concat(Nav.FooterMenuItems)
+            .OfType<NavigationViewItem>()
+            .FirstOrDefault(i => (i.Tag as string) == destination.Tag);
+        if (item != null && !ReferenceEquals(Nav.SelectedItem, item))
+            Nav.SelectedItem = item;
     }
 
     /// <summary>
@@ -648,6 +748,11 @@ public sealed partial class ShellWindow : Window
         _alertService.LandingResultReady -= OnLandingResultReady;
         _eventReminder.ReminderDue -= OnEventReminderDue;
 
+        _alertService.AlertRaised -= OnAlertRaised;
+        _messagingService.NewMessageReceived -= OnDirectMessageReceived;
+        _pirepSync.SyncStateChanged -= OnPirepSyncStateChanged;
+
+        _tray?.Dispose();
         _subclass.Detach();
         (Application.Current as App)?.Shutdown();
     }

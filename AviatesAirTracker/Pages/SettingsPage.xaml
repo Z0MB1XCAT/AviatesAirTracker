@@ -52,7 +52,8 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="StatusText" Grid.Column="0" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center" />
-                    <Border Grid.Column="1" Tag="close" Tapped="OnStatusCloseTapped" VerticalAlignment="Center" Padding="6,0">
+                    <Border Grid.Column="1" Tag="close" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnStatusCloseTapped" AutomationProperties.Name="Close"
+                                                        Tapped="OnStatusCloseTapped" VerticalAlignment="Center" Padding="6,0">
                         <TextBlock x:Name="StatusCloseText" Text="&#x2715;" FontSize="14" />
                     </Border>
                 </Grid>
@@ -159,7 +160,8 @@
                             <!-- Log Out: same danger-tinted Border+Tapped treatment as AcarsPage's
                                  End Flight action (Background #1AEF4444 / BorderBrush #EF4444 /
                                  Foreground #EF4444), gated behind ConfirmDialog per the design spec. -->
-                            <Border x:Name="LogOutButtonBorder" Tapped="OnLogOutTapped"
+                            <Border x:Name="LogOutButtonBorder" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnLogOutTapped" AutomationProperties.Name="Log Out"
+                                                                Tapped="OnLogOutTapped"
                                     Background="#1AEF4444" BorderBrush="#EF4444" BorderThickness="1.5"
                                     CornerRadius="12" Padding="14,10" HorizontalAlignment="Left">
                                 <TextBlock Text="Log Out" FontSize="13" FontWeight="SemiBold" Foreground="#EF4444" />
@@ -238,6 +240,7 @@
                                                      Padding="14,10" PasswordChanged="OnAcarsKeyPasswordChanged" />
                                     </Border>
                                     <Border Grid.Column="1" x:Name="VerifySyncButtonBorder" Tag="sync"
+                                            IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnVerifySyncTapped" AutomationProperties.Name="Verify &amp; Sync"
                                             Tapped="OnVerifySyncTapped" CornerRadius="10" Padding="18,0"
                                             BorderThickness="0" VerticalAlignment="Stretch">
                                         <StackPanel Orientation="Horizontal" Spacing="6"
@@ -515,7 +518,8 @@
                                                  Padding="14,10" GotFocus="OnPttHotkeyGotFocus" LostFocus="OnPttHotkeyLostFocus"
                                                  KeyDown="OnPttHotkeyTextBoxKeyDown" />
                                     </Border>
-                                    <Border Grid.Column="1" x:Name="ClearHotkeyButtonBorder" Tag="clear" Tapped="OnClearHotkeyTapped"
+                                    <Border Grid.Column="1" x:Name="ClearHotkeyButtonBorder" Tag="clear" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnClearHotkeyTapped" AutomationProperties.Name="Clear push-to-talk key"
+                                                                                                         Tapped="OnClearHotkeyTapped"
                                             Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="10"
                                             Padding="16,0" VerticalAlignment="Stretch">
                                         <TextBlock Text="Clear" FontSize="13" FontWeight="SemiBold" Foreground="#F1F5F9"
@@ -544,7 +548,8 @@
                                               Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1.5"
                                               CornerRadius="12" Foreground="#F1F5F9" Padding="12,8"
                                               SelectionChanged="OnJoystickComboBoxSelectionChanged" />
-                                    <Border Grid.Column="1" x:Name="BindJoystickButtonBorder" Tag="bind" Tapped="OnBindJoystickButtonTapped"
+                                    <Border Grid.Column="1" x:Name="BindJoystickButtonBorder" Tag="bind" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnBindJoystickButtonTapped" AutomationProperties.Name="Bind Button"
+                                                                                                         Tapped="OnBindJoystickButtonTapped"
                                             Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="10"
                                             Padding="16,0" VerticalAlignment="Stretch">
                                         <TextBlock x:Name="BindJoystickButtonText" Text="Bind Button" FontSize="13" FontWeight="SemiBold"
@@ -610,8 +615,8 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
-                                        <TextBlock Text="Desktop Alerts" FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9" />
-                                        <TextBlock Text="Show notifications for phase changes and landing events"
+                                        <TextBlock Text="Approach Alerts" FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                        <TextBlock Text="Pop up a warning when the approach becomes unstable or the landing bounces"
                                                    FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <ToggleSwitch Grid.Column="1" x:Name="ShowApproachAlertsToggle" OnContent="" OffContent=""
@@ -626,11 +631,56 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
                                         <TextBlock Text="Minimize to Tray" FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9" />
-                                        <TextBlock Text="Keep running in the system tray when window is closed"
+                                        <TextBlock Text="Closing the window keeps the tracker running in the system tray"
                                                    FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <ToggleSwitch Grid.Column="1" x:Name="MinimizeToTrayToggle" OnContent="" OffContent=""
                                                   VerticalAlignment="Center" Toggled="OnMinimizeToTrayToggled" />
+                                </Grid>
+                            </Border>
+                            <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,14">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Windows Notifications" FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                        <TextBlock Text="Messages, PIREP results, event reminders and landings while the tracker is behind the sim"
+                                                   FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleSwitch Grid.Column="1" x:Name="WindowsNotificationsToggle" OnContent="" OffContent=""
+                                                  VerticalAlignment="Center" Toggled="OnWindowsNotificationsToggled" />
+                                </Grid>
+                            </Border>
+                            <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,14">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Start with Windows" FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                        <TextBlock Text="Open the tracker in the tray when you sign in to Windows"
+                                                   FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleSwitch Grid.Column="1" x:Name="StartWithWindowsToggle" OnContent="" OffContent=""
+                                                  VerticalAlignment="Center" Toggled="OnStartWithWindowsToggled" />
+                                </Grid>
+                            </Border>
+                            <Border BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="0,14">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="Start with Microsoft Flight Simulator" FontSize="14" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                                        <TextBlock x:Name="StartWithSimulatorStatusText" Text="Add the tracker to the sim&apos;s add-on launch list so it opens in the tray with MSFS"
+                                                   FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleSwitch Grid.Column="1" x:Name="StartWithSimulatorToggle" OnContent="" OffContent=""
+                                                  VerticalAlignment="Center" Toggled="OnStartWithSimulatorToggled" />
                                 </Grid>
                             </Border>
 
@@ -683,6 +733,7 @@
                                                Foreground="#4D9BEC" CharacterSpacing="180" HorizontalAlignment="Center" />
                                 </Border>
                                 <Border Grid.Column="1" x:Name="CopyFriendCodeButtonBorder" Tag="copy"
+                                        IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnCopyFriendCodeTapped" AutomationProperties.Name="Copy friend code"
                                         Tapped="OnCopyFriendCodeTapped" Background="#0C111D" BorderBrush="#14FFFFFF"
                                         BorderThickness="1" CornerRadius="10" Padding="16,0" VerticalAlignment="Stretch">
                                     <StackPanel Orientation="Horizontal" Spacing="6"
@@ -732,6 +783,7 @@
                                                FontWeight="Bold" Foreground="#F1F5F9" />
                                 </StackPanel>
                                 <Border Grid.Column="1" x:Name="CheckForUpdatesButtonBorder" Tag="check"
+                                        IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnCheckForUpdatesTapped" AutomationProperties.Name="Check for Updates"
                                         Tapped="OnCheckForUpdatesTapped" Background="#0C111D" BorderBrush="#14FFFFFF"
                                         BorderThickness="1" CornerRadius="10" Padding="16,0" VerticalAlignment="Stretch">
                                     <StackPanel Orientation="Horizontal" Spacing="6"
@@ -795,7 +847,8 @@
                                                     HorizontalAlignment="Left" />
                                         </Border>
                                     </StackPanel>
-                                    <Border x:Name="DownloadInstallButtonBorder" Tag="install" Tapped="OnDownloadInstallTapped"
+                                    <Border x:Name="DownloadInstallButtonBorder" Tag="install" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnDownloadInstallTapped" AutomationProperties.Name="Download &amp; Install"
+                                                                                               Tapped="OnDownloadInstallTapped"
                                             Background="#4D9BEC" CornerRadius="10" Padding="0,10" HorizontalAlignment="Stretch">
                                         <StackPanel Orientation="Horizontal" Spacing="7"
                                                     HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -880,13 +933,15 @@
                                            FontSize="12.5" Foreground="#64748B" TextWrapping="Wrap" />
                             </Border>
 
-                            <Border x:Name="StopEfbButtonBorder" Visibility="Collapsed" Tag="stop" Tapped="OnStopEfbTapped"
+                            <Border x:Name="StopEfbButtonBorder" Visibility="Collapsed" Tag="stop" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnStopEfbTapped" AutomationProperties.Name="Stop EFB Server"
+                                                                                                   Tapped="OnStopEfbTapped"
                                     Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
                                     CornerRadius="10" Padding="0,10" HorizontalAlignment="Stretch">
                                 <TextBlock Text="Stop EFB Server" FontSize="13" FontWeight="SemiBold"
                                            Foreground="#F1F5F9" HorizontalAlignment="Center" />
                             </Border>
-                            <Border x:Name="StartEfbButtonBorder" Visibility="Visible" Tag="start" Tapped="OnStartEfbTapped"
+                            <Border x:Name="StartEfbButtonBorder" Visibility="Visible" Tag="start" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnStartEfbTapped" AutomationProperties.Name="Start EFB Server"
+                                                                                                   Tapped="OnStartEfbTapped"
                                     Background="#4D9BEC" CornerRadius="10" Padding="0,10" HorizontalAlignment="Stretch">
                                 <TextBlock x:Name="StartEfbButtonText" Text="Start EFB Server" FontSize="13"
                                            FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" />
@@ -937,7 +992,8 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" x:Name="SaveSettingsButtonBorder" Tag="save" Tapped="OnSaveSettingsTapped"
+                        <Border Grid.Column="0" x:Name="SaveSettingsButtonBorder" Tag="save" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnSaveSettingsTapped" AutomationProperties.Name="Save Settings"
+                                                                                             Tapped="OnSaveSettingsTapped"
                                 Background="#4D9BEC" CornerRadius="10" Padding="0,12" HorizontalAlignment="Stretch">
                             <StackPanel Orientation="Horizontal" Spacing="6"
                                         HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -950,7 +1006,8 @@
                                 <TextBlock Text="Save Settings" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" />
                             </StackPanel>
                         </Border>
-                        <Border Grid.Column="1" x:Name="ResetSettingsButtonBorder" Tag="reset" Tapped="OnResetSettingsTapped"
+                        <Border Grid.Column="1" x:Name="ResetSettingsButtonBorder" Tag="reset" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnResetSettingsTapped" AutomationProperties.Name="Reset"
+                                                                                               Tapped="OnResetSettingsTapped"
                                 Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
                                 CornerRadius="10" Padding="20,12" VerticalAlignment="Stretch">
                             <TextBlock Text="Reset" FontSize="13" FontWeight="SemiBold" Foreground="#F1F5F9"

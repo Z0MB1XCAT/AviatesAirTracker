@@ -29,13 +29,6 @@ public partial class MainViewModel : ObservableObject
     public SettingsViewModel SettingsVm { get; }
     public ReplayViewModel Replay { get; }
 
-    [ObservableProperty] private object? _currentPage;
-    [ObservableProperty] private string _currentPageName = "Dashboard";
-    [ObservableProperty] private bool _isDashboardActive = true;
-    [ObservableProperty] private bool _isMapActive;
-    [ObservableProperty] private bool _isLandingActive;
-    [ObservableProperty] private bool _isSettingsActive;
-    [ObservableProperty] private bool _isReplayActive;
     [ObservableProperty] private SimConnectionStatus _connectionStatus = SimConnectionStatus.Disconnected;
     [ObservableProperty] private string _connectionStatusText = "MSFS Not Running";
     [ObservableProperty] private string _connectionStatusColor = "#4A5568";
@@ -53,8 +46,6 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _pilotName = "Pilot";
     [ObservableProperty] private string _pilotRank = "First Officer";
     [ObservableProperty] private bool _isLoadingSimBrief;
-
-    public ObservableCollection<AlertNotification> ActiveAlerts { get; } = [];
 
     public MainViewModel(
         SimConnectManager simConnect, FlightSessionManager session,
@@ -82,53 +73,15 @@ public partial class MainViewModel : ObservableObject
         _session.SessionStateChanged += OnSessionStateChanged;
         _session.TelemetryUpdated += OnTelemetryUpdated;
         _session.FlightCompleted += OnFlightCompleted;
-        _alertService.AlertRaised += OnAlertRaised;
-        _alertService.LandingResultReady += OnLandingResultReady;
 
         PilotName = settings.Settings.PilotName.Length > 0 ? settings.Settings.PilotName : "Pilot";
-        NavigateToDashboard();
-    }
-
-    [RelayCommand] public void NavigateToDashboard()  => Navigate(Dashboard,       "Dashboard",         ref _isDashboardActive);
-    [RelayCommand] public void NavigateToMap()        => Navigate(Map,             "World Map",          ref _isMapActive);
-    [RelayCommand] public void NavigateToLanding()    => Navigate(LandingAnalysis, "Landing Analysis",   ref _isLandingActive);
-    [RelayCommand] public void NavigateToSettings()   => Navigate(SettingsVm,      "Settings",           ref _isSettingsActive);
-    [RelayCommand] public void NavigateToReplay()     => Navigate(Replay,          "Flight Replay",      ref _isReplayActive);
-
-    private void Navigate(object page, string name, ref bool flag)
-    {
-        // #region agent log
-        AgentDebug.Log("H1", "MainViewModel.cs:Navigate", "Navigate requested", new
-        {
-            pageType = page?.GetType().FullName,
-            name,
-            currentPageType = CurrentPage?.GetType().FullName,
-            currentPageName = CurrentPageName
-        });
-        // #endregion
-
-        ClearNav(); flag = true; CurrentPage = page; CurrentPageName = name;
-
-        // #region agent log
-        AgentDebug.Log("H1", "MainViewModel.cs:Navigate", "Navigate applied", new
-        {
-            newPageType = CurrentPage?.GetType().FullName,
-            newPageName = CurrentPageName
-        });
-        // #endregion
-    }
-
-    private void ClearNav()
-    {
-        IsDashboardActive = IsMapActive = IsLandingActive =
-        IsSettingsActive = IsReplayActive = false;
     }
 
     [RelayCommand]
     public async Task LoadSimBriefAsync()
     {
         var user = _settings.Settings.SimBriefUsername;
-        if (string.IsNullOrWhiteSpace(user)) { NavigateToSettings(); return; }
+        if (string.IsNullOrWhiteSpace(user)) return;
         IsLoadingSimBrief = true;
         try
         {
@@ -222,27 +175,10 @@ public partial class MainViewModel : ObservableObject
             HeaderPhase = "PARKED";
         });
 
-    private void OnAlertRaised(object? _, AlertNotification alert) =>
-        _ui.Invoke(() =>
-        {
-            ActiveAlerts.Insert(0, alert);
-            if (alert.ExpiresAt.HasValue)
-            {
-                var ms = (int)Math.Max(0, (alert.ExpiresAt.Value - DateTime.UtcNow).TotalMilliseconds);
-                Task.Delay(ms).ContinueWith(_ =>
-                    _ui.BeginInvoke(() => ActiveAlerts.Remove(alert)));
-            }
-        });
-
-    private void OnLandingResultReady(object? _, LandingResult result) =>
-        _ui.Invoke(() =>
-        {
-            LandingAnalysis.AddLanding(result);
-            NavigateToLanding();
-        });
-
     public void SetWindowHandle(IntPtr hwnd)
     {
+        _simConnect.AutoConnect = _settings.Settings.AutoConnectSimConnect;
+        _settings.SettingsChanged += (_, _) => _simConnect.AutoConnect = _settings.Settings.AutoConnectSimConnect;
         _simConnect.SetWindowHandle(hwnd);
         _pttInput.SetWindowHandle(hwnd);
         _filePicker.SetWindowHandle(hwnd);

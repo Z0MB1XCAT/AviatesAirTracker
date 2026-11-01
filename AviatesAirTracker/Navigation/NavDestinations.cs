@@ -37,6 +37,8 @@ public static class NavDestinations
         new("pilot-hub", "Pilot Hub", "/pilot-hub", "Pilot", typeof(Pages.PilotHubPage),      IconGlyph: ""), // ContactInfo
         new("acars",     "ACARS",     "/acars",     "Pilot", typeof(Pages.AcarsPage),         IconGlyph: ""), // Radar
         new("map",       "Map",       "/map",       "Pilot", typeof(Pages.MapPage),           IconGlyph: ""), // Nav2DMapView
+        new("landings",  "Landings",  "/landings",  "Pilot", typeof(Pages.LandingAnalysisPage), IconGlyph: ""), // SpeedHigh (gauge)
+        new("statistics","Statistics","/statistics","Pilot", typeof(Pages.StatisticsPage),    IconGlyph: ""), // AreaChart
         new("messages",  "Messages",  "/messages",  "Pilot", typeof(Pages.MessagesPage),      IconGlyph: ""), // Message
         new("news",      "News",      "/news",      "Community", typeof(Pages.NewsPage),      IconGlyph: ""), // PostUpdate
         new("events",    "Events",    "/events",    "Community", typeof(Pages.EventsPage),    IconGlyph: ""), // Calendar

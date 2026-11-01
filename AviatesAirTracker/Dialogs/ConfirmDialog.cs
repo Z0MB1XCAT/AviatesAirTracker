@@ -70,7 +70,7 @@ public static class ConfirmDialog
 
         dialog.Opened += (_, _) => ThemeDialogButtons(dialog);
 
-        var result = await dialog.ShowAsync();
+        var result = await dialog.ShowQueuedAsync();
         return result == ContentDialogResult.Primary;
     }
 

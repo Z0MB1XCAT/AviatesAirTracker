@@ -81,6 +81,19 @@ public class MessagingService : IDisposable
         _backend     = backend;
         _settings    = settings;
 
+        // The pilot id is cached for the process lifetime, so signing out and into another
+        // account (SettingsPage → LoginPage, no restart) kept polling and sending as the
+        // previous pilot. Drop the cache whenever the signed-in identity changes.
+        _settings.SettingsChanged += (_, _) =>
+        {
+            lock (_pilotIdLock)
+            {
+                var id = _settings.Settings.PilotId;
+                if (_cachedPilotId != null && _cachedPilotId != id && (id.Length > 0 || _settings.Settings.AcarsKey.Length == 0))
+                    _cachedPilotId = null;
+            }
+        };
+
         _ = PollAsync();
         // 60s poll: each tick costs two backend requests (inbox + broadcasts).
         // Halved from 30s to conserve the Cloudflare/Supabase free-plan quotas —
@@ -184,13 +197,20 @@ public class MessagingService : IDisposable
 
             // PERF-001: fetch existing IDs once into a HashSet instead of calling GetInboxAsync per message
             var inboxMessages  = await _backend.FetchInboxAsync(pilotId, acarsKey);
-            var existingDmIds  = new HashSet<Guid>((await _messageRepo.GetInboxAsync(pilotId)).Select(m => m.Id));
+            var existingDms    = await _messageRepo.GetInboxAsync(pilotId);
+            var existingDmIds  = new HashSet<Guid>(existingDms.Select(m => m.Id));
             foreach (var msg in inboxMessages)
             {
                 if (!existingDmIds.Contains(msg.Id))
                 {
                     msg.SyncedToBackend = true;
                     await _messageRepo.SaveAsync(msg);
+
+                    // Already held under another id (e.g. the local copy of a sent message):
+                    // stored above so the server id is adopted, but it is not news. Announcing
+                    // it anyway re-fired the same DM to the Messages page and the EFB every poll.
+                    if (existingDms.Any(m => m.IsSameMessageAs(msg))) continue;
+
                     NewMessageReceived?.Invoke(this, msg);
                     Log.Debug("[Messaging] New DM from {Sender}", msg.SenderName);
                 }

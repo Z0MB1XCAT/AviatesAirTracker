@@ -28,6 +28,10 @@ namespace AviatesAirTracker.Pages;
 
 public sealed partial class SettingsPage : Page
 {
+    // Enter/Space on a focused Border-as-button runs its Tapped handler (see KeyboardActivation).
+    private void OnActivateKey(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e) =>
+        AviatesAirTracker.Platform.KeyboardActivation.Handle(this, sender, e);
+
     // Dark-theme hex values read directly from wwwroot/css/app.css's html[data-theme="dark"]
     // block (surface #0C111D, surface-2 #121A2A, border rgba(255,255,255,0.08) = #14FFFFFF,
     // text-secondary #CBD5E1, text-muted #64748B, accent #4D9BEC, accent-light
@@ -157,6 +161,9 @@ public sealed partial class SettingsPage : Page
         AutoConnectToggle.IsOn = _settings.Settings.AutoConnectSimConnect;
         ShowApproachAlertsToggle.IsOn = _settings.Settings.ShowApproachAlerts;
         MinimizeToTrayToggle.IsOn = _settings.Settings.MinimizeToTray;
+        WindowsNotificationsToggle.IsOn = _settings.Settings.WindowsNotificationsEnabled;
+        StartWithWindowsToggle.IsOn = _settings.Settings.StartWithWindows;
+        StartWithSimulatorToggle.IsOn = _settings.Settings.StartWithSimulator;
         ShareLivePositionToggle.IsOn = _settings.Settings.ShareLivePosition;
 
         // Task 4: Dispatch Radio initial field values. The joystick list is populated once here
@@ -928,9 +935,73 @@ public sealed partial class SettingsPage : Page
         _settings.Settings.ShowApproachAlerts = ShowApproachAlertsToggle.IsOn;
     }
 
+    // Saved immediately (unlike the deferred rows above): the shell shows or hides the tray icon
+    // as soon as this changes.
     private void OnMinimizeToTrayToggled(object sender, RoutedEventArgs e)
     {
+        if (_settings.Settings.MinimizeToTray == MinimizeToTrayToggle.IsOn) return;
         _settings.Settings.MinimizeToTray = MinimizeToTrayToggle.IsOn;
+        _settings.Save();
+    }
+
+    private void OnWindowsNotificationsToggled(object sender, RoutedEventArgs e)
+    {
+        if (_settings.Settings.WindowsNotificationsEnabled == WindowsNotificationsToggle.IsOn) return;
+        _settings.Settings.WindowsNotificationsEnabled = WindowsNotificationsToggle.IsOn;
+        _settings.Save();
+    }
+
+    private void OnStartWithWindowsToggled(object sender, RoutedEventArgs e)
+    {
+        var on = StartWithWindowsToggle.IsOn;
+        if (_settings.Settings.StartWithWindows == on) return;
+        if (!App.GetService<StartupLaunchService>().SetStartWithWindows(on))
+        {
+            StartWithWindowsToggle.IsOn = !on;
+            App.GetService<AlertService>().ShowAlert("Couldn't change startup",
+                "Windows didn't let the tracker update its startup entry.", AlertLevel.Warning);
+            return;
+        }
+        _settings.Settings.StartWithWindows = on;
+        _settings.Save();
+    }
+
+    private async void OnStartWithSimulatorToggled(object sender, RoutedEventArgs e)
+    {
+        var on = StartWithSimulatorToggle.IsOn;
+        if (_settings.Settings.StartWithSimulator == on) return;
+
+        StartWithSimulatorToggle.IsEnabled = false;
+        try
+        {
+            var (updated, failed) = await Task.Run(() => App.GetService<StartupLaunchService>().SetStartWithSimulator(on));
+            var alerts = App.GetService<AlertService>();
+
+            if (updated.Count == 0 && failed.Count == 0)
+            {
+                StartWithSimulatorToggle.IsOn = false;
+                StartWithSimulatorStatusText.Text = "No Microsoft Flight Simulator install was found for this Windows account.";
+                return;
+            }
+
+            _settings.Settings.StartWithSimulator = on && updated.Count > 0;
+            _settings.Save();
+            StartWithSimulatorToggle.IsOn = _settings.Settings.StartWithSimulator;
+            StartWithSimulatorStatusText.Text = updated.Count > 0
+                ? $"{(on ? "Opens with" : "Removed from")} {string.Join(" and ", updated)}."
+                : "Add the tracker to the sim's add-on launch list so it opens in the tray with MSFS";
+
+            if (failed.Count > 0)
+                alerts.ShowAlert("Some simulators weren't changed", string.Join(". ", failed) + ".", AlertLevel.Warning);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Settings] Start with simulator toggle failed");
+        }
+        finally
+        {
+            StartWithSimulatorToggle.IsEnabled = true;
+        }
     }
 
     private async void OnShareLivePositionToggled(object sender, RoutedEventArgs e)
@@ -1277,6 +1348,9 @@ public sealed partial class SettingsPage : Page
         AutoConnectToggle.IsOn = _settings.Settings.AutoConnectSimConnect;
         ShowApproachAlertsToggle.IsOn = _settings.Settings.ShowApproachAlerts;
         MinimizeToTrayToggle.IsOn = _settings.Settings.MinimizeToTray;
+        WindowsNotificationsToggle.IsOn = _settings.Settings.WindowsNotificationsEnabled;
+        StartWithWindowsToggle.IsOn = _settings.Settings.StartWithWindows;
+        StartWithSimulatorToggle.IsOn = _settings.Settings.StartWithSimulator;
         ShareLivePositionToggle.IsOn = _settings.Settings.ShareLivePosition;
 
         DispatchBackendUrlTextBox.Text = _settings.Settings.DispatchBackendUrl;

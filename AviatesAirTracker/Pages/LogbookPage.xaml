@@ -156,7 +156,10 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Padding="16,13" ColumnSpacing="12">
+                                    <Grid Padding="16,13" ColumnSpacing="12" Background="Transparent"
+                                          Tag="{Binding}" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnLandingRowTapped" AutomationProperties.Name="Open landing analysis"
+                                                          Tapped="OnLandingRowTapped"
+                                          ToolTipService.ToolTip="Open the landing analysis">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="1.3*" />
                                             <ColumnDefinition Width="1.1*" />

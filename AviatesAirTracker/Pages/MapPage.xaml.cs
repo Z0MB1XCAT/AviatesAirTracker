@@ -36,6 +36,10 @@ namespace AviatesAirTracker.Pages;
 /// </summary>
 public sealed partial class MapPage : Page
 {
+    // Enter/Space on a focused Border-as-button runs its Tapped handler (see KeyboardActivation).
+    private void OnActivateKey(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e) =>
+        AviatesAirTracker.Platform.KeyboardActivation.Handle(this, sender, e);
+
     private readonly MapViewModel _vm;
     private readonly OtherPilotsService _otherPilots;
     private readonly MessagingService _messaging;

@@ -36,6 +36,10 @@ namespace AviatesAirTracker.Pages;
 /// </summary>
 public sealed partial class LoginPage : Page
 {
+    // Enter/Space on a focused Border-as-button runs its Tapped handler (see KeyboardActivation).
+    private void OnActivateKey(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e) =>
+        AviatesAirTracker.Platform.KeyboardActivation.Handle(this, sender, e);
+
     private static readonly Brush MutedBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x64, 0x74, 0x8B));
     private static readonly Brush ErrorBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0xEF, 0x44, 0x44));
     // The one deliberate accent color this page introduces beyond the app's existing blue -- a warm,

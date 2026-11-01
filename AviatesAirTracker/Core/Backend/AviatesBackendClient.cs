@@ -139,7 +139,11 @@ public class AviatesBackendClient
     /// <summary>
     /// Submits a completed flight record (PIREP) to the Aviates Air backend.
     /// </summary>
-    public async Task<bool> SubmitPirepAsync(FlightRecord flight, string acarsKey)
+    public async Task<bool> SubmitPirepAsync(FlightRecord flight, string acarsKey) =>
+        (await SubmitPirepDetailedAsync(flight, acarsKey)).Success;
+
+    /// <summary>Submits a PIREP and reports why it failed, if it did.</summary>
+    public async Task<PirepSubmitResult> SubmitPirepDetailedAsync(FlightRecord flight, string acarsKey)
     {
         Log.Information("[BackendClient] Submitting PIREP: {Dep}→{Arr}",
             flight.DepartureICAO, flight.ArrivalICAO);
@@ -213,18 +217,25 @@ public class AviatesBackendClient
             if (response.IsSuccessful)
             {
                 Log.Information("[BackendClient] PIREP submitted OK");
-                return true;
+                return new PirepSubmitResult(true, (int)response.StatusCode, null);
             }
 
             Log.Warning("[BackendClient] PIREP submission failed: {Status} {Content}",
                 response.StatusCode, response.Content);
-            return false;
+            return new PirepSubmitResult(false, (int)response.StatusCode, ReadApiError(response.Content));
         }
         catch (Exception ex)
         {
             Log.Error(ex, "[BackendClient] PIREP submission error");
-            return false;
+            return new PirepSubmitResult(false, 0, ex.Message);
         }
+    }
+
+    private static string? ReadApiError(string? content)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return null;
+        try { return Newtonsoft.Json.Linq.JObject.Parse(content)["error"]?.ToString(); }
+        catch { return null; }
     }
 
     // =====================================================
@@ -1043,4 +1054,14 @@ internal class SupportChatPollResponse
     [JsonProperty("success")] public bool Success { get; set; }
     [JsonProperty("error")]   public string? Error { get; set; }
     [JsonProperty("data")]    public SupportChatPollData? Data { get; set; }
+}
+
+/// <summary>
+/// Outcome of a PIREP submission. StatusCode is 0 when the request never got an answer
+/// (offline, timeout).
+/// </summary>
+public sealed record PirepSubmitResult(bool Success, int StatusCode, string? Error)
+{
+    /// <summary>The server refused the data itself; sending the same record again can't work.</summary>
+    public bool IsPermanent => StatusCode is 400 or 422;
 }

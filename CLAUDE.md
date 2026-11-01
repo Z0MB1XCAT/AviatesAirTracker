@@ -61,6 +61,8 @@ MSFS (SimConnect)
 | pilot-hub | Pilot Hub | Pilot | `Pages.PilotHubPage` |
 | acars | ACARS | Pilot | `Pages.AcarsPage` |
 | map | Map | Pilot | `Pages.MapPage` |
+| landings | Landings | Pilot | `Pages.LandingAnalysisPage` |
+| statistics | Statistics | Pilot | `Pages.StatisticsPage` |
 | messages | Messages | Pilot | `Pages.MessagesPage` |
 | news | News | Community | `Pages.NewsPage` |
 | events | Events | Community | `Pages.EventsPage` |
@@ -80,7 +82,7 @@ All services are singletons registered in `App.xaml.cs`'s `ConfigureServices`:
 - **Infrastructure:** `IUiDispatcher` → `DispatcherQueueUiDispatcher`, `FilePickerService`, `SettingsService`, `AlertService`
 - **SimConnect:** `SimConnectManager`, `FlightPhaseDetector`, `TelemetryProcessor`
 - **Analytics:** `LandingAnalyzer`, `ApproachMonitor`, `FuelAnalyzer`, `RunwayDetector`
-- **Business:** `AviatesBackendClient`, `AcarsPositionService`, `HoppiesAcarsClient`, `HazardZoneService`, `WeatherAdvisoryService`, `HoppiesAcarsOrchestrator`, `OtherPilotsService`, `PttInputService`, `DispatchRadioService`, `MessagingService`, `RouteTracker`, `FlightTrailService`, `FlightSessionManager`, `DiscordPresenceService`, `SimBriefService`, `TakeoffPerformanceService`, `ExportService`, `PilotStatsService`, `EventsService`, `RoutesService`, `BookingService`, `FleetService`, `UpdateService`, `FlightRecoveryService`
+- **Business:** `AviatesBackendClient`, `AcarsPositionService`, `HoppiesAcarsClient`, `HazardZoneService`, `WeatherAdvisoryService`, `HoppiesAcarsOrchestrator`, `OtherPilotsService`, `PttInputService`, `DispatchRadioService`, `MessagingService`, `RouteTracker`, `FlightTrailService`, `FlightSessionManager`, `DiscordPresenceService`, `SimBriefService`, `TakeoffPerformanceService`, `ExportService`, `PilotStatsService`, `EventsService`, `RoutesService`, `BookingService`, `FleetService`, `UpdateService`, `AutoUpdateCoordinator`, `FlightRecoveryService`, `PirepSyncService`, `DesktopNotificationService`, `StartupLaunchService`
 - **Native voice pipeline:** `VoiceAudioEngine`, `VoiceChannelClient`, `VoiceOrchestrator` (wires `DispatchRadioService`'s PTT/radio events into NAudio WASAPI capture/render + the Opus/WebM wire protocol)
 - **EFB companion:** `EfbStateService`, `EfbChecklistService`, `EfbManualsService`, `EfbAtisService`, `EfbDatalinkService`, `EfbServer`
 - **UI:** 13 ViewModels (`DashboardViewModel`, `MapViewModel`, `LandingAnalysisViewModel`, `PilotHubViewModel`, `SettingsViewModel`, `ReplayViewModel`, `MainViewModel`, `FleetViewModel`, `FlightsViewModel`, `RoutesViewModel`, `EventsViewModel`, `MessagesViewModel`, `AcarsViewModel`) + `ShellWindow` (not `MainWindow` — that name is gone)
@@ -127,6 +129,17 @@ A **new, self-contained module** that hosts a local web server on the LAN so a t
 - Settings: `AppSettings.Efb*` (`EfbEnabled`, `EfbAutoStart`, `EfbPort`, `EfbPairingSecret`, `EfbTheme`, `EfbWeightUnit`). The weight unit is the one KG/LB setting every EFB app reads (client helpers `WU()`/`fmtW()`/`bigFromKg()` in `app.js`); OFP documents and printed checklists keep their own units.
 - ACARS datalink (`Services/Efb/EfbDatalinkService.cs`, wire formats in `Core/Efb/EfbAcars.cs`) runs under the **pilot's own** Hoppie logon and only **peeks** the pilot's inbox, never the shared company inbox (that stays server-side, see the AI dispatcher). Started in `App.xaml.cs` when enabled; disposed on exit.
 - Full docs: [docs/EFB.md](docs/EFB.md).
+
+### Shell conventions
+
+- **Dialogs:** show every `ContentDialog` with `dialog.ShowQueuedAsync()` (`Dialogs/DialogQueue.cs`), never `ShowAsync()`. WinUI allows one open dialog per window; the shell raises its own (landing report, held for review, event reminder) at any moment, and a second `ShowAsync` throws and used to crash the app.
+- **Events from background threads** (`MessagingService`, `EventReminderService`, `UpdateService`, `PirepSyncService` all raise off the UI thread): marshal with `DispatcherQueue.TryEnqueue` before touching any XAML element.
+- **Telling the pilot something:** `AlertService.ShowAlert(title, message, level)` shows an in-app toast (`Shell/ToastPresenter.cs`); `DesktopNotificationService.Notify(...)` shows the toast when the app is in front and a Windows notification when it's behind the sim (click opens the page tag passed as `page`).
+- **Clickable Borders** (the app doesn't use `Button`): give each `Tapped` element `IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="<its Tapped handler name>" AutomationProperties.Name="<what it does>"`, and the page a one-line `OnActivateKey` calling `KeyboardActivation.Handle` (`Platform/KeyboardActivation.cs`) — Enter/Space then run the same handler. Elements built in code use `KeyboardActivation.Enable` or `UiKit.Activatable`.
+- **Code-built pages** (Landing Analysis, Statistics) use `Pages/UiKit.cs` for cards/type/colours and `Controls/TraceChart.cs` for line charts.
+- **Single instance / tray:** a second launch signals the running copy (named event `AviatesAirTracker-Activate`) and exits. `--background` (Start with Windows, the sim's `exe.xml`) starts hidden in the tray. Close goes to the tray when Settings › Minimize to Tray is on.
+- **Updates are mandatory:** `AutoUpdateCoordinator` checks at launch and every 6 h, installs whenever no flight is being tracked, and the shell covers the window with a non-cancellable "updating" screen. The installer must match the release asset's GitHub SHA-256 digest or it isn't run.
+- **Local JSON stores** write through `Core/Data/JsonFileStore.cs` (atomic temp-file replace, serialized writes, unreadable files copied aside as `*.corrupt-*`).
 
 ## Key File Locations
 

@@ -194,8 +194,15 @@ public class PttInputService : IDisposable
         return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
     }
 
+    // When the bound device can't be opened (unplugged, or a GUID saved on another PC), the
+    // loop used to retry every 30 ms and log a full DirectInput stack trace each time --
+    // ~126,000 times in one day's log. Now it waits this long between attempts and logs once
+    // per outage.
+    private static readonly TimeSpan JoystickRetryDelay = TimeSpan.FromSeconds(5);
+
     private async Task JoystickPollLoopAsync(CancellationToken token)
     {
+        var deviceFailing = false;
         try
         {
             while (!token.IsCancellationRequested)
@@ -249,12 +256,25 @@ public class PttInputService : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    Log.Debug(ex, "[PttInput] Joystick poll error (device may have been unplugged)");
+                    if (!deviceFailing)
+                    {
+                        deviceFailing = true;
+                        Log.Warning("[PttInput] PTT joystick unavailable ({Message}) -- retrying every {Sec}s",
+                            ex.Message, JoystickRetryDelay.TotalSeconds);
+                    }
                     lock (_directInputLock)
                     {
                         _joystick?.Dispose();
                         _joystick = null;
                     }
+                    await Task.Delay(JoystickRetryDelay, token);
+                    continue;
+                }
+
+                if (deviceFailing)
+                {
+                    deviceFailing = false;
+                    Log.Information("[PttInput] PTT joystick available again");
                 }
 
                 await Task.Delay(30, token);

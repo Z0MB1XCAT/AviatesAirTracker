@@ -56,11 +56,11 @@ public class FlightSessionManager
     // CRIT-02 / MAJOR-04: RunwayDetector and ApproachMonitor were registered in DI but never wired in.
     private readonly RunwayDetector _runwayDetector;
     private readonly ApproachMonitor _approachMonitor;
-    private readonly AviatesBackendClient _backend;
     private readonly BookingService _bookingService;
     private readonly FlightTrailService _flightTrail;
     private readonly FlightComplianceMonitor _complianceMonitor;
     private readonly EventReminderService _eventReminder;
+    private readonly PirepSyncService _pirepSync;
 
     // =====================================================
     // STATE
@@ -99,7 +99,8 @@ public class FlightSessionManager
         BookingService bookingService,
         FlightTrailService flightTrail,
         FlightComplianceMonitor complianceMonitor,
-        EventReminderService eventReminder)
+        EventReminderService eventReminder,
+        PirepSyncService pirepSync)
     {
         _telemetry = telemetry;
         _phaseDetector = phaseDetector;
@@ -112,11 +113,11 @@ public class FlightSessionManager
         _settings = settings;
         _runwayDetector = runwayDetector;
         _approachMonitor = approachMonitor;
-        _backend = backend;
         _bookingService = bookingService;
         _flightTrail = flightTrail;
         _complianceMonitor = complianceMonitor;
         _eventReminder = eventReminder;
+        _pirepSync = pirepSync;
 
         // Wire up phase changes
         _phaseDetector.PhaseChanged += OnPhaseChanged;
@@ -183,7 +184,14 @@ public class FlightSessionManager
         switch (State)
         {
             case FlightSessionState.Idle:
-                if (snap.EnginesRunning)
+                // Leave Idle only when there is a flight to record: a resumed one, or an
+                // activated booking. Leaving it for an untracked flight used to run the whole
+                // state machine with no FlightRecord -- landings were scored and saved against no
+                // flight, and OnFlightComplete then returned before Reset(), stranding State at
+                // Complete so nothing more was tracked until the app was restarted. Re-checked
+                // every tick, so activating the booking with the engines already running (on the
+                // ground) starts tracking at that point instead of never.
+                if (snap.EnginesRunning && CanStartTracking(snap))
                     TransitionTo(FlightSessionState.PreFlight, snap);
                 break;
 
@@ -234,6 +242,25 @@ public class FlightSessionManager
                     TransitionTo(FlightSessionState.Complete, snap);
                 break;
         }
+    }
+
+    private bool _loggedUntracked;
+
+    private bool CanStartTracking(TelemetrySnapshot snap)
+    {
+        if (CurrentFlight != null) return true;
+        if (_bookingService.ActiveBooking is { IsActivated: true } && snap.IsOnGround)
+        {
+            _loggedUntracked = false;
+            return true;
+        }
+
+        if (!_loggedUntracked)
+        {
+            _loggedUntracked = true;
+            Log.Information("[FlightSession] Engines running with no activated booking -- not tracking");
+        }
+        return false;
     }
 
     private void TransitionTo(FlightSessionState newState, TelemetrySnapshot snap)
@@ -362,7 +389,9 @@ public class FlightSessionManager
     private void OnTaxiStarted(TelemetrySnapshot snap)
     {
         _blockOutTime = snap.Timestamp;
-        if (CurrentFlight != null)
+        // A flight resumed after an app restart already has its real block-out time; the
+        // PreFlight → Taxiing pass on resume must not restart the block clock from now.
+        if (CurrentFlight != null && CurrentFlight.BlockOutTime == default)
             CurrentFlight.BlockOutTime = _blockOutTime;
     }
 
@@ -415,8 +444,9 @@ public class FlightSessionManager
 
     private void OnBounceDetected(object? sender, BounceEvent bounce)
     {
-        _alertService.ShowAlert($"BOUNCE #{bounce.BounceNumber} DETECTED", 
-            AlertLevel.Warning, TimeSpan.FromSeconds(5));
+        if (!_settings.Settings.ShowApproachAlerts) return;
+        _alertService.ShowAlert("Bounced landing", $"Bounce {bounce.BounceNumber} after touchdown.",
+            AlertLevel.Warning, TimeSpan.FromSeconds(6));
     }
 
     private void OnPhaseChanged(object? sender, FlightPhaseChangedEvent evt)
@@ -426,7 +456,13 @@ public class FlightSessionManager
 
     private void OnFlightComplete(TelemetrySnapshot snap)
     {
-        if (CurrentFlight == null) return;
+        if (CurrentFlight == null)
+        {
+            // Nothing to finalize, but the state machine must still return to Idle --
+            // UpdateSessionState has no way out of Complete.
+            Reset();
+            return;
+        }
 
         // Force-finalize a landing that touched down but hadn't finished its rollout yet
         // (e.g. pilot ends the flight right after touchdown). Must happen before the flight
@@ -488,23 +524,13 @@ public class FlightSessionManager
 
     private async Task SubmitPirepSafeAsync(FlightRecord flight)
     {
-        var key = _settings.Settings.AcarsKey.Trim();
-        if (string.IsNullOrEmpty(key))
+        try
         {
-            Log.Debug("[FlightSession] PIREP skipped — no ACARS key configured");
-            return;
+            await _pirepSync.SubmitAsync(flight, announce: true);
         }
-
-        var success = await _backend.SubmitPirepAsync(flight, key);
-        if (success)
+        catch (Exception ex)
         {
-            flight.SyncedToBackend = true;
-            await _flightRepo.UpdateAsync(flight);
-            Log.Information("[FlightSession] PIREP synced to backend for flight {Id}", flight.Id);
-        }
-        else
-        {
-            Log.Warning("[FlightSession] PIREP submission failed — will retry on next startup (flight {Id})", flight.Id);
+            Log.Warning(ex, "[FlightSession] PIREP submission failed -- will retry on next startup (flight {Id})", flight.Id);
         }
     }
 
@@ -514,14 +540,26 @@ public class FlightSessionManager
 
     private void CheckApproachAlerts(TelemetrySnapshot snap)
     {
-        if (snap.ApproachAlerts.Count > 0)
-        {
-            foreach (var alert in snap.ApproachAlerts)
-            {
-                _alertService.ShowAlert($"UNSTABLE: {alert}", AlertLevel.Warning, TimeSpan.FromSeconds(3));
-            }
-        }
+        if (!_settings.Settings.ShowApproachAlerts) return;
+        // AlertService drops an identical alert while one is still showing, so calling this at
+        // 20 Hz raises each one once per 6 s, not 20 times a second.
+        foreach (var alert in snap.ApproachAlerts)
+            _alertService.ShowAlert("Unstable approach", DescribeStabilityFlag(alert),
+                AlertLevel.Warning, TimeSpan.FromSeconds(6));
     }
+
+    private static string DescribeStabilityFlag(string flag) => flag switch
+    {
+        nameof(StabilityFlag.HighDescentRate)     => "Sink rate is above 1,000 fpm.",
+        nameof(StabilityFlag.GearUp)              => "Landing gear is not down.",
+        nameof(StabilityFlag.FlapsNotSet)         => "Flaps are not in the landing setting.",
+        nameof(StabilityFlag.ExcessiveBank)       => "Bank angle is too steep.",
+        nameof(StabilityFlag.LocalizerDeviation)  => "Off the localizer.",
+        nameof(StabilityFlag.GlideSlopeDeviation) => "Off the glideslope.",
+        nameof(StabilityFlag.Overspeed)           => "Speed is above the approach target.",
+        nameof(StabilityFlag.Underspeed)          => "Speed is below the approach target.",
+        _                                         => flag,
+    };
 
     // =====================================================
     // PATH RECORDING

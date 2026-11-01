@@ -84,7 +84,8 @@
                                CharacterSpacing="40" VerticalAlignment="Center" />
 
                     <!-- Exactly one of these three is visible at a time (see UpdateConnectionBanner). -->
-                    <Border x:Name="ConnectButtonBorder" Grid.Column="3" Tapped="OnConnectTapped"
+                    <Border x:Name="ConnectButtonBorder" Grid.Column="3" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnConnectTapped" AutomationProperties.Name="Connect"
+                                                                         Tapped="OnConnectTapped"
                             Background="#4D9BEC" CornerRadius="10" Padding="16,7" VerticalAlignment="Center">
                         <TextBlock x:Name="ConnectButtonText" Text="Connect" FontSize="12" FontWeight="Bold" Foreground="White" />
                     </Border>
@@ -97,7 +98,8 @@
                                 <TextBlock Text="LIVE" FontSize="11" FontWeight="SemiBold" Foreground="#3EC7AC" />
                             </StackPanel>
                         </Border>
-                        <Border x:Name="EndFlightButtonBorder" Tapped="OnEndFlightTapped"
+                        <Border x:Name="EndFlightButtonBorder" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnEndFlightTapped" AutomationProperties.Name="End Flight"
+                                                               Tapped="OnEndFlightTapped"
                                 Background="#1AEF4444" BorderBrush="#EF4444" BorderThickness="1.5"
                                 CornerRadius="10" Padding="16,6">
                             <TextBlock Text="End Flight" FontSize="12" FontWeight="Bold" Foreground="#EF4444" />
@@ -159,13 +161,43 @@
                     <TextBlock Grid.Column="5" Text="SimBrief opened in browser; generate your plan, then click Fetch OFP below"
                                FontSize="12" Foreground="#64748B" VerticalAlignment="Center" TextWrapping="Wrap" />
 
-                    <Border x:Name="BookingDismissBorder" Grid.Column="6" Tapped="OnBookingDismissTapped"
+                    <Border x:Name="BookingDismissBorder" Grid.Column="6" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnBookingDismissTapped" AutomationProperties.Name="Dismiss booking banner"
+                                                                          Tapped="OnBookingDismissTapped"
                             Width="24" Height="24" Background="Transparent" BorderBrush="#14FFFFFF" BorderThickness="1"
                             CornerRadius="9999" VerticalAlignment="Center">
                         <TextBlock Text="×" FontSize="14" Foreground="#64748B"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                 </Grid>
+            </Border>
+
+            <!-- ── Pre-flight readiness ──
+                 Shown while no flight is being tracked: everything that decides whether the next
+                 flight is tracked and logged properly. Rows are built in code (UpdateReadiness). -->
+            <Border x:Name="ReadinessBorder" Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1"
+                    CornerRadius="20" Padding="20" Visibility="Collapsed">
+                <StackPanel Spacing="14">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Before you fly" FontFamily="{StaticResource DisplayFontBold}"
+                                       FontSize="16" Foreground="#F1F5F9" />
+                            <TextBlock Text="Check these before starting the engines so the flight is tracked and logged properly."
+                                       FontSize="12.5" Foreground="#64748B" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <TextBlock x:Name="ReadinessSummaryText" Grid.Column="1" FontSize="13" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid x:Name="ReadinessGrid" ColumnSpacing="24" RowSpacing="14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                    </Grid>
+                </StackPanel>
             </Border>
 
             <!-- ── Aircraft identification strip (Acars.razor:97-133) ── -->
@@ -332,7 +364,8 @@
                              Grid centered the shorter map inside it, letterboxing it with the
                              Border's own dark background showing as bars above and below. -->
                         <Grid x:Name="MiniMapHost" />
-                        <Border x:Name="FullMapLinkBorder" Tapped="OnFullMapTapped"
+                        <Border x:Name="FullMapLinkBorder" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFullMapTapped" AutomationProperties.Name="Open full map"
+                                                           Tapped="OnFullMapTapped"
                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,12,12"
                                 Background="#D20A0D17" BorderBrush="#14FFFFFF" BorderThickness="1"
                                 CornerRadius="12" Padding="14,6">
@@ -350,7 +383,8 @@
                             <Grid Margin="0,0,0,12">
                                 <TextBlock Text="Flight Plan" FontFamily="{StaticResource DisplayFontBold}"
                                            FontSize="15" Foreground="#F1F5F9" HorizontalAlignment="Left" />
-                                <Border x:Name="ClearPlanButtonBorder" Tapped="OnClearPlanTapped"
+                                <Border x:Name="ClearPlanButtonBorder" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnClearPlanTapped" AutomationProperties.Name="Clear flight plan"
+                                                                       Tapped="OnClearPlanTapped"
                                         HorizontalAlignment="Right" Padding="6,2" Visibility="Collapsed">
                                     <TextBlock Text="Clear" FontSize="11" Foreground="#64748B" />
                                 </Border>
@@ -396,7 +430,8 @@
                                                    FontWeight="SemiBold" Foreground="#F1F5F9" HorizontalAlignment="Right" />
                                     </Grid>
                                 </StackPanel>
-                                <Border x:Name="RefreshOfpButtonBorder" Tapped="OnRefreshOfpTapped"
+                                <Border x:Name="RefreshOfpButtonBorder" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnRefreshOfpTapped" AutomationProperties.Name="Refresh OFP"
+                                                                        Tapped="OnRefreshOfpTapped"
                                         Background="Transparent" BorderBrush="#14FFFFFF" BorderThickness="1"
                                         CornerRadius="10" Padding="0,8" HorizontalAlignment="Stretch">
                                     <TextBlock Text="Refresh OFP" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1"
@@ -423,7 +458,8 @@
                                 <StackPanel x:Name="SimBriefNoUsernamePanel" Visibility="Collapsed" Spacing="10">
                                     <TextBlock Text="No SimBrief username configured." FontSize="12" Foreground="#64748B"
                                                TextWrapping="Wrap" />
-                                    <Border Tapped="OnConfigureSimBriefTapped"
+                                    <Border IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnConfigureSimBriefTapped" AutomationProperties.Name="Configure SimBrief"
+                                            Tapped="OnConfigureSimBriefTapped"
                                             Background="Transparent" BorderBrush="#14FFFFFF" BorderThickness="1"
                                             CornerRadius="10" Padding="0,8" HorizontalAlignment="Stretch">
                                         <TextBlock Text="Configure SimBrief" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1"
@@ -437,7 +473,8 @@
                                         <TextBlock x:Name="SimBriefUsernameText" Text="" FontFamily="Consolas" FontSize="11"
                                                    Foreground="#CBD5E1" />
                                     </StackPanel>
-                                    <Border x:Name="ImportOfpButtonBorder" Tapped="OnImportOfpTapped"
+                                    <Border x:Name="ImportOfpButtonBorder" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnImportOfpTapped" AutomationProperties.Name="Import Latest OFP"
+                                                                           Tapped="OnImportOfpTapped"
                                             Background="#4D9BEC" CornerRadius="10" Padding="0,8" HorizontalAlignment="Stretch">
                                         <TextBlock Text="Import Latest OFP" FontSize="12" FontWeight="Bold" Foreground="White"
                                                    HorizontalAlignment="Center" />
@@ -519,7 +556,8 @@
                                            FontWeight="Bold" Foreground="#4D9BEC" CharacterSpacing="100" HorizontalAlignment="Right" />
                             </Grid>
 
-                            <Border Tapped="OnConfigureAcarsTapped"
+                            <Border IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnConfigureAcarsTapped" AutomationProperties.Name="Configure ACARS"
+                                    Tapped="OnConfigureAcarsTapped"
                                     Background="Transparent" BorderBrush="#14FFFFFF" BorderThickness="1"
                                     CornerRadius="10" Padding="0,8" HorizontalAlignment="Stretch">
                                 <TextBlock Text="Configure ACARS" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1"
@@ -539,7 +577,8 @@
                     <Grid Margin="0,0,0,12">
                         <TextBlock Text="Flight Events" FontFamily="{StaticResource DisplayFontBold}"
                                    FontSize="15" Foreground="#F1F5F9" HorizontalAlignment="Left" />
-                        <Border Tapped="OnClearEventLogTapped" HorizontalAlignment="Right" Padding="6,2">
+                        <Border IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnClearEventLogTapped" AutomationProperties.Name="Clear event log"
+                                Tapped="OnClearEventLogTapped" HorizontalAlignment="Right" Padding="6,2">
                             <TextBlock Text="Clear" FontSize="11" Foreground="#64748B" />
                         </Border>
                     </Grid>
@@ -599,7 +638,8 @@
                                            FontSize="15" Foreground="#F1F5F9" HorizontalAlignment="Left" />
                                 <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                                     <TextBlock x:Name="DepMetarTimeText" Text="" FontSize="10" Foreground="#64748B" VerticalAlignment="Center" />
-                                    <Border Tapped="OnRefreshMetarsTapped" Padding="5,1" VerticalAlignment="Center">
+                                    <Border IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnRefreshMetarsTapped" AutomationProperties.Name="Refresh METARs"
+                                            Tapped="OnRefreshMetarsTapped" Padding="5,1" VerticalAlignment="Center">
                                         <TextBlock x:Name="DepMetarRefreshIconText" Text="↻" FontSize="11" FontWeight="Bold" Foreground="#4D9BEC" />
                                     </Border>
                                 </StackPanel>
@@ -620,7 +660,8 @@
                                            FontSize="15" Foreground="#F1F5F9" HorizontalAlignment="Left" />
                                 <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                                     <TextBlock x:Name="ArrMetarTimeText" Text="" FontSize="10" Foreground="#64748B" VerticalAlignment="Center" />
-                                    <Border Tapped="OnRefreshMetarsTapped" Padding="5,1" VerticalAlignment="Center">
+                                    <Border IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnRefreshMetarsTapped" AutomationProperties.Name="Refresh METARs"
+                                            Tapped="OnRefreshMetarsTapped" Padding="5,1" VerticalAlignment="Center">
                                         <TextBlock x:Name="ArrMetarRefreshIconText" Text="↻" FontSize="11" FontWeight="Bold" Foreground="#4D9BEC" />
                                     </Border>
                                 </StackPanel>
@@ -641,7 +682,8 @@
                                            FontSize="15" Foreground="#F1F5F9" HorizontalAlignment="Left" />
                                 <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                                     <TextBlock x:Name="AltMetarTimeText" Text="" FontSize="10" Foreground="#64748B" VerticalAlignment="Center" />
-                                    <Border Tapped="OnRefreshMetarsTapped" Padding="5,1" VerticalAlignment="Center">
+                                    <Border IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnRefreshMetarsTapped" AutomationProperties.Name="Refresh METARs"
+                                            Tapped="OnRefreshMetarsTapped" Padding="5,1" VerticalAlignment="Center">
                                         <TextBlock x:Name="AltMetarRefreshIconText" Text="↻" FontSize="11" FontWeight="Bold" Foreground="#4D9BEC" />
                                     </Border>
                                 </StackPanel>
@@ -659,7 +701,8 @@
                         Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20"
                         Visibility="Collapsed">
                     <StackPanel Spacing="0">
-                        <Grid Tapped="OnToggleNotamsTapped" Margin="0,0,0,8">
+                        <Grid IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnToggleNotamsTapped" AutomationProperties.Name="NOTAMs"
+                              Tapped="OnToggleNotamsTapped" Margin="0,0,0,8">
                             <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left">
                                 <TextBlock Text="NOTAMs" FontFamily="{StaticResource DisplayFontBold}" FontSize="15" Foreground="#F1F5F9" />
                                 <TextBlock x:Name="NotamsCountText" Text="" FontSize="11" FontWeight="Medium" Foreground="#64748B" VerticalAlignment="Center" />
@@ -707,7 +750,8 @@
                         Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20" Padding="20"
                         Visibility="Collapsed">
                     <StackPanel Spacing="0">
-                        <Grid Tapped="OnToggleOfpTextTapped" Margin="0,0,0,8">
+                        <Grid IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnToggleOfpTextTapped" AutomationProperties.Name="OFP Text"
+                              Tapped="OnToggleOfpTextTapped" Margin="0,0,0,8">
                             <TextBlock Text="OFP Text" FontFamily="{StaticResource DisplayFontBold}"
                                        FontSize="15" Foreground="#F1F5F9" HorizontalAlignment="Left" />
                             <TextBlock x:Name="OfpTextChevronText" Text="▼" FontSize="12" Foreground="#64748B" HorizontalAlignment="Right" />
@@ -806,7 +850,8 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Tapped="OnCompletionDismissTapped" Background="#4D9BEC" CornerRadius="10" Padding="0,13" Margin="0,12,0,0">
+                    <Border IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnCompletionDismissTapped" AutomationProperties.Name="Close flight summary"
+                            Tapped="OnCompletionDismissTapped" Background="#4D9BEC" CornerRadius="10" Padding="0,13" Margin="0,12,0,0">
                         <TextBlock Text="Dismiss" FontSize="13" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" CharacterSpacing="30" />
                     </Border>
 

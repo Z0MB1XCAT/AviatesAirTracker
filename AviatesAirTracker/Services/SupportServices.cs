@@ -138,8 +138,17 @@ public class AlertService
         get { lock (_lock) return _activeAlerts.AsReadOnly(); }
     }
 
-    public void ShowAlert(string message, AlertLevel level, TimeSpan? duration = null)
+    public void ShowAlert(string message, AlertLevel level, TimeSpan? duration = null) =>
+        ShowAlert(null, message, level, duration);
+
+    /// <summary>Raises an in-app toast. <paramref name="title"/> is the bold first line; null
+    /// shows the message on its own.</summary>
+    public void ShowAlert(string? title, string message, AlertLevel level, TimeSpan? duration = null)
     {
+        // Every alert expires: one that never did stayed in _activeAlerts forever, and the
+        // duplicate check below then blocked that message from ever showing again.
+        duration ??= TimeSpan.FromSeconds(level == AlertLevel.Critical ? 12 : 8);
+
         // MAJOR-13: At 20Hz during approach, this spawned a new Task.Delay per call (up to 60+ concurrent
         // timers). Now dedup: if an identical message is already active, skip.
         lock (_lock)
@@ -151,6 +160,7 @@ public class AlertService
         var alert = new AlertNotification
         {
             Id = Guid.NewGuid(),
+            Title = title,
             Message = message,
             Level = level,
             Timestamp = DateTime.UtcNow,
@@ -177,10 +187,8 @@ public class AlertService
 
     public void ShowLandingResult(LandingResult result)
     {
+        // No toast as well: the landing report dialog this raises already says it.
         LandingResultReady?.Invoke(this, result);
-        ShowAlert($"LANDED: Score {result.LandingScore}/100 | {result.VerticalSpeedFPM:F0}fpm",
-            result.LandingScore >= 70 ? AlertLevel.Success : AlertLevel.Warning,
-            TimeSpan.FromSeconds(10));
     }
 
     public void Dismiss(Guid id)
@@ -194,6 +202,7 @@ public enum AlertLevel { Info, Success, Warning, Critical }
 public class AlertNotification
 {
     public Guid Id { get; set; }
+    public string? Title { get; set; }
     public string Message { get; set; } = "";
     public AlertLevel Level { get; set; }
     public DateTime Timestamp { get; set; }
@@ -204,7 +213,7 @@ public class AlertNotification
         AlertLevel.Success => "#22C55E",
         AlertLevel.Warning => "#EAB308",
         AlertLevel.Critical => "#EF4444",
-        _ => "#3D7EEE"
+        _ => "#4D9BEC"
     };
 }
 
@@ -235,14 +244,22 @@ public class SettingsService
         Load();
     }
 
+    private readonly object _saveLock = new();
+
     public void Save()
     {
         try
         {
-            // Ensure the directory exists (AppData\Roaming\AviatesAirTracker\)
-            Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
-            var json = JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(_settingsPath, json);
+            // Saved from several threads (UI, messaging poll, booking calls). Temp file + replace,
+            // one writer at a time: a torn write here loses the ACARS key, i.e. signs the pilot out.
+            lock (_saveLock)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
+                var json = JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true });
+                var temp = _settingsPath + ".tmp";
+                File.WriteAllText(temp, json);
+                File.Move(temp, _settingsPath, overwrite: true);
+            }
             SettingsChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
@@ -387,6 +404,19 @@ public class AppSettings
     public bool ShowApproachAlerts { get; set; } = true;
     public bool ShowLandingResult { get; set; } = true;
     public bool MinimizeToTray { get; set; } = false;
+    // Windows notifications for DMs, event reminders, PIREP results, landings and updates while
+    // the app is behind the sim. In-app toasts show regardless.
+    public bool WindowsNotificationsEnabled { get; set; } = true;
+    // HKCU Run entry; the app then starts in the tray.
+    public bool StartWithWindows { get; set; } = false;
+    // Launch.Addon entry in each installed simulator's exe.xml; starts in the tray with the sim.
+    public bool StartWithSimulator { get; set; } = false;
+    // Last window bounds in physical pixels; 0 width = never saved (first launch).
+    public int WindowX { get; set; }
+    public int WindowY { get; set; }
+    public int WindowWidth { get; set; }
+    public int WindowHeight { get; set; }
+    public bool WindowMaximized { get; set; }
     public bool ShareLivePosition { get; set; } = true;
     public bool StartMinimized { get; set; } = false;
     public double TelemetryHz { get; set; } = 20;

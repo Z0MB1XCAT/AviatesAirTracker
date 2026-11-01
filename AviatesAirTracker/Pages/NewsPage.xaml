@@ -58,7 +58,8 @@
                     <DataTemplate>
                         <Border HorizontalAlignment="Stretch" Margin="0,0,16,16" Background="#0C111D"
                                 BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20"
-                                Tag="{Binding}" Tapped="OnCardTapped">
+                                Tag="{Binding}" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnCardTapped" AutomationProperties.Name="Read article"
+                                                Tapped="OnCardTapped">
                             <StackPanel>
 
                                 <!-- Banner: photo (2 cards) OR gradient + low-opacity emoji (4 cards),

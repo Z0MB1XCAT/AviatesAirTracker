@@ -98,7 +98,8 @@
                                      IsSpellCheckEnabled="False" VerticalAlignment="Center"
                                      KeyDown="OnAcarsKeyTextBoxKeyDown" TextChanged="OnAcarsKeyTextChanged" />
 
-                            <Border x:Name="PasteButtonBorder" Grid.Column="1" Tapped="OnPasteTapped"
+                            <Border x:Name="PasteButtonBorder" Grid.Column="1" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnPasteTapped" AutomationProperties.Name="Paste"
+                                                                               Tapped="OnPasteTapped"
                                     Background="#14FFFFFF" CornerRadius="10" Padding="12,6"
                                     VerticalAlignment="Center">
                                 <TextBlock Text="Paste" FontSize="11.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
@@ -117,7 +118,8 @@
                     </Grid>
 
                     <!-- CTA -->
-                    <Border x:Name="ConnectButtonBorder" Tapped="OnConnectTapped"
+                    <Border x:Name="ConnectButtonBorder" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnConnectTapped" AutomationProperties.Name="Connect to AviatesAir"
+                                                         Tapped="OnConnectTapped"
                             Background="#4D9BEC" CornerRadius="10" Padding="0,13" Margin="0,0,0,16">
                         <StackPanel Orientation="Horizontal" Spacing="9" HorizontalAlignment="Center">
                             <ProgressRing x:Name="ConnectSpinner" IsActive="False" Width="15" Height="15"
@@ -143,7 +145,8 @@
                 </StackPanel>
 
                 <!-- Footer -->
-                <Border Grid.Row="2" x:Name="RegisterLinkBorder" Tapped="OnRegisterTapped"
+                <Border Grid.Row="2" x:Name="RegisterLinkBorder" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnRegisterTapped" AutomationProperties.Name="Register"
+                                                                 Tapped="OnRegisterTapped"
                         Margin="48,0,48,32" HorizontalAlignment="Left" Padding="0,4">
                     <TextBlock FontFamily="{StaticResource BodyFontMedium}" FontSize="12.5" TextWrapping="Wrap">
                         <Run Text="New pilot? " Foreground="#64748B" /><Run Text="Register at flyaviatesair.uk" Foreground="#4D9BEC" />

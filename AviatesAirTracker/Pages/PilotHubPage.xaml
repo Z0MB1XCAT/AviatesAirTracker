@@ -79,11 +79,13 @@
                         <!-- Activate: opens SimBrief dispatch pre-filled from this booking, then
                              marks it activated server-side. Primary/accent styling since this is
                              the action the pilot is meant to take before flying. -->
-                        <Border x:Name="BookingActivateBorder" Tapped="OnActivateBookingTapped"
+                        <Border x:Name="BookingActivateBorder" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnActivateBookingTapped" AutomationProperties.Name="Activate booking"
+                                                               Tapped="OnActivateBookingTapped"
                                 Background="#4D9BEC" CornerRadius="10" Padding="14,8">
                             <TextBlock Text="Activate" FontSize="12.5" FontWeight="SemiBold" Foreground="#FFFFFF" />
                         </Border>
-                        <Border x:Name="BookingCancelBorder" Tapped="OnCancelBookingTapped"
+                        <Border x:Name="BookingCancelBorder" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnCancelBookingTapped" AutomationProperties.Name="Cancel booking"
+                                                             Tapped="OnCancelBookingTapped"
                                 Background="#1AEF4444" BorderBrush="#4DEF4444" BorderThickness="1"
                                 CornerRadius="10" Padding="14,8">
                             <TextBlock Text="Cancel" FontSize="12.5" FontWeight="SemiBold" Foreground="#EF4444" HorizontalAlignment="Center" />
@@ -92,7 +94,8 @@
                              SimBrief dispatch URL rather than doing nothing, since the pilot may
                              have closed the browser tab and wants it back. It does NOT re-trigger
                              the one-way activation call itself. -->
-                        <Border x:Name="BookingActivatedRow" Tapped="OnReopenDispatchTapped" Visibility="Collapsed"
+                        <Border x:Name="BookingActivatedRow" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnReopenDispatchTapped" AutomationProperties.Name="Reopen SimBrief"
+                                                             Tapped="OnReopenDispatchTapped" Visibility="Collapsed"
                                 Background="#14FFFFFF" BorderBrush="#1FFFFFFF" BorderThickness="1"
                                 CornerRadius="10" Padding="14,8">
                             <TextBlock Text="Reopen SimBrief" FontSize="12.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
@@ -324,6 +327,7 @@
                                  "View Flights" CTA uses for FlightsPage. -->
                             <TextBlock Grid.Column="1" Text="View all" FontSize="12" FontWeight="SemiBold"
                                        Foreground="#4D9BEC" VerticalAlignment="Center"
+                                       IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnViewLogbookTapped" AutomationProperties.Name="View all"
                                        Tapped="OnViewLogbookTapped" />
                         </Grid>
 
@@ -428,6 +432,7 @@
                          "View all" link. -->
                     <TextBlock Grid.Column="1" Text="View logbook" FontSize="13" FontWeight="SemiBold"
                                Foreground="#4D9BEC" VerticalAlignment="Center"
+                               IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnViewLogbookTapped" AutomationProperties.Name="View logbook"
                                Tapped="OnViewLogbookTapped" />
                 </Grid>
 
@@ -478,7 +483,10 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Padding="16,13" ColumnSpacing="12">
+                                    <Grid Padding="16,13" ColumnSpacing="12" Background="Transparent"
+                                          Tag="{Binding}" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnLandingRowTapped" AutomationProperties.Name="Open landing analysis"
+                                                          Tapped="OnLandingRowTapped"
+                                          ToolTipService.ToolTip="Open the landing analysis">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="1.3*" />
                                             <ColumnDefinition Width="1.1*" />

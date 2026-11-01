@@ -39,6 +39,17 @@ public partial class App : Application
     // delay against an unknown teardown time.
     private Mutex? _appMutex;
 
+    // A second launch (desktop shortcut, Start with Windows, the sim's exe.xml) signals the copy
+    // that's already running to show itself, then exits -- two copies would mean two SimConnect
+    // clients recording, and submitting, the same flight.
+    private const string ActivateSignalName = "AviatesAirTracker-Activate";
+    private EventWaitHandle? _activateSignal;
+    private RegisteredWaitHandle? _activateWait;
+
+    // Set once the shell exists: from then on an unexpected UI error is logged and reported to
+    // the pilot instead of closing the app.
+    private bool _shellReady;
+
     public App()
     {
         InitializeComponent();
@@ -85,18 +96,62 @@ public partial class App : Application
         // to it) -- not whether it's actually locked -- so this deliberately never calls
         // WaitOne()/ReleaseMutex(); it exists purely as Setup's "is the app running" signal, not
         // for this process's own mutual exclusion.
-        _appMutex = new Mutex(initiallyOwned: false, name: "AviatesAirTracker-AppMutex");
+        _appMutex = new Mutex(initiallyOwned: false, name: "AviatesAirTracker-AppMutex", out var firstInstance);
+        var background = Environment.GetCommandLineArgs().Contains(StartupLaunchService.BackgroundArg);
+        if (!firstInstance)
+        {
+            if (!background && EventWaitHandle.TryOpenExisting(ActivateSignalName, out var signal))
+            {
+                signal.Set();
+                signal.Dispose();
+            }
+            _appMutex.Dispose();
+            _appMutex = null;
+            Exit();
+            return;
+        }
 
         // Global crash handlers — capture any exception before the window appears
         AppDomain.CurrentDomain.UnhandledException += (_, ex) =>
             DumpCrash("AppDomain", ex.ExceptionObject as Exception);
         UnhandledException += (_, ex) =>
         {
+            // SkiaSharp.Views.WinUI 2.88.7 (pulled in by Mapsui's MapControl) dereferences a
+            // null XamlRoot in SKXamlCanvas.OnUnloaded when the Map/ACARS page leaves the Frame.
+            // That handler only frees the canvas bitmap, so nothing is left half-done -- it was
+            // just taking the app down on navigation (eight times in crash.log). Swallow exactly
+            // that and nothing else.
+            if (ex.Exception is NullReferenceException &&
+                ex.Exception.StackTrace?.Contains("SKXamlCanvas.OnUnloaded", StringComparison.Ordinal) == true)
+            {
+                Log.Warning(ex.Exception, "[App] Ignored SkiaSharp SKXamlCanvas unload fault");
+                ex.Handled = true;
+                return;
+            }
+
             DumpCrash("UnhandledException", ex.Exception);
-            ex.Handled = false;
+
+            // Before the shell is up a failure here is a broken start; afterwards it is one
+            // action that didn't finish, and the rest of the app (and the flight being
+            // tracked) is fine -- so it's reported, not fatal.
+            ex.Handled = _shellReady;
+            if (_shellReady)
+            {
+                try
+                {
+                    _serviceProvider.GetRequiredService<AlertService>().ShowAlert(
+                        "Something went wrong",
+                        "That action didn't finish. The details were saved to the app's log; if it keeps happening, send it to us from Support.",
+                        AlertLevel.Critical);
+                }
+                catch { /* reporting must never throw */ }
+            }
         };
         TaskScheduler.UnobservedTaskException += (_, ex) =>
+        {
             DumpCrash("TaskScheduler", ex.Exception);
+            ex.SetObserved();
+        };
 
         try
         {
@@ -106,10 +161,18 @@ public partial class App : Application
                 "AviatesAirTracker", "logs");
             Directory.CreateDirectory(logDir);
 
+            // Debug-level output (per-poll and per-retry chatter) only in debug builds, and each
+            // day's file capped at 20 MB -- one day's log had reached 71 MB.
             Log.Logger = new LoggerConfiguration()
+#if DEBUG
                 .MinimumLevel.Debug()
+#else
+                .MinimumLevel.Information()
+#endif
                 .WriteTo.File(Path.Combine(logDir, "aviates_.log"), rollingInterval: RollingInterval.Day,
                     retainedFileCountLimit: 7,
+                    fileSizeLimitBytes: 20 * 1024 * 1024,
+                    rollOnFileSizeLimit: true,
                     outputTemplate: "[{Timestamp:HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
                 .CreateLogger();
             Log.Information("=== Aviates Air Flight Tracker v1.0 Starting ===");
@@ -153,46 +216,24 @@ public partial class App : Application
             // would be silently blocked from ever having their flight tracked.
             _ = HydrateActiveBookingAsync(_serviceProvider);
 
-            // When a booked flight completes, advance the pilot's current airport to the
-            // booking destination so the Routes page only shows departures from there next time.
+            // Advancing the pilot's current airport to the booking destination when a booked
+            // flight completes is done by BookingService.CompleteActiveBookingAsync, which
+            // FlightSessionManager.OnFlightComplete calls right after FlightCompleted. (A
+            // FlightCompleted handler here used to do it and clear ActiveBooking first, which
+            // left CompleteActiveBookingAsync nothing to complete -- the booking was never
+            // marked completed server-side.)
             var sessionMgr  = _serviceProvider.GetRequiredService<FlightSessionManager>();
-            var bookingSvc  = _serviceProvider.GetRequiredService<BookingService>();
             var settingsSvc = _serviceProvider.GetRequiredService<SettingsService>();
-            sessionMgr.FlightCompleted += (_, _) =>
-            {
-                var active = bookingSvc.ActiveBooking;
-                if (active != null && !string.IsNullOrEmpty(active.DestIata))
-                {
-                    _ = bookingSvc.SetPositionAsync(active.DestIata);
-                    bookingSvc.SetActiveBooking(null);
-                    Log.Information("[Location] Pilot position advanced to {IATA}", active.DestIata);
-                }
-            };
 
-            // Schedule update check 8 seconds after startup so it doesn't delay the UI. If a
-            // newer version is found and no flight is in progress, install it silently and
-            // relaunch (DownloadAndInstallAsync shuts the app down for the installer) --
-            // the sessionMgr guard just avoids yanking the app out from under an active flight
-            // on the rare case this ever runs mid-session.
-            var updateSvc = _serviceProvider.GetRequiredService<UpdateService>();
-            _ = Task.Run(async () =>
-            {
-                await Task.Delay(8000);
-                await updateSvc.CheckAsync();
+            // Mandatory updates: checked shortly after launch and every few hours, installed
+            // whenever no flight is being tracked (see AutoUpdateCoordinator).
+            _serviceProvider.GetRequiredService<AutoUpdateCoordinator>().Start();
 
-                if (updateSvc.AvailableUpdate != null && sessionMgr.State == FlightSessionState.Idle)
-                {
-                    Log.Information("[Update] Auto-installing {Version}", updateSvc.AvailableUpdate.Version);
-                    try
-                    {
-                        await updateSvc.DownloadAndInstallAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Error(ex, "[Update] Auto-install failed");
-                    }
-                }
-            });
+            // Windows notifications (DMs, PIREP results, event reminders) while the app is behind
+            // the sim; re-point the start-with-Windows/sim entries at this exe.
+            _serviceProvider.GetRequiredService<DesktopNotificationService>().Initialize();
+            _ = Task.Run(() => _serviceProvider.GetRequiredService<StartupLaunchService>().SyncOnStartup(
+                settingsSvc.Settings.StartWithWindows, settingsSvc.Settings.StartWithSimulator));
 
             // EFB companion server — resolving it wires the telemetry bridge; auto-start
             // hosts the LAN tablet server if enabled in settings. Failures are non-fatal.
@@ -201,7 +242,14 @@ public partial class App : Application
                 _ = efbServer.StartAsync();
 
             var shell = _serviceProvider.GetRequiredService<ShellWindow>();
-            shell.Activate();
+            if (background) shell.StartInTray();
+            else shell.Activate();
+            _shellReady = true;
+
+            var dispatcher = DispatcherQueue.GetForCurrentThread();
+            _activateSignal = new EventWaitHandle(false, EventResetMode.AutoReset, ActivateSignalName);
+            _activateWait = ThreadPool.RegisterWaitForSingleObject(_activateSignal,
+                (_, _) => dispatcher.TryEnqueue(shell.BringToFront), null, Timeout.Infinite, executeOnlyOnce: false);
 
 #if DEBUG
             // Dev aid (debug builds only): `AviatesAirTracker.exe --debug-landing` fires a
@@ -259,7 +307,7 @@ public partial class App : Application
                 "AviatesAirTracker");
             Directory.CreateDirectory(crashDir);
             var path = Path.Combine(crashDir, "crash.log");
-            var msg  = $"[{DateTime.Now:HH:mm:ss}] [{source}] {ex}\n{new string('-', 80)}\n";
+            var msg  = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{source}] {ex}\n{new string('-', 80)}\n";
             File.AppendAllText(path, msg);
             // Also try Serilog in case it's initialized
             try { Log.Fatal(ex, "[Crash/{Source}] Unhandled exception", source); } catch { }
@@ -285,42 +333,10 @@ public partial class App : Application
         }
     }
 
-    private static async Task RetryPendingPirepsAsync(IServiceProvider sp)
-    {
-        try
-        {
-            var flights  = sp.GetRequiredService<IFlightRepository>();
-            var backend  = sp.GetRequiredService<AviatesBackendClient>();
-            var settings = sp.GetRequiredService<SettingsService>();
-
-            var key = settings.Settings.AcarsKey.Trim();
-            if (string.IsNullOrEmpty(key)) return;
-
-            var all     = await flights.GetAllAsync();
-            var pending = all.Where(f =>
-                !f.SyncedToBackend &&
-                f.Status == FlightStatus.Completed).ToList();
-
-            if (pending.Count == 0) return;
-
-            Log.Information("[Startup] Retrying {Count} unsynced PIREP(s)...", pending.Count);
-
-            foreach (var flight in pending)
-            {
-                var ok = await backend.SubmitPirepAsync(flight, key);
-                if (ok)
-                {
-                    flight.SyncedToBackend = true;
-                    await flights.UpdateAsync(flight);
-                    Log.Information("[Startup] Retry OK for flight {Id}", flight.Id);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "[Startup] PIREP retry scan failed (non-critical)");
-        }
-    }
+    // PIREPs the server refused outright (missing airports etc.) are skipped here and wait for
+    // the pilot to fix them on the Flights page -- see PirepSyncService.
+    private static Task RetryPendingPirepsAsync(IServiceProvider sp) =>
+        sp.GetRequiredService<PirepSyncService>().RetryPendingAsync();
 
     internal static async Task SyncPirepHistoryAsync(IServiceProvider sp)
     {
@@ -594,6 +610,10 @@ public partial class App : Application
         services.AddSingleton<BookingService>();
         services.AddSingleton<FleetService>();
         services.AddSingleton<UpdateService>();
+        services.AddSingleton<AutoUpdateCoordinator>();
+        services.AddSingleton<PirepSyncService>();
+        services.AddSingleton<DesktopNotificationService>();
+        services.AddSingleton<StartupLaunchService>();
         services.AddSingleton<FlightRecoveryService>();
         // EFB companion (virtual tablet) — embedded LAN web server + telemetry bridge
         services.AddSingleton<EfbStateService>();
@@ -720,7 +740,10 @@ public partial class App : Application
         Step("VoiceOrchestrator", () => _serviceProvider.GetService<VoiceOrchestrator>()?.Dispose());
         Step("VoiceChannelClient", () => _serviceProvider.GetService<VoiceChannelClient>()?.Dispose());
         Step("VoiceAudioEngine", () => _serviceProvider.GetService<VoiceAudioEngine>()?.Dispose());
+        Step("AutoUpdate", () => _serviceProvider.GetService<AutoUpdateCoordinator>()?.Dispose());
         Step("UpdateService", () => _serviceProvider.GetService<UpdateService>()?.Dispose());
+        Step("Notifications", () => _serviceProvider.GetService<DesktopNotificationService>()?.Dispose());
+        Step("ActivateSignal", () => { _activateWait?.Unregister(null); _activateSignal?.Dispose(); });
         Step("EventReminderService", () => _serviceProvider.GetService<EventReminderService>()?.Dispose());
         Step("TakeoffPerf", () => _serviceProvider.GetService<TakeoffPerformanceService>()?.Dispose());
 

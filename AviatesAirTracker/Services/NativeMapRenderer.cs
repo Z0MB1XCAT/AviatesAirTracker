@@ -810,6 +810,68 @@ public sealed class NativeMapRenderer : IDisposable
     /// size minus 2x the padding on each axis, then clamped so it never zooms in tighter than zoom
     /// level 10's resolution (the "maxZoom" cap).
     /// </summary>
+    /// <summary>
+    /// The Statistics page's career map: every recorded track as a thin line and a labelled dot
+    /// per airport, then zoomed to fit them all. Reuses the planned-route and airport layers,
+    /// which that page has no other use for. Call after <see cref="Init"/>.
+    /// </summary>
+    public void ShowRouteNetwork(
+        IReadOnlyList<IReadOnlyList<(double Lat, double Lon)>> tracks,
+        IReadOnlyList<(double Lat, double Lon, string Icao)> airports)
+    {
+        if (_plannedRouteLayer == null || _airportMarkerLayer == null) return;
+
+        _plannedRoutePoints.Clear();
+        var lineStyle = new VectorStyle { Line = new Pen(Color.Opacity(Color.FromString("#4D9BEC"), 0.75f), 2) };
+        var lines = new List<IFeature>();
+        foreach (var track in tracks)
+        {
+            var coords = track
+                .Where(p => p.Lat != 0 || p.Lon != 0)
+                .Select(p => { var (x, y) = SphericalMercator.FromLonLat(p.Lon, p.Lat); return new Coordinate(x, y); })
+                .ToArray();
+            if (coords.Length < 2) continue;
+            var feature = new GeometryFeature { Geometry = new LineString(coords) };
+            feature.Styles.Add(lineStyle);
+            lines.Add(feature);
+            _plannedRoutePoints.Add(new MPoint(coords[0].X, coords[0].Y));
+            _plannedRoutePoints.Add(new MPoint(coords[^1].X, coords[^1].Y));
+        }
+        _plannedRouteLayer.Features = lines;
+        _plannedRouteLayer.DataHasChanged();
+
+        ClearAirportMarkers();
+        foreach (var (lat, lon, icao) in airports)
+        {
+            var (x, y) = SphericalMercator.FromLonLat(lon, lat);
+            var point = new MPoint(x, y);
+            var feature = new PointFeature(point);
+            feature["Icao"] = icao;
+            feature.Styles.Add(new SymbolStyle
+            {
+                SymbolType = SymbolType.Ellipse,
+                SymbolScale = 0.35,
+                Fill = new Brush(Color.FromString("#F1F5F9")),
+                Outline = new Pen(Color.FromString("#4D9BEC"), 2),
+            });
+            feature.Styles.Add(new LabelStyle
+            {
+                Text = icao,
+                Font = new Font { FontFamily = "Consolas", Size = 10, Bold = true },
+                ForeColor = Color.White,
+                BackColor = new Brush(new Color(12, 17, 29, 210)),
+                Offset = new Offset(0, -16),
+                CornerRounding = 4,
+            });
+            _airportMarkerFeatures.Add(feature);
+            _airportMarkerPoints.Add(point);
+        }
+        _airportMarkerLayer.Features = _airportMarkerFeatures.ToArray();
+        _airportMarkerLayer.DataHasChanged();
+
+        FitRouteBounds();
+    }
+
     public void FitRouteBounds()
     {
         var allPoints = new List<MPoint>(_plannedRoutePoints.Count + _airportMarkerPoints.Count);

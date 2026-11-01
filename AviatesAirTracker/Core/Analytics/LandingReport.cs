@@ -135,6 +135,14 @@ public sealed class LandingReport
     public double MaxSinkBelow1000Fpm { get; set; }
     public double MaxBankBelow500Deg { get; set; }
 
+    // Approach targets the landing was judged against (0 = unknown for this aircraft/landing).
+    public double TargetSpeedMinKts { get; set; }
+    public double TargetSpeedMaxKts { get; set; }
+    public double LandingFlapTargetPct { get; set; }
+
+    /// <summary>The debrief: every check against its limit, rated, with coaching.</summary>
+    public LandingAssessment Assessment { get; set; } = new();
+
     // Career context (filled when history is supplied)
     public bool IsPersonalBest { get; set; }
     public int RankAmongLandings { get; set; }     // 1 = best
@@ -214,6 +222,10 @@ public static class LandingReportBuilder
             ThresholdFt = r.ThresholdDistanceFt,
             FuelLbs = r.FuelOnTouchdownLbs,
             DecelerationKtPerSec = r.AverageDecelerationKtPerSec,
+
+            TargetSpeedMinKts = r.ApproachSpeedMinKts,
+            TargetSpeedMaxKts = r.ApproachSpeedMaxKts,
+            LandingFlapTargetPct = r.LandingFlapTargetPct,
         };
 
         var b = r.ScoreBreakdown;
@@ -228,6 +240,7 @@ public static class LandingReportBuilder
         ];
 
         ApplyFlightData(report, r, trace ?? r.Trace);
+        report.Assessment = LandingAssessmentBuilder.Build(report, r);
 
         if (history is { Count: > 0 })
         {

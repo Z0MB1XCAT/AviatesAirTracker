@@ -71,7 +71,8 @@
                                    HorizontalAlignment="Center" Margin="0,0,0,16" />
                         <!-- Inert: no @onclick in the original. Border-not-Button per this project's
                              convention (no Style to retemplate Button's CornerRadius on this SDK). -->
-                        <Border Tag="live-chat" Tapped="OnFeatureButtonTapped"
+                        <Border Tag="live-chat" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFeatureButtonTapped" AutomationProperties.Name="Open Chat"
+                                                Tapped="OnFeatureButtonTapped"
                                 Background="#4D9BEC" CornerRadius="10" Padding="0,10" HorizontalAlignment="Stretch">
                             <TextBlock Text="Open Chat" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF"
                                        HorizontalAlignment="Center" />
@@ -101,7 +102,8 @@
                                    FontSize="12.5" Foreground="#64748B" TextWrapping="Wrap" TextAlignment="Center"
                                    HorizontalAlignment="Center" Margin="0,0,0,16" />
                         <!-- Inert: no @onclick in the original (btn-ghost styling only). -->
-                        <Border Tag="knowledge-base" Tapped="OnFeatureButtonTapped"
+                        <Border Tag="knowledge-base" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFeatureButtonTapped" AutomationProperties.Name="Browse Docs"
+                                                     Tapped="OnFeatureButtonTapped"
                                 Background="Transparent" BorderBrush="#1F4D9BEC" BorderThickness="1.5"
                                 CornerRadius="10" Padding="0,10" HorizontalAlignment="Stretch">
                             <TextBlock Text="Browse Docs" FontSize="13" FontWeight="SemiBold" Foreground="#4D9BEC"
@@ -130,7 +132,8 @@
                         <!-- Opens the real public repo in the default browser (the other two
                              feature buttons stay inert placeholders; no live chat widget or
                              knowledge base exists to link to yet). -->
-                        <Border Tag="github-issues" Tapped="OnGitHubIssuesTapped"
+                        <Border Tag="github-issues" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnGitHubIssuesTapped" AutomationProperties.Name="Open GitHub"
+                                                    Tapped="OnGitHubIssuesTapped"
                                 Background="Transparent" BorderBrush="#1F4D9BEC" BorderThickness="1.5"
                                 CornerRadius="10" Padding="0,10" HorizontalAlignment="Stretch">
                             <TextBlock Text="Open GitHub" FontSize="13" FontWeight="SemiBold" Foreground="#4D9BEC"
@@ -156,7 +159,8 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <Border Grid.Column="0" Tag="mailto:aviatesair@gmail.com" Tapped="OnContactTapped"
+                        <Border Grid.Column="0" Tag="mailto:aviatesair@gmail.com" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnContactTapped" AutomationProperties.Name="Email Support"
+                                                                                  Tapped="OnContactTapped"
                                 Background="#121A2A" CornerRadius="12" Padding="16" HorizontalAlignment="Stretch">
                             <StackPanel Orientation="Horizontal" Spacing="14">
                                 <Border Width="40" Height="40" CornerRadius="10" Background="#1F4D9BEC">
@@ -174,7 +178,8 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Grid.Column="1" Tag="https://discord.gg/WjBubsD8E9" Tapped="OnContactTapped"
+                        <Border Grid.Column="1" Tag="https://discord.gg/WjBubsD8E9" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnContactTapped" AutomationProperties.Name="Discord"
+                                                                                    Tapped="OnContactTapped"
                                 Background="#121A2A" CornerRadius="12" Padding="16" HorizontalAlignment="Stretch">
                             <StackPanel Orientation="Horizontal" Spacing="14">
                                 <Border Width="40" Height="40" CornerRadius="10" Background="#1F5865F2">
@@ -209,7 +214,8 @@
                     <!-- FAQ 0 -->
                     <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
                         <StackPanel>
-                            <Border Tag="0" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                            <Border Tag="0" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFaqTapped" AutomationProperties.Name="How do I set up ACARS tracking?"
+                                            Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -237,7 +243,8 @@
                     <!-- FAQ 1 -->
                     <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
                         <StackPanel>
-                            <Border Tag="1" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                            <Border Tag="1" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFaqTapped" AutomationProperties.Name="How is my landing score calculated?"
+                                            Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -265,7 +272,8 @@
                     <!-- FAQ 2 -->
                     <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
                         <StackPanel>
-                            <Border Tag="2" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                            <Border Tag="2" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFaqTapped" AutomationProperties.Name="How do I advance my rank?"
+                                            Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -293,7 +301,8 @@
                     <!-- FAQ 3 -->
                     <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
                         <StackPanel>
-                            <Border Tag="3" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                            <Border Tag="3" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFaqTapped" AutomationProperties.Name="What aircraft types can I fly?"
+                                            Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -321,7 +330,8 @@
                     <!-- FAQ 4 -->
                     <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
                         <StackPanel>
-                            <Border Tag="4" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                            <Border Tag="4" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFaqTapped" AutomationProperties.Name="How do I join a fly-in event?"
+                                            Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -349,7 +359,8 @@
                     <!-- FAQ 5 -->
                     <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
                         <StackPanel>
-                            <Border Tag="5" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                            <Border Tag="5" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFaqTapped" AutomationProperties.Name="Can I import a SimBrief OFP?"
+                                            Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -377,7 +388,8 @@
                     <!-- FAQ 6 (from flyaviatesair.uk/support) -->
                     <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
                         <StackPanel>
-                            <Border Tag="6" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                            <Border Tag="6" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFaqTapped" AutomationProperties.Name="What do I need to fly with AviatesAir?"
+                                            Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -405,7 +417,8 @@
                     <!-- FAQ 7 (from flyaviatesair.uk/support) -->
                     <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
                         <StackPanel>
-                            <Border Tag="7" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                            <Border Tag="7" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFaqTapped" AutomationProperties.Name="What exactly is my ACARS key for?"
+                                            Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -433,7 +446,8 @@
                     <!-- FAQ 8 (from flyaviatesair.uk/support) -->
                     <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
                         <StackPanel>
-                            <Border Tag="8" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                            <Border Tag="8" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFaqTapped" AutomationProperties.Name="I can't log in, or I've lost my ACARS key. What now?"
+                                            Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -461,7 +475,8 @@
                     <!-- FAQ 9 (from flyaviatesair.uk/support) -->
                     <Border Background="#0C111D" BorderBrush="#14FFFFFF" BorderThickness="1" CornerRadius="20">
                         <StackPanel>
-                            <Border Tag="9" Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
+                            <Border Tag="9" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFaqTapped" AutomationProperties.Name="Which callsign should I use on VATSIM?"
+                                            Tapped="OnFaqTapped" Background="Transparent" Padding="20,16">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />

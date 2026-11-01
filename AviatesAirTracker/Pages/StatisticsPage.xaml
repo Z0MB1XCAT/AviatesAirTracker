@@ -1,0 +1,31 @@
+<Page
+    x:Class="AviatesAirTracker.Pages.StatisticsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="#080B14">
+
+    <!--
+      Career statistics. Content is built in code (StatisticsPage.xaml.cs) from CareerStatsLogic,
+      the same way the Landing Analysis page builds its debrief. Same rules as every page here:
+      no Style elements, no new Tokens.xaml entries, no double hyphen inside a comment.
+    -->
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
+        <StackPanel MaxWidth="1440" Spacing="20" HorizontalAlignment="Stretch">
+            <StackPanel Spacing="4">
+                <TextBlock Text="Statistics" FontFamily="{StaticResource DisplayFontBold}" FontSize="26"
+                           CharacterSpacing="-30" Foreground="#F1F5F9" />
+                <TextBlock Text="Your flying career with Aviates Air: hours, aircraft, routes and how your landings are coming along."
+                           FontSize="14" Foreground="#94A3B8" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel x:Name="ContentHost" Spacing="20" />
+            <StackPanel x:Name="EmptyState" Visibility="Collapsed" Spacing="8" Padding="0,96,0,0"
+                        HorizontalAlignment="Center">
+                <TextBlock Text="Nothing to show yet" FontFamily="{StaticResource DisplayFontBold}" FontSize="18"
+                           Foreground="#CBD5E1" HorizontalAlignment="Center" />
+                <TextBlock Text="Complete your first booked flight and your career statistics start here."
+                           FontSize="13" Foreground="#64748B" HorizontalAlignment="Center" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

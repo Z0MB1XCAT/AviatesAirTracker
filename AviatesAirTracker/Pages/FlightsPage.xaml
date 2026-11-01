@@ -41,22 +41,26 @@
                  All four tabs share one Tapped handler (OnTabTapped); which tab fired is read
                  from the Border's own Tag. -->
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <Border x:Name="TabAllBorder" Tag="all" Tapped="OnTabTapped"
+                <Border x:Name="TabAllBorder" Tag="all" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnTabTapped" AutomationProperties.Name="All Flights"
+                                                        Tapped="OnTabTapped"
                         CornerRadius="10" Padding="16,9">
                     <TextBlock x:Name="TabAllText" Text="All Flights" FontSize="13" FontWeight="SemiBold" />
                 </Border>
 
-                <Border x:Name="TabActiveBorder" Tag="active" Tapped="OnTabTapped"
+                <Border x:Name="TabActiveBorder" Tag="active" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnTabTapped" AutomationProperties.Name="Active"
+                                                              Tapped="OnTabTapped"
                         CornerRadius="10" Padding="16,9">
                     <TextBlock x:Name="TabActiveText" Text="Active" FontSize="13" FontWeight="SemiBold" />
                 </Border>
 
-                <Border x:Name="TabCompletedBorder" Tag="completed" Tapped="OnTabTapped"
+                <Border x:Name="TabCompletedBorder" Tag="completed" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnTabTapped" AutomationProperties.Name="Completed"
+                                                                    Tapped="OnTabTapped"
                         CornerRadius="10" Padding="16,9">
                     <TextBlock x:Name="TabCompletedText" Text="Completed" FontSize="13" FontWeight="SemiBold" />
                 </Border>
 
-                <Border x:Name="TabPendingBorder" Tag="pending" Tapped="OnTabTapped"
+                <Border x:Name="TabPendingBorder" Tag="pending" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnTabTapped" AutomationProperties.Name="Pending Review"
+                                                                Tapped="OnTabTapped"
                         CornerRadius="10" Padding="16,9">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock x:Name="TabPendingText" Text="Pending Review" FontSize="13" FontWeight="SemiBold" />
@@ -155,6 +159,32 @@
                 </Border>
             </Grid>
 
+            <!-- ── PIREPs that haven't reached Aviates Air ──
+                 Shown when any completed flight is unsynced. Text and the Retry button are set in
+                 code-behind (RefreshPirepBanner); rejected PIREPs are fixed per row below. -->
+            <Border x:Name="PirepBanner" Visibility="Collapsed" Background="#14F59E0B"
+                    BorderBrush="#4DF59E0B" BorderThickness="1" CornerRadius="16" Padding="18,14">
+                <Grid ColumnSpacing="14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE7BA;" FontFamily="Segoe Fluent Icons" FontSize="16"
+                              Foreground="#F59E0B" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock x:Name="PirepBannerTitle" FontSize="13.5" FontWeight="SemiBold" Foreground="#F1F5F9" />
+                        <TextBlock x:Name="PirepBannerDetail" FontSize="12" Foreground="#CBD5E1" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Border Grid.Column="2" x:Name="RetryAllBorder" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnRetryAllTapped" AutomationProperties.Name="Send now"
+                                                                    Tapped="OnRetryAllTapped"
+                            Background="#4D9BEC" CornerRadius="8" Padding="14,7" VerticalAlignment="Center">
+                        <TextBlock x:Name="RetryAllText" Text="Send now" FontSize="12.5" FontWeight="SemiBold"
+                                   Foreground="#FFFFFF" />
+                    </Border>
+                </Grid>
+            </Border>
+
             <!-- ── Flight Logbook table ──
                  Flights.razor's .data-table-wrap/.data-table, reproduced as a Grid-per-row
                  ItemsControl since WinUI has no table equivalent; same technique
@@ -180,7 +210,8 @@
                                  dialog pattern as the delete/force-remove/settings dialogs elsewhere
                                  in this page and app; WinUI's Flyout is untested anywhere in this
                                  project, ContentDialog is proven safe on this exact page. -->
-                            <Border x:Name="FilterBorder" Tag="filter" Tapped="OnFilterTapped"
+                            <Border x:Name="FilterBorder" Tag="filter" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFilterTapped" AutomationProperties.Name="Filter"
+                                                                       Tapped="OnFilterTapped"
                                     Background="#121A2A" BorderBrush="#1FFFFFFF" BorderThickness="1"
                                     CornerRadius="8" Padding="12,7">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
@@ -303,10 +334,10 @@
                                                        Foreground="{Binding GradeChipColor}" />
                                         </Border>
 
-                                        <!-- Status chip -->
+                                        <!-- Status chip (tooltip carries the PIREP error, if any) -->
                                         <Border Grid.Column="5" Background="{Binding StatusChipBackground}"
                                                 CornerRadius="10" Padding="9,4" HorizontalAlignment="Left"
-                                                VerticalAlignment="Center">
+                                                VerticalAlignment="Center" ToolTipService.ToolTip="{Binding StatusTooltip}">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <Ellipse Width="6" Height="6" Fill="{Binding StatusChipColor}" VerticalAlignment="Center" />
                                                 <TextBlock Text="{Binding StatusLabel}" FontSize="11" FontWeight="SemiBold"
@@ -320,7 +351,27 @@
                                              here, Task 4 wires their Tapped handlers. -->
                                         <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                             <Border Width="26" Height="26" CornerRadius="999" Background="#121A2A"
-                                                    BorderBrush="#1FFFFFFF" BorderThickness="1">
+                                                    BorderBrush="#4D4D9BEC" BorderThickness="1"
+                                                    Visibility="{Binding ShowRetryAction}"
+                                                    Tag="{Binding}" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnRetryPirepTapped" AutomationProperties.Name="Send PIREP again"
+                                                                    Tapped="OnRetryPirepTapped"
+                                                    ToolTipService.ToolTip="Send PIREP again">
+                                                <FontIcon Glyph="&#xE72C;" FontFamily="Segoe Fluent Icons" FontSize="11" Foreground="#4D9BEC" />
+                                            </Border>
+                                            <Border Width="26" Height="26" CornerRadius="999" Background="#121A2A"
+                                                    BorderBrush="#4DF59E0B" BorderThickness="1"
+                                                    Visibility="{Binding ShowFixAction}"
+                                                    Tag="{Binding}" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnFixPirepTapped" AutomationProperties.Name="Fix PIREP details"
+                                                                    Tapped="OnFixPirepTapped"
+                                                    ToolTipService.ToolTip="Fix PIREP details">
+                                                <FontIcon Glyph="&#xE70F;" FontFamily="Segoe Fluent Icons" FontSize="11" Foreground="#F59E0B" />
+                                            </Border>
+                                            <Border Width="26" Height="26" CornerRadius="999" Background="#121A2A"
+                                                    BorderBrush="#1FFFFFFF" BorderThickness="1"
+                                                    Visibility="{Binding ShowDetailsAction}"
+                                                    Tag="{Binding}" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnViewLandingTapped" AutomationProperties.Name="Open landing analysis"
+                                                                    Tapped="OnViewLandingTapped"
+                                                    ToolTipService.ToolTip="Landing analysis">
                                                 <Viewbox Width="11" Height="11">
                                                     <Path Data="M9 18l6-6-6-6" Stroke="#CBD5E1" StrokeThickness="2.5"
                                                           StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
@@ -329,7 +380,8 @@
                                             <Border Width="26" Height="26" CornerRadius="999" Background="#121A2A"
                                                     BorderBrush="#4DEF4444" BorderThickness="1"
                                                     Visibility="{Binding ShowDeleteAction}"
-                                                    Tag="{Binding}" Tapped="OnDeleteActionTapped"
+                                                    Tag="{Binding}" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnDeleteActionTapped" AutomationProperties.Name="Request deletion"
+                                                                    Tapped="OnDeleteActionTapped"
                                                     ToolTipService.ToolTip="Request deletion">
                                                 <Viewbox Width="11" Height="11">
                                                     <Path Data="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"
@@ -340,7 +392,8 @@
                                             <Border Width="26" Height="26" CornerRadius="999" Background="#121A2A"
                                                     BorderBrush="#4DEF4444" BorderThickness="1"
                                                     Visibility="{Binding ShowForceRemoveAction}"
-                                                    Tag="{Binding}" Tapped="OnForceRemoveActionTapped"
+                                                    Tag="{Binding}" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnForceRemoveActionTapped" AutomationProperties.Name="Force remove flight"
+                                                                    Tapped="OnForceRemoveActionTapped"
                                                     ToolTipService.ToolTip="Force remove broken flight">
                                                 <Viewbox Width="11" Height="11">
                                                     <Path Data="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"
@@ -464,12 +517,14 @@
                                                     VerticalAlignment="Center" Visibility="{Binding ShowActions}">
                                             <Border Background="#1A22C55E" BorderBrush="#6622C55E" BorderThickness="1"
                                                     CornerRadius="6" Padding="12,4"
-                                                    Tag="{Binding}" Tapped="OnApproveTapped">
+                                                    Tag="{Binding}" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnApproveTapped" AutomationProperties.Name="Approve"
+                                                                    Tapped="OnApproveTapped">
                                                 <TextBlock Text="Approve" FontSize="11" FontWeight="Bold" Foreground="#22C55E" />
                                             </Border>
                                             <Border Background="#1FEF4444" BorderBrush="#66EF4444" BorderThickness="1"
                                                     CornerRadius="6" Padding="12,4"
-                                                    Tag="{Binding}" Tapped="OnRejectTapped">
+                                                    Tag="{Binding}" IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnActivateKey" AutomationProperties.AutomationId="OnRejectTapped" AutomationProperties.Name="Reject"
+                                                                    Tapped="OnRejectTapped">
                                                 <TextBlock Text="Reject" FontSize="11" FontWeight="Bold" Foreground="#EF4444" />
                                             </Border>
                                         </StackPanel>
