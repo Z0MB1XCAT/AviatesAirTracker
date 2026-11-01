@@ -456,6 +456,9 @@ public class AppSettings
     // Last EFB theme chosen on a paired device (mirrored here so the desktop
     // can show it). "boeing" | "airbus" | "minimal" | "aviates".
     public string EfbTheme { get; set; } = "aviates";
+    /// <summary>Weight unit for every EFB app (fuel, weights, perf): "KG" or "LB". Shared by all
+    /// paired devices, so a tablet and a phone always agree.</summary>
+    public string EfbWeightUnit { get; set; } = "KG";
 }
 
 // ============================================================

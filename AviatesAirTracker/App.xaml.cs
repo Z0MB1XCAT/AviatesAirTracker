@@ -601,6 +601,8 @@ public partial class App : Application
         services.AddSingleton<EfbManualsService>();
         services.AddSingleton<EfbAtisService>();
         services.AddSingleton<EfbNetworkTrafficService>();
+        services.AddSingleton<EfbMapWeatherService>();
+        services.AddSingleton<EfbDatalinkService>();
         services.AddSingleton<EfbServer>();
         // ViewModels
         services.AddSingleton<DashboardViewModel>();
@@ -708,6 +710,7 @@ public partial class App : Application
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
         Step("EfbServer", () => _serviceProvider.GetService<EfbServer>()?.Dispose());
+        Step("EfbDatalink", () => _serviceProvider.GetService<EfbDatalinkService>()?.Dispose());
         Step("SimConnectManager", () => _serviceProvider.GetService<SimConnectManager>()?.Disconnect());
         Step("Discord", () => _serviceProvider.GetService<DiscordPresenceService>()?.Dispose());
         Step("AcarsPosition", () => _serviceProvider.GetService<AcarsPositionService>()?.Dispose());

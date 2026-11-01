@@ -34,6 +34,10 @@
          sink is configured, so calls are inert no-ops in the test process. Same
          version pinned in AviatesAirTracker.csproj. -->
     <PackageReference Include="Serilog" Version="3.1.1" />
+
+    <!-- EFB airport/runway parser (EfbAirportData.cs) reads the aviationweather.gov JSON
+         with JObject. Same version pinned in AviatesAirTracker.csproj. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
   <ItemGroup>
@@ -63,6 +67,30 @@
          reference System.Net.WebSockets types that need extra packages beyond the
          BCL, so no new PackageReference is needed for this link. -->
     <Compile Include="../../AviatesAirTracker/Services/Voice/VoiceChannelClient.cs" Link="Services/Voice/VoiceChannelClient.cs" />
+
+    <!-- EFB Departure Perf: takeoff calculator (FLEX / OPT CONF / trim) and runway data parser
+         are pure, dependency-free statics. -->
+    <Compile Include="../../AviatesAirTracker/Core/Efb/AircraftPerformanceProfiles.cs" Link="Core/Efb/AircraftPerformanceProfiles.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbPerformanceCalculator.cs" Link="Core/Efb/EfbPerformanceCalculator.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbLandingFailures.cs" Link="Core/Efb/EfbLandingFailures.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbAirportData.cs" Link="Core/Efb/EfbAirportData.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbAtcGeo.cs" Link="Core/Efb/EfbAtcGeo.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Analytics/WeightBalanceDatabase.cs" Link="Core/Analytics/WeightBalanceDatabase.cs" />
+
+    <!-- EFB Checklists: the per-aircraft checklist library and its check-state service
+         (the service only depends on the library). -->
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbChecklistLibrary.cs" Link="Core/Efb/EfbChecklistLibrary.cs" />
+    <Compile Include="../../AviatesAirTracker/Services/Efb/EfbChecklistService.cs" Link="Services/Efb/EfbChecklistService.cs" />
+
+    <!-- Landing report: the shared LandingReport projection (flight-data view: trace distances,
+         stabilised-approach gates, FDM events). Depends only on Models. -->
+    <Compile Include="../../AviatesAirTracker/Core/Analytics/LandingReport.cs" Link="Core/Analytics/LandingReport.cs" />
+
+    <!-- Manuals: the document library core (front-matter parser, search, generated QRH) and the
+         company flap policy (CN-002 / CN-003). The tests read the real /Manuals markdown files. -->
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbManuals.cs" Link="Core/Efb/EfbManuals.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbCompanyPolicy.cs" Link="Core/Efb/EfbCompanyPolicy.cs" />
+    <Compile Include="../../AviatesAirTracker/Core/Efb/EfbAcars.cs" Link="Core/Efb/EfbAcars.cs" />
   </ItemGroup>
 
 </Project>

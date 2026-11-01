@@ -69,6 +69,20 @@ public class LandingAnalyzer
     // Touchdown snapshot
     private TelemetrySnapshot? _touchdownSnapshot;
 
+    // Landing-report trace. Phase-independent (the detector can call "Approach" late), so the
+    // report can plot the whole final approach: a 1 Hz ring of the last TRACE_WINDOW_S, a 4 Hz
+    // ring of the last TRACE_FINE_S (both decimated from the 20 Hz stream), frozen at the
+    // primary touchdown, then 4 Hz from touchdown until the rollout is finalized (bounces
+    // included). Cheap: a few hundred references, no copies.
+    private readonly Queue<TelemetrySnapshot> _traceCoarse = new();
+    private readonly Queue<TelemetrySnapshot> _traceFine = new();
+    private readonly List<TelemetrySnapshot> _tracePost = [];
+    private List<TelemetrySnapshot>? _tracePre;
+    private DateTime _lastCoarse, _lastFine, _lastPost;
+    private const double TRACE_WINDOW_S = 150.0;
+    private const double TRACE_FINE_S = 10.0;
+    private const int TRACE_POST_MAX = 480;              // 2 min at 4 Hz
+
     // Runway info (populated by RunwayDetector)
     private RunwayInfo? _detectedRunway;
 
@@ -100,6 +114,8 @@ public class LandingAnalyzer
 
     public void Process(TelemetrySnapshot snap)
     {
+        RecordTrace(snap);
+
         // Maintain pre-touchdown buffer
         _preTouchdownBuffer.Enqueue(snap);
         if (_preTouchdownBuffer.Count > PRE_TOUCHDOWN_SAMPLES)
@@ -261,6 +277,14 @@ public class LandingAnalyzer
             _touchdownTime = snap.Timestamp;
             _touchdownGroundSpeed = snap.GroundSpeedKts;
 
+            var fineFrom = snap.Timestamp.AddSeconds(-TRACE_FINE_S);
+            _tracePre = _traceCoarse.Where(s => s.Timestamp < fineFrom)
+                .Concat(_traceFine.Where(s => s.Timestamp >= fineFrom && s.Timestamp < snap.Timestamp))
+                .ToList();
+            _tracePost.Clear();
+            _tracePost.Add(snap);
+            _lastPost = snap.Timestamp;
+
             // Compute wind components at touchdown
             var (headwind, crosswind) = TelemetryProcessor.ComputeWindComponents(
                 snap.Raw.HeadingTrue,
@@ -364,7 +388,11 @@ public class LandingAnalyzer
             ScoreBreakdown = score,
 
             // Fuel
-            FuelOnTouchdownLbs = tdSnap.Raw.FuelTotalLbs
+            FuelOnTouchdownLbs = tdSnap.Raw.FuelTotalLbs,
+
+            TouchdownHeadingTrueDeg = tdSnap.Raw.HeadingTrue,
+            TouchdownTrackTrueDeg = tdSnap.Raw.TrackTrue,
+            Trace = BuildTrace(tdSnap),
         };
 
         Log.Information("[LandingAnalyzer] Landing complete. Score: {Score}/100 | VS: {VS:F0}fpm | GS: {GS:F0}kt",
@@ -373,7 +401,7 @@ public class LandingAnalyzer
         // Compliance evaluation must happen here, before ResetForNextLanding() below clears
         // _approachHistory -- it's the only source for the flaps/gear/speed-by-1000ft checks.
         var profile = AircraftPerformanceProfiles.Find(_aircraftTypeCode);
-        LandingComplianceChecker.Evaluate(result, _approachHistory, profile, _detectedRunway);
+        LandingComplianceChecker.Evaluate(result, _approachHistory, profile, _detectedRunway, _aircraftTypeCode);
         if (result.RequiresReview)
         {
             Log.Warning("[LandingAnalyzer] Landing flagged for review: {Reasons}",
@@ -551,9 +579,61 @@ public class LandingAnalyzer
     // RESET
     // =====================================================
 
+    // =====================================================
+    // LANDING-REPORT TRACE
+    // =====================================================
+
+    private void RecordTrace(TelemetrySnapshot snap)
+    {
+        var t = snap.Timestamp;
+        if ((t - _lastCoarse).TotalSeconds >= 1.0) { _traceCoarse.Enqueue(snap); _lastCoarse = t; }
+        if ((t - _lastFine).TotalSeconds >= 0.25) { _traceFine.Enqueue(snap); _lastFine = t; }
+        while (_traceCoarse.Count > 0 && (t - _traceCoarse.Peek().Timestamp).TotalSeconds > TRACE_WINDOW_S) _traceCoarse.Dequeue();
+        while (_traceFine.Count > 0 && (t - _traceFine.Peek().Timestamp).TotalSeconds > TRACE_FINE_S) _traceFine.Dequeue();
+
+        if (_tracePre != null && _tracePost.Count < TRACE_POST_MAX && (t - _lastPost).TotalSeconds >= 0.25)
+        {
+            _tracePost.Add(snap);
+            _lastPost = t;
+        }
+    }
+
+    /// <summary>Approach + rollout trace, T relative to touchdown; the rollout thins to 1 Hz after 10 s.</summary>
+    private List<LandingTracePoint> BuildTrace(TelemetrySnapshot td)
+    {
+        if (_tracePre == null) return [];
+        var pts = new List<LandingTracePoint>(_tracePre.Count + _tracePost.Count);
+        double lastT = double.NegativeInfinity;
+        foreach (var s in _tracePre.Concat(_tracePost))
+        {
+            double t = (s.Timestamp - td.Timestamp).TotalSeconds;
+            if (t <= lastT) continue;                               // queues overlap at the seams
+            if (t > 10 && t - lastT < 0.95) continue;               // rollout: 1 Hz is plenty
+            lastT = t;
+            pts.Add(new LandingTracePoint
+            {
+                T = Math.Round(t, 2),
+                AglFt = Math.Round(s.AltitudeAGL),
+                IasKts = Math.Round(s.IASKts, 1),
+                GsKts = Math.Round(s.GroundSpeedKts, 1),
+                VsFpm = Math.Round(s.VerticalSpeedFPM),
+                PitchDeg = Math.Round(s.Raw.Pitch, 2),
+                BankDeg = Math.Round(s.Raw.Bank, 2),
+                Lat = Math.Round(s.Latitude, 6),
+                Lon = Math.Round(s.Longitude, 6),
+                FlapsPct = Math.Round(s.Raw.FlapsPercent),
+                GearDown = s.GearDown,
+                OnGround = s.IsOnGround,
+            });
+        }
+        return pts;
+    }
+
     private void ResetForNextLanding()
     {
         _touchdownSnapshot = null;
+        _tracePre = null;
+        _tracePost.Clear();
         _flareDetected = false;
         _bounceCount = 0;
         _stableApproach = false;
@@ -589,6 +669,8 @@ public class LandingAnalyzer
         _capturingRollout = false;
         ResetForNextLanding();
         _preTouchdownBuffer.Clear();
+        _traceCoarse.Clear();
+        _traceFine.Clear();
         _previouslyOnGround = false;
         _hasBeenAirborne = false;
         _airborneSamples = 0;

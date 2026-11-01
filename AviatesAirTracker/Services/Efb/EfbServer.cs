@@ -53,13 +53,16 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
     private readonly MessagingService _messaging;
     private readonly OtherPilotsService _traffic;
     private readonly HoppiesAcarsOrchestrator _hoppies;
+    private readonly EfbDatalinkService _datalink;
     private readonly EfbAtisService _atis;
     private readonly EfbNetworkTrafficService _network;
+    private readonly EfbMapWeatherService _mapWx;
     private readonly ILandingRepository _landings;
     private readonly IFlightRepository _flights;
 
     private WebApplication? _app;
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(8) };
+    private readonly ConcurrentDictionary<string, EfbAirportInfo> _airportCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<Guid, EfbSocket> _sockets = new();
     private readonly Dictionary<string, string> _assets;  // request path -> resource name
 
@@ -97,14 +100,18 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
         MessagingService messaging,
         OtherPilotsService traffic,
         HoppiesAcarsOrchestrator hoppies,
+        EfbDatalinkService datalink,
         EfbAtisService atis,
         EfbNetworkTrafficService network,
+        EfbMapWeatherService mapWx,
         ILandingRepository landings,
         IFlightRepository flights)
     {
         _hoppies = hoppies;
+        _datalink = datalink;
         _atis = atis;
         _network = network;
+        _mapWx = mapWx;
         _landings = landings;
         _flights = flights;
         _state = state;
@@ -156,6 +163,8 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
             _checklists.Changed += OnChecklistsChanged;
             _state.SnapshotUpdated += OnSnapshotUpdated;
             _messaging.NewMessageReceived += OnNewMessage;
+            _datalink.Changed += OnDatalinkChanged;
+            _datalink.Start(() => !_sockets.IsEmpty);   // peek the pilot's inbox only while a device is watching
             StatusChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
@@ -173,6 +182,7 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
         _checklists.Changed -= OnChecklistsChanged;
         _state.SnapshotUpdated -= OnSnapshotUpdated;
         _messaging.NewMessageReceived -= OnNewMessage;
+        _datalink.Changed -= OnDatalinkChanged;
         await SafeStopAsync();
         IsRunning = false;
         Log.Information("[EFB] Server stopped");
@@ -274,8 +284,18 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
 
     // Live rebroadcast handlers (subscribed on Start, unsubscribed on Stop).
     private void OnChecklistsChanged(object? s, EventArgs e) => _ = BroadcastChecklistsAsync();
-    private void OnSnapshotUpdated(object? s, EfbSnapshot snap) => _ = BroadcastSnapshotAsync(snap);
+    private string? _lastChecklistSetId;
+    private void OnSnapshotUpdated(object? s, EfbSnapshot snap)
+    {
+        _ = BroadcastSnapshotAsync(snap);
+        // Aircraft type changed (booking / OFP loaded) → devices need the other checklist set.
+        var set = _checklists.ActiveSet(string.IsNullOrWhiteSpace(snap.AircraftType) ? _state.GetFlightPlan().AircraftType : snap.AircraftType).Id;
+        if (_lastChecklistSetId != null && set != _lastChecklistSetId) _ = BroadcastChecklistsAsync();
+        _lastChecklistSetId = set;
+    }
     private void OnNewMessage(object? s, PilotMessage m) => _ = BroadcastMessagingAsync();
+    private void OnDatalinkChanged(object? s, EventArgs e) => _ = BroadcastAsync(Envelope("acars", _datalink.GetState()));
+    private object Prefs() => new { weightUnit = _settings.Settings.EfbWeightUnit == "LB" ? "LB" : "KG" };
 
     // ── REST API ────────────────────────────────────────────
 
@@ -302,47 +322,135 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
         app.MapGet("/efb/api/aircraft", () => Results.Json(
             AircraftPerformanceProfiles.All.Select(p => new
             {
-                p.Code, p.Name, p.Category, p.MtowLbs, p.MlwLbs, p.OewLbs,
-                takeoffFlaps = p.TakeoffFlaps.Select(f => f.Label),
-                landingFlaps = p.LandingFlaps.Select(f => f.Label),
+                p.Code, p.Name, p.Category, p.MtowLbs, p.MlwLbs, p.OewLbs, p.Aliases, p.Fleet,
+                // only the detents company policy permits (CN-002 / CN-003)
+                takeoffFlaps = EfbCompanyPolicy.TakeoffFlaps(p).Select(f => f.Label),
+                landingFlaps = EfbCompanyPolicy.LandingFlaps(p).Select(f => f.Label),
+                standardLandingFlap = EfbCompanyPolicy.StandardLandingFlap(p),
+                companyNotices = EfbCompanyPolicy.Notices(p.Code),
             }), Json));
 
         app.MapPost("/efb/api/perf/takeoff",
             (TakeoffPerfRequest req) => Results.Json(EfbPerformanceCalculator.CalculateTakeoff(req), Json));
         app.MapPost("/efb/api/perf/landing",
             (LandingPerfRequest req) => Results.Json(EfbPerformanceCalculator.CalculateLanding(req), Json));
+        // ?type= narrows it to that aircraft family's QRH failures (Airbus G/Y/B, 737 A/B, 777 L/C/R…)
+        app.MapGet("/efb/api/perf/landing/failures", (string? type) => Results.Json(new
+        {
+            family = EfbLandingFailures.FamilyOf(type),
+            categories = string.IsNullOrWhiteSpace(type) ? EfbLandingFailures.Categories : EfbLandingFailures.CategoriesFor(type),
+            failures = string.IsNullOrWhiteSpace(type) ? EfbLandingFailures.All : EfbLandingFailures.ForAircraft(type),
+        }, Json));
 
-        app.MapGet("/efb/api/checklists", () => Results.Json(_checklists.GetAll(), Json));
+        // Checklists: the active per-aircraft set (auto from the flight's type, or the pilot's pick).
+        app.MapGet("/efb/api/checklists", (string? type) =>
+            Results.Json(_checklists.GetBundle(string.IsNullOrWhiteSpace(type) ? ChecklistAircraftType() : type), Json));
+        app.MapPost("/efb/api/checklists/select", (ChecklistSelectRequest req) =>
+            _checklists.SelectSet(req.SetId)
+                ? Results.Json(_checklists.GetBundle(ChecklistAircraftType()), Json)
+                : Results.Json(new { error = "Unknown checklist set" }, Json, statusCode: 400));
         app.MapPost("/efb/api/checklists/item", (ChecklistItemRequest req) =>
-            _checklists.SetItem(req.ChecklistId, req.ItemId, req.Checked)
+            _checklists.SetItem(req.SetId ?? ActiveChecklistSetId(), req.ChecklistId, req.ItemId, req.Checked)
                 ? Results.Json(new { ok = true }, Json)
                 : Results.Json(new { error = "Unknown checklist item" }, Json, statusCode: 400));
+        app.MapPost("/efb/api/checklists/complete", (ChecklistResetRequest req) =>
+            !string.IsNullOrEmpty(req.ChecklistId) && _checklists.CompleteChecklist(req.SetId ?? ActiveChecklistSetId(), req.ChecklistId)
+                ? Results.Json(new { ok = true }, Json)
+                : Results.Json(new { error = "Unknown checklist" }, Json, statusCode: 400));
         app.MapPost("/efb/api/checklists/reset", (ChecklistResetRequest req) =>
         {
-            if (string.IsNullOrEmpty(req.ChecklistId)) _checklists.ResetAll();
-            else _checklists.ResetChecklist(req.ChecklistId);
+            var set = req.SetId ?? ActiveChecklistSetId();
+            if (string.IsNullOrEmpty(req.ChecklistId)) _checklists.ResetAll(set);
+            else _checklists.ResetChecklist(set, req.ChecklistId);
             return Results.Json(new { ok = true }, Json);
         });
 
-        app.MapGet("/efb/api/manuals", (string? category, string? q) => Results.Json(new
+        // Document library (Manuals app): the manual index + every document's status, the
+        // current aircraft's checklist-set id (so type-specific OM-B / QRH pages can be pinned),
+        // and the count of Company NOTAMs still awaiting acknowledgement (home-screen badge).
+        app.MapGet("/efb/api/manuals", () => Results.Json(new
         {
-            categories = _manuals.Categories,
-            documents = _manuals.List(category, q),
+            manuals = _manuals.Manuals,
+            documents = _manuals.List(),
             recent = _manuals.Recent(),
+            pending = _manuals.PendingAcknowledgements,
+            aircraftType = ChecklistAircraftType(),
+            aircraftSetId = EfbChecklistLibrary.Resolve(ChecklistAircraftType()).Id,
         }, Json));
+        app.MapGet("/efb/api/manuals/search", (string? q) => Results.Json(_manuals.Search(q ?? ""), Json));
         app.MapGet("/efb/api/manuals/{id}", (string id) =>
         {
             var doc = _manuals.Get(id);
-            return doc == null ? Results.NotFound() : Results.Json(doc, Json);
+            return doc == null ? Results.NotFound() : Results.Json(new { document = doc, status = _manuals.Summary(id) }, Json);
         });
         app.MapPost("/efb/api/manuals/{id}/bookmark", (string id) =>
-            _manuals.ToggleBookmark(id) ? Results.Json(new { ok = true }, Json) : Results.NotFound());
+            _manuals.ToggleBookmark(id) ? Results.Json(_manuals.Summary(id), Json) : Results.NotFound());
+        app.MapPost("/efb/api/manuals/{id}/ack", (string id) =>
+            _manuals.Acknowledge(id)
+                ? Results.Json(new { status = _manuals.Summary(id), pending = _manuals.PendingAcknowledgements }, Json)
+                : Results.Json(new { error = "Document does not take acknowledgement" }, Json, statusCode: 400));
 
         app.MapGet("/efb/api/weather", async (string? icao) =>
         {
             if (string.IsNullOrWhiteSpace(icao)) return Results.Json(new { error = "icao required" }, Json, statusCode: 400);
             var (metar, taf) = await FetchWeatherAsync(icao.Trim().ToUpperInvariant());
             return Results.Json(new { icao = icao.Trim().ToUpperInvariant(), metar, taf }, Json);
+        });
+
+        // Runway picker for Departure Perf (aviationweather.gov airport data, cached per ICAO
+        // for the session — runways don't move; a failed lookup isn't cached so it can retry).
+        app.MapGet("/efb/api/airport", async (string? icao) =>
+        {
+            var id = (icao ?? "").Trim().ToUpperInvariant();
+            if (id.Length != 4 || !id.All(char.IsLetterOrDigit))
+                return Results.Json(new { error = "4-letter ICAO required" }, Json, statusCode: 400);
+            var info = await GetAirportAsync(id);
+            return info == null
+                ? Results.Json(new { error = $"No runway data for {id}" }, Json, statusCode: 404)
+                : Results.Json(info, Json);
+        });
+
+        // Weather app: everything about one station in a single round trip: METAR + TAF, the
+        // airport (runways for the wind table), every online ATIS on VATSIM and IVAO (separate
+        // arrival / departure ATIS included) with letter and frequency, the airport's online
+        // controllers, and a METAR-generated ATIS when no ATIS is online.
+        app.MapGet("/efb/api/wx/station", async (string? icao) =>
+        {
+            var id = (icao ?? "").Trim().ToUpperInvariant();
+            if (id.Length != 4 || !id.All(char.IsLetterOrDigit))
+                return Results.Json(new { error = "4-letter ICAO required" }, Json, statusCode: 400);
+            var atisTask = _atis.GetAsync(id);
+            var aptTask = GetAirportAsync(id);
+            var netTask = SafeNetworkAsync();
+            await Task.WhenAll(atisTask, aptTask, netTask);
+            var atis = atisTask.Result;
+            var here = (netTask.Result?.Atcs ?? [])
+                .Where(a => string.Equals(a.AirportIcao, id, StringComparison.OrdinalIgnoreCase)
+                         || a.Callsign.StartsWith(id + "_", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            bool IsAtis(EfbNetworkAtc a) => a.Facility == "ATIS" || a.Callsign.Contains("ATIS", StringComparison.OrdinalIgnoreCase);
+            var stations = here.Where(IsAtis).Select(a => new
+            {
+                network = a.Network, callsign = a.Callsign, letter = a.AtisCode, frequency = a.Frequency, text = a.Text,
+            }).ToList();
+            if (stations.Count == 0 && atis.Source == "VATSIM")           // datafeed seen by the ATIS service only
+                stations.Add(new { network = "VATSIM", callsign = id + "_ATIS", letter = atis.Letter, frequency = 0.0, text = atis.Text });
+            string[] order = ["DEL", "GND", "TWR", "DEP", "APP", "CTR", "FSS"];
+            var controllers = here.Where(a => !IsAtis(a))
+                .OrderBy(a => { var i = Array.IndexOf(order, a.Facility); return i < 0 ? 99 : i; })
+                .Select(a => new { network = a.Network, callsign = a.Callsign, facility = a.Facility, frequency = a.Frequency, name = a.SectorName })
+                .ToList();
+            return Results.Json(new
+            {
+                icao = id,
+                metar = atis.Metar,
+                taf = atis.Taf,
+                airport = aptTask.Result,
+                atis = stations,
+                generatedAtis = stations.Count == 0 && atis.Source == "METAR" ? atis.Text : "",
+                atc = controllers,
+                fetchedUtc = DateTime.UtcNow,
+            }, Json);
         });
 
         // ── Messaging (the SAME system as the desktop app) ──────────────
@@ -352,13 +460,22 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
             bool ok = req.Broadcast
                 ? await _messaging.SendBroadcastAsync(req.Content)
                 : await _messaging.SendDirectAsync(req.RecipientId ?? "", req.Content);
-            if (ok) _ = BroadcastMessagingAsync();
-            return Results.Json(new { ok, error = ok ? null : _messaging.LastSendError }, Json,
+            if (ok)
+            {
+                _ = BroadcastMessagingAsync();
+                // the backend upload runs in the background; push again once it has had time to
+                // land so the tablet's "queued" clock turns into a sent tick without a reload
+                _ = Task.Run(async () => { await Task.Delay(3000); await BroadcastMessagingAsync(); });
+            }
+            return Results.Json(new { ok, error = ok ? null : (_messaging.LastSendError ?? "Message not sent.") }, Json,
                 statusCode: ok ? 200 : 400);
         });
+        // {id} for one message, or {ids:[...]} to clear a whole conversation in one round trip
         app.MapPost("/efb/api/messages/read", async (MessageIdRequest req) =>
         {
-            if (Guid.TryParse(req.Id, out var id)) await _messaging.MarkReadAsync(id);
+            var ids = (req.Ids ?? []).Append(req.Id ?? "").Distinct();
+            foreach (var s in ids)
+                if (Guid.TryParse(s, out var id)) await _messaging.MarkReadAsync(id);
             _ = BroadcastMessagingAsync();
             return Results.Json(new { ok = true }, Json);
         });
@@ -369,6 +486,24 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
             return f == null
                 ? Results.Json(new { error = "Could not add that friend code." }, Json, statusCode: 400)
                 : Results.Json(new { ok = true, pilotId = f.PilotId, name = f.PilotName }, Json);
+        });
+        // Start a conversation with an AviatesAir pilot seen in live traffic (no friend code needed,
+        // same as the desktop live map's "Message" action)
+        app.MapPost("/efb/api/friends/add-pilot", async (AddPilotRequest req) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.PilotId) || req.PilotId == _messaging.MyPilotId)
+                return Results.Json(new { error = "That pilot can't be added." }, Json, statusCode: 400);
+            var f = await _messaging.AddOrGetFriendFromLiveMapAsync(req.PilotId, req.PilotName ?? "Pilot");
+            _ = BroadcastMessagingAsync();
+            return Results.Json(new { ok = true, pilotId = f.PilotId, name = f.PilotName }, Json);
+        });
+        app.MapPost("/efb/api/friends/remove", async (AddPilotRequest req) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.PilotId))
+                return Results.Json(new { error = "No pilot given." }, Json, statusCode: 400);
+            await _messaging.RemoveFriendAsync(req.PilotId);
+            _ = BroadcastMessagingAsync();
+            return Results.Json(new { ok = true }, Json);
         });
 
         // ── Landing reports (durable — read from the persisted landing history,
@@ -382,13 +517,23 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
             FlightRecord? FlightFor(LandingResult l) =>
                 flights.FirstOrDefault(f => f.Id.ToString() == l.FlightId);
 
+            // The history list is the picker (no traces); `latest` is the full flight-data report.
             var ordered = all.OrderByDescending(l => l.Timestamp).ToList();
             return Results.Json(new
             {
                 hasLanding = true,
-                latest = LandingReportBuilder.Build(ordered[0], FlightFor(ordered[0]), all),
-                history = ordered.Take(25).Select(l => LandingReportBuilder.Build(l, FlightFor(l), all)),
+                latest = LandingReportBuilder.Build(ordered[0], FlightFor(ordered[0]), all, await _landings.GetTraceAsync(ordered[0].Id)),
+                history = ordered.Take(25).Select(l => LandingReportBuilder.Build(l, FlightFor(l), all, [])),
             }, Json);
+        });
+        app.MapGet("/efb/api/landings/{id}", async (string id) =>
+        {
+            var all = await _landings.GetAllAsync();
+            var l = all.FirstOrDefault(x => x.Id.ToString() == id);
+            if (l == null) return Results.Json(new { error = "Unknown landing" }, Json, statusCode: 404);
+            var flights = await _flights.GetAllAsync();
+            return Results.Json(LandingReportBuilder.Build(l, flights.FirstOrDefault(f => f.Id.ToString() == l.FlightId),
+                all, await _landings.GetTraceAsync(l.Id)), Json);
         });
 
         // ── Hoppies ACARS log (session history from the orchestrator) ──
@@ -400,6 +545,29 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
                 .OrderByDescending(m => m.SentAtUtc)
                 .Select(m => new { m.SentAtUtc, m.Category, m.Message, m.Success }),
         }, Json));
+
+        // ── Datalink: the ACARS app's terminal (pilot's own Hoppie logon) ──
+        app.MapGet("/efb/api/acars", () => Results.Json(_datalink.GetState(), Json));
+        app.MapPost("/efb/api/acars/poll", async () =>
+        {
+            await _datalink.PollAsync();
+            return Results.Json(_datalink.GetState(), Json);
+        });
+        app.MapPost("/efb/api/acars/telex", async (AcarsTelexRequest r) =>
+            Datalink(await _datalink.TelexAsync(r.To, r.Text,
+                string.Equals(r.To?.Trim(), "VAOPS", StringComparison.OrdinalIgnoreCase) ? "COMPANY" : "TELEX")));
+        app.MapPost("/efb/api/acars/info", async (AcarsInfoRequest r) => Datalink(await _datalink.InfoAsync(r.Kind, r.Icao)));
+        app.MapPost("/efb/api/acars/pdc", async (AcarsPdcRequest r) =>
+            Datalink(await _datalink.PdcAsync(r.Station, r.AircraftType, r.Destination, r.Departure, r.Stand, r.Atis)));
+        app.MapPost("/efb/api/acars/cpdlc/logon", async (AcarsStationRequest r) => Datalink(await _datalink.CpdlcLogonAsync(r.Station)));
+        app.MapPost("/efb/api/acars/cpdlc/logoff", async () => Datalink(await _datalink.CpdlcLogoffAsync()));
+        app.MapPost("/efb/api/acars/cpdlc/request", async (AcarsTextRequest r) => Datalink(await _datalink.CpdlcRequestAsync(r.Text)));
+        app.MapPost("/efb/api/acars/cpdlc/respond", async (AcarsRespondRequest r) => Datalink(await _datalink.CpdlcRespondAsync(r.Id, r.Response)));
+        app.MapPost("/efb/api/acars/read", (AcarsReadRequest r) =>
+        {
+            _datalink.MarkRead(r.Ids ?? []);
+            return Results.Json(new { ok = true }, Json);
+        });
 
         // ── ATIS (VATSIM when online, else generated from METAR) ───────
         app.MapGet("/efb/api/atis", async (string? icao) =>
@@ -420,6 +588,14 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
 
         // ── Online network traffic/ATC (VATSIM + IVAO map layers) ──────
         app.MapGet("/efb/api/network", async () => Results.Json(await _network.GetAsync(), Json));
+        // Sector outlines for staffed FIRs/TRACONs (static; the tablet caches them)
+        app.MapGet("/efb/api/network/geometry", async (string? keys) => Results.Json(
+            await _network.GetGeometryAsync((keys ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)), Json));
+
+        // ── Map weather overlays (aviationweather.gov, cached 5 min) ──
+        app.MapGet("/efb/api/wx/sigmets", async () => Results.Json(await _mapWx.GetSigmetsAsync(), Json));
+        app.MapGet("/efb/api/wx/metars", async (double minLat, double minLon, double maxLat, double maxLon) =>
+            Results.Json(await _mapWx.GetMetarsAsync(minLat, minLon, maxLat, maxLon), Json));
 
         // ── SimBrief OFP: import inside the EFB (does NOT touch ACARS) + PDF link ──
         app.MapPost("/efb/api/flightplan/import", async (SimbriefImportRequest req) =>
@@ -434,6 +610,9 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
                 if (plan == null)
                     return Results.Json(new { error = "No OFP found for that SimBrief account." }, Json, statusCode: 404);
                 _state.SetEfbLocalPlan(plan);   // EFB-only — never pushed to ACARS
+                // every paired device picks up the new plan, and the datalink its callsign
+                _ = BroadcastAsync(Envelope("flightplan", _state.GetFlightPlan()));
+                _ = BroadcastAsync(Envelope("acars", _datalink.GetState()));
                 return Results.Json(_state.GetFlightPlan(), Json);
             }
             catch (Exception ex)
@@ -442,11 +621,8 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
                 return Results.Json(new { error = "SimBrief import failed." }, Json, statusCode: 502);
             }
         });
-        app.MapGet("/efb/api/ofp", () =>
-        {
-            var plan = _state.GetFlightPlan();
-            return Results.Json(new { hasPdf = !string.IsNullOrEmpty(plan.PdfUrl), pdfUrl = plan.PdfUrl }, Json);
-        });
+        // Full briefing package for the Pilot Brief app (still carries hasPdf/pdfUrl).
+        app.MapGet("/efb/api/ofp", () => Results.Json(_state.GetBriefing(), Json));
 
         // ── Wallpaper (uploaded from a device, shared across all) ───────
         app.MapGet("/efb/api/wallpaper", () =>
@@ -473,6 +649,43 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
         });
 
         app.MapGet("/efb/api/theme", () => Results.Json(new { theme = _settings.Settings.EfbTheme }, Json));
+
+        // Shared EFB preferences (one weight unit for every app and device)
+        app.MapGet("/efb/api/prefs", () => Results.Json(Prefs(), Json));
+        app.MapPost("/efb/api/prefs", (PrefsRequest req) =>
+        {
+            if (req.WeightUnit is "KG" or "LB")
+            {
+                _settings.Settings.EfbWeightUnit = req.WeightUnit;
+                _settings.Save();
+                _ = BroadcastAsync(Envelope("prefs", Prefs()));
+            }
+            return Results.Json(Prefs(), Json);
+        });
+
+        // Paired devices: whoever is connected now. There's one shared pairing token, so pairing
+        // can only be undone for everyone at once, by rotating it.
+        app.MapGet("/efb/api/devices", () => Results.Json(new
+        {
+            pairingCode = PairingCode,
+            url = PrimaryUrl.Split('#')[0],
+            devices = _sockets.Values.OrderBy(d => d.ConnectedUtc).Select(d => new
+            {
+                id = d.Id, name = d.DeviceName, ip = d.RemoteIp, connectedUtc = d.ConnectedUtc,
+            }),
+        }, Json));
+        app.MapPost("/efb/api/pairing/reset", async () =>
+        {
+            _settings.Settings.EfbPairingSecret = "";
+            EnsurePairingSecret();                      // new token + new 6-digit code
+            PairingUrls = BuildPairingUrls(Port, DeviceToken);
+            Log.Information("[EFB] Pairing reset from a device; every device must pair again (new code {Code})", PairingCode);
+            var sockets = _sockets.Values.ToList();
+            _sockets.Clear();
+            foreach (var d in sockets) await d.CloseAsync();
+            StatusChanged?.Invoke(this, EventArgs.Empty);
+            return Results.Json(new { ok = true }, Json);
+        });
         app.MapPost("/efb/api/theme", (ThemeRequest req) =>
         {
             _settings.Settings.EfbTheme = string.IsNullOrWhiteSpace(req.Theme) ? "aviates" : req.Theme.Trim();
@@ -501,15 +714,22 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
             }
 
             using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
-            var socket = new EfbSocket(ws);
+            var socket = new EfbSocket(ws)
+            {
+                RemoteIp = ctx.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "",
+                DeviceName = EfbSocket.NameFromUserAgent(ctx.Request.Headers.UserAgent.ToString()),
+            };
             _sockets[socket.Id] = socket;
             Log.Debug("[EFB] Device connected ({Count} total)", _sockets.Count);
 
             // Prime the new device with the current picture.
             await socket.SendAsync(Envelope("snapshot", _state.GetLiveSnapshot()));
             await socket.SendAsync(Envelope("flightplan", _state.GetFlightPlan()));
-            await socket.SendAsync(Envelope("checklists", _checklists.GetAll()));
+            await socket.SendAsync(Envelope("checklists", _checklists.GetBundle(ChecklistAircraftType())));
             await socket.SendAsync(Envelope("messages", await BuildMessagingStateAsync()));
+            await socket.SendAsync(Envelope("welcome", new { id = socket.Id }));
+            await socket.SendAsync(Envelope("prefs", Prefs()));
+            await socket.SendAsync(Envelope("acars", _datalink.GetState()));
 
             // Read loop — we don't expect inbound frames (control is via REST),
             // but reading keeps the socket alive and detects disconnects.
@@ -533,7 +753,16 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
     }
 
     private Task BroadcastSnapshotAsync(EfbSnapshot snap) => BroadcastAsync(Envelope("snapshot", snap));
-    private Task BroadcastChecklistsAsync() => BroadcastAsync(Envelope("checklists", _checklists.GetAll()));
+    private Task BroadcastChecklistsAsync() => BroadcastAsync(Envelope("checklists", _checklists.GetBundle(ChecklistAircraftType())));
+
+    // The aircraft type the checklist set follows: booking → SimBrief → sim (as folded into the
+    // snapshot), falling back to the effective flight plan before a session exists.
+    private string ChecklistAircraftType()
+    {
+        var t = _state.GetLiveSnapshot().AircraftType;
+        return string.IsNullOrWhiteSpace(t) ? _state.GetFlightPlan().AircraftType : t;
+    }
+    private string ActiveChecklistSetId() => _checklists.ActiveSet(ChecklistAircraftType()).Id;
     private async Task BroadcastMessagingAsync() => await BroadcastAsync(Envelope("messages", await BuildMessagingStateAsync()));
 
     // ── Messaging state projection (reuses the desktop MessagingService) ──
@@ -556,6 +785,7 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
                 SentAt = m.SentAt,
                 IsRead = m.ReadAt != null,
                 Mine = m.SenderId == myId,
+                Synced = m.SyncedToBackend,
                 Type = m.Type.ToString(),
             }).ToList();
 
@@ -564,6 +794,7 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
             MyPilotId = myId,
             MyPilotName = _settings.Settings.PilotName,
             MyFriendCode = _settings.Settings.FriendCode,
+            HasKey = !string.IsNullOrEmpty(_settings.Settings.AcarsKey),
             UnreadCount = _messaging.UnreadCount,
             Friends = friends.Select(f => new EfbFriend
             {
@@ -649,6 +880,8 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
             ".json" or ".webmanifest" => "application/json; charset=utf-8",
             ".svg" => "image/svg+xml",
             ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
             ".ico" => "image/x-icon",
             ".woff2" => "font/woff2",
             _ => "application/octet-stream",
@@ -656,6 +889,27 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
     }
 
     // ── Weather proxy ───────────────────────────────────────
+
+    /// <summary>aviationweather.gov airport + runways, cached per ICAO for the session (runways don't
+    /// move; a failed lookup isn't cached so it can retry).</summary>
+    private async Task<EfbAirportInfo?> GetAirportAsync(string id)
+    {
+        if (_airportCache.TryGetValue(id, out var info)) return info;
+        try
+        {
+            info = EfbAirportData.Parse(await _http.GetStringAsync(
+                $"https://aviationweather.gov/api/data/airport?ids={id}&format=json"));
+        }
+        catch (Exception ex) { Log.Debug(ex, "[EFB] Airport lookup failed for {Icao}", id); }
+        if (info != null) _airportCache[id] = info;
+        return info;
+    }
+
+    private async Task<EfbNetworkTraffic?> SafeNetworkAsync()
+    {
+        try { return await _network.GetAsync(); }
+        catch (Exception ex) { Log.Debug(ex, "[EFB] Network feed unavailable for the weather app"); return null; }
+    }
 
     private async Task<(string metar, string taf)> FetchWeatherAsync(string icao)
     {
@@ -753,13 +1007,27 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
 
     // ── Request DTOs ────────────────────────────────────────
     private sealed record PairRequest(string Code);
-    private sealed record ChecklistItemRequest(string ChecklistId, string ItemId, bool Checked);
-    private sealed record ChecklistResetRequest(string? ChecklistId);
+    private sealed record ChecklistItemRequest(string ChecklistId, string ItemId, bool Checked, string? SetId = null);
+    private sealed record ChecklistResetRequest(string? ChecklistId, string? SetId = null);
+    private sealed record ChecklistSelectRequest(string? SetId);
     private sealed record ThemeRequest(string Theme);
     private sealed record SendDmRequest(string? RecipientId, string Content, bool Broadcast);
-    private sealed record MessageIdRequest(string Id);
+    private sealed record MessageIdRequest(string? Id, List<string>? Ids);
+    private sealed record AddPilotRequest(string? PilotId, string? PilotName);
     private sealed record FriendCodeRequest(string? Code);
     private sealed record SimbriefImportRequest(string? Username);
+    private sealed record PrefsRequest(string? WeightUnit);
+    private sealed record AcarsTelexRequest(string? To, string? Text);
+    private sealed record AcarsInfoRequest(string? Kind, string? Icao);
+    private sealed record AcarsPdcRequest(string? Station, string? AircraftType, string? Destination, string? Departure, string? Stand, string? Atis);
+    private sealed record AcarsStationRequest(string? Station);
+    private sealed record AcarsTextRequest(string? Text);
+    private sealed record AcarsRespondRequest(string? Id, string? Response);
+    private sealed record AcarsReadRequest(List<string>? Ids);
+
+    private IResult Datalink(EfbDatalinkResult r) =>
+        Results.Json(new { ok = r.Ok, error = r.Error, message = r.Message, state = _datalink.GetState() }, Json,
+            statusCode: r.Ok ? 200 : 400);
 }
 
 // ── WebSocket wrapper — serialises sends per socket ──────────
@@ -767,6 +1035,27 @@ public sealed class EfbServer : IAsyncDisposable, IDisposable
 internal sealed class EfbSocket(WebSocket ws)
 {
     public Guid Id { get; } = Guid.NewGuid();
+    public DateTime ConnectedUtc { get; } = DateTime.UtcNow;
+    public string RemoteIp { get; init; } = "";
+    public string DeviceName { get; init; } = "Device";
+
+    /// <summary>"iPad · Safari", "Android phone · Chrome"… from a User-Agent string.</summary>
+    public static string NameFromUserAgent(string? ua)
+    {
+        ua ??= "";
+        string dev = ua.Contains("iPad") ? "iPad"
+            : ua.Contains("iPhone") ? "iPhone"
+            : ua.Contains("Android") ? (ua.Contains("Mobile") ? "Android phone" : "Android tablet")
+            : ua.Contains("Macintosh") ? (ua.Contains("Mobile") ? "iPad" : "Mac")     // iPadOS asks for desktop sites
+            : ua.Contains("Windows") ? "Windows PC"
+            : ua.Contains("CrOS") ? "Chromebook"
+            : ua.Contains("Linux") ? "Linux PC" : "Device";
+        string br = ua.Contains("Edg/") ? "Edge"
+            : ua.Contains("Firefox/") || ua.Contains("FxiOS") ? "Firefox"
+            : ua.Contains("Chrome/") || ua.Contains("CriOS") ? "Chrome"
+            : ua.Contains("Safari/") ? "Safari" : "";
+        return br.Length > 0 ? $"{dev} · {br}" : dev;
+    }
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     public async Task<bool> SendAsync(string text)

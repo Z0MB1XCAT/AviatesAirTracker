@@ -82,6 +82,18 @@ public sealed class EfbSnapshot
     public DateTime? EtaUtc { get; set; }
     public int CruiseAltitudeFt { get; set; }
     public double BearingToDestDeg { get; set; }
+    /// <summary>Next flight-plan waypoint ahead of the aircraft (empty with no plan).</summary>
+    public string NextWaypoint { get; set; } = "";
+    public double NextWaypointNm { get; set; }
+    public DateTime? NextWaypointEtaUtc { get; set; }
+
+    // ── Schedule + OOOI (Out / Off / On / In), UTC; null until the event happens ──
+    public DateTime? ScheduledOutUtc { get; set; }
+    public DateTime? ScheduledInUtc { get; set; }
+    public DateTime? BlockOutUtc { get; set; }
+    public DateTime? TakeoffUtc { get; set; }
+    public DateTime? LandingUtc { get; set; }
+    public DateTime? BlockInUtc { get; set; }
 
     // ── Descent & fuel advisor (EFB-exclusive, computed live) ──
     /// <summary>Distance from the current position to the computed top-of-descent, nm. 0 when past/NA.</summary>
@@ -110,6 +122,76 @@ public sealed class EfbServerInfo
     public bool TokenValid { get; set; }
 }
 
+/// <summary>The Pilot Brief app's briefing package — served on demand by /efb/api/ofp
+/// (not pushed over the WebSocket: the OFP text alone can be tens of KB). Fuel and weights
+/// are in the OFP's own unit (<see cref="Units"/>), the way the dispatch release prints them.</summary>
+public sealed class EfbBriefing
+{
+    public bool HasPlan { get; set; }
+    public bool HasPdf { get; set; }                    // kept for older EFB clients
+    public string PdfUrl { get; set; } = "";
+    public string Units { get; set; } = "KGS";          // KGS | LBS
+    public string FlightNumber { get; set; } = "";
+    public string Callsign { get; set; } = "";
+    public string Registration { get; set; } = "";
+    public string AircraftType { get; set; } = "";
+    public string AircraftName { get; set; } = "";
+    public string DepartureIcao { get; set; } = "";
+    public string DepartureName { get; set; } = "";
+    public string ArrivalIcao { get; set; } = "";
+    public string ArrivalName { get; set; } = "";
+    public string AlternateIcao { get; set; } = "";
+    public string AlternateName { get; set; } = "";
+    public string DepartureRunway { get; set; } = "";
+    public string ArrivalRunway { get; set; } = "";
+    public string Sid { get; set; } = "";
+    public string Star { get; set; } = "";
+    public string Route { get; set; } = "";
+    public int CruiseAltitudeFt { get; set; }
+    public int? CostIndex { get; set; }
+    public double DistanceNm { get; set; }
+    public int AvgWindComponentKts { get; set; }
+    public DateTime? ScheduledOutUtc { get; set; }
+    public DateTime? ScheduledInUtc { get; set; }
+    public int BlockTimeMin { get; set; }
+    public int AirTimeMin { get; set; }
+    public DateTime GeneratedAtUtc { get; set; }
+
+    // fuel (OFP unit)
+    public int TaxiFuel { get; set; }
+    public int TripFuel { get; set; }
+    public int ContingencyFuel { get; set; }
+    public int AlternateFuel { get; set; }
+    public int FinalReserveFuel { get; set; }
+    public int ExtraFuel { get; set; }
+    public int MinTakeoffFuel { get; set; }
+    public int PlanTakeoffFuel { get; set; }
+    public int BlockFuel { get; set; }
+    public int LandingFuel { get; set; }
+
+    // weights (OFP unit)
+    public int Zfw { get; set; }
+    public int MaxZfw { get; set; }
+    public int Tow { get; set; }
+    public int MaxTow { get; set; }
+    public int Ldw { get; set; }
+    public int MaxLdw { get; set; }
+    public int Payload { get; set; }
+    public int PaxCount { get; set; }
+    public int Cargo { get; set; }
+    public double? MacTowPercent { get; set; }
+    public double? MacZfwPercent { get; set; }
+
+    public string DepartureMetar { get; set; } = "";
+    public string DepartureTaf { get; set; } = "";
+    public string ArrivalMetar { get; set; } = "";
+    public string ArrivalTaf { get; set; } = "";
+    public string AlternateMetar { get; set; } = "";
+    public string AlternateTaf { get; set; } = "";
+    public List<string> Notams { get; set; } = [];
+    public string OfpHtml { get; set; } = "";           // SimBrief text/plan_text (sanitised client-side)
+}
+
 /// <summary>The SimBrief-derived flight plan the EFB shows (subset of the internal plan).</summary>
 public sealed class EfbFlightPlan
 {
@@ -136,6 +218,14 @@ public sealed class EfbFlightPlan
     // Field data used to autofill the performance apps
     public int DepartureElevationFt { get; set; }
     public int DepartureRunwayLengthM { get; set; }
+    public int DepartureTransAltFt { get; set; }        // 0 = not in the OFP
+    public string FlightNumber { get; set; } = "";
+    public string DepartureName { get; set; } = "";
+    public string ArrivalName { get; set; } = "";
+    public string Sid { get; set; } = "";
+    public string Star { get; set; } = "";
+    public DateTime? ScheduledArrivalUtc { get; set; }
+    public double? MacTowPercent { get; set; }          // loadsheet W&B; null for unseeded types
     public int ArrivalElevationFt { get; set; }
     public int ArrivalRunwayLengthM { get; set; }
     public string DepartureMetar { get; set; } = "";
@@ -156,6 +246,7 @@ public sealed class EfbMessagingState
     public string MyPilotId { get; set; } = "";
     public string MyPilotName { get; set; } = "";
     public string MyFriendCode { get; set; } = "";
+    public bool HasKey { get; set; }                         // ACARS key set, so messaging can send
     public int UnreadCount { get; set; }
     public List<EfbFriend> Friends { get; set; } = [];
     public List<EfbMessageDto> Messages { get; set; } = [];   // DMs + broadcasts, oldest first
@@ -180,6 +271,7 @@ public sealed class EfbMessageDto
     public DateTime SentAt { get; set; }
     public bool IsRead { get; set; }
     public bool Mine { get; set; }
+    public bool Synced { get; set; }               // confirmed by the backend (false = queued, retried on the next poll)
     public string Type { get; set; } = "Direct";   // Direct | Broadcast | System
 }
 
@@ -232,12 +324,36 @@ public sealed class EfbNetworkAtc
     // their own -- see EfbNetworkTrafficService for how this is joined from the transceivers feed).
     public double? Lat { get; set; }
     public double? Lon { get; set; }
+
+    // Resolved by EfbAtcGeo (VATSpy / SimAware data) when available:
+    public string Facility { get; set; } = "";          // DEL | GND | TWR | APP | CTR | FSS | ATIS
+    public string AirportIcao { get; set; } = "";       // DEL/GND/TWR/ATIS (and APP's parent field)
+    public List<string> SectorKeys { get; set; } = [];  // APP → TRACON, CTR/FSS → FIR(s)
+    public string SectorName { get; set; } = "";
+    public string AtisCode { get; set; } = "";
+    public string Text { get; set; } = "";              // ATIS text / controller info lines
+}
+
+/// <summary>A staffed FIR/TRACON. Its outline is fetched separately (and cached by the
+/// tablet) from /efb/api/network/geometry, so the 30 s poll stays small.</summary>
+public sealed class EfbNetworkSector
+{
+    public string Key { get; set; } = "";
+    public string Network { get; set; } = "";
+    public string Kind { get; set; } = "";              // FIR | TRACON
+    public string Name { get; set; } = "";
+    public double LabelLat { get; set; }
+    public double LabelLon { get; set; }
+    public List<string> Callsigns { get; set; } = [];
 }
 
 public sealed class EfbNetworkTraffic
 {
+    public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
+    public bool HasSectorData { get; set; }             // VATSpy/SimAware loaded
     public List<EfbNetworkPilot> Pilots { get; set; } = [];
     public List<EfbNetworkAtc> Atcs { get; set; } = [];
+    public List<EfbNetworkSector> Sectors { get; set; } = [];
 }
 
 public sealed class EfbWaypoint
@@ -281,3 +397,64 @@ public static class GeoMath
     private static double Deg2Rad(double d) => d * Math.PI / 180.0;
     private static double Rad2Deg(double r) => r * 180.0 / Math.PI;
 }
+
+// ============================================================
+// DATALINK (the ACARS app: Hoppie telex / inforeq / CPDLC under the pilot's own logon)
+// ============================================================
+
+public sealed class EfbAcarsMessage
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string? HoppieId { get; set; }
+    public string Dir { get; set; } = "in";            // in | out
+    public string Station { get; set; } = "";          // the other end: sender (in) or addressee (out)
+    public string Type { get; set; } = "telex";        // telex | cpdlc | info | progress | posreq …
+    public string Kind { get; set; } = "";             // short label: TELEX, COMPANY, PDC REQ, CLEARANCE, METAR, LOGON, REQUEST…
+    public string Text { get; set; } = "";
+    public DateTime Utc { get; set; }
+    public bool Read { get; set; } = true;
+    public string Status { get; set; } = "sent";       // sent | failed (outbound)
+    public string? Error { get; set; }
+    public int? Min { get; set; }                      // CPDLC message number
+    public int? Mrn { get; set; }                      // CPDLC: the message this answers
+    public string Ra { get; set; } = "";               // CPDLC response attribute (WU/AN/R/Y/N/NE)
+    public List<string> Responses { get; set; } = [];  // what the pilot may answer
+    public bool Open { get; set; }                     // uplink awaiting the pilot's response
+    public string? Response { get; set; }              // pilot's answer (uplink) or ATC's answer (downlink)
+
+    public EfbAcarsMessage Clone()
+    {
+        var c = (EfbAcarsMessage)MemberwiseClone();
+        c.Responses = [.. Responses];
+        return c;
+    }
+}
+
+public sealed class EfbAcarsOps
+{
+    public DateTime Utc { get; set; }
+    public string Category { get; set; } = "";
+    public string Message { get; set; } = "";
+    public bool Success { get; set; }
+}
+
+public sealed class EfbAcarsState
+{
+    public bool HasLogon { get; set; }                 // pilot's Hoppie logon code is set
+    public bool AutoOpsEnabled { get; set; }           // the automatic company messages (HoppiesEnabled)
+    public string Callsign { get; set; } = "";
+    public string Departure { get; set; } = "";
+    public string Arrival { get; set; } = "";
+    public string Alternate { get; set; } = "";
+    public string AircraftType { get; set; } = "";
+    public string CpdlcStation { get; set; } = "";
+    public string CpdlcState { get; set; } = "off";    // off | pending | connected
+    public string NextStation { get; set; } = "";      // from a HANDOVER uplink
+    public DateTime? LastPollUtc { get; set; }
+    public bool LastPollOk { get; set; }
+    public string? LastError { get; set; }
+    public int Unread { get; set; }
+    public List<EfbAcarsMessage> Messages { get; set; } = [];   // oldest first
+    public List<EfbAcarsOps> Ops { get; set; } = [];            // automatic company messages the tracker sent
+}
+

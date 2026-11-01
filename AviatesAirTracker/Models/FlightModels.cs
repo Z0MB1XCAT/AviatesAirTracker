@@ -1,4 +1,5 @@
 using AviatesAirTracker.Core.SimConnect;
+using System.Text.Json.Serialization;
 namespace AviatesAirTracker.Models;
 
 // ============================================================
@@ -217,6 +218,19 @@ public class LandingResult
     public List<string> ComplianceViolations { get; set; } = [];
     public bool RequiresReview => ComplianceViolations.Count > 0;
 
+    // Heading vs ground track at touchdown -- their difference is the crab (de-crab) angle.
+    public double TouchdownHeadingTrueDeg { get; set; }
+    public double TouchdownTrackTrueDeg { get; set; }
+
+    // Approach + rollout trace for the landing report's profile plots (LandingAnalyzer:
+    // ~1 Hz on the approach, 4 Hz around touchdown, ~1 Hz on the rollout; T is seconds
+    // relative to the primary touchdown). NOT serialized with the landing/flight records --
+    // JsonLandingRepository keeps it in its own per-landing file so landings.json and
+    // flights.json (which embeds PrimaryLanding/AllLandings) stay small. Empty for landings
+    // recorded before the trace existed, or synced from the backend.
+    [JsonIgnore]
+    public List<LandingTracePoint> Trace { get; set; } = [];
+
     // ---- Derived ----
     public string LandingGrade => LandingScore switch
     {
@@ -230,11 +244,28 @@ public class LandingResult
     public string LandingGradeColor => LandingScore switch
     {
         >= 90 => "#22C55E",
-        >= 75 => "#3D7EEE",
+        >= 75 => "#4D9BEC",
         >= 60 => "#EAB308",
         >= 40 => "#F97316",
         _ => "#EF4444"
     };
+}
+
+/// <summary>One sample of the landing trace. Short JSON names: a trace is a few hundred of these.</summary>
+public sealed class LandingTracePoint
+{
+    [JsonPropertyName("t")]   public double T { get; set; }          // s relative to touchdown (negative = before)
+    [JsonPropertyName("agl")] public double AglFt { get; set; }
+    [JsonPropertyName("ias")] public double IasKts { get; set; }
+    [JsonPropertyName("gs")]  public double GsKts { get; set; }
+    [JsonPropertyName("vs")]  public double VsFpm { get; set; }
+    [JsonPropertyName("pit")] public double PitchDeg { get; set; }
+    [JsonPropertyName("bnk")] public double BankDeg { get; set; }
+    [JsonPropertyName("lat")] public double Lat { get; set; }
+    [JsonPropertyName("lon")] public double Lon { get; set; }
+    [JsonPropertyName("flp")] public double FlapsPct { get; set; }
+    [JsonPropertyName("gear")] public bool GearDown { get; set; }
+    [JsonPropertyName("gnd")] public bool OnGround { get; set; }
 }
 
 public class LandingScoreBreakdown
@@ -328,6 +359,7 @@ public class SimBriefFlightPlan
     public double TakeoffWeightKg { get; set; }
     public int    DepartureRunwayLengthM { get; set; }
     public int    DepartureElevationFt { get; set; }
+    public int    DepartureTransitionAltFt { get; set; }   // origin/trans_alt; 0 when the OFP has none
 
     // Landing performance inputs — same, for the destination
     public int    ArrivalRunwayLengthM { get; set; }
@@ -345,6 +377,31 @@ public class SimBriefFlightPlan
     // Direct link to the generated OFP PDF (files.directory + files.pdf.link).
     // Used by the EFB "OFP" app to display the briefing package.
     public string PdfUrl { get; set; } = "";
+
+    // ── Briefing package (EFB Pilot Brief) — JSON OFP only; 0 / "" when absent ──
+    public bool   OfpUnitsKg { get; set; }                 // params.units == "kgs"
+    public string Callsign { get; set; } = "";              // atc/callsign
+    public string AircraftName { get; set; } = "";          // aircraft/name
+    public string DepartureName { get; set; } = "";
+    public string ArrivalName { get; set; } = "";
+    public string AlternateName { get; set; } = "";
+    public double TaxiFuelLbs { get; set; }                 // fuel/taxi
+    public double TripFuelLbs { get; set; }                 // fuel/enroute_burn
+    public double ExtraFuelLbs { get; set; }                // fuel/extra
+    public double MinTakeoffFuelLbs { get; set; }           // fuel/min_takeoff
+    public double PlanTakeoffFuelLbs { get; set; }          // fuel/plan_takeoff
+    public double MaxZeroFuelWeightKg { get; set; }         // weights/max_zfw
+    public double MaxTakeoffWeightKg { get; set; }          // weights/max_tow
+    public double LandingWeightKg { get; set; }             // weights/est_ldw
+    public double MaxLandingWeightKg { get; set; }          // weights/max_ldw
+    public double PayloadKg { get; set; }                   // weights/payload
+    public DateTime? ScheduledArrivalUtc { get; set; }      // times/sched_in
+    public int    BlockTimeMin { get; set; }                // times/est_block
+    public int    AvgWindComponentKts { get; set; }         // general/avg_wind_comp (+ tail)
+    public string DepartureTaf { get; set; } = "";
+    public string ArrivalTaf { get; set; } = "";
+    public string AlternateMetar { get; set; } = "";
+    public string AlternateTaf { get; set; } = "";
 }
 
 // ============================================================

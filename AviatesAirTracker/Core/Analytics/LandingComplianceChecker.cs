@@ -36,7 +36,6 @@ public static class LandingComplianceChecker
 {
     private const double HardLandingVsFpm = 800.0;
     private const double StabilizationAglFt = 1000.0;
-    private const double FlapsFullyExtendedPercent = 70.0;
     private const double ApproachSpeedMarginKts = 15.0;   // stabilized window is [Vref, Vref+15]
     private const double CenterlineToleranceFt = 60.0;
     private const double TouchdownZoneMinFt = 200.0;
@@ -46,8 +45,14 @@ public static class LandingComplianceChecker
         LandingResult result,
         IReadOnlyList<TelemetrySnapshot> approachHistory,
         EfbAircraftProfile? profile,
-        RunwayInfo? runway)
+        RunwayInfo? runway,
+        string? aircraftType = null)
     {
+        // "Landing configuration" is the company minimum landing flap for the type (CN-003:
+        // 737 FLAPS 25, A320 family CONF 3), else the generic 70 % — a legal minimum-flap
+        // landing must never be held for review.
+        double landingFlapPercent = EfbCompanyPolicy.MinLandingFlapPercent(aircraftType ?? profile?.Code);
+
         var violations = new List<string>();
 
         // ---- Hard landing ----
@@ -75,7 +80,7 @@ public static class LandingComplianceChecker
 
         if (at1000 != null)
         {
-            result.FlapsConfiguredBy1000Ft = at1000.Raw.FlapsPercent >= FlapsFullyExtendedPercent;
+            result.FlapsConfiguredBy1000Ft = at1000.Raw.FlapsPercent >= landingFlapPercent;
             if (!result.FlapsConfiguredBy1000Ft)
             {
                 violations.Add(
@@ -92,8 +97,12 @@ public static class LandingComplianceChecker
                 var weight = at1000.Raw.GrossWeight > 0 ? at1000.Raw.GrossWeight : profile.MlwLbs;
                 var weightFactor = Math.Sqrt(Math.Max(weight, 1) / profile.MlwLbs);
                 var vref = profile.VrefLandingRef * weightFactor * landingFlap.VSpeedFactor;
+                // Where a company minimum landing flap exists, the band spans every permitted
+                // detent: VREF at full flap … VREF at the minimum flap + 15.
+                var minFlap = EfbCompanyPolicy.For(aircraftType ?? profile.Code) != null
+                    ? EfbCompanyPolicy.LandingFlaps(profile)[0] : landingFlap;
                 var minSpeed = vref;
-                var maxSpeed = vref + ApproachSpeedMarginKts;
+                var maxSpeed = profile.VrefLandingRef * weightFactor * minFlap.VSpeedFactor + ApproachSpeedMarginKts;
 
                 result.SpeedStabilizedBy1000Ft = at1000.IASKts >= minSpeed && at1000.IASKts <= maxSpeed;
                 if (!result.SpeedStabilizedBy1000Ft)

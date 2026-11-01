@@ -93,6 +93,37 @@ public class HoppiesAcarsClient
         }
     }
 
+    /// <summary>One raw request under the PILOT's own logon code, for the EFB's datalink terminal
+    /// (telex, inforeq, cpdlc, peek). Never use <see cref="CompanyLogonCode"/> here: reading a
+    /// shared company inbox per client would mix every pilot's traffic (see the AI dispatcher,
+    /// which polls VAOPS server-side for exactly that reason). Returns Hoppie's response body,
+    /// e.g. "ok {...}" or "error {illegal logon code}"; never throws.</summary>
+    public async Task<(bool Ok, string Body)> ConnectAsync(string pilotLogonCode, string from, string to, string type, string? packet)
+    {
+        if (string.IsNullOrWhiteSpace(pilotLogonCode) || string.IsNullOrWhiteSpace(from))
+            return (false, "error {no logon code or callsign}");
+        try
+        {
+            var request = new RestRequest(HoppiesEndpoint, Method.Get)
+                .AddQueryParameter("logon", pilotLogonCode)
+                .AddQueryParameter("from", from)
+                .AddQueryParameter("to", string.IsNullOrWhiteSpace(to) ? "SERVER" : to)
+                .AddQueryParameter("type", type);
+            if (packet != null) request.AddQueryParameter("packet", packet);
+
+            var response = await _client.ExecuteAsync(request);
+            var body = (response.Content ?? "").Trim();
+            var ok = response.IsSuccessful && body.StartsWith("ok", StringComparison.OrdinalIgnoreCase);
+            if (!ok) Log.Warning("[HoppiesAcars] {Type} from {From} to {To} not accepted: {Body}", type, from, to, Preview(body));
+            return (ok, body);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[HoppiesAcars] {Type} request failed (non-critical)", type);
+            return (false, "error {network}");
+        }
+    }
+
     private static string Preview(string message)
     {
         var oneLine = message.Replace("\r", " ").Replace("\n", " ");

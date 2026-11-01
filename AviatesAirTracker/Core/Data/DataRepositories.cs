@@ -45,6 +45,8 @@ public interface ILandingRepository
     Task DeleteAsync(Guid landingId);
     Task<double> GetAverageScoreAsync();
     Task ClearAllAsync();
+    /// <summary>The landing-report trace (kept apart from the landing record); empty when none was recorded.</summary>
+    Task<List<LandingTracePoint>> GetTraceAsync(Guid landingId);
 }
 
 // ---- Messages ----
@@ -240,6 +242,11 @@ public class InMemoryLandingRepository : ILandingRepository
     {
         lock (_lock) { _landings.Clear(); }
         return Task.CompletedTask;
+    }
+
+    public Task<List<LandingTracePoint>> GetTraceAsync(Guid landingId)
+    {
+        lock (_lock) return Task.FromResult(_landings.FirstOrDefault(l => l.Id == landingId)?.Trace ?? []);
     }
 }
 
@@ -907,11 +914,47 @@ public class JsonLandingRepository : ILandingRepository
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "AviatesAirTracker", "landings.json");
 
+    // LandingResult.Trace is [JsonIgnore] (it would otherwise bloat landings.json AND
+    // flights.json, which embeds the same objects) -- each trace is its own compact file.
+    private readonly string _traceDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "AviatesAirTracker", "landing_traces");
+
     private static readonly JsonSerializerOptions _opts = new()
     {
         WriteIndented = true,
         Converters = { new JsonStringEnumConverter() }
     };
+
+    private string TracePath(Guid id) => Path.Combine(_traceDir, id.ToString("N") + ".json");
+
+    private void SaveTrace(LandingResult landing)
+    {
+        if (landing.Trace.Count == 0) return;
+        try
+        {
+            Directory.CreateDirectory(_traceDir);
+            File.WriteAllText(TracePath(landing.Id), JsonSerializer.Serialize(landing.Trace));
+        }
+        catch (Exception ex) { Log.Warning(ex, "[LandingRepo] Failed to save landing trace"); }
+    }
+
+    public Task<List<LandingTracePoint>> GetTraceAsync(Guid landingId)
+    {
+        lock (_lock)
+        {
+            var live = _landings.FirstOrDefault(l => l.Id == landingId);
+            if (live is { Trace.Count: > 0 }) return Task.FromResult(live.Trace);
+        }
+        try
+        {
+            var path = TracePath(landingId);
+            if (File.Exists(path))
+                return Task.FromResult(JsonSerializer.Deserialize<List<LandingTracePoint>>(File.ReadAllText(path)) ?? []);
+        }
+        catch (Exception ex) { Log.Warning(ex, "[LandingRepo] Failed to read landing trace"); }
+        return Task.FromResult(new List<LandingTracePoint>());
+    }
 
     public JsonLandingRepository() { Load(); }
 
@@ -968,6 +1011,7 @@ public class JsonLandingRepository : ILandingRepository
         {
             _landings.Add(landing);
             Save();
+            SaveTrace(landing);
             Log.Debug("[LandingRepo] Landing saved: Score={Score}", landing.LandingScore);
         }
         return Task.CompletedTask;
@@ -980,6 +1024,7 @@ public class JsonLandingRepository : ILandingRepository
             _landings.RemoveAll(l => l.Id == landingId);
             Save();
         }
+        try { File.Delete(TracePath(landingId)); } catch { /* none recorded */ }
         return Task.CompletedTask;
     }
 
@@ -996,6 +1041,7 @@ public class JsonLandingRepository : ILandingRepository
     {
         lock (_lock) { _landings.Clear(); }
         Save();
+        try { if (Directory.Exists(_traceDir)) Directory.Delete(_traceDir, recursive: true); } catch { /* best effort */ }
         return Task.CompletedTask;
     }
 }

@@ -219,6 +219,11 @@ public class SimBriefService
             if (int.TryParse(root["destination"]?["elevation"]?.ToString(), out int arrElev))
                 plan.ArrivalElevationFt = arrElev;
 
+            // Departure transition altitude (SimBrief added TA to the OFP data in Nov 2021) —
+            // feeds the EFB Departure Perf MCDU's TRANS ALT line. Absent/0 just leaves it blank.
+            if (int.TryParse(root["origin"]?["trans_alt"]?.ToString(), out int transAlt) && transAlt > 0)
+                plan.DepartureTransitionAltFt = transAlt;
+
             // Planned arrival runway length (ft → m)
             var arrRwyData = root["destination"]?["rwy_data"] as JArray ?? root["destination"]?["runway"] as JArray;
             if (arrRwyData != null && !string.IsNullOrEmpty(plan.ArrivalRunway))
@@ -266,6 +271,8 @@ public class SimBriefService
                     ? pdfLink
                     : pdfDir.TrimEnd('/') + "/" + pdfLink.TrimStart('/');
 
+            ParseBriefing(root, plan, fuelInKg);
+
             // NOTAMs
             var notamToken = root["notams"]?["notam"];
             if (notamToken is JArray notamArr)
@@ -288,6 +295,56 @@ public class SimBriefService
             Log.Error(ex, "[SimBrief] Failed to parse JSON OFP");
             return null;
         }
+    }
+
+    /// <summary>The rest of the briefing package for the EFB Pilot Brief app: fuel breakdown,
+    /// weight limits, schedule, names and alternate/TAF weather. Every field is optional —
+    /// missing ones stay 0/"" and the EFB shows a dash.</summary>
+    private static void ParseBriefing(JObject root, SimBriefFlightPlan plan, bool unitsKg)
+    {
+        double Num(JToken? t) => ParseDouble(t?.ToString());
+        double Lbs(JToken? t) => unitsKg ? Num(t) * 2.20462 : Num(t);
+        double Kg(JToken? t) => unitsKg ? Num(t) : Num(t) / 2.20462;
+        // weather blocks can come back as a string or an array of strings
+        static string Text(JToken? t) => t is JArray a
+            ? string.Join("\n", a.Select(x => x.ToString()).Where(s => !string.IsNullOrWhiteSpace(s)))
+            : t?.Type == JTokenType.String ? t.ToString().Trim() : "";
+
+        plan.OfpUnitsKg = unitsKg;
+        plan.Callsign = root["atc"]?["callsign"]?.ToString() ?? "";
+        plan.AircraftName = root["aircraft"]?["name"]?.ToString() ?? "";
+        plan.DepartureName = root["origin"]?["name"]?.ToString() ?? "";
+        plan.ArrivalName = root["destination"]?["name"]?.ToString() ?? "";
+        plan.AlternateName = root["alternate"]?["name"]?.ToString() ?? "";
+
+        var fuel = root["fuel"];
+        plan.TaxiFuelLbs = Lbs(fuel?["taxi"]);
+        plan.TripFuelLbs = Lbs(fuel?["enroute_burn"]);
+        plan.ContingencyFuelLbs = Lbs(fuel?["contingency"]);
+        plan.ReserveFuelLbs = Lbs(fuel?["reserve"]);
+        plan.ExtraFuelLbs = Lbs(fuel?["extra"]);
+        plan.MinTakeoffFuelLbs = Lbs(fuel?["min_takeoff"]);
+        plan.PlanTakeoffFuelLbs = Lbs(fuel?["plan_takeoff"]);
+
+        var w = root["weights"];
+        plan.MaxZeroFuelWeightKg = Kg(w?["max_zfw"]);
+        plan.MaxTakeoffWeightKg = Kg(w?["max_tow"]);
+        plan.LandingWeightKg = Kg(w?["est_ldw"]);
+        plan.MaxLandingWeightKg = Kg(w?["max_ldw"]);
+        plan.PayloadKg = Kg(w?["payload"]);
+
+        if (long.TryParse(root["times"]?["sched_in"]?.ToString(), out long schedIn) && schedIn > 0)
+            plan.ScheduledArrivalUtc = DateTimeOffset.FromUnixTimeSeconds(schedIn).UtcDateTime;
+        if (int.TryParse(root["times"]?["est_block"]?.ToString(), out int block))
+            plan.BlockTimeMin = block / 60;
+        if (int.TryParse(root["general"]?["avg_wind_comp"]?.ToString(), out int wc))
+            plan.AvgWindComponentKts = wc;
+
+        var wx = root["weather"];
+        plan.DepartureTaf = Text(wx?["orig_taf"]);
+        plan.ArrivalTaf = Text(wx?["dest_taf"]);
+        plan.AlternateMetar = Text(wx?["altn_metar"]);
+        plan.AlternateTaf = Text(wx?["altn_taf"]);
     }
 
     private static double ParseDouble(string? s)
@@ -377,6 +434,8 @@ public class SimBriefService
 
             if (int.TryParse(root.Element("general")?.Element("initial_altitude")?.Value, out int alt))
                 plan.CruiseAltitudeFt = alt;
+            if (int.TryParse(root.Element("origin")?.Element("trans_alt")?.Value, out int xmlTransAlt) && xmlTransAlt > 0)
+                plan.DepartureTransitionAltFt = xmlTransAlt;
             if (double.TryParse(root.Element("general")?.Element("route_distance")?.Value, out double dist))
                 plan.PlannedDistanceNm = dist;
             if (int.TryParse(root.Element("general")?.Element("costindex")?.Value, out int ci))

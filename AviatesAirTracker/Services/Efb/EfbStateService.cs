@@ -1,3 +1,4 @@
+using AviatesAirTracker.Core.Analytics;
 using AviatesAirTracker.Core.Efb;
 using AviatesAirTracker.Core.SimConnect;
 using AviatesAirTracker.Models;
@@ -74,6 +75,14 @@ public sealed class EfbStateService : IDisposable
     /// SimBriefService.NotifyPlanLoaded, so it never affects ACARS, the takeoff
     /// briefing, Hoppies, or the desktop app. Rebuilds + pushes the snapshot.
     /// </summary>
+    /// <summary>The ATC callsign of the plan in use (the desktop's SimBrief plan, else one imported in
+    /// the EFB): its atc/callsign, else airline + flight number. Empty when there's no plan.</summary>
+    public string PlanCallsign()
+    {
+        var p = EffectivePlan();
+        return p == null ? "" : FirstNonEmpty(p.Callsign, p.FlightNumber);
+    }
+
     public void SetEfbLocalPlan(SimBriefFlightPlan? plan)
     {
         _efbLocalPlan = plan;
@@ -126,8 +135,8 @@ public sealed class EfbStateService : IDisposable
             SessionState = _session.State.ToString(),
 
             // Identity — booking first (authoritative), then flight record, then plan.
-            Callsign = FirstNonEmpty(booking?.Callsign, flight?.Callsign),
-            FlightNumber = FirstNonEmpty(booking?.RouteCallsign, flight?.FlightNumber),
+            Callsign = FirstNonEmpty(booking?.Callsign, flight?.Callsign, plan?.Callsign, plan?.FlightNumber),
+            FlightNumber = FirstNonEmpty(booking?.RouteCallsign, flight?.FlightNumber, plan?.FlightNumber),
             Registration = FirstNonEmpty(booking?.Registration, plan?.AircraftRegistration),
             AircraftType = FirstNonEmpty(booking?.AircraftType, plan?.AircraftType, flight?.AircraftType),
             AircraftName = flight?.AircraftTitle ?? "",
@@ -180,11 +189,23 @@ public sealed class EfbStateService : IDisposable
             // Plan-derived
             PlannedDistanceNm = plan?.PlannedDistanceNm ?? 0,
             CruiseAltitudeFt = plan?.CruiseAltitudeFt ?? 0,
+
+            // Schedule + OOOI — the recorded times live on the flight record
+            ScheduledOutUtc = flight?.ScheduledDepUtc ?? booking?.ScheduledDepUtc ?? plan?.ScheduledDepartureUtc,
+            ScheduledInUtc = plan?.ScheduledArrivalUtc,
+            BlockOutUtc = Recorded(flight?.BlockOutTime),
+            TakeoffUtc = Recorded(flight?.TakeoffTime),
+            LandingUtc = Recorded(flight?.LandingTime),
+            BlockInUtc = Recorded(flight?.BlockInTime),
         };
 
         ComputeProgress(s, snap, plan);
         return s;
     }
+
+    /// <summary>FlightRecord keeps unset times as DateTime.MinValue; the wire uses null.</summary>
+    private static DateTime? Recorded(DateTime? t) =>
+        t is { } v && v > DateTime.MinValue.AddDays(1) ? DateTime.SpecifyKind(v, DateTimeKind.Utc) : null;
 
     /// <summary>Fills distance-remaining, progress %, ETE and ETA from the current position.</summary>
     private static void ComputeProgress(EfbSnapshot s, TelemetrySnapshot snap, SimBriefFlightPlan? plan)
@@ -207,7 +228,33 @@ public sealed class EfbStateService : IDisposable
             s.EtaUtc = DateTime.UtcNow.AddHours(hours);
         }
 
+        ComputeNextWaypoint(s, snap, plan, gs);
         ComputeDescentAndFuel(s, snap, plan, remaining, gs);
+    }
+
+    /// <summary>Next waypoint = the one after the nearest, once the aircraft is closer to
+    /// that following fix than the nearest fix itself is (i.e. the nearest is behind it).</summary>
+    private static void ComputeNextWaypoint(EfbSnapshot s, TelemetrySnapshot snap, SimBriefFlightPlan plan, double gs)
+    {
+        var wps = plan.Waypoints.Where(w => w.Latitude != 0 || w.Longitude != 0).ToList();
+        if (wps.Count < 2) return;
+        int near = 0; double nearD = double.MaxValue;
+        for (int i = 0; i < wps.Count; i++)
+        {
+            double d = GeoMath.DistanceNm(snap.Latitude, snap.Longitude, wps[i].Latitude, wps[i].Longitude);
+            if (d < nearD) { nearD = d; near = i; }
+        }
+        int next = near;
+        if (near < wps.Count - 1)
+        {
+            double legLen = GeoMath.DistanceNm(wps[near].Latitude, wps[near].Longitude, wps[near + 1].Latitude, wps[near + 1].Longitude);
+            double toFollowing = GeoMath.DistanceNm(snap.Latitude, snap.Longitude, wps[near + 1].Latitude, wps[near + 1].Longitude);
+            if (toFollowing < legLen) next = near + 1;
+        }
+        var wp = wps[next];
+        s.NextWaypoint = wp.Identifier;
+        s.NextWaypointNm = Math.Round(GeoMath.DistanceNm(snap.Latitude, snap.Longitude, wp.Latitude, wp.Longitude), 1);
+        if (gs > 40) s.NextWaypointEtaUtc = DateTime.UtcNow.AddHours(s.NextWaypointNm / gs);
     }
 
     /// <summary>
@@ -254,6 +301,83 @@ public sealed class EfbStateService : IDisposable
 
     // ── Flight plan projection ──────────────────────────────
 
+    /// <summary>Briefing package for the Pilot Brief app (see <see cref="EfbBriefing"/>).</summary>
+    public EfbBriefing GetBriefing()
+    {
+        var p = EffectivePlan();
+        if (p == null) return new EfbBriefing { HasPlan = false };
+
+        bool kg = p.OfpUnitsKg;
+        int F(double lbs) => (int)Math.Round(kg ? lbs / 2.20462 : lbs);   // fuel is stored in lb
+        int W(double kgs) => (int)Math.Round(kg ? kgs : kgs * 2.20462);   // weights are stored in kg
+        var booking = _booking.ActiveBooking;
+
+        return new EfbBriefing
+        {
+            HasPlan = true,
+            HasPdf = !string.IsNullOrEmpty(p.PdfUrl),
+            PdfUrl = p.PdfUrl,
+            Units = kg ? "KGS" : "LBS",
+            FlightNumber = p.FlightNumber,
+            Callsign = !string.IsNullOrEmpty(p.Callsign) ? p.Callsign : booking?.Callsign ?? "",
+            Registration = p.AircraftRegistration,
+            AircraftType = p.AircraftType,
+            AircraftName = p.AircraftName,
+            DepartureIcao = p.DepartureICAO, DepartureName = p.DepartureName,
+            ArrivalIcao = p.ArrivalICAO, ArrivalName = p.ArrivalName,
+            AlternateIcao = p.AlternateICAO, AlternateName = p.AlternateName,
+            DepartureRunway = p.DepartureRunway, ArrivalRunway = p.ArrivalRunway,
+            Sid = p.SID, Star = p.STAR, Route = p.Route,
+            CruiseAltitudeFt = p.CruiseAltitudeFt,
+            CostIndex = p.CostIndex,
+            DistanceNm = p.PlannedDistanceNm,
+            AvgWindComponentKts = p.AvgWindComponentKts,
+            ScheduledOutUtc = p.ScheduledDepartureUtc,
+            ScheduledInUtc = p.ScheduledArrivalUtc,
+            BlockTimeMin = p.BlockTimeMin,
+            AirTimeMin = p.PlannedFlightTimeMin,
+            GeneratedAtUtc = p.GeneratedAt,
+            TaxiFuel = F(p.TaxiFuelLbs),
+            TripFuel = F(p.TripFuelLbs),
+            ContingencyFuel = F(p.ContingencyFuelLbs),
+            AlternateFuel = F(p.AlternateFuelLbs),
+            FinalReserveFuel = F(p.ReserveFuelLbs),
+            ExtraFuel = F(p.ExtraFuelLbs),
+            MinTakeoffFuel = F(p.MinTakeoffFuelLbs),
+            PlanTakeoffFuel = F(p.PlanTakeoffFuelLbs),
+            BlockFuel = F(p.TakeoffFuelLbs),        // plan_ramp
+            LandingFuel = F(p.LandingFuelLbs),
+            Zfw = W(p.ZeroFuelWeightKg), MaxZfw = W(p.MaxZeroFuelWeightKg),
+            Tow = W(p.TakeoffWeightKg), MaxTow = W(p.MaxTakeoffWeightKg),
+            Ldw = W(p.LandingWeightKg), MaxLdw = W(p.MaxLandingWeightKg),
+            Payload = W(p.PayloadKg),
+            PaxCount = p.PaxCount,
+            Cargo = W(p.CargoKg),
+            MacTowPercent = MacTow(p),
+            MacZfwPercent = Wb(p) is { } wb ? Math.Round(wb.MacZfwPercent, 1) : null,
+            DepartureMetar = p.DepartureMetar, DepartureTaf = p.DepartureTaf,
+            ArrivalMetar = p.ArrivalMetar, ArrivalTaf = p.ArrivalTaf,
+            AlternateMetar = p.AlternateMetar, AlternateTaf = p.AlternateTaf,
+            Notams = p.NOTAMs,
+            OfpHtml = p.OFPText,
+        };
+    }
+
+    /// <summary>TOW %MAC from the same W&amp;B model the Hoppies loadsheet uses, so the EFB's
+    /// "Sync Loadsheet" CG matches what ACARS sent. Tries the booked type, then the OFP's
+    /// ICAO designator; null when neither is a seeded W&amp;B type (the pilot types it instead).</summary>
+    private WeightBalanceResult? Wb(SimBriefFlightPlan p)
+    {
+        foreach (var type in new[] { _booking.ActiveBooking?.AircraftType, p.AircraftType })
+        {
+            if (string.IsNullOrWhiteSpace(type)) continue;
+            var wb = WeightBalanceDatabase.Compute(type, p.ZeroFuelWeightKg, p.TakeoffWeightKg);
+            if (wb != null) return wb;
+        }
+        return null;
+    }
+    private double? MacTow(SimBriefFlightPlan p) => Wb(p) is { } wb ? Math.Round(wb.MacTowPercent, 1) : null;
+
     public EfbFlightPlan GetFlightPlan()
     {
         var p = EffectivePlan();
@@ -283,6 +407,14 @@ public sealed class EfbStateService : IDisposable
             ArrivalRunway = p.ArrivalRunway,
             DepartureElevationFt = p.DepartureElevationFt,
             DepartureRunwayLengthM = p.DepartureRunwayLengthM,
+            DepartureTransAltFt = p.DepartureTransitionAltFt,
+            FlightNumber = p.FlightNumber,
+            DepartureName = p.DepartureName,
+            ArrivalName = p.ArrivalName,
+            Sid = p.SID,
+            Star = p.STAR,
+            ScheduledArrivalUtc = p.ScheduledArrivalUtc,
+            MacTowPercent = MacTow(p),
             ArrivalElevationFt = p.ArrivalElevationFt,
             ArrivalRunwayLengthM = p.ArrivalRunwayLengthM,
             DepartureMetar = p.DepartureMetar,
@@ -334,9 +466,9 @@ public sealed class EfbStateService : IDisposable
         FlightPhase.Cruise => "#22C55E",
         FlightPhase.Approach or FlightPhase.FinalApproach => "#F97316",
         FlightPhase.Landing => "#EF4444",
-        FlightPhase.Climb or FlightPhase.InitialClimb => "#3D7EEE",
+        FlightPhase.Climb or FlightPhase.InitialClimb => "#4D9BEC",
         FlightPhase.Descent or FlightPhase.TopOfDescent => "#EAB308",
-        FlightPhase.Takeoff => "#8B5CF6",
+        FlightPhase.Takeoff => "#22D3EE",
         _ => "#4A5568"
     };
 

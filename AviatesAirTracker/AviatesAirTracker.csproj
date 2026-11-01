@@ -139,6 +139,12 @@
     <EmbeddedResource Include="EfbWeb\**\*" />
   </ItemGroup>
 
+  <!-- AviatesAir document library (EFB Manuals app + the PDF manuals): markdown with front
+       matter, read by EfbManualsService via the "AviatesAirTracker.Manuals." resource prefix. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Manuals\*.md" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- SimConnect DLLs — loaded at runtime via reflection, not build-time references.
          Place both DLLs from [MSFS SDK]\SimConnect SDK\lib\ into this project's Libs\ folder:

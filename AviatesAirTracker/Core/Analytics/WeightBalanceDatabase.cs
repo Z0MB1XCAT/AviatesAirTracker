@@ -64,9 +64,21 @@ public static class WeightBalanceDatabase
         string.Join(' ', (type ?? "").Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries))
               .ToUpperInvariant();
 
+    // ICAO type designators (what SimBrief / the EFB use) that name exactly the same airframe
+    // as a seeded key. Deliberately NOT "B738" → "B38M": the 737-800 and MAX 8 have different
+    // empty weights and arms, and this table must not guess.
+    private static readonly Dictionary<string, string> IcaoAliases = new()
+    {
+        ["A20N"] = "A320NEO",
+    };
+
     /// <summary>Returns the WB profile for the given aircraft type, or null if not seeded.</summary>
-    public static AircraftWbProfile? GetProfile(string aircraftType) =>
-        Profiles.TryGetValue(Normalize(aircraftType), out var profile) ? profile : null;
+    public static AircraftWbProfile? GetProfile(string aircraftType)
+    {
+        var key = Normalize(aircraftType);
+        if (IcaoAliases.TryGetValue(key, out var alias)) key = alias;
+        return Profiles.TryGetValue(key, out var profile) ? profile : null;
+    }
 
     /// <summary>Computes %MAC for ZFW and TOW given the aircraft's WB profile and the
     /// loaded weights. Returns null if the profile is missing or weights are non-positive.</summary>
