@@ -11,6 +11,9 @@ import { DurableObject } from "cloudflare:workers";
 //   Durable Object:  LIVE_MAP_ROOM -> class LiveMapRoom (this file)
 //                    Requires a "new class" migration the first time
 //                    this binding is created in the dashboard.
+//   Workers AI:      AI (Settings → Bindings → Add → Workers AI) — the AI
+//                    dispatcher's main model. Optional env: WORKERS_AI_MODEL.
+//                    OPENROUTER_API_KEY (+ OPENROUTER_MODEL) is the fallback.
 //   Secrets:         JWT_SECRET, RESEND_API_KEY, ADMIN_SECRET, UPLOAD_SECRET
 //                    SUPABASE_URL, SUPABASE_SERVICE_KEY, ADMIN_JWT_SECRET
 //                    DISCORD_BOT_TOKEN, DISCORD_CHANNEL_ID
@@ -44,7 +47,7 @@ const LIMITS = {
   flightReview: { count: 10,  window: 60 },
   chatStart:    { count: 5,   window: 600 },
   chatMessage:  { count: 30,  window: 60 },
-  aiDispatchReply: { count: 20, window: 86400 },
+  aiDispatchReply: { count: 60, window: 86400 },
 };
 
 const RESET_RATE_LIMIT_TTL_S = 2592000; // 30 days
@@ -2539,30 +2542,120 @@ function buildDispatcherSystemPrompt(flight) {
   return `${persona}\n\n${context}`;
 }
 
+// Free OpenRouter models get retired without notice (the original default,
+// meta-llama/llama-3.1-8b-instruct:free, disappeared and every reply silently failed)
+// and their shared pools are often rate-limited upstream (Google's Gemma pool returns
+// 429 at busy times). So: OPENROUTER_MODEL from the dashboard first (set it to a cheap
+// paid model such as mistralai/mistral-small-3.2-24b-instruct for dependable replies),
+// then free models spread across different providers so one saturated pool can't take
+// the dispatcher down. Checked against openrouter.ai/api/v1/models, Oct 2026.
+const DISPATCH_FALLBACK_MODELS = [
+  "google/gemma-4-31b-it:free",              // Google AI Studio
+  "nvidia/nemotron-3.5-lightning:free",      // Nvidia
+  "thinkingmachines/inkling-small:free",     // Thinking Machines
+  "google/gemma-4-26b-a4b-it:free",          // Google AI Studio
+  "nvidia/nemotron-3-super-120b-a12b:free",  // Nvidia
+  "liquid/lfm-2.5-2.6b:free",                // Liquid
+];
+
+// The secret as an OpenRouter key: forgives the usual paste slips (surrounding quotes,
+// a "Bearer " prefix, stray whitespace). OpenRouter answers anything that isn't shaped
+// like "sk-or-…" with a misleading "Missing Authentication header".
+function openRouterKey(env) {
+  return String(env.OPENROUTER_API_KEY || "").trim()
+    .replace(/^["']|["']$/g, "")
+    .replace(/^Bearer\s+/i, "")
+    .trim();
+}
+
+// Workers AI: Cloudflare-hosted models on this same account. No API key and no shared
+// third-party pool; 10,000 Neurons a day are free (a reply is ~50 Neurons on Llama 3.3
+// 70B, ~8 on Llama 3.1 8B), billed at $0.011 / 1,000 beyond that on Workers Paid.
+const WORKERS_AI_MODELS = [
+  "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+  "@cf/meta/llama-3.1-8b-instruct-fp8-fast",
+];
+
+async function callWorkersAi(env, systemPrompt, userMessage) {
+  const models = [env.WORKERS_AI_MODEL, ...WORKERS_AI_MODELS].filter((m, i, a) => m && a.indexOf(m) === i);
+  const errors = [];
+  for (const model of models) {
+    try {
+      const out = await env.AI.run(model, {
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage },
+        ],
+        max_tokens: 300,
+        temperature: 0.4,
+      });
+      // Workers AI text models answer { response }, the OpenAI-compatible ones { choices }
+      const raw = out?.response ?? out?.choices?.[0]?.message?.content ?? "";
+      const text = (typeof raw === "string" ? raw : JSON.stringify(raw)).trim();
+      if (text) return { text, model };
+      errors.push(`${model} → empty reply`);
+    } catch (e) {
+      errors.push(`${model} → ${e && e.message ? e.message : e}`);
+    }
+  }
+  throw new Error(`Workers AI: no model replied. ${errors.join(" | ")}`);
+}
+
+// The dispatcher's model: Workers AI when the AI binding exists, then OpenRouter when a
+// key is set. Returns { text, model }; throws with every engine's reason if all fail.
+async function callDispatcherModel(env, systemPrompt, userMessage) {
+  const errors = [];
+  if (env.AI) {
+    try { return await callWorkersAi(env, systemPrompt, userMessage); }
+    catch (e) { errors.push(e.message); }
+  }
+  if (env.OPENROUTER_API_KEY) {
+    try { return { text: await callOpenRouter(env, systemPrompt, userMessage), model: "openrouter" }; }
+    catch (e) { errors.push(e.message); }
+  }
+  if (!errors.length) errors.push("no AI binding and no OPENROUTER_API_KEY configured");
+  throw new Error(errors.join(" || "));
+}
+
 async function callOpenRouter(env, systemPrompt, userMessage) {
-  // Free-tier OpenRouter model names rotate — confirm this string against
-  // OpenRouter's current model list before relying on the default, or set
-  // OPENROUTER_MODEL in the dashboard to override it without a redeploy.
-  const model = env.OPENROUTER_MODEL || "meta-llama/llama-3.1-8b-instruct:free";
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage },
-      ],
-      max_tokens: 120,
-      temperature: 0.4,
-    }),
-  });
-  if (!res.ok) throw new Error(`OpenRouter → ${res.status} ${await res.text().catch(() => "")}`);
-  const data = await res.json();
-  return (data.choices?.[0]?.message?.content || "").trim();
+  const key = openRouterKey(env);
+  if (!key.startsWith("sk-or-")) {
+    // never log the key itself, only what's wrong with its shape
+    throw new Error(`OPENROUTER_API_KEY doesn't look like an OpenRouter key (expected "sk-or-v1-…", got ${key.length} characters starting "${key.slice(0, 3)}…"). Create one at openrouter.ai/keys and paste it into the secret on its own.`);
+  }
+  const models = [env.OPENROUTER_MODEL, ...DISPATCH_FALLBACK_MODELS].filter((m, i, a) => m && a.indexOf(m) === i);
+  const errors = [];
+  for (const model of models) {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          // the instructions travel in the user turn: some providers (Gemma on Google AI
+          // Studio) reject a separate system role
+          messages: [{ role: "user", content: `${systemPrompt}\n\nPILOT TELEX:\n${userMessage}` }],
+          // every current free model can "think" first: keep that short and out of the
+          // reply, and leave room for it so the answer itself isn't cut off (an empty
+          // reply was the result before). The telex is still capped at 3 parts later.
+          reasoning: { effort: "low", exclude: true },
+          max_tokens: 1500,
+          temperature: 0.4,
+        }),
+      });
+      if (!res.ok) { errors.push(`${model} → ${res.status} ${(await res.text().catch(() => "")).slice(0, 200)}`); continue; }
+      const data = await res.json();
+      const text = (data.choices?.[0]?.message?.content || "").trim();
+      if (text) return text;
+      errors.push(`${model} → empty reply`);
+    } catch (e) {
+      errors.push(`${model} → ${e}`);
+    }
+  }
+  throw new Error(`OpenRouter: no model replied. ${errors.join(" | ")}`);
 }
 
 // One inbound message → one grounded (or ungrounded) dispatcher reply. Never throws —
@@ -2579,8 +2672,9 @@ async function handleInboundDispatchMessage(env, ctx, entry) {
   try {
     const flight = await findLiveFlightByCallsign(env, callsign);
     const systemPrompt = buildDispatcherSystemPrompt(flight);
-    const reply = await callOpenRouter(env, systemPrompt, requestText);
+    const { text: reply, model } = await callDispatcherModel(env, systemPrompt, requestText);
     if (!reply) return;
+    console.log(`[AiDispatch] replied to ${callsign} with ${model}`);
 
     for (const chunk of splitTelexChunks(reply)) {
       await sendHoppieTelex(callsign, chunk);
@@ -2598,14 +2692,20 @@ async function handleInboundDispatchMessage(env, ctx, entry) {
       );
     }
   } catch (e) {
-    console.error(`[AiDispatch] failed for ${callsign}:`, e);
+    // log the message as plain text: Cloudflare's log view keeps only the stack of an Error
+    // object, which drops the per-model OpenRouter reasons this message carries
+    console.error(`[AiDispatch] failed for ${callsign}: ${e && e.message ? e.message : String(e)}`);
+    // the poll already consumed the pilot's telex, so tell them rather than go silent
+    await sendHoppieTelex(callsign, "AVIATES OPS: UNABLE TO PROCESS YOUR MESSAGE RIGHT NOW. PLEASE RESEND IN A FEW MINUTES.")
+      .catch(() => {});
   }
 }
 
 async function runAiDispatchCycle(env, ctx) {
   if (env.AI_DISPATCH_ENABLED === "false") return;
-  if (!env.OPENROUTER_API_KEY) {
-    console.error("[AiDispatch] OPENROUTER_API_KEY not configured — skipping cycle");
+  if (!env.AI && !env.OPENROUTER_API_KEY) {
+    // nothing could answer, so leave the VAOPS queue unread rather than eat pilots' telexes
+    console.error("[AiDispatch] no AI binding and no OPENROUTER_API_KEY — skipping cycle");
     return;
   }
 
